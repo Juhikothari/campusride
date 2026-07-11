@@ -1,0 +1,62 @@
+.dashboard { max-width: 920px; margin: 0 auto; padding: 40px 24px 100px; }
+
+/* Hero */
+.dash-hero {
+  position: relative; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 40px 48px;
+  margin-bottom: 24px;
+}
+.dh-content { position: relative; z-index: 2; }
+.dh-name    { font-size: 42px; margin: 10px 0 0; }
+.dh-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 85% 40%, rgba(245,166,35,0.09) 0%, transparent 55%);
+}
+
+/* Quick actions */
+.dash-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px,1fr)); gap: 14px; margin-bottom: 20px; }
+.da-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px 18px; border-radius: var(--radius-xl);
+  background: var(--surface); border: 1.5px solid var(--border);
+  text-align: left; cursor: pointer; transition: all 0.2s;
+}
+.da-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 10px 36px rgba(0,0,0,0.28); }
+.da-card.primary { border-color: rgba(245,166,35,0.25); background: rgba(245,166,35,0.04); }
+.da-card.primary:hover { border-color: var(--accent); }
+.da-icon { font-size: 26px; flex-shrink: 0; }
+.da-body { flex: 1; }
+.da-title { font-family: var(--font-display); font-size: 14.5px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+.da-sub   { font-size: 12px; color: var(--text2); line-height: 1.5; }
+.da-arrow { color: var(--text3); font-size: 16px; transition: transform 0.2s, color 0.2s; }
+.da-card:hover .da-arrow { transform: translateX(4px); color: var(--accent); }
+
+/* Feature pills */
+.dash-features { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 36px; }
+.feat-pill {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 100px;
+  background: var(--surface2); border: 1px solid var(--border);
+  font-size: 12.5px; color: var(--text2);
+}
+
+/* How it works */
+.dash-how {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); padding: 36px 40px;
+}
+.how-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 24px; }
+.how-n { font-family: var(--font-display); font-size: 30px; font-weight: 800; color: var(--accent); opacity: 0.8; margin-bottom: 10px; }
+.how-t { font-family: var(--font-display); font-size: 13.5px; font-weight: 700; margin-bottom: 6px; }
+.how-d { font-size: 12px; color: var(--text2); line-height: 1.6; }
+
+@media (max-width: 768px) {
+  .dash-hero { padding: 28px 24px; }
+  .dh-name { font-size: 32px; }
+  .how-grid { grid-template-columns: 1fr 1fr; }
+  .dash-how { padding: 24px; }
+}
+@media (max-width: 480px) {
+  .how-grid { grid-template-columns: 1fr; }
+}

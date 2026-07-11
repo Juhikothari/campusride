@@ -1,0 +1,177 @@
+/* ══════════════════════════════════════
+   SHARED AUTH LAYOUT — single centered column
+══════════════════════════════════════ */
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px 60px;
+  background: var(--bg);
+}
+
+/* Brand panel completely hidden — no partition */
+.auth-brand-panel { display: none !important; }
+
+/* Form panel fills center */
+.auth-form-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 48px 44px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-lg);
+}
+.auth-form { width: 100%; }
+.af-header { margin-bottom: 28px; }
+
+/* ── Field label row (label + forgot link side by side) ── */
+.field-label-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.field-label-row label { margin-bottom: 0 !important; }
+
+/* ── Show password button ── */
+.input-with-toggle { padding-right: 46px; }
+.show-pass-btn {
+  position: absolute; right: 12px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  font-size: 16px; cursor: pointer;
+  color: var(--text3); padding: 4px;
+  transition: color 0.15s; line-height: 1;
+  display: flex; align-items: center;
+}
+.show-pass-btn:hover { color: var(--text2); }
+
+/* ── Validation messages ── */
+.field-error-msg {
+  font-size: 12px; color: var(--red);
+  margin-top: 6px; display: flex; align-items: center; gap: 4px;
+}
+.field-success-msg {
+  font-size: 12px; color: var(--green);
+  margin-top: 6px; display: flex; align-items: center; gap: 4px;
+}
+.field-hint-msg {
+  font-size: 12px; color: var(--text2);
+  margin-top: 6px; display: flex; align-items: center; gap: 4px;
+}
+
+/* ── Back button ── */
+.back-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text2); cursor: pointer;
+  background: none; border: none; padding: 0;
+  font-family: var(--font-body); font-weight: 500;
+  transition: color 0.15s;
+}
+.back-btn:hover { color: var(--accent); }
+
+/* ── Role cards ── */
+.role-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.role-card {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 15px 8px; border-radius: var(--radius);
+  background: var(--surface2); border: 1.5px solid var(--border);
+  cursor: pointer; transition: all 0.18s; text-align: center;
+}
+.role-card:hover { border-color: var(--border2); }
+.role-card.selected { border-color: var(--accent); background: var(--accent-dim); }
+.rc-r-icon  { font-size: 22px; }
+.rc-r-title { font-family: var(--font-display); font-size: 13px; font-weight: 700; color: var(--text); }
+.rc-r-desc  { font-size: 11px; color: var(--text2); }
+
+/* ── Link btn ── */
+.link-btn {
+  background: none; border: none; color: var(--accent);
+  font-family: inherit; font-size: inherit; font-weight: 600;
+  cursor: pointer; padding: 0;
+}
+.link-btn:hover { text-decoration: underline; }
+
+/* ── KYC Documents Section ── */
+.kyc-docs-section {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px; margin-top: 4px;
+}
+.kyc-docs-header {
+  display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px;
+}
+.kyc-docs-icon { font-size: 22px; flex-shrink: 0; }
+.kyc-docs-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.kyc-docs-sub   { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.kyc-docs-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.kyc-file-input { padding: 8px; font-size: 12px; color: var(--text2); cursor: pointer; }
+.kyc-docs-note  { font-size: 12px; color: var(--text3); line-height: 1.5; font-style: italic; }
+
+/* ── Responsive ── */
+@media (max-width: 540px) {
+  .auth-form-panel { padding: 32px 20px; }
+  .role-grid { grid-template-columns: repeat(2, 1fr); }
+  .kyc-docs-grid { grid-template-columns: 1fr; }
+}
+
+.register-upload-actions{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+}
+
+.register-upload-btn{
+  flex:1;
+  border:none;
+  padding:12px;
+  border-radius:12px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+  background:#1f2937;
+  color:white;
+}
+
+.register-upload-btn.webcam{
+  background:#f5a623;
+  color:black;
+}
+
+.camera-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.85);
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+
+.camera-box{
+  background:#111827;
+  border-radius:20px;
+  padding:20px;
+  width:100%;
+  max-width:700px;
+}
+
+.camera-video{
+  width:100%;
+  min-height:400px;
+  background:black;
+  border-radius:16px;
+  object-fit:cover;
+}
+
+.camera-actions{
+  display:flex;
+  gap:12px;
+  margin-top:20px;
+}
+
+.camera-modal video{
+  display:block;
+}

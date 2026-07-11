@@ -1,0 +1,94 @@
+.nearby-map-wrapper {
+  background: #0f1117;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.nearby-map-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.nearby-map-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #f5a623;
+}
+
+.nearby-map-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.nearby-stat {
+  font-size: 12px;
+  color: #aaa;
+  background: rgba(255,255,255,0.06);
+  border-radius: 20px;
+  padding: 3px 10px;
+}
+.nearby-stat.female { color: #ff6ab0; background: rgba(255,106,176,0.12); }
+.nearby-stat.women-only { color: #e91e8c; background: rgba(233,30,140,0.12); }
+.nearby-stat.route { color: #f5a623; background: rgba(245,166,35,0.1); }
+.nearby-stat.muted { color: #555; }
+
+.nearby-map-loading {
+  font-size: 12px;
+  color: #f5a623;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.nearby-map-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 11px;
+  color: #777;
+}
+.nearby-map-legend span { display: flex; align-items: center; gap: 5px; }
+
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+}
+.legend-dot.you            { background: #4fc3f7; }
+.legend-dot.provider       { background: #f5a623; }
+.legend-dot.female-provider{ background: #ff6ab0; }
+.legend-dot.women-only-provider { background: #e91e8c; }
+.legend-dot.drop           { background: #4caf50; }
+
+.nearby-map-error {
+  color: #ff6b6b;
+  font-size: 13px;
+  padding: 8px 16px;
+  background: rgba(255,107,107,0.08);
+}
+
+.nearby-map-canvas {
+  height: 320px;
+  width: 100%;
+  z-index: 0;
+}
+
+.nearby-map-note {
+  font-size: 11px;
+  color: #555;
+  padding: 8px 16px;
+  margin: 0;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

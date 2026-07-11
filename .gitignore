@@ -1,0 +1,22 @@
+# Local Environment Secrets
+backend/.env
+frontend/.env
+
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Build/Dist folders (if applicable later)
+dist/
+build/
+frontend-not main/
+backend/incidents_backup
+backend/alerts_backup

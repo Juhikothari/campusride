@@ -1,0 +1,174 @@
+.search-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px; margin-bottom: 16px;
+}
+.search-actions {
+  display: flex; align-items: center; gap: 12px; justify-content: flex-end;
+}
+.rides-stack { display: flex; flex-direction: column; gap: 14px; }
+
+/* Ensure location search components scroll properly in SearchRides page */
+.search-grid .location-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1000;
+  margin-top: 4px;
+  /* Better scrolling */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--surface2);
+  /* Ensure smooth scrolling on touch devices */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Improve scrolling performance */
+  scroll-behavior: smooth;
+  /* Ensure proper scrolling on mobile */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* Pickup Type Selection */
+.pickup-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.pickup-type-btn {
+  background: linear-gradient(135deg, var(--surface2) 0%, var(--surface) 100%);
+  border: 3px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 12px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font-display);
+  position: relative;
+  overflow: hidden;
+}
+
+.pickup-type-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+.pickup-type-btn:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, var(--surface2) 0%, var(--surface3) 100%);
+}
+
+.pickup-type-btn:hover::before {
+  left: 100%;
+}
+
+.pickup-type-btn.selected {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(245, 166, 35, 0.15) 0%, rgba(245, 166, 35, 0.05) 100%);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 6px 20px rgba(245, 166, 35, 0.2);
+  border-width: 4px;
+}
+
+.pickup-type-btn .icon {
+  font-size: 20px;
+  display: block;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.pickup-type-btn .text {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.9;
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .pickup-type-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .pickup-type-btn {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .search-grid { grid-template-columns: 1fr 1fr; }
+  .search-actions { justify-content: stretch; flex-direction: column; }
+  .search-actions .btn { width: 100%; }
+}
+@media (max-width: 480px) {
+  .search-grid { grid-template-columns: 1fr; }
+}
+
+.loc-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.loc-input-row .location-search {
+  flex: 1;
+}
+
+.geo-btn {
+  min-width: 48px;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+}
+
+.search-box {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.schedule-toggle {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sched-btn {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.sched-btn.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.geo-btn {
+  display: none !important;
+}

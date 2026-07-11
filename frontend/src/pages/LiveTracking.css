@@ -1,0 +1,27 @@
+.tracking-wrap { max-width: 700px; margin: 0 auto; padding: 40px 24px 80px; }
+.tracking-map-mock { position:relative; background:var(--bg2); border:1px solid var(--border); border-radius:20px; height:260px; overflow:hidden; }
+.map-bg { position:absolute; inset:0; display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(2,1fr); }
+.map-grid-cell { border-right:1px solid rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.04); }
+.map-route-line { position:absolute; top:50%; left:18%; width:64%; height:3px; background:linear-gradient(90deg, var(--accent), var(--green)); border-radius:100px; transform:translateY(-50%) rotate(-10deg); }
+.map-pin-a,.map-pin-b { position:absolute; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; font-family:var(--font-display); }
+.map-pin-a { background:var(--accent); color:#000; left:16%; top:58%; transform:translate(-50%,-50%); }
+.map-pin-b { background:var(--green);  color:#000; left:84%; top:42%; transform:translate(-50%,-50%); }
+.map-car-dot { position:absolute; width:14px; height:14px; background:#4fa3e0; border-radius:50%; border:2px solid #fff; transform:translate(-50%,-50%); transition:left 1s linear, top 1s linear; box-shadow:0 0 0 4px rgba(79,163,224,0.3); }
+.map-eta-badge { position:absolute; top:14px; right:14px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:10px 18px; text-align:center; }
+.map-eta-value { font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--accent); line-height:1; }
+.map-eta-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+.tracking-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.tracking-info-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; }
+.tracking-info-label { font-size:10px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+.tracking-info-value { font-size:14px; font-weight:600; color:var(--text); }
+.tracking-timer { font-family:var(--font-display); color:var(--accent); font-size:18px; }
+.tracking-controls { display:flex; gap:12px; }
+.sos-btn { min-width:80px; background:var(--red); color:#fff; border:none; font-family:var(--font-display); font-size:18px; font-weight:800; letter-spacing:2px; flex-shrink:0; }
+.sos-btn:hover { opacity:0.85; }
+.sos-btn.sos-sent { background:#555; cursor:default; }
+.sos-contact-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; }
+.privacy-note { display:flex; gap:14px; align-items:flex-start; background:rgba(45,212,160,0.06); border:1px solid rgba(45,212,160,0.2); border-radius:14px; padding:18px; }
+.privacy-icon { font-size:12px; font-weight:800; font-family:var(--font-display); color:var(--green); flex-shrink:0; padding-top:2px; }
+.privacy-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+.privacy-sub { font-size:12px; color:var(--text3); line-height:1.6; }
+@media(max-width:600px) { .tracking-grid { grid-template-columns:repeat(2,1fr); } }
