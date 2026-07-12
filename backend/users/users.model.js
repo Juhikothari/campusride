@@ -14,7 +14,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: function () { return this.role !== 'admin'; }
   },
-  
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other', 'prefer_not_to_say'],
+    default: 'prefer_not_to_say'
+  },
   // Existing fields...
   suspended: { type: Boolean, default: false },
   
