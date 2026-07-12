@@ -30,7 +30,7 @@ const register = async (req, res) => {
     } = req.body;
 
     if (role === 'admin') {
-      const ADMIN_KEY = process.env.ADMIN_KEY || 'campus-ride789';
+      const ADMIN_KEY = process.env.ADMIN_KEY || 'campusride_admin_2024';
       if (adminKey !== ADMIN_KEY) {
         return res.status(403).json({ message: 'Invalid admin key.' });
       }
