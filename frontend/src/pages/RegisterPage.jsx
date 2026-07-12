@@ -110,7 +110,7 @@ export default function RegisterPage({ navigate }) {
     if (form.password.length < 6) return 'Password must be at least 6 characters';
     if (form.password !== confirmPass) return 'Passwords do not match';
     if (!form.phone.trim())   return 'Phone number is required';
-    if (form.role === 'admin' && adminKey !== 'freewheel') {
+    if (form.role === 'admin' && adminKey !== 'campusride_admin_2024') {
       return 'Invalid admin key';
     }
     /*if (isProvider && !vehicleType) {
