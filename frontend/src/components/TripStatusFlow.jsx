@@ -1,37 +1,21 @@
 import React, { useState } from 'react';
 import * as api from '../services/api.js';
-import io from 'socket.io-client';
 import './TripStatusFlow.css';
-import { API_BASE } from '../services/api.js';
 
-// Provider-only trip controls — NO checklist here
 export default function TripStatusFlow({ ride, onUpdate }) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error,     setError]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
 
-  const act = async (fn, label) => {
-    setIsLoading(true);
+  const act = async (fn) => {
+    setLoading(true);
     setError('');
     try {
-      const res = await fn();
-      if (res?.message) alert(res.message);
-      if (label === 'cancel ride') {
-        const socket = io(API_BASE.replace(/\/api\/?$/, ''), {
-          transports: ['websocket', 'polling'], withCredentials: true,
-        });
-        socket.emit('join-ride', ride._id);
-        socket.emit('provider-cancelled', {
-          rideId: ride._id,
-          reason: res.ride?.cancelReason || 'Provider cancelled',
-          cancelledAt: new Date(),
-        });
-        socket.disconnect();
-      }
-      onUpdate();
+      await fn();
+      onUpdate?.();
     } catch (e) {
-      setError(e.message || `Failed to ${label}`);
+      setError(e.message || 'Something went wrong');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
@@ -41,84 +25,56 @@ export default function TripStatusFlow({ ride, onUpdate }) {
     <div className="trip-status-flow">
       <div className="tsf-header">
         <h4>🚗 Trip Controls</h4>
-        <div className={`tsf-status ${status}`}>
-          Status: <span className="capitalize">{status}</span>
-        </div>
+        <span className={`tsf-status ${status}`}>
+          STATUS: <span style={{textTransform:'capitalize'}}>{status}</span>
+        </span>
       </div>
 
-      {error && <div className="alert alert-error" style={{marginBottom:12}}>{error}</div>}
+      {error && (
+        <div style={{background:'rgba(244,67,54,0.1)',border:'1px solid #f44336',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#ff6b6b'}}>
+          {error}
+        </div>
+      )}
 
       <div className="tsf-actions">
-        <div className="action-buttons">
+        {status === 'active' && (
+          <button className="btn btn-success btn-lg btn-full"
+            onClick={() => act(() => api.startRide(ride._id))}
+            disabled={loading}>
+            {loading ? '⏳ Starting...' : '🚀 Start Ride'}
+          </button>
+        )}
 
-          {/* Active → pick up passenger */}
-          {status === 'active' && (
-            <button className="btn btn-primary btn-lg"
-              onClick={() => act(() => api.pickupPassenger(ride._id), 'pick up passenger')}
-              disabled={isLoading}>
-              {isLoading ? '🔄 Updating...' : '🛑 Passenger Picked Up'}
-            </button>
-          )}
+        {status === 'in-progress' && (
+          <button className="btn btn-success btn-lg btn-full"
+            onClick={() => act(() => api.completeRide(ride._id))}
+            disabled={loading}>
+            {loading ? '⏳ Completing...' : '🎉 Complete Ride'}
+          </button>
+        )}
 
-          {/* Active → start ride */}
-          {status === 'active' && (
-            <button className="btn btn-success btn-lg"
-              onClick={() => act(() => api.startRide(ride._id), 'start ride')}
-              disabled={isLoading}>
-              {isLoading ? '🔄 Starting...' : '🚀 Start Ride'}
-            </button>
-          )}
+        {(status === 'active' || status === 'in-progress') && (
+          <button className="btn btn-danger btn-lg btn-full"
+            onClick={() => {
+              const reason = prompt('Reason for cancellation (optional):') || '';
+              act(() => api.cancelRide(ride._id, reason));
+            }}
+            disabled={loading}>
+            {loading ? '⏳ Cancelling...' : '❌ Cancel Ride'}
+          </button>
+        )}
 
-          {/* In-progress → drop passenger */}
-          {status === 'in-progress' && (
-            <button className="btn btn-warning btn-lg"
-              onClick={() => act(() => api.dropPassenger(ride._id), 'drop passenger')}
-              disabled={isLoading}>
-              {isLoading ? '🔄 Updating...' : '📍 Passenger Dropped'}
-            </button>
-          )}
+        {status === 'completed' && (
+          <div style={{textAlign:'center',padding:'20px 0',color:'#4caf50',fontSize:16,fontWeight:700}}>
+            🎉 Ride Completed!
+          </div>
+        )}
 
-          {/* In-progress → complete ride */}
-          {status === 'in-progress' && (
-            <button className="btn btn-success btn-lg"
-              onClick={() => act(() => api.completeRide(ride._id), 'complete ride')}
-              disabled={isLoading}>
-              {isLoading ? '🔄 Completing...' : '🎉 Complete Ride'}
-            </button>
-          )}
-
-          {/* Cancel */}
-          {(status === 'active' || status === 'in-progress') && (
-            <button className="btn btn-danger btn-lg"
-              onClick={() => {
-                const reason = prompt('Reason for cancellation (optional):') || '';
-                act(() => api.cancelRide(ride._id, reason), 'cancel ride');
-              }}
-              disabled={isLoading}>
-              {isLoading ? '🔄 Cancelling...' : '❌ Cancel Ride'}
-            </button>
-          )}
-
-          {status === 'completed' && (
-            <div className="ride-active-notice">
-              <div className="active-indicator">🎉</div>
-              <div className="active-text">
-                <strong>Ride Completed</strong>
-                {ride.completedAt && <small>Finished at {new Date(ride.completedAt).toLocaleTimeString()}</small>}
-              </div>
-            </div>
-          )}
-
-          {status === 'cancelled' && (
-            <div className="ride-active-notice">
-              <div className="active-indicator">❌</div>
-              <div className="active-text">
-                <strong>Ride Cancelled</strong>
-                {ride.cancelReason && <small>{ride.cancelReason}</small>}
-              </div>
-            </div>
-          )}
-        </div>
+        {status === 'cancelled' && (
+          <div style={{textAlign:'center',padding:'20px 0',color:'#f44336',fontSize:16,fontWeight:700}}>
+            ❌ Ride Cancelled
+          </div>
+        )}
       </div>
     </div>
   );
