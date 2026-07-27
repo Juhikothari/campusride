@@ -534,6 +534,7 @@ export const respondBooking = (bookingId, status) =>
 export const getMyBookings      = ()       => request('/booking/my');
 export const getRideRequests    = ()       => request('/booking/requests');
 export const getBookingsForRide = (rideId) => request(`/booking/ride/${rideId}`);
+export const cancelBooking      = (bookingId) => request(`/booking/${bookingId}/cancel`, { method: 'DELETE' });
 
 // ══════════════════════════════════════════════════════════════════
 //  ALERTS (Route-based alert subscriptions)
