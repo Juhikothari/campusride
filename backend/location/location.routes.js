@@ -243,3 +243,83 @@ router.get('/reverse', auth, async (req, res) => {
 
 
 module.exports = router;
+// ── Road distance via OSRM (for accurate fare calculation) ────────
+router.get('/distance', auth, async (req, res) => {
+  try {
+    const { fromLat, fromLng, toLat, toLng } = req.query;
+    if (!fromLat || !fromLng || !toLat || !toLng) {
+      return res.status(400).json({ message: 'fromLat, fromLng, toLat, toLng required' });
+    }
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    const data = await resp.json();
+    if (data.code !== 'Ok' || !data.routes?.length) {
+      // Fallback: Haversine straight-line × 1.3 road factor
+      const R = 6371;
+      const dLat = (parseFloat(toLat) - parseFloat(fromLat)) * Math.PI / 180;
+      const dLng = (parseFloat(toLng) - parseFloat(fromLng)) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(parseFloat(fromLat)*Math.PI/180)*Math.cos(parseFloat(toLat)*Math.PI/180)*Math.sin(dLng/2)**2;
+      const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return res.json({ distanceKm: +(straightLine * 1.3).toFixed(2), source: 'haversine' });
+    }
+    const distanceKm = +(data.routes[0].distance / 1000).toFixed(2);
+    res.json({ distanceKm, source: 'osrm' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Nearby users ─────────────────────────────────────────────────
+router.get('/nearby-users', auth, async (req, res) => {
+  try {
+    const { lat, lng, radius = 5000 } = req.query;
+    if (!lat || !lng) return res.status(400).json({ message: 'lat and lng required' });
+    const User = require('../users/users.model');
+    const Ride = require('../rides/rides.model');
+    const nearbyRides = await Ride.find({
+      status: 'active',
+      seatsAvailable: { $gt: 0 },
+      pickup: {
+        $near: {
+          $geometry: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
+          $maxDistance: parseInt(radius)
+        }
+      }
+    }).populate('providerId', 'name gender role').limit(20);
+    const providers = nearbyRides.filter(r => r.providerId).map(r => ({
+      userId: r.providerId._id, name: r.providerId.name,
+      gender: r.providerId.gender, role: 'provider',
+      lat: r.pickup.coordinates[1], lng: r.pickup.coordinates[0],
+      rideId: r._id, pickup: r.pickup.address, drop: r.drop.address,
+      costPerSeat: r.costPerSeat, seatsAvailable: r.seatsAvailable,
+      womenOnly: r.womenOnly || false,
+    }));
+    res.json({ providers, total: providers.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Optimal route via OSRM ───────────────────────────────────────
+router.get('/route', auth, async (req, res) => {
+  try {
+    const { fromLat, fromLng, toLat, toLng } = req.query;
+    if (!fromLat || !fromLng || !toLat || !toLng) {
+      return res.status(400).json({ message: 'fromLat, fromLng, toLat, toLng required' });
+    }
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const data = await resp.json();
+    if (data.code !== 'Ok' || !data.routes?.length) {
+      return res.status(404).json({ message: 'No route found' });
+    }
+    const route = data.routes[0];
+    res.json({
+      coordinates: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+      distanceKm: (route.distance / 1000).toFixed(1),
+      durationMin: Math.ceil(route.duration / 60),
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Route fetch failed' });
+  }
+});
