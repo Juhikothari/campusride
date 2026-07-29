@@ -54,6 +54,9 @@ const VEHICLE_TYPES = [
 const calculateCostPerSeat = (distanceKm, vehicleType) => {
   if (!distanceKm || distanceKm <= 0) return 0;
 
+  // Sanity check — campus rides shouldn't exceed 50km
+  const safeDistance = Math.min(distanceKm, 50);
+
   // Original rates as set by the provider
   const rates = {
     motorcycle: { base: 20, perKm: 5  },
@@ -65,10 +68,10 @@ const calculateCostPerSeat = (distanceKm, vehicleType) => {
   const { base, perKm } = rates[vehicleType] || rates.car;
 
   // Rule: < 1km → base fare only. ≥ 1km → per km rate only (no base added)
-  if (distanceKm < 1) {
+  if (safeDistance < 1) {
     return base;
   } else {
-    return Math.round(distanceKm * perKm);
+    return Math.round(safeDistance * perKm);
   }
 };
 
@@ -113,23 +116,19 @@ export default function CreateRide({ navigate }) {
   const [isFemale]  = useState(() => false); // will be set from user
   const [roadDistanceKm, setRoadDistanceKm] = useState(0);
 
-  // Fetch road distance whenever pickup or drop changes
+  // Calculate distance whenever pickup or drop changes
   useEffect(() => {
     const { pickupLat, pickupLng, dropLat, dropLng } = form;
     if (!pickupLat || !pickupLng || !dropLat || !dropLng) { setRoadDistanceKm(0); return; }
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/location/distance?fromLat=${pickupLat}&fromLng=${pickupLng}&toLat=${dropLat}&toLng=${dropLng}`, {
-      headers: { 'Authorization': `Bearer ${localStorage.getItem('cr_token')}` }
-    })
-    .then(r => r.json())
-    .then(d => { if (d.distanceKm) setRoadDistanceKm(parseFloat(d.distanceKm)); })
-    .catch(() => {
-      // Fallback haversine if API fails
-      const R = 6371;
-      const dLat = (parseFloat(dropLat)-parseFloat(pickupLat))*Math.PI/180;
-      const dLng = (parseFloat(dropLng)-parseFloat(pickupLng))*Math.PI/180;
-      const a = Math.sin(dLat/2)**2 + Math.cos(parseFloat(pickupLat)*Math.PI/180)*Math.cos(parseFloat(dropLat)*Math.PI/180)*Math.sin(dLng/2)**2;
-      setRoadDistanceKm(parseFloat((R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*1.3).toFixed(2)));
-    });
+    const R = 6371;
+    const lat1 = parseFloat(pickupLat), lng1 = parseFloat(pickupLng);
+    const lat2 = parseFloat(dropLat),   lng2 = parseFloat(dropLng);
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    // Road distance ≈ straight-line × 1.2 (standard urban road factor)
+    setRoadDistanceKm(parseFloat((straightLine * 1.2).toFixed(2)));
   }, [form.pickupLat, form.pickupLng, form.dropLat, form.dropLng]);
 
   // Update location config when pickup type changes
@@ -424,13 +423,21 @@ export default function CreateRide({ navigate }) {
         {maxEarnings > 0 && (
           <div className="earn-card mb-20">
             <div>
-              <div className="earn-label">Max earnings if fully booked</div>
+              <div className="earn-label">Cost per seat</div>
               <div className="earn-formula text-dim text-xs">
-                {form.seatsAvailable} seat{form.seatsAvailable>1?'s':''} × ₹{calculatedCost}
-                {roadDistanceKm > 0 && ` · ${roadDistanceKm} km road distance`}
+                {roadDistanceKm > 0
+                  ? roadDistanceKm < 1
+                    ? `< 1 km → base fare`
+                    : `${roadDistanceKm} km × ₹${({motorcycle:5,car:7,suv:8,xuv:10}[form.vehicleType]||7)}/km`
+                  : 'Set pickup & drop to calculate'}
               </div>
+              {roadDistanceKm > 15 && (
+                <div style={{fontSize:11,color:'#ff9800',marginTop:4}}>
+                  ⚠️ Distance seems high ({roadDistanceKm} km) — use 📍 or 🗺️ to pin exact locations
+                </div>
+              )}
             </div>
-            <div className="earn-amount">₹{maxEarnings}</div>
+            <div className="earn-amount">₹{calculatedCost}</div>
           </div>
         )}
 
