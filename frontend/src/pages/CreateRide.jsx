@@ -115,20 +115,37 @@ export default function CreateRide({ navigate }) {
   const [womenOnly, setWomenOnly] = useState(false);
   const [isFemale]  = useState(() => false); // will be set from user
   const [roadDistanceKm, setRoadDistanceKm] = useState(0);
+  const [fareLoading, setFareLoading] = useState(false);
 
-  // Calculate distance whenever pickup or drop changes
+  // Fetch REAL road distance from backend (OSRM) when pickup + drop are set
   useEffect(() => {
     const { pickupLat, pickupLng, dropLat, dropLng } = form;
     if (!pickupLat || !pickupLng || !dropLat || !dropLng) { setRoadDistanceKm(0); return; }
-    const R = 6371;
-    const lat1 = parseFloat(pickupLat), lng1 = parseFloat(pickupLng);
-    const lat2 = parseFloat(dropLat),   lng2 = parseFloat(dropLng);
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-    const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    // Road distance ≈ straight-line × 1.2 (standard urban road factor)
-    setRoadDistanceKm(parseFloat((straightLine * 1.2).toFixed(2)));
+    setFareLoading(true);
+    const base = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
+    const token = localStorage.getItem('cr_token');
+    fetch(`${base}/location/distance?fromLat=${pickupLat}&fromLng=${pickupLng}&toLat=${dropLat}&toLng=${dropLng}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      if (d?.distanceKm) {
+        setRoadDistanceKm(parseFloat(d.distanceKm));
+      } else {
+        // Haversine fallback × 1.2
+        const R=6371, lat1=parseFloat(pickupLat), lng1=parseFloat(pickupLng), lat2=parseFloat(dropLat), lng2=parseFloat(dropLng);
+        const dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+        const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+        setRoadDistanceKm(parseFloat((R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*1.2).toFixed(2)));
+      }
+    })
+    .catch(() => {
+      const R=6371, lat1=parseFloat(pickupLat), lng1=parseFloat(pickupLng), lat2=parseFloat(dropLat), lng2=parseFloat(dropLng);
+      const dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+      const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+      setRoadDistanceKm(parseFloat((R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*1.2).toFixed(2)));
+    })
+    .finally(() => setFareLoading(false));
   }, [form.pickupLat, form.pickupLng, form.dropLat, form.dropLng]);
 
   // Update location config when pickup type changes
@@ -420,24 +437,26 @@ export default function CreateRide({ navigate }) {
         </div>
 
         {/* ── Earnings preview ── */}
-        {maxEarnings > 0 && (
+        {(roadDistanceKm > 0 || fareLoading) && (
           <div className="earn-card mb-20">
             <div>
-              <div className="earn-label">Cost per seat</div>
-              <div className="earn-formula text-dim text-xs">
-                {roadDistanceKm > 0
-                  ? roadDistanceKm < 1
-                    ? `< 1 km → base fare`
-                    : `${roadDistanceKm} km × ₹${({motorcycle:5,car:7,suv:8,xuv:10}[form.vehicleType]||7)}/km`
-                  : 'Set pickup & drop to calculate'}
-              </div>
-              {roadDistanceKm > 15 && (
+              <div className="earn-label">Fare per seat</div>
+              {fareLoading ? (
+                <div className="earn-formula text-dim text-xs">Calculating road distance…</div>
+              ) : (
+                <div className="earn-formula text-dim text-xs">
+                  {roadDistanceKm < 1
+                    ? `${roadDistanceKm} km → base fare`
+                    : `${roadDistanceKm} km × ₹${({motorcycle:5,car:7,suv:8,xuv:10}[form.vehicleType]||7)}/km`}
+                </div>
+              )}
+              {roadDistanceKm > 30 && (
                 <div style={{fontSize:11,color:'#ff9800',marginTop:4}}>
-                  ⚠️ Distance seems high ({roadDistanceKm} km) — use 📍 or 🗺️ to pin exact locations
+                  ⚠️ {roadDistanceKm} km seems far — use 📍 GPS or 🗺️ map pin for accurate fare
                 </div>
               )}
             </div>
-            <div className="earn-amount">₹{calculatedCost}</div>
+            <div className="earn-amount">{fareLoading ? '…' : `₹${calculatedCost}`}</div>
           </div>
         )}
 
