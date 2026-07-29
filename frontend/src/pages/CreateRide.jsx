@@ -53,15 +53,23 @@ const VEHICLE_TYPES = [
 // Auto cost calculator based on vehicle fuel efficiency
 const calculateCostPerSeat = (distanceKm, vehicleType) => {
   if (!distanceKm || distanceKm <= 0) return 0;
-  // Student-friendly cost-sharing rates
+
+  // Original rates as set by the provider
   const rates = {
-    motorcycle: { base: 20, perKm: 5 },  // 6km bike: 10 + 18 = ₹28
-    car:        { base: 25, perKm: 7 },  // 6km car:  15 + 30 = ₹45
-    suv:        { base: 25, perKm: 7 },  // 6km suv:  20 + 36 = ₹56
-    xuv:        { base: 25, perKm: 10 },  // 6km xuv:  20 + 42 = ₹62
+    motorcycle: { base: 20, perKm: 5  },
+    car:        { base: 25, perKm: 7  },
+    suv:        { base: 25, perKm: 8  },
+    xuv:        { base: 25, perKm: 10 },
   };
+
   const { base, perKm } = rates[vehicleType] || rates.car;
-  return Math.max(Math.round(base + (distanceKm * perKm)), base);
+
+  // Rule: < 1km → base fare only. ≥ 1km → per km rate only (no base added)
+  if (distanceKm < 1) {
+    return base;
+  } else {
+    return Math.round(distanceKm * perKm);
+  }
 };
 
 // Location config based on pickup type selection
