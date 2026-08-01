@@ -9,25 +9,25 @@ import * as api from '../services/api.js';
 import './CreateRide.css';
 
 const COLLEGE_PRESETS = [
-  { label: 'RNS Institute of Technology',          lat: 12.9116, lng: 77.4655 },
-  { label: 'RV College of Engineering',             lat: 12.9215, lng: 77.4958 },
-  { label: 'BMS College of Engineering',            lat: 12.9611, lng: 77.5908 },
-  { label: 'PES University',                        lat: 12.9345, lng: 77.5366 },
-  { label: 'MS Ramaiah Institute of Technology',    lat: 13.0163, lng: 77.5770 },
-  { label: 'Bangalore Institute of Technology',     lat: 12.9539, lng: 77.6007 },
-  { label: 'Dayananda Sagar College',               lat: 12.9148, lng: 77.5444 },
-  { label: 'Christ University',                     lat: 12.9360, lng: 77.6115 },
-  { label: 'Jain University',                       lat: 12.9630, lng: 77.5750 },
-  { label: 'Nitte Meenakshi Institute',             lat: 13.1323, lng: 77.5869 },
+  { label: 'RNS Institute of Technology',       lat: 12.9116, lng: 77.4655, keys: ['rns','rns institute'] },
+  { label: 'RV College of Engineering',          lat: 12.9215, lng: 77.4958, keys: ['rv college','rvce'] },
+  { label: 'BMS College of Engineering',         lat: 12.9611, lng: 77.5908, keys: ['bms college','bmsce'] },
+  { label: 'PES University',                     lat: 12.9345, lng: 77.5366, keys: ['pes university','pesu'] },
+  { label: 'MS Ramaiah Institute of Technology', lat: 13.0163, lng: 77.5770, keys: ['ramaiah','msrit','ms ramaiah'] },
+  { label: 'Bangalore Institute of Technology',  lat: 12.9539, lng: 77.6007, keys: ['bit bangalore','bangalore institute of technology'] },
+  { label: 'Dayananda Sagar College',            lat: 12.9148, lng: 77.5444, keys: ['dayananda sagar','dsce','dscet'] },
+  { label: 'Christ University',                  lat: 12.9360, lng: 77.6115, keys: ['christ university','christ college'] },
+  { label: 'Jain University',                    lat: 12.9630, lng: 77.5750, keys: ['jain university','jain college'] },
+  { label: 'Nitte Meenakshi Institute',          lat: 13.1323, lng: 77.5869, keys: ['nitte','nitte meenakshi'] },
 ];
 
-// If geocoder returns a wrong/city-level result, snap to known college coords
+// Snap geocoder label to known college coords using keyword matching
 const snapToKnownCollege = (label) => {
   if (!label) return null;
-  const normalized = label.toLowerCase();
+  const n = label.toLowerCase();
   return COLLEGE_PRESETS.find(c =>
-    normalized.includes(c.label.toLowerCase().split(' ')[0].toLowerCase()) ||
-    c.label.toLowerCase().includes(normalized.split(',')[0].toLowerCase())
+    c.keys.some(k => n.includes(k)) ||
+    n.includes(c.label.toLowerCase())
   ) || null;
 };
 
@@ -77,9 +77,9 @@ const calculateCostPerSeat = (distanceKm, vehicleType) => {
   // e.g. 6km bike = 6 × 5 = ₹30 ✓
   const rates = {
     motorcycle: { base: 20, perKm: 5  },
-    car:        { base: 20, perKm: 10 },
-    suv:        { base: 25, perKm: 12 },
-    xuv:        { base: 30, perKm: 14 },
+    car:        { base: 25, perKm: 7 },
+    suv:        { base: 25, perKm: 7 },
+    xuv:        { base: 25, perKm: 10 },
   };
 
   const { base, perKm } = rates[vehicleType] || rates.car;
