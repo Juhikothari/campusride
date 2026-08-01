@@ -62,7 +62,7 @@ const calculateCostPerSeat = (distanceKm, vehicleType) => {
   // e.g. 6km bike = 6 × 5 = ₹30 ✓
   const rates = {
     motorcycle: { base: 20, perKm: 5  },
-    car:        { base: 25, perKm: 7 },
+    car:        { base: 20, perKm: 7 },
     suv:        { base: 25, perKm: 7 },
     xuv:        { base: 25, perKm: 10 },
   };
@@ -449,7 +449,7 @@ export default function CreateRide({ navigate }) {
                 <div className="earn-formula text-dim text-xs">
                   {roadDistanceKm < 1
                     ? `${roadDistanceKm} km → base fare`
-                    : `${roadDistanceKm} km × ₹${({motorcycle:5,car:7,suv:8,xuv:10}[form.vehicleType]||7)}/km`}
+                    : `${roadDistanceKm} km × ₹${({motorcycle:5,car:10,suv:12,xuv:14}[form.vehicleType]||10)}/km`}
                 </div>
               )}
               {roadDistanceKm > 30 && (
