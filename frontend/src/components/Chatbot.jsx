@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { API_BASE, getToken, getMyBookings, searchRides } from '../services/api.js';
+import { API_BASE, getToken } from '../services/api.js';
 import './Chatbot.css';
 
 // ── Rule-based fast-path responses ───────────────────────────────
@@ -151,61 +151,25 @@ export default function Chatbot({ navigate }) {
     return msg;
   };
 
-  // ── Build system prompt with live user context ────────────────
-  const buildSystemPrompt = useCallback(() => {
-    const ctx = user
-      ? `The user is ${user.name}, a ${user.role} at ${user.college}. Their email is ${user.email}. KYC status: ${user.kycStatus || 'unknown'}. Gender: ${user.gender || 'not set'}.`
-      : 'The user is not logged in.';
-
-    return `You are RideBot, a friendly and helpful assistant built into CampusRide — a college-exclusive ride-sharing platform in India.
-
-${ctx}
-
-CampusRide key features:
-- College-scoped rides: only students from the same college can see each other's rides
-- Roles: seeker (books rides), provider (offers rides), both, admin
-- KYC verification required for providers before posting rides
-- Women-only ride filter for safety
-- Recurring rides (daily, weekdays, weekly, custom)
-- Real-time chat per ride via Socket.IO
-- College community group chat
-- SOS emergency feature during rides
-- Incident reporting
-- Ratings after ride completion
-- Transparent pricing — providers set cost per seat; payment is direct (no app commission)
-- Location-based ride search (geo within 50km)
-
-Navigation pages available: dashboard, search-rides, create-ride, my-bookings, provider-bookings, kyc, ratings, live-tracking, community, route-alerts, notifications, incident-report, admin (admin only), admin-settings (admin only).
-
-Keep answers concise, friendly, and India-contextual. Use relevant emojis sparingly. If the user asks to navigate somewhere, tell them clearly which section to go to. Never make up data — if you don't know something specific about their account, say so and suggest they check the relevant page.`;
-  }, [user]);
-
-  // ── Send to Claude API ────────────────────────────────────────
+  // ── Call backend proxy (keeps API key server-side) ───────────
   const callClaude = useCallback(async (history) => {
-    const token = getToken();
     const messages = history
       .filter(m => m.role !== 'system')
       .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.text }));
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(`${API_BASE}/api/chatbot/message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
-        system: buildSystemPrompt(),
-        messages,
-      }),
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify({ messages }),
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `API error ${res.status}`);
-    }
-
-    const data = await res.json();
-    return data.content?.[0]?.text || "Sorry, I couldn't get a response.";
-  }, [buildSystemPrompt]);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `Error ${res.status}`);
+    return data.reply || "Sorry, I couldn't get a response.";
+  }, []);
 
   // ── Send message ──────────────────────────────────────────────
   const send = useCallback(async (text) => {
