@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext.jsx";
 import Navbar from "./components/Navbar.jsx";
+import BookingPopup from "./components/BookingPopup.jsx";
 import LoginPage        from "./pages/LoginPage.jsx";
 import RegisterPage     from "./pages/RegisterPage.jsx";
 import Dashboard        from "./pages/Dashboard.jsx";
@@ -90,6 +91,7 @@ function Router() {
 
   return (
     <div className="app-shell">
+      <BookingPopup />
       {showNav && <Navbar navigate={navigate} currentPage={page} />}
       <main className={showNav ? "with-nav" : ""}>
         <PageComponent navigate={navigate} {...pageProps} />
