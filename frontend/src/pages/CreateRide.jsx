@@ -9,12 +9,27 @@ import * as api from '../services/api.js';
 import './CreateRide.css';
 
 const COLLEGE_PRESETS = [
-  { label: 'RV College of Engineering', lat: 12.9215, lng: 77.4958 },
-  { label: 'BMS College of Engineering', lat: 12.9611, lng: 77.5908 },
-  { label: 'PES University', lat: 12.9345, lng: 77.5366 },
-  { label: 'MS Ramaiah Institute', lat: 13.0163, lng: 77.5770 },
-  { label: 'Bangalore Institute of Technology', lat: 12.9539, lng: 77.6007 }
+  { label: 'RNS Institute of Technology',          lat: 12.9116, lng: 77.4655 },
+  { label: 'RV College of Engineering',             lat: 12.9215, lng: 77.4958 },
+  { label: 'BMS College of Engineering',            lat: 12.9611, lng: 77.5908 },
+  { label: 'PES University',                        lat: 12.9345, lng: 77.5366 },
+  { label: 'MS Ramaiah Institute of Technology',    lat: 13.0163, lng: 77.5770 },
+  { label: 'Bangalore Institute of Technology',     lat: 12.9539, lng: 77.6007 },
+  { label: 'Dayananda Sagar College',               lat: 12.9148, lng: 77.5444 },
+  { label: 'Christ University',                     lat: 12.9360, lng: 77.6115 },
+  { label: 'Jain University',                       lat: 12.9630, lng: 77.5750 },
+  { label: 'Nitte Meenakshi Institute',             lat: 13.1323, lng: 77.5869 },
 ];
+
+// If geocoder returns a wrong/city-level result, snap to known college coords
+const snapToKnownCollege = (label) => {
+  if (!label) return null;
+  const normalized = label.toLowerCase();
+  return COLLEGE_PRESETS.find(c =>
+    normalized.includes(c.label.toLowerCase().split(' ')[0].toLowerCase()) ||
+    c.label.toLowerCase().includes(normalized.split(',')[0].toLowerCase())
+  ) || null;
+};
 
 const CITY_PRESETS = [
   { label: 'Bangalore', lat: 12.9716, lng: 77.5946 },
@@ -62,9 +77,9 @@ const calculateCostPerSeat = (distanceKm, vehicleType) => {
   // e.g. 6km bike = 6 × 5 = ₹30 ✓
   const rates = {
     motorcycle: { base: 20, perKm: 5  },
-    car:        { base: 20, perKm: 7 },
-    suv:        { base: 25, perKm: 7 },
-    xuv:        { base: 25, perKm: 10 },
+    car:        { base: 20, perKm: 10 },
+    suv:        { base: 25, perKm: 12 },
+    xuv:        { base: 30, perKm: 14 },
   };
 
   const { base, perKm } = rates[vehicleType] || rates.car;
@@ -120,35 +135,28 @@ export default function CreateRide({ navigate }) {
   const [fareLoading, setFareLoading] = useState(false);
 
   // Fetch REAL road distance from backend (OSRM) when pickup + drop are set
+  // Calculate distance on frontend using snap-corrected coordinates
   useEffect(() => {
-    const { pickupLat, pickupLng, dropLat, dropLng } = form;
+    const { pickupLat, pickupLng, dropLat, dropLng, pickupLabel, dropLabel } = form;
     if (!pickupLat || !pickupLng || !dropLat || !dropLng) { setRoadDistanceKm(0); return; }
-    setFareLoading(true);
-    const base = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api');
-    const token = localStorage.getItem('cr_token');
-    fetch(`${base}/location/distance?fromLat=${pickupLat}&fromLng=${pickupLng}&toLat=${dropLat}&toLng=${dropLng}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      if (d?.distanceKm) {
-        setRoadDistanceKm(parseFloat(d.distanceKm));
-      } else {
-        // Haversine fallback × 1.2
-        const R=6371, lat1=parseFloat(pickupLat), lng1=parseFloat(pickupLng), lat2=parseFloat(dropLat), lng2=parseFloat(dropLng);
-        const dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
-        const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-        setRoadDistanceKm(parseFloat((R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*1.2).toFixed(2)));
-      }
-    })
-    .catch(() => {
-      const R=6371, lat1=parseFloat(pickupLat), lng1=parseFloat(pickupLng), lat2=parseFloat(dropLat), lng2=parseFloat(dropLng);
-      const dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
-      const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
-      setRoadDistanceKm(parseFloat((R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*1.2).toFixed(2)));
-    })
-    .finally(() => setFareLoading(false));
-  }, [form.pickupLat, form.pickupLng, form.dropLat, form.dropLng]);
+
+    // Snap to known college coords if geocoder returned wrong result
+    const pickupSnap = snapToKnownCollege(pickupLabel);
+    const dropSnap   = snapToKnownCollege(dropLabel);
+
+    const lat1 = parseFloat(pickupSnap ? pickupSnap.lat : pickupLat);
+    const lng1 = parseFloat(pickupSnap ? pickupSnap.lng : pickupLng);
+    const lat2 = parseFloat(dropSnap   ? dropSnap.lat   : dropLat);
+    const lng2 = parseFloat(dropSnap   ? dropSnap.lng   : dropLng);
+
+    const R    = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a    = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    const dist = parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2));
+
+    setRoadDistanceKm(dist);
+  }, [form.pickupLat, form.pickupLng, form.dropLat, form.dropLng, form.pickupLabel, form.dropLabel]);
 
   // Update location config when pickup type changes
   useEffect(() => {
@@ -185,9 +193,15 @@ export default function CreateRide({ navigate }) {
 
   const applyPreset = (which, p) => {
     if (which === 'pickup') {
-      setForm(f => ({ ...f, pickupLabel: p.label, pickupLat: p.lat.toString(), pickupLng: p.lng.toString() }));
+      setForm(f => {
+        const snap = snapToKnownCollege(p.label);
+        return { ...f, pickupLabel: p.label, pickupLat: (snap?.lat ?? p.lat).toString(), pickupLng: (snap?.lng ?? p.lng).toString() };
+      });
     } else {
-      setForm(f => ({ ...f, dropLabel: p.label, dropLat: p.lat.toString(), dropLng: p.lng.toString() }));
+      setForm(f => {
+        const snap = snapToKnownCollege(p.label);
+        return { ...f, dropLabel: p.label, dropLat: (snap?.lat ?? p.lat).toString(), dropLng: (snap?.lng ?? p.lng).toString() };
+      });
     }
   };
 
