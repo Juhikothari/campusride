@@ -320,6 +320,7 @@ const incidentsRoutes = require('./incidents/incidents.routes');
 const locationRoutes = require('./location/location.routes');
 const notificationsRoutes = require('./notifications/notifications.routes');
 const communityRoutes = require('./community/community.routes');
+const chatbotRoutes   = require('./chatbot/chatbot.routes');
 
 app.use('/api/location', locationRoutes);
 app.use('/api/ride', ridesRoutes);
@@ -334,6 +335,7 @@ app.use('/api/sos', sosRoutes);
 app.use('/api/incidents', incidentsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/chatbot',  chatbotRoutes);
 
 // ==========================================
 // 7. ERROR HANDLERS
