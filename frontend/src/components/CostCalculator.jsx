@@ -1,5 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { calculateFare } from '../utils/FareCalculator.js';
+// Fare logic: ≤1km → base fare only; >1km → per-km only (no base)
+// Bike 6km = 6 × ₹5 = ₹30 ✓
+const calculateFare = (vehicleType, distance, numberOfRiders = 1) => {
+  const rates = {
+    bike:       { base: 20, perKm: 5  },
+    motorcycle: { base: 20, perKm: 5  },
+    car:        { base: 25, perKm: 7 },
+    suv:        { base: 25, perKm: 7 },
+    xuv:        { base: 25, perKm: 10 },
+  };
+  const { base, perKm } = rates[vehicleType] || rates.car;
+  const safeDistance = Math.min(distance || 0, 50);
+
+  let perPersonFare;
+  let baseFareApplied;
+  let distanceCost;
+
+  if (safeDistance <= 1) {
+    // Short trip — base fare only
+    perPersonFare   = base;
+    baseFareApplied = base;
+    distanceCost    = 0;
+  } else {
+    // Longer trip — per-km only, no base fare
+    distanceCost    = Math.round(safeDistance * perKm);
+    perPersonFare   = distanceCost;
+    baseFareApplied = 0;
+  }
+
+  return {
+    vehicleType,
+    distance: safeDistance,
+    numberOfRiders: numberOfRiders || 1,
+    breakdown: { baseFare: baseFareApplied, perKmRate: perKm, distanceCost },
+    perPersonFare,
+    totalFare: perPersonFare * (numberOfRiders || 1),
+  };
+};
 import './CostCalculator.css';
 
 // Distance calculation using Haversine formula
@@ -108,21 +145,24 @@ export default function CostCalculator({
               <span className="detail-label">Distance:</span>
               <span className="detail-value">{costData.distance.toFixed(2)} km</span>
             </div>
-            
-            <div className="detail-row">
-              <span className="detail-label">Base Fare:</span>
-              <span className="detail-value">Rs. {costData.breakdown.baseFare}</span>
-            </div>
-            
-            <div className="detail-row">
-              <span className="detail-label">Per KM Rate:</span>
-              <span className="detail-value">Rs. {costData.breakdown.perKmRate}/km</span>
-            </div>
-            
-            <div className="detail-row">
-              <span className="detail-label">Distance Cost:</span>
-              <span className="detail-value">Rs. {costData.breakdown.distanceCost}</span>
-            </div>
+
+            {costData.distance <= 1 ? (
+              <div className="detail-row">
+                <span className="detail-label">Base Fare (≤1km):</span>
+                <span className="detail-value">Rs. {costData.breakdown.baseFare}</span>
+              </div>
+            ) : (
+              <>
+                <div className="detail-row">
+                  <span className="detail-label">Per KM Rate:</span>
+                  <span className="detail-value">Rs. {costData.breakdown.perKmRate}/km</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Distance Cost:</span>
+                  <span className="detail-value">Rs. {costData.breakdown.distanceCost}</span>
+                </div>
+              </>
+            )}
             
             <div className="detail-row">
               <span className="detail-label">Number of Riders:</span>
@@ -145,7 +185,11 @@ export default function CostCalculator({
         {!showDetails && (
           <div className="cost-explanation">
             <h5> How this is calculated:</h5>
-            <p className="explanation-text">Base fare + (distance × per km rate) × number of riders</p>
+            <p className="explanation-text">
+              {costData.distance <= 1
+                ? 'Short trip (≤1km) — base fare only'
+                : 'Distance × per km rate (no base fare for trips over 1km)'}
+            </p>
           </div>
         )}
       </div>
