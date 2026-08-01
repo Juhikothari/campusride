@@ -20,6 +20,7 @@ import NotificationsPage from "./pages/NotificationsPage.jsx";
 import IncidentReport   from "./pages/IncidentReport.jsx";
 import AdminSettings    from "./pages/AdminSettings.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
+import Chatbot from "./components/Chatbot.jsx";
 
 const PAGE_MAP = {
   login:               LoginPage,
@@ -96,6 +97,7 @@ function Router() {
       <main className={showNav ? "with-nav" : ""}>
         <PageComponent navigate={navigate} {...pageProps} />
       </main>
+      {!isPublic && <Chatbot navigate={navigate} />}
     </div>
   );
 }
