@@ -242,7 +242,6 @@ router.get('/reverse', auth, async (req, res) => {
 });
 
 
-module.exports = router;
 // ── Road distance via OSRM (for accurate fare calculation) ────────
 router.get('/distance', auth, async (req, res) => {
   try {
@@ -250,20 +249,39 @@ router.get('/distance', auth, async (req, res) => {
     if (!fromLat || !fromLng || !toLat || !toLng) {
       return res.status(400).json({ message: 'fromLat, fromLng, toLat, toLng required' });
     }
-    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
-    const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    const data = await resp.json();
-    if (data.code !== 'Ok' || !data.routes?.length) {
-      // Fallback: Haversine straight-line × 1.3 road factor
-      const R = 6371;
-      const dLat = (parseFloat(toLat) - parseFloat(fromLat)) * Math.PI / 180;
-      const dLng = (parseFloat(toLng) - parseFloat(fromLng)) * Math.PI / 180;
-      const a = Math.sin(dLat/2)**2 + Math.cos(parseFloat(fromLat)*Math.PI/180)*Math.cos(parseFloat(toLat)*Math.PI/180)*Math.sin(dLng/2)**2;
-      const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return res.json({ distanceKm: +(straightLine * 1.3).toFixed(2), source: 'haversine' });
+
+    // Always compute haversine as sanity baseline
+    const R = 6371;
+    const dLat = (parseFloat(toLat) - parseFloat(fromLat)) * Math.PI / 180;
+    const dLng = (parseFloat(toLng) - parseFloat(fromLng)) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(parseFloat(fromLat)*Math.PI/180)*Math.cos(parseFloat(toLat)*Math.PI/180)*Math.sin(dLng/2)**2;
+    const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    // Road distance should never be more than 2.5× straight-line for city trips
+    const maxReasonableKm = straightLine * 2.5;
+
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      const data = await resp.json();
+
+      if (data.code === 'Ok' && data.routes?.length) {
+        const osrmKm = data.routes[0].distance / 1000;
+
+        // If OSRM gives a suspiciously long route, fall back to haversine × 1.4
+        if (osrmKm > maxReasonableKm) {
+          const fallbackKm = +(straightLine * 1.4).toFixed(2);
+          return res.json({ distanceKm: fallbackKm, source: 'haversine_capped' });
+        }
+
+        return res.json({ distanceKm: +osrmKm.toFixed(2), source: 'osrm' });
+      }
+    } catch (osrmErr) {
+      // OSRM timed out or failed — fall through to haversine
     }
-    const distanceKm = +(data.routes[0].distance / 1000).toFixed(2);
-    res.json({ distanceKm, source: 'osrm' });
+
+    // Fallback: straight-line × 1.4
+    return res.json({ distanceKm: +(straightLine * 1.4).toFixed(2), source: 'haversine' });
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -323,3 +341,5 @@ router.get('/route', auth, async (req, res) => {
     res.status(500).json({ message: 'Route fetch failed' });
   }
 });
+
+module.exports = router;
