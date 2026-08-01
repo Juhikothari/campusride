@@ -35,7 +35,7 @@ export const useSocket = (userId, userType) => {
     });
 
     socket.on('authenticated', (data) => {
-      if (data.success && userType === 'provider') {
+      if (data.success && (userType === 'provider' || userType === 'both')) {
         socket.emit('join-provider', userId);
       }
     });
