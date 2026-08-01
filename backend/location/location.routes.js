@@ -28,7 +28,8 @@ router.get('/search', auth, async (req, res) => {
           text: q,
           apiKey: process.env.GEOAPIFY_API_KEY,
           limit: 8,
-          filter: 'countrycode:in'
+          filter: 'countrycode:in',
+          bias: 'proximity:77.5946,12.9716', // bias towards Bengaluru
         })
 
       );
@@ -78,7 +79,7 @@ router.get('/search', auth, async (req, res) => {
       try {
 
         const photonResponse = await fetch(
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8`
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lat=12.9716&lon=77.5946`
         );
 
         if (photonResponse.ok) {
