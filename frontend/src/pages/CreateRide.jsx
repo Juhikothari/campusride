@@ -50,29 +50,31 @@ const VEHICLE_TYPES = [
   { value: 'xuv', label: '🚐 XUV', capacity: 6 }
 ];
 
-// Auto cost calculator based on vehicle fuel efficiency
+// Auto cost calculator — base fare + per km rate (cost per seat)
 const calculateCostPerSeat = (distanceKm, vehicleType) => {
   if (!distanceKm || distanceKm <= 0) return 0;
 
   // Sanity check — campus rides shouldn't exceed 50km
   const safeDistance = Math.min(distanceKm, 50);
 
-  // Original rates as set by the provider
+  // Rates per vehicle type (Indian campus ride context)
+  // Bike: ≤1km → base ₹10; >1km → ₹5/km only (no base)
+  // e.g. 6km bike = 6 × 5 = ₹30 ✓
   const rates = {
     motorcycle: { base: 20, perKm: 5  },
-    car:        { base: 25, perKm: 7  },
-    suv:        { base: 25, perKm: 8  },
+    car:        { base: 25, perKm: 7 },
+    suv:        { base: 25, perKm: 7 },
     xuv:        { base: 25, perKm: 10 },
   };
 
   const { base, perKm } = rates[vehicleType] || rates.car;
 
-  // Rule: < 1km → base fare only. ≥ 1km → per km rate only (no base added)
-  if (safeDistance < 1) {
+  if (safeDistance <= 1) {
+    // Short trip — just base fare
     return base;
-  } else {
-    return Math.round(safeDistance * perKm);
   }
+  // Longer trip — per-km charges only, no base fare
+  return Math.round(safeDistance * perKm);
 };
 
 // Location config based on pickup type selection
