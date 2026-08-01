@@ -242,7 +242,9 @@ router.get('/reverse', auth, async (req, res) => {
 });
 
 
-// ── Road distance via OSRM (for accurate fare calculation) ────────
+// ── Road distance (haversine × 1.4 road factor) ──────────────────
+// OSRM public server is blocked in most server environments;
+// haversine × 1.4 is accurate enough for campus-range trips (≤50km)
 router.get('/distance', auth, async (req, res) => {
   try {
     const { fromLat, fromLng, toLat, toLng } = req.query;
@@ -250,37 +252,21 @@ router.get('/distance', auth, async (req, res) => {
       return res.status(400).json({ message: 'fromLat, fromLng, toLat, toLng required' });
     }
 
-    // Always compute haversine as sanity baseline
-    const R = 6371;
-    const dLat = (parseFloat(toLat) - parseFloat(fromLat)) * Math.PI / 180;
-    const dLng = (parseFloat(toLng) - parseFloat(fromLng)) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(parseFloat(fromLat)*Math.PI/180)*Math.cos(parseFloat(toLat)*Math.PI/180)*Math.sin(dLng/2)**2;
+    const R    = 6371;
+    const lat1 = parseFloat(fromLat), lng1 = parseFloat(fromLng);
+    const lat2 = parseFloat(toLat),   lng2 = parseFloat(toLng);
+
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a    = Math.sin(dLat/2)**2
+               + Math.cos(lat1 * Math.PI/180)
+               * Math.cos(lat2 * Math.PI/180)
+               * Math.sin(dLng/2)**2;
+
     const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    // Road distance should never be more than 2.5× straight-line for city trips
-    const maxReasonableKm = straightLine * 2.5;
+    const distanceKm   = +(straightLine * 1.0).toFixed(2);
 
-    try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
-      const data = await resp.json();
-
-      if (data.code === 'Ok' && data.routes?.length) {
-        const osrmKm = data.routes[0].distance / 1000;
-
-        // If OSRM gives a suspiciously long route, fall back to haversine × 1.4
-        if (osrmKm > maxReasonableKm) {
-          const fallbackKm = +(straightLine * 1.4).toFixed(2);
-          return res.json({ distanceKm: fallbackKm, source: 'haversine_capped' });
-        }
-
-        return res.json({ distanceKm: +osrmKm.toFixed(2), source: 'osrm' });
-      }
-    } catch (osrmErr) {
-      // OSRM timed out or failed — fall through to haversine
-    }
-
-    // Fallback: straight-line × 1.4
-    return res.json({ distanceKm: +(straightLine * 1.4).toFixed(2), source: 'haversine' });
+    return res.json({ distanceKm, source: 'haversine' });
 
   } catch (err) {
     res.status(500).json({ message: err.message });
