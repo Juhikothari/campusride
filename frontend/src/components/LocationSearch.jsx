@@ -188,7 +188,8 @@ export default function LocationSearch({
   value = '',
   onChange,
   onLocationSelect,
-  className = ''
+  className = '',
+  autoGPS = false,   // if true, auto-detect location on mount
 }) {
   const [query,          setQuery]          = useState('');
   const [suggestions,    setSuggestions]    = useState([]);
@@ -196,11 +197,20 @@ export default function LocationSearch({
   const [loading,        setLoading]        = useState(false);
   const [geoLoading,     setGeoLoading]     = useState(false);
   const [showMapPicker,  setShowMapPicker]  = useState(false);
+  const autoGPSFired = useRef(false);
 
   const suggestionsRef = useRef(null);
   const debounceTimer  = useRef(null);
 
   useEffect(() => { setQuery(value || ''); }, [value]);
+
+  // Auto-fire GPS on mount if autoGPS prop is set and no value yet
+  useEffect(() => {
+    if (autoGPS && !value && !autoGPSFired.current) {
+      autoGPSFired.current = true;
+      handleGeolocation();
+    }
+  }, [autoGPS]);
 
   const debouncedSearch = useCallback(async (q) => {
     if (q.length < 2) { setSuggestions([]); setShowSuggestions(false); return; }
@@ -219,8 +229,33 @@ export default function LocationSearch({
     debounceTimer.current = setTimeout(() => debouncedSearch(val), 300);
   };
 
-  const handleSelect = (location) => {
+  // Bengaluru bounding box — if coords fall outside, result is likely wrong
+  const isNearBengaluru = (lat, lng) => (
+    lat >= 12.7 && lat <= 13.3 && lng >= 77.3 && lng <= 77.9
+  );
+
+  const handleSelect = async (location) => {
     const fullAddress = location.display_name || location.label || 'Selected Location';
+
+    // If coords look wrong (outside Bengaluru), re-search with city context
+    if (!isNearBengaluru(location.lat, location.lng)) {
+      setLoading(true);
+      setQuery(fullAddress);
+      setShowSuggestions(false);
+      try {
+        const results = await api.searchLocation(fullAddress + ', Bengaluru');
+        const best = results?.find(r => isNearBengaluru(r.lat, r.lng)) || results?.[0];
+        if (best) {
+          setQuery(best.display_name || fullAddress);
+          onChange?.(best.display_name || fullAddress, best.lat, best.lng);
+          onLocationSelect?.({ ...best, label: best.display_name || fullAddress });
+          setLoading(false);
+          return;
+        }
+      } catch { /* fall through to original */ }
+      setLoading(false);
+    }
+
     setQuery(fullAddress);
     setShowSuggestions(false);
     setSuggestions([]);
