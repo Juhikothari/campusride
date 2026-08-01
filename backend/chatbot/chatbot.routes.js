@@ -4,7 +4,7 @@ const auth    = require('../middleware/auth');
 const User    = require('../users/users.model');
 
 // POST /api/chatbot/message
-// Body: { messages: [{role:'user'|'assistant', content: string}], userContext?: object }
+// Body: { messages: [{role:'user'|'assistant', content: string}] }
 router.post('/message', auth, async (req, res) => {
   try {
     const { messages } = req.body;
@@ -13,40 +13,45 @@ router.post('/message', auth, async (req, res) => {
       return res.status(400).json({ message: 'messages array is required' });
     }
 
-    // Fetch fresh user data for context
+    // Fetch fresh user data for personalised system prompt
     const userId = req.user?.userId || req.user?.id;
     const user   = await User.findById(userId).select('name email role college gender kycStatus usn');
 
-    const systemPrompt = buildSystemPrompt(user);
-
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    if (!anthropicKey) {
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) {
       return res.status(503).json({ message: 'AI assistant is not configured on this server.' });
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    // Groq uses OpenAI-compatible format — system prompt as first message
+    const groqMessages = [
+      { role: 'system', content: buildSystemPrompt(user) },
+      ...messages.slice(-20).map(m => ({
+        role:    m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      })),
+    ];
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Content-Type':      'application/json',
-        'x-api-key':         anthropicKey,
-        'anthropic-version': '2023-06-01',
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${groqKey}`,
       },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-6',
+        model:      'llama3-8b-8192',
         max_tokens: 1000,
-        system:     systemPrompt,
-        messages:   messages.slice(-20), // cap history to last 20 turns
+        messages:   groqMessages,
       }),
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      console.error('Anthropic API error:', err);
+      console.error('Groq API error:', err);
       return res.status(502).json({ message: err.error?.message || 'AI service error' });
     }
 
     const data  = await response.json();
-    const reply = data.content?.[0]?.text || "Sorry, I couldn't generate a response.";
+    const reply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
 
     return res.json({ reply });
 
