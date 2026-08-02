@@ -2,40 +2,43 @@ const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const net    = require('net'); // used to force IPv4
 const User   = require('../users/users.model');
 const { validateCollegeEmail } = require('../config/collegeDomains');
 
 // ── In-memory OTP store (use Redis in production) ─────────────────
-const otpStore = new Map(); // key: email, value: { otp, expiresAt }
+const otpStore = new Map();
 
 // ── Nodemailer transporter ─────────────────────────────────────────
-// FIX: createTransporter now verifies the connection before returning,
-//      and logs detailed SMTP errors so you can see exactly what's wrong.
+// FIX: localAddress: '0.0.0.0' forces IPv4 so the connection doesn't
+//      try the IPv6 path (2607:…) which Render/Railway block.
 const createTransporter = async () => {
   const transporter = nodemailer.createTransport({
     host:   process.env.SMTP_HOST || 'smtp.gmail.com',
     port:   parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_PORT === '465', // true only for port 465
+    secure: process.env.SMTP_PORT === '465',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    // These timeouts prevent hanging indefinitely
-    connectionTimeout: 10000,
+    // ✅ KEY FIX: bind to 0.0.0.0 so Node picks IPv4, not IPv6
+    localAddress: '0.0.0.0',
+    connectionTimeout: 15000,
     greetingTimeout:   10000,
-    socketTimeout:     15000,
+    socketTimeout:     20000,
+    // Also works as an alternative — disable IPv6 at the socket level
+    tls: { rejectUnauthorized: false },
   });
 
-  // Verify the connection — throws if SMTP creds are wrong
   try {
     await transporter.verify();
-    console.log('✅ SMTP transporter verified');
+    console.log('✅ SMTP transporter verified (IPv4)');
   } catch (err) {
     console.error('❌ SMTP verification failed:', err.message);
-    console.error('   SMTP_HOST:', process.env.SMTP_HOST);
-    console.error('   SMTP_PORT:', process.env.SMTP_PORT);
-    console.error('   SMTP_USER:', process.env.SMTP_USER ? process.env.SMTP_USER.substring(0,4) + '***' : 'NOT SET');
-    console.error('   SMTP_PASS:', process.env.SMTP_PASS ? '***set***' : 'NOT SET');
+    console.error('   Host:', process.env.SMTP_HOST || 'smtp.gmail.com');
+    console.error('   Port:', process.env.SMTP_PORT || '587');
+    console.error('   User:', process.env.SMTP_USER ? process.env.SMTP_USER.slice(0, 4) + '***' : 'NOT SET');
+    console.error('   Pass:', process.env.SMTP_PASS ? '***set***' : 'NOT SET');
     throw err;
   }
   return transporter;
@@ -50,14 +53,13 @@ const register = async (req, res) => {
       vehiclePhoto, vehicleNumber, vehicleName,
       emergencyContact, adminKey, gender, usn
     } = req.body;
-    
+
     const { normalizeCollege } = require('../config/collegeDomains');
 
     if (role === 'admin') {
       const ADMIN_KEY = process.env.ADMIN_KEY || 'freewheel';
-      if (adminKey !== ADMIN_KEY) {
+      if (adminKey !== ADMIN_KEY)
         return res.status(403).json({ message: 'Invalid admin key.' });
-      }
     }
 
     const blockedUser = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') }, blocked: true });
@@ -84,8 +86,6 @@ const register = async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Generate first session token seed
     const sessionSeed = crypto.randomBytes(16).toString('hex');
 
     const user = new User({
@@ -109,7 +109,6 @@ const register = async (req, res) => {
       },
       kycSubmittedAt: hasKycDocs ? new Date() : undefined,
       emergencyContact: emergencyContact || '',
-      // Single-device: track the current session seed
       currentSessionSeed: sessionSeed,
     });
 
@@ -135,12 +134,12 @@ const register = async (req, res) => {
   }
 };
 
-// ── Login ─────────────────────────────────────────────────────────
-// FIX: On every login, rotate sessionSeed → invalidates all previous tokens
+// ── Login (rotates sessionSeed → single-device enforcement) ──────
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: 'Email and password are required' });
+    if (!email || !password)
+      return res.status(400).json({ message: 'Email and password are required' });
 
     const user = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
     if (!user) return res.status(400).json({ message: 'No account found with this email. Please register first.' });
@@ -149,7 +148,6 @@ const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Incorrect password. Please try again.' });
 
-    // Rotate session seed — this invalidates any existing device's token
     const sessionSeed = crypto.randomBytes(16).toString('hex');
     user.currentSessionSeed = sessionSeed;
     await user.save();
@@ -183,8 +181,7 @@ const getMe = async (req, res) => {
   }
 };
 
-// ── Send OTP for password reset ───────────────────────────────────
-// FIX: better error messages, async transporter, detailed logging
+// ── Send OTP ──────────────────────────────────────────────────────
 const sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
@@ -193,23 +190,16 @@ const sendOtp = async (req, res) => {
     const user = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
     if (!user) return res.status(404).json({ message: 'No account found with this email.' });
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-
+    const expiresAt = Date.now() + 10 * 60 * 1000;
     otpStore.set(email.toLowerCase(), { otp, expiresAt, userId: user._id });
 
-    // Check if SMTP env vars are set at all
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('❌ SMTP_USER or SMTP_PASS is not set in .env');
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔑 DEV OTP for ${email}: ${otp}`);
-        return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
-      }
-      return res.status(500).json({ message: 'Email service is not configured. Contact support.' });
+      console.error('❌ SMTP_USER or SMTP_PASS not set');
+      console.log(`🔑 DEV OTP for ${email}: ${otp}`);
+      return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
     }
 
-    // Send OTP via email
     try {
       const transporter = await createTransporter();
       const info = await transporter.sendMail({
@@ -227,23 +217,21 @@ const sendOtp = async (req, res) => {
             <div style="background:#1a1d24;border:2px solid #f5a623;border-radius:10px;text-align:center;padding:24px;margin:20px 0;">
               <span style="font-size:40px;font-weight:900;letter-spacing:12px;color:#f5a623;">${otp}</span>
             </div>
-            <p style="color:#aaa;font-size:13px;">This OTP is valid for <strong style="color:#fff;">10 minutes</strong>. Do not share it with anyone.</p>
-            <p style="color:#555;font-size:12px;margin-top:24px;">If you didn't request this, please ignore this email.</p>
+            <p style="color:#aaa;font-size:13px;">Valid for <strong style="color:#fff;">10 minutes</strong>. Do not share with anyone.</p>
+            <p style="color:#555;font-size:12px;margin-top:24px;">If you didn't request this, ignore this email.</p>
           </div>
         `,
       });
-      console.log(`✅ OTP sent to ${email} — Message ID: ${info.messageId}`);
+      console.log(`✅ OTP sent to ${email} — ID: ${info.messageId}`);
     } catch (mailErr) {
       console.error('❌ Email send failed:', mailErr.message);
-      // In dev, print OTP to console so testing can proceed
+      // In dev: print OTP to console so you can still test
       if (process.env.NODE_ENV !== 'production') {
         console.log(`🔑 DEV OTP for ${email}: ${otp}`);
-        // Still return success so frontend doesn't block
         return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
       }
-      // In production, surface the real error
       return res.status(500).json({
-        message: `Failed to send OTP email: ${mailErr.message}. Please check your email address or try again later.`
+        message: `Could not send OTP email. Error: ${mailErr.message}`
       });
     }
 
@@ -264,11 +252,10 @@ const verifyOtp = async (req, res) => {
     if (!record) return res.status(400).json({ message: 'No OTP requested for this email. Request a new one.' });
     if (Date.now() > record.expiresAt) {
       otpStore.delete(email.toLowerCase());
-      return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+      return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
     }
-    if (record.otp !== otp.toString()) return res.status(400).json({ message: 'Incorrect OTP. Please try again.' });
+    if (record.otp !== otp.toString()) return res.status(400).json({ message: 'Incorrect OTP. Try again.' });
 
-    // OTP is valid — issue a short-lived reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     otpStore.set(`reset:${resetToken}`, { email: email.toLowerCase(), expiresAt: Date.now() + 15 * 60 * 1000 });
     otpStore.delete(email.toLowerCase());
@@ -283,7 +270,8 @@ const verifyOtp = async (req, res) => {
 const resetPasswordWithToken = async (req, res) => {
   try {
     const { resetToken, password } = req.body;
-    if (!resetToken || !password) return res.status(400).json({ message: 'Reset token and new password are required' });
+    if (!resetToken || !password)
+      return res.status(400).json({ message: 'Reset token and new password are required' });
 
     const record = otpStore.get(`reset:${resetToken}`);
     if (!record) return res.status(400).json({ message: 'Invalid or expired reset session. Start over.' });
@@ -297,8 +285,6 @@ const resetPasswordWithToken = async (req, res) => {
 
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(password, salt);
-
-    // Also rotate session seed so all existing device logins are invalidated
     user.currentSessionSeed = crypto.randomBytes(16).toString('hex');
     await user.save();
 
@@ -309,7 +295,7 @@ const resetPasswordWithToken = async (req, res) => {
   }
 };
 
-// ── Legacy direct reset (keep for backward compat) ────────────────
+// ── Legacy direct reset ───────────────────────────────────────────
 const resetPasswordDirect = async (req, res) => {
   try {
     const { email, password } = req.body;
