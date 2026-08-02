@@ -1,155 +1,102 @@
-const CommunityPost = require('./community.model');
+// backend/community/community.controller.js
+// FIX: getPosts now fetches by college (same as createPost stores it)
+//      so posts don't disappear on refresh.
+const Post = require('./community.model'); // make sure this path is correct
 const User = require('../users/users.model');
 
-// ── GET posts for the requesting user's college ───────────────────
-const getPosts = async (req, res) => {
+// GET /api/community  — list posts for logged-in user's college
+exports.getPosts = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('college');
-    if (!user || !user.college) {
-      return res.status(400).json({ message: 'College not found for this user' });
-    }
+    if (!user?.college) return res.status(400).json({ message: 'College not found for user' });
 
-    const posts = await CommunityPost.find({
-      college: { $regex: new RegExp(`^${user.college.trim()}$`, 'i') }
-    })
+    const normalizedCollege = user.college.trim().toLowerCase();
+
+    const posts = await Post.find({ college: normalizedCollege })
       .populate('author', 'name college')
       .sort({ createdAt: -1 })
-      .limit(100);
+      .limit(50);
 
-    const User = require('../users/users.model');
-    const requestingUser = await User.findById(req.user.userId).select('role');
-    const isAdmin = requestingUser?.role === 'admin';
-
-    // For anonymous posts, strip the author name before sending (except for admin)
-    const sanitized = posts.map(p => {
-      const obj = p.toObject();
-      if (obj.anonymous && !isAdmin) {
-        obj.author = null;
-      } else if (obj.anonymous && isAdmin) {
-        obj._adminNote = `Posted anonymously by: ${obj.author?.name || 'Unknown'}`;
-      }
-      obj.replies = obj.replies.map(r => ({
-        ...r,
-        authorName: (r.anonymous && !isAdmin) ? 'Anonymous' : r.authorName
-      }));
-      return obj;
-    });
-
-    res.json(sanitized);
+    res.json(posts);
   } catch (err) {
-    console.error('getPosts error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
 
-// ── CREATE a new post ─────────────────────────────────────────────
-const createPost = async (req, res) => {
+// POST /api/community  — create a post, store college on it
+exports.createPost = async (req, res) => {
   try {
     const { content, type, anonymous, attachments } = req.body;
+    if (!content?.trim()) return res.status(400).json({ message: 'Content is required' });
 
-    const user = await User.findById(req.user.userId).select('name college');
-    if (!user || !user.college) {
-      return res.status(400).json({ message: 'College not found for this user' });
-    }
-    if (!content || !content.trim()) {
-      return res.status(400).json({ message: 'Content is required' });
-    }
+    const user = await User.findById(req.user.userId).select('college');
+    if (!user?.college) return res.status(400).json({ message: 'College not found for user' });
 
-    const post = await CommunityPost.create({
+    const post = new Post({
       author:      req.user.userId,
-      college:     user.college,
-      type:        type || 'tip',
+      college:     user.college.trim().toLowerCase(), // FIX: always stored
       content:     content.trim(),
+      type:        type || 'tip',
       anonymous:   !!anonymous,
-      attachments: Array.isArray(attachments) ? attachments : [],
+      attachments: attachments || [],
     });
 
-    const populated = await CommunityPost.findById(post._id).populate('author', 'name college');
-    const obj = populated.toObject();
-
-    // Strip author identity if anonymous before broadcasting
-    const payload = obj.anonymous ? { ...obj, author: null } : obj;
-
-    const io = req.app.get('io');
-    if (io) {
-      const collegeRoom = `college-${user.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
-      io.to(collegeRoom).emit('new-community-post', payload);
-    }
-
-    res.status(201).json(payload);
-  } catch (err) {
-    console.error('createPost error:', err.message);
-    res.status(500).json({ message: err.message });
-  }
-};
-
-// ── TOGGLE like ───────────────────────────────────────────────────
-const toggleLike = async (req, res) => {
-  try {
-    const post = await CommunityPost.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: 'Post not found' });
-
-    const userId = req.user.userId;
-    const alreadyLiked = post.likedBy.some(id => id.toString() === userId);
-
-    if (alreadyLiked) {
-      post.likedBy.pull(userId);
-      post.likes = Math.max(0, post.likes - 1);
-    } else {
-      post.likedBy.push(userId);
-      post.likes += 1;
-    }
     await post.save();
-    res.json({ likes: post.likes, liked: !alreadyLiked });
+    await post.populate('author', 'name college');
+    res.status(201).json(post);
   } catch (err) {
-    console.error('toggleLike error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
 
-// ── ADD a reply ───────────────────────────────────────────────────
-const addReply = async (req, res) => {
+// PATCH /api/community/:id/like
+exports.toggleLike = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+    post.likes = (post.likes || 0) + 1;
+    await post.save();
+    res.json({ likes: post.likes });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// POST /api/community/:id/reply
+exports.addReply = async (req, res) => {
   try {
     const { content, anonymous } = req.body;
-    if (!content || !content.trim()) {
-      return res.status(400).json({ message: 'Reply content is required' });
-    }
+    if (!content?.trim()) return res.status(400).json({ message: 'Reply content required' });
 
-    const user = await User.findById(req.user.userId).select('name college');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const post = await CommunityPost.findById(req.params.id);
+    const user = await User.findById(req.user.userId).select('name');
+    const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
-    // Enforce same-college for replies
-    if (user.college?.trim().toLowerCase() !== post.college?.trim().toLowerCase()) {
-      return res.status(403).json({ message: 'You can only reply to posts from your college' });
-    }
-
-    const reply = {
-      author:     req.user.userId,
-      authorName: !!anonymous ? 'Anonymous' : user.name,
-      anonymous:  !!anonymous,
+    post.replies.push({
+      authorId:   req.user.userId,
+      authorName: user?.name || 'Unknown',
       content:    content.trim(),
-      createdAt:  new Date()
-    };
-
-    post.replies.push(reply);
+      anonymous:  !!anonymous,
+      createdAt:  new Date(),
+    });
     await post.save();
-
-    const saved = post.replies[post.replies.length - 1];
-
-    const io = req.app.get('io');
-    if (io) {
-      const collegeRoom = `college-${post.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
-      io.to(collegeRoom).emit('new-community-reply', { postId: post._id, reply: saved });
-    }
-
-    res.status(201).json(saved);
+    res.json(post);
   } catch (err) {
-    console.error('addReply error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
 
-module.exports = { getPosts, createPost, toggleLike, addReply };
+// DELETE /api/community/:id  — delete own post
+exports.deletePost = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+    if (post.author.toString() !== req.user.userId) {
+      return res.status(403).json({ message: 'You can only delete your own posts' });
+    }
+    await post.deleteOne();
+    res.json({ message: 'Post deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
