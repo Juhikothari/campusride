@@ -1,32 +1,49 @@
-const jwt = require('jsonwebtoken');
+// backend/middleware/auth.js
+// FIX: Single-device enforcement — checks that the token's sessionSeed
+//      matches the one stored in the DB. When the user logs in on a new
+//      device, the seed rotates and all old tokens become invalid.
+
+const jwt  = require('jsonwebtoken');
 const User = require('../users/users.model');
 
-const auth = async (req, res, next) => {
+module.exports = async (req, res, next) => {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith('Bearer '))
+    return res.status(401).json({ message: 'No token provided' });
+
+  const token = header.split(' ')[1];
+
+  let decoded;
   try {
-    const authHeader = req.header('Authorization');
-    if (!authHeader) return res.status(401).json({ message: 'No token, authorization denied' });
-    if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ message: 'Token format invalid. Use: Bearer <token>' });
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired token' });
+  }
 
-    const token = authHeader.replace('Bearer ', '');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key');
-    // AFTER decoding token
-    const user = await User.findById(decoded.userId);
+  // ── Single-device check ─────────────────────────────────────────
+  // Only do the DB lookup if the token actually carries a sessionSeed.
+  // Tokens issued before this feature was added won't have one, so we
+  // let them through (graceful rollout) but log a warning.
+  if (decoded.sessionSeed) {
+    try {
+      const user = await User.findById(decoded.userId).select('currentSessionSeed blocked');
+      if (!user) return res.status(401).json({ message: 'User not found' });
+      if (user.blocked) return res.status(403).json({ message: 'Account is blocked' });
 
-    if (!user) {
-   return res.status(401).json({ message: 'User not found' });
+      if (user.currentSessionSeed && user.currentSessionSeed !== decoded.sessionSeed) {
+        return res.status(401).json({
+          message: 'Session expired. Your account was logged in on another device. Please log in again.',
+          code: 'SESSION_REPLACED'
+        });
+      }
+    } catch (dbErr) {
+      console.error('Auth middleware DB error:', dbErr.message);
+      return res.status(500).json({ message: 'Authentication error' });
     }
-
-    // ✅ BLOCK SUSPENDED USERS
-    if (user.suspended) {
-     return res.status(403).json({ message: 'Your account has been blocked by admin' });
+  } else {
+    console.warn(`⚠️  Token without sessionSeed for user ${decoded.userId} — old token format`);
   }
 
   req.user = decoded;
   next();
-  } catch (error) {
-    if (error.name === 'TokenExpiredError') return res.status(401).json({ message: 'Token has expired' });
-    return res.status(401).json({ message: 'Token is not valid' });
-  }
 };
-
-module.exports = auth;
