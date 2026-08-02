@@ -19,7 +19,8 @@ import RouteAlerts      from "./pages/RouteAlerts.jsx";
 import NotificationsPage from "./pages/NotificationsPage.jsx";
 import IncidentReport   from "./pages/IncidentReport.jsx";
 import AdminSettings    from "./pages/AdminSettings.jsx";
-import ResetPassword from "./pages/ResetPassword.jsx";
+import ResetPassword    from "./pages/ResetPassword.jsx";
+import ProfilePage      from "./pages/ProfilePage.jsx";   // ← NEW
 import Chatbot from "./components/Chatbot.jsx";
 
 const PAGE_MAP = {
@@ -37,40 +38,29 @@ const PAGE_MAP = {
   "live-tracking":     LiveTracking,
   "community":         CommunityPage,
   "route-alerts":      RouteAlerts,
-  "notifications": NotificationsPage,
+  "notifications":     NotificationsPage,
   "incident-report":   IncidentReport,
   "admin-settings":    AdminSettings,
   "reset-password":    ResetPassword,
+  "profile":           ProfilePage,             // ← NEW
 };
-const PUBLIC_PAGES = ["login", "register","reset-password"];
+
+const PUBLIC_PAGES = ["login", "register", "reset-password"];
 
 function Router() {
   const { user } = useAuth();
   const [page,      setPage]      = useState(user ? "dashboard" : "login");
   const [pageProps, setPageProps] = useState({});
 
- useEffect(() => {
-  if (window.location.search.includes("testreset")) {
-
-  setPage("reset-password");
-
-  setPageProps({
-    token: "test-token"
-  });
-
-  }
-  if (
-  window.location.pathname ===
-  "/reset-password"
-) {
-
-  setPage(
-    "reset-password"
-  );
-
-}
-}, []);
-
+  useEffect(() => {
+    if (window.location.search.includes("testreset")) {
+      setPage("reset-password");
+      setPageProps({ token: "test-token" });
+    }
+    if (window.location.pathname === "/reset-password") {
+      setPage("reset-password");
+    }
+  }, []);
 
   const navigate = (to, props = {}) => {
     setPage(to);
