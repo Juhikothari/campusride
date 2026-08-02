@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import LocationSearch from '../components/LocationSearch.jsx';
@@ -8,20 +6,31 @@ import NearbyMap from '../components/NearbyMap.jsx';
 import * as api from '../services/api.js';
 import './CreateRide.css';
 
+// ── College presets (corrected coords) ───────────────────────────
+// RNSIT + RNSFG are in Channasandra (west Bangalore), NOT Yelahanka
 const COLLEGE_PRESETS = [
-  { label: 'RNS Institute of Technology',       lat: 12.9116, lng: 77.4655, keys: ['rns','rns institute'] },
-  { label: 'RV College of Engineering',          lat: 12.9215, lng: 77.4958, keys: ['rv college','rvce'] },
-  { label: 'BMS College of Engineering',         lat: 12.9611, lng: 77.5908, keys: ['bms college','bmsce'] },
-  { label: 'PES University',                     lat: 12.9345, lng: 77.5366, keys: ['pes university','pesu'] },
-  { label: 'MS Ramaiah Institute of Technology', lat: 13.0163, lng: 77.5770, keys: ['ramaiah','msrit','ms ramaiah'] },
-  { label: 'Bangalore Institute of Technology',  lat: 12.9539, lng: 77.6007, keys: ['bit bangalore','bangalore institute of technology'] },
-  { label: 'Dayananda Sagar College',            lat: 12.9148, lng: 77.5444, keys: ['dayananda sagar','dsce','dscet'] },
-  { label: 'Christ University',                  lat: 12.9360, lng: 77.6115, keys: ['christ university','christ college'] },
-  { label: 'Jain University',                    lat: 12.9630, lng: 77.5750, keys: ['jain university','jain college'] },
-  { label: 'Nitte Meenakshi Institute',          lat: 13.1323, lng: 77.5869, keys: ['nitte','nitte meenakshi'] },
+  { label: 'RNS Institute of Technology',          lat: 12.9218, lng: 77.4890, keys: ['rns','rnsit','rns institute','rns institute of technology'] },
+  { label: 'RNS First Grade College',              lat: 12.9220, lng: 77.4885, keys: ['rnsfg','rns first grade','rns fg','rns first grade college'] },
+  { label: 'Global Academy of Technology',         lat: 12.9449, lng: 77.4768, keys: ['gat','global academy','global academy of technology'] },
+  { label: 'Don Bosco Institute of Technology',    lat: 12.9282, lng: 77.5046, keys: ['dbit','don bosco','don bosco institute'] },
+  { label: 'RV College of Engineering',            lat: 12.9215, lng: 77.4958, keys: ['rv college','rvce'] },
+  { label: 'BMS College of Engineering',           lat: 12.9611, lng: 77.5908, keys: ['bms college','bmsce'] },
+  { label: 'BMS Institute of Technology',          lat: 13.0634, lng: 77.5122, keys: ['bmsit','bms institute of technology'] },
+  { label: 'PES University',                       lat: 12.9345, lng: 77.5366, keys: ['pes university','pesu','pesit'] },
+  { label: 'Dayananda Sagar College of Engg',      lat: 12.9019, lng: 77.5679, keys: ['dayananda sagar','dsce','dscet'] },
+  { label: 'SJB Institute of Technology',          lat: 12.8999, lng: 77.5526, keys: ['sjbit','sjb institute'] },
+  { label: 'Christ University',                    lat: 12.9360, lng: 77.6115, keys: ['christ university','christ college'] },
+  { label: 'MS Ramaiah Institute of Technology',   lat: 13.0163, lng: 77.5770, keys: ['ramaiah','msrit','ms ramaiah'] },
+  { label: 'CMR Institute of Technology',          lat: 13.1120, lng: 77.6120, keys: ['cmrit','cmr institute'] },
+  { label: 'Nitte Meenakshi Institute',            lat: 13.1114, lng: 77.5963, keys: ['nitte','nmit','nitte meenakshi'] },
+  { label: 'Sir MVIT (Yelahanka)',                 lat: 13.1337, lng: 77.5783, keys: ['mvit','sir mvit'] },
+  { label: 'Acharya Institute of Technology',      lat: 13.0633, lng: 77.5122, keys: ['acharya','ait'] },
+  { label: 'Bangalore Institute of Technology',    lat: 12.9539, lng: 77.6007, keys: ['bit bangalore','bangalore institute of technology'] },
+  { label: 'Jain University',                      lat: 12.9630, lng: 77.5750, keys: ['jain university','jain college'] },
+  { label: 'New Horizon College of Engineering',   lat: 13.0497, lng: 77.6408, keys: ['nhce','new horizon'] },
+  { label: 'REVA University (Yelahanka)',          lat: 13.1167, lng: 77.5942, keys: ['reva','reva university'] },
 ];
 
-// Snap geocoder label to known college coords using keyword matching
 const snapToKnownCollege = (label) => {
   if (!label) return null;
   const n = label.toLowerCase();
@@ -37,110 +46,65 @@ const CITY_PRESETS = [
   { label: 'Delhi', lat: 28.6139, lng: 77.2090 },
   { label: 'Mumbai', lat: 19.0760, lng: 72.8777 },
   { label: 'Chennai', lat: 13.0827, lng: 80.2707 },
-  { label: 'Kolkata', lat: 22.5726, lng: 88.3639 },
-  { label: 'Pune', lat: 18.5204, lng: 73.8567 },
-  { label: 'Jaipur', lat: 26.9124, lng: 75.7873 },
-  { label: 'Lucknow', lat: 26.8467, lng: 80.9462 },
-  { label: 'Indore', lat: 22.7196, lng: 75.8577 }
 ];
 
-const EMPTY = { 
-  pickupLabel:'', 
-  pickupLat:'', 
-  pickupLng:'', 
-  dropLabel:'', 
-  dropLat:'', 
-  dropLng:'', 
-  date:'', 
-  time:'', 
-  seatsAvailable:3, 
-  costPerSeat:0,
-  vehicleType: 'car' // Default vehicle type
+const EMPTY = {
+  pickupLabel:'', pickupLat:'', pickupLng:'',
+  dropLabel:'',   dropLat:'',   dropLng:'',
+  date:'', time:'', seatsAvailable:3, costPerSeat:0,
+  vehicleType: 'car'
 };
 
 const VEHICLE_TYPES = [
   { value: 'motorcycle', label: '🏍 Bike', capacity: 1 },
-  { value: 'car', label: '🚗 Car', capacity: 3 },
-  { value: 'suv', label: '🚙 SUV', capacity: 4 },
-  { value: 'xuv', label: '🚐 XUV', capacity: 6 }
+  { value: 'car',        label: '🚗 Car',  capacity: 3 },
+  { value: 'suv',        label: '🚙 SUV',  capacity: 4 },
+  { value: 'xuv',        label: '🚐 XUV',  capacity: 6 },
 ];
 
-// Auto cost calculator — base fare + per km rate (cost per seat)
-const calculateCostPerSeat = (distanceKm, vehicleType) => {
-  if (!distanceKm || distanceKm <= 0) return 0;
-
-  // Sanity check — campus rides shouldn't exceed 50km
-  const safeDistance = Math.min(distanceKm, 50);
-
-  // Rates per vehicle type (Indian campus ride context)
-  // Bike: ≤1km → base ₹10; >1km → ₹5/km only (no base)
-  // e.g. 6km bike = 6 × 5 = ₹30 ✓
-  const rates = {
-    motorcycle: { base: 20, perKm: 5  },
-    car:        { base: 25, perKm: 7 },
-    suv:        { base: 25, perKm: 7 },
-    xuv:        { base: 25, perKm: 10 },
-  };
-
-  const { base, perKm } = rates[vehicleType] || rates.car;
-
-  if (safeDistance <= 1) {
-    // Short trip — just base fare
-    return base;
-  }
-  // Longer trip — per-km charges only, no base fare
-  return Math.round(safeDistance * perKm);
+// ── Fare calculator ────────────────────────────────────────────────
+// Rules:
+//   ≤ 1 km              → base fare only (minimum charge)
+//   > 1 km              → per-km fare
+//   per-km < base fare  → show base fare  (e.g. 2km car = 14 < 25 → 25)
+//   per-km ≥ base fare  → show per-km fare
+const RATES = {
+  motorcycle: { base: 20, perKm: 5  },
+  car:        { base: 25, perKm: 7  },
+  suv:        { base: 30, perKm: 9  },
+  xuv:        { base: 35, perKm: 11 },
 };
 
-// Location config based on pickup type selection
+const calculateCostPerSeat = (distanceKm, vehicleType) => {
+  if (!distanceKm || distanceKm <= 0) return 0;
+  const safeDistance = Math.min(distanceKm, 50);
+  const { base, perKm } = RATES[vehicleType] || RATES.car;
+  if (safeDistance <= 1) return base;
+  return Math.max(base, Math.round(safeDistance * perKm));
+};
+
 const getLocationConfig = (pickupType) => {
-  if (pickupType === 'college') {
-    return {
-      pickupIsCollege: true,
-      dropIsCollege: false,
-      dropExcludeColleges: true,
-      message: "College pickup: Drop locations limited to general areas"
-    };
-  } else if (pickupType === 'home') {
-    return {
-      pickupIsCollege: false,
-      dropIsCollege: true,
-      dropExcludeColleges: false,
-      message: "Home pickup: Drop locations limited to colleges"
-    };
-  }
-  
-  // Default case
-  return {
-    pickupIsCollege: false,
-    dropIsCollege: false,
-    dropExcludeColleges: false,
-    message: ""
-  };
+  if (pickupType === 'college') return { pickupIsCollege: true,  dropIsCollege: false, message: 'College pickup: Drop limited to general areas' };
+  if (pickupType === 'home')   return { pickupIsCollege: false, dropIsCollege: true,  message: 'Home pickup: Drop limited to colleges' };
+  return { pickupIsCollege: false, dropIsCollege: false, message: '' };
 };
 
 export default function CreateRide({ navigate }) {
   const { user } = useAuth();
-  const [form,      setForm]      = useState(EMPTY);
-  const [error,     setError]     = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [success,   setSuccess]   = useState(null);
-  const [pickupType, setPickupType] = useState('');
-  const [scheduleType, setScheduleType] = useState(''); // 'now' or 'later'
-  const [locationConfig, setLocationConfig] = useState(getLocationConfig(''));
-  const [womenOnly, setWomenOnly] = useState(false);
-  const [isFemale]  = useState(() => false); // will be set from user
-  const [roadDistanceKm, setRoadDistanceKm] = useState(0);
-  const [fareLoading, setFareLoading] = useState(false);
+  const [form,          setForm]          = useState(EMPTY);
+  const [error,         setError]         = useState('');
+  const [loading,       setLoading]       = useState(false);
+  const [success,       setSuccess]       = useState(null);
+  const [pickupType,    setPickupType]    = useState('');
+  const [scheduleType,  setScheduleType]  = useState('');
+  const [locationConfig,setLocationConfig]= useState(getLocationConfig(''));
+  const [womenOnly,     setWomenOnly]     = useState(false);
+  const [roadDistanceKm,setRoadDistanceKm]= useState(0);
 
-  // Fetch REAL road distance from backend (OSRM) when pickup + drop are set
-  // Calculate distance on frontend using snap-corrected coordinates
   useEffect(() => {
     const { pickupLat, pickupLng, dropLat, dropLng, pickupLabel, dropLabel } = form;
     if (!pickupLat || !pickupLng || !dropLat || !dropLng) { setRoadDistanceKm(0); return; }
 
-    // Snap to known college coords if geocoder returned wrong result
     const pickupSnap = snapToKnownCollege(pickupLabel);
     const dropSnap   = snapToKnownCollege(dropLabel);
 
@@ -154,21 +118,16 @@ export default function CreateRide({ navigate }) {
     const dLng = (lng2 - lng1) * Math.PI / 180;
     const a    = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
     const dist = parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))).toFixed(2));
-
     setRoadDistanceKm(dist);
   }, [form.pickupLat, form.pickupLng, form.dropLat, form.dropLng, form.pickupLabel, form.dropLabel]);
 
-  // Update location config when pickup type changes
-  useEffect(() => {
-    setLocationConfig(getLocationConfig(pickupType));
-  }, [pickupType]);
+  useEffect(() => { setLocationConfig(getLocationConfig(pickupType)); }, [pickupType]);
 
-  // When "Book Now" is selected, auto-fill current date and time
   useEffect(() => {
     if (scheduleType === 'now') {
-      const now = new Date();
+      const now  = new Date();
       const date = now.toISOString().split('T')[0];
-      const time = now.toTimeString().slice(0, 5); // HH:MM
+      const time = now.toTimeString().slice(0, 5);
       setForm(f => ({ ...f, date, time }));
     } else if (scheduleType === 'later') {
       setForm(f => ({ ...f, date: '', time: '' }));
@@ -176,34 +135,16 @@ export default function CreateRide({ navigate }) {
   }, [scheduleType]);
 
   const isProvider = user?.role === 'provider' || user?.role === 'both';
-  if (!isProvider) {
-    return (
-      <div className="narrow-wrap fade-up text-center" style={{paddingTop:80}}>
-        <div style={{fontSize:64}}>¡Ï</div>
-        <h2 className="heading mt-20" style={{fontSize:28, marginBottom:4}}>Access Denied</h2>
-        <p className="text-muted mt-8">Only providers can create rides.</p>
-        <button className="btn btn-primary btn-lg mt-32" onClick={() => navigate('dashboard')}>
-          Back to Dashboard
-        </button>
-      </div>
-    );
-  }
+  if (!isProvider) return (
+    <div className="narrow-wrap fade-up text-center" style={{paddingTop:80}}>
+      <div style={{fontSize:64}}>🚫</div>
+      <h2 className="heading mt-20" style={{fontSize:28}}>Access Denied</h2>
+      <p className="text-muted mt-8">Only providers can create rides.</p>
+      <button className="btn btn-primary btn-lg mt-32" onClick={() => navigate('dashboard')}>Back to Dashboard</button>
+    </div>
+  );
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
-
-  const applyPreset = (which, p) => {
-    if (which === 'pickup') {
-      setForm(f => {
-        const snap = snapToKnownCollege(p.label);
-        return { ...f, pickupLabel: p.label, pickupLat: (snap?.lat ?? p.lat).toString(), pickupLng: (snap?.lng ?? p.lng).toString() };
-      });
-    } else {
-      setForm(f => {
-        const snap = snapToKnownCollege(p.label);
-        return { ...f, dropLabel: p.label, dropLat: (snap?.lat ?? p.lat).toString(), dropLng: (snap?.lng ?? p.lng).toString() };
-      });
-    }
-  };
 
   const submit = async e => {
     e.preventDefault();
@@ -213,34 +154,25 @@ export default function CreateRide({ navigate }) {
       const validate = () => {
         if (!form.pickupLat || !form.pickupLng) return 'Set pickup coordinates';
         if (!form.dropLat   || !form.dropLng)   return 'Set drop coordinates';
-        if (form.pickupLat === form.dropLat && form.pickupLng === form.dropLng) return 'Pickup and drop location cannot be the same';
+        if (form.pickupLat === form.dropLat && form.pickupLng === form.dropLng) return 'Pickup and drop cannot be the same';
         if (!form.date) return 'Date is required';
         if (!form.time) return 'Time is required';
-        // Only check future date for scheduled rides, not "now"
         if (scheduleType === 'later' && new Date(`${form.date}T${form.time}`) < new Date()) return 'Date/time must be in the future';
         if (!pickupType) return 'Please select College or Home pickup type';
         return null;
       };
       const validationError = validate();
-      if (validationError) {
-        setError(validationError);
-        setLoading(false);
-        return;
-      }
+      if (validationError) { setError(validationError); setLoading(false); return; }
+
       const ride = await api.createRide({
-        pickup: {
-          coordinates: [parseFloat(form.pickupLng), parseFloat(form.pickupLat)],
-          address:     form.pickupLabel,
-        },
-        drop: {
-          coordinates: [parseFloat(form.dropLng), parseFloat(form.dropLat)],
-          address:     form.dropLabel,
-        },
+        pickup: { coordinates: [parseFloat(form.pickupLng), parseFloat(form.pickupLat)], address: form.pickupLabel },
+        drop:   { coordinates: [parseFloat(form.dropLng),   parseFloat(form.dropLat)],   address: form.dropLabel },
         date: new Date(`${form.date}T${form.time}`).toISOString(),
         time: form.time,
         seatsAvailable: form.vehicleType === 'motorcycle' ? 1 : Number(form.seatsAvailable),
         womenOnly: user?.gender === 'female' ? womenOnly : false,
         costPerSeat: calculateCostPerSeat(roadDistanceKm, form.vehicleType),
+        vehicleType: form.vehicleType,
       });
       setSuccess(ride);
     } catch (err) {
@@ -256,18 +188,23 @@ export default function CreateRide({ navigate }) {
       <h2 className="heading mt-20" style={{fontSize:28}}>Ride Posted!</h2>
       <p className="text-muted mt-8">Your ride is live. Seekers near your pickup can now find and book it.</p>
       <div className="flex-center gap-12 mt-32">
-        <button className="btn btn-primary btn-lg" onClick={() => navigate('provider-bookings')}>
-          View Requests
-        </button>
-        <button className="btn btn-secondary" onClick={() => { setSuccess(null); setForm(EMPTY); }}>
-          Post Another
-        </button>
+        <button className="btn btn-primary btn-lg" onClick={() => navigate('provider-bookings')}>View Requests</button>
+        <button className="btn btn-secondary" onClick={() => { setSuccess(null); setForm(EMPTY); }}>Post Another</button>
       </div>
     </div>
   );
 
   const calculatedCost = calculateCostPerSeat(roadDistanceKm, form.vehicleType);
-  const maxEarnings = form.seatsAvailable * calculatedCost;
+  const { base, perKm } = RATES[form.vehicleType] || RATES.car;
+
+  // Human-readable formula for earn card
+  const fareFormula = (() => {
+    if (roadDistanceKm <= 0) return '';
+    if (roadDistanceKm <= 1) return `${roadDistanceKm} km → base fare (₹${base} minimum)`;
+    const pkFare = Math.round(roadDistanceKm * perKm);
+    if (pkFare < base) return `${roadDistanceKm} km × ₹${perKm} = ₹${pkFare} < base → showing ₹${base}`;
+    return `${roadDistanceKm} km × ₹${perKm}/km = ₹${pkFare}`;
+  })();
 
   return (
     <div className="narrow-wrap fade-up">
@@ -277,112 +214,71 @@ export default function CreateRide({ navigate }) {
 
       <form onSubmit={submit}>
         {locationConfig.message && (
-          <div className="alert alert-info mb-20">
-            ℹ️ {locationConfig.message}
-          </div>
+          <div className="alert alert-info mb-20">ℹ️ {locationConfig.message}</div>
         )}
 
-        {/* ── Pickup Type Selection ── */}
+        {/* Pickup Type */}
         <div className="field mb-32">
           <label>Where are you picking up from? *</label>
           <div className="pickup-type-grid">
-            <button
-              type="button"
-              className={`pickup-type-btn ${pickupType === 'college' ? 'selected' : ''}`}
-              onClick={() => setPickupType('college')}
-            >
-              <span className="icon">🏫</span>
-              <span className="text">College</span>
+            <button type="button" className={`pickup-type-btn ${pickupType==='college'?'selected':''}`} onClick={() => setPickupType('college')}>
+              <span className="icon">🏫</span><span className="text">College</span>
             </button>
-            <button
-              type="button"
-              className={`pickup-type-btn ${pickupType === 'home' ? 'selected' : ''}`}
-              onClick={() => setPickupType('home')}
-            >
-              <span className="icon">🏠</span>
-              <span className="text">Home</span>
+            <button type="button" className={`pickup-type-btn ${pickupType==='home'?'selected':''}`} onClick={() => setPickupType('home')}>
+              <span className="icon">🏠</span><span className="text">Home</span>
             </button>
           </div>
         </div>
 
-        {/* ── Pickup ── */}
+        {/* Pickup */}
         <div className="loc-section">
-          <div className="ls-head">
-            <span className="ls-dot green" /><span className="ls-label">Pickup Point</span>
-          </div>
+          <div className="ls-head"><span className="ls-dot green"/><span className="ls-label">Pickup Point</span></div>
           <div className="field">
             <label>Pickup Location *</label>
             {locationConfig.pickupIsCollege ? (
-              <CollegeLocationSearch
-                key="pickup-college"
-                value={form.pickupLabel}
-                onChange={(label, lat, lng) => setForm(f => ({ ...f, pickupLabel: label, pickupLat: lat.toString(), pickupLng: lng.toString() }))}
-                placeholder="Search for college pickup..."
-                className="mb-12"
-              />
+              <CollegeLocationSearch key="pickup-college" value={form.pickupLabel}
+                onChange={(label,lat,lng) => setForm(f=>({...f,pickupLabel:label,pickupLat:lat.toString(),pickupLng:lng.toString()}))}
+                placeholder="Search for college pickup..." className="mb-12" />
             ) : (
-              <LocationSearch
-                key="pickup-location"
-                onChange={(label, lat, lng) => setForm(f => ({ ...f, pickupLabel: label, pickupLat: lat.toString(), pickupLng: lng.toString() }))}
-                placeholder="Search for pickup location..."
-                className="mb-12"
-              />
+              <LocationSearch key="pickup-location"
+                onChange={(label,lat,lng) => setForm(f=>({...f,pickupLabel:label,pickupLat:lat.toString(),pickupLng:lng.toString()}))}
+                placeholder="Search for pickup location..." className="mb-12" />
             )}
           </div>
         </div>
 
-        {/* ── Drop ── */}
+        {/* Drop */}
         <div className="loc-section">
-          <div className="ls-head">
-            <span className="ls-dot red" /><span className="ls-label">Drop Point</span>
-          </div>
+          <div className="ls-head"><span className="ls-dot red"/><span className="ls-label">Drop Point</span></div>
           <div className="field">
             <label>Drop Location *</label>
             {locationConfig.dropIsCollege ? (
-              <CollegeLocationSearch
-                key="drop-college"
-                value={form.dropLabel}
-                onChange={(label, lat, lng) => setForm(f => ({ ...f, dropLabel: label, dropLat: lat.toString(), dropLng: lng.toString() }))}
-                placeholder="Search for college drop..."
-                className="mb-12"
-              />
+              <CollegeLocationSearch key="drop-college" value={form.dropLabel}
+                onChange={(label,lat,lng) => setForm(f=>({...f,dropLabel:label,dropLat:lat.toString(),dropLng:lng.toString()}))}
+                placeholder="Search for college drop..." className="mb-12" />
             ) : (
-              <LocationSearch
-                key="drop-location"
-                onChange={(label, lat, lng) => setForm(f => ({ ...f, dropLabel: label, dropLat: lat.toString(), dropLng: lng.toString() }))}
-                placeholder="Search for drop location..."
-                className="mb-12"
-              />
+              <LocationSearch key="drop-location"
+                onChange={(label,lat,lng) => setForm(f=>({...f,dropLabel:label,dropLat:lat.toString(),dropLng:lng.toString()}))}
+                placeholder="Search for drop location..." className="mb-12" />
             )}
           </div>
         </div>
 
-        {/* ── Schedule Type ── */}
+        {/* Schedule */}
         <div className="field mb-24">
           <label>When is the ride? *</label>
           <div className="pickup-type-grid">
-            <button
-              type="button"
-              className={`pickup-type-btn ${scheduleType === 'now' ? 'selected' : ''}`}
-              onClick={() => setScheduleType('now')}
-            >
-              <span className="icon">⚡</span>
-              <span className="text">Ride Now</span>
+            <button type="button" className={`pickup-type-btn ${scheduleType==='now'?'selected':''}`} onClick={() => setScheduleType('now')}>
+              <span className="icon">⚡</span><span className="text">Ride Now</span>
             </button>
-            <button
-              type="button"
-              className={`pickup-type-btn ${scheduleType === 'later' ? 'selected' : ''}`}
-              onClick={() => setScheduleType('later')}
-            >
-              <span className="icon">📅</span>
-              <span className="text">Schedule Later</span>
+            <button type="button" className={`pickup-type-btn ${scheduleType==='later'?'selected':''}`} onClick={() => setScheduleType('later')}>
+              <span className="icon">📅</span><span className="text">Schedule Later</span>
             </button>
           </div>
         </div>
 
-        {/* ── Date / Time — only shown for scheduled rides ── */}
         {scheduleType === 'later' && (
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}} className="mb-20">
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}} className="mb-20">
             <div className="field" style={{marginBottom:0}}>
               <label>Date ✶</label>
               <input className="input" type="date" min={new Date().toISOString().split('T')[0]} value={form.date} onChange={set('date')} required />
@@ -394,132 +290,104 @@ export default function CreateRide({ navigate }) {
           </div>
         )}
 
-        {/* ── Ride Now: show auto-detected date & time as read-only ── */}
         {scheduleType === 'now' && (
-          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}} className="mb-20">
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}} className="mb-20">
             <div className="field" style={{marginBottom:0}}>
               <label>📅 Date</label>
-              <div className="input" style={{background:'rgba(255,255,255,0.04)', color:'rgba(255,255,255,0.5)', cursor:'default'}}>
-                {form.date ? new Date(form.date).toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'}) : '—'}
+              <div className="input" style={{background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.5)',cursor:'default'}}>
+                {form.date ? new Date(form.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}
               </div>
             </div>
             <div className="field" style={{marginBottom:0}}>
               <label>🕐 Time</label>
-              <div className="input" style={{background:'rgba(255,255,255,0.04)', color:'rgba(255,255,255,0.5)', cursor:'default'}}>
+              <div className="input" style={{background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.5)',cursor:'default'}}>
                 {form.time || '—'}
               </div>
             </div>
           </div>
         )}
 
-        {/* ── Vehicle Type ── */}
+        {/* Vehicle Type */}
         <div className="field mb-20">
           <label>Vehicle Type ✶</label>
           <div className="vehicle-type-grid">
             {VEHICLE_TYPES.map(vehicle => {
-              const labelParts = vehicle.label.split(' ');
-              const icon = labelParts[0];
-              const name = labelParts.slice(1).join(' ');
+              const [icon, ...nameParts] = vehicle.label.split(' ');
               return (
-                <div
-                  key={vehicle.value}
-                  className={`vehicle-type-card ${form.vehicleType === vehicle.value ? 'selected' : ''}`}
-                  onClick={() => setForm(f => ({ ...f, vehicleType: vehicle.value, seatsAvailable: vehicle.capacity }))}
-                >
+                <div key={vehicle.value}
+                  className={`vehicle-type-card ${form.vehicleType===vehicle.value?'selected':''}`}
+                  onClick={() => setForm(f=>({...f,vehicleType:vehicle.value,seatsAvailable:vehicle.capacity}))}>
                   <div className="vehicle-icon">{icon}</div>
-                  <div className="vehicle-name">{name}</div>
-                  <div className="vehicle-capacity">
-                    Max {vehicle.capacity} seat{vehicle.capacity > 1 ? 's' : ''}
-                  </div>
+                  <div className="vehicle-name">{nameParts.join(' ')}</div>
+                  <div className="vehicle-capacity">Max {vehicle.capacity} seat{vehicle.capacity>1?'s':''}</div>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* ── Auto Calculated Cost ── */}
+        {/* Auto Cost Display */}
         <div className="field mb-20">
           <label>Auto-Calculated Cost per Seat (₹)</label>
           <div className="cost-display">
-            <div className="cost-amount">₹{calculatedCost}</div>
+            <div className="cost-amount">₹{calculatedCost || '—'}</div>
             <div className="cost-info">
-              {calculatedCost > 0 ? (
-                <span className="text-muted text-sm">Based on distance and vehicle type</span>
-              ) : (
-                <span className="text-muted text-sm">Set pickup and drop locations to calculate cost</span>
-              )}
+              {calculatedCost > 0
+                ? <span className="text-muted text-sm">Based on distance and vehicle type</span>
+                : <span className="text-muted text-sm">Set pickup and drop to calculate cost</span>}
             </div>
           </div>
         </div>
 
-        {/* ── Earnings preview ── */}
-        {(roadDistanceKm > 0 || fareLoading) && (
+        {/* Earn card with corrected formula */}
+        {roadDistanceKm > 0 && (
           <div className="earn-card mb-20">
             <div>
               <div className="earn-label">Fare per seat</div>
-              {fareLoading ? (
-                <div className="earn-formula text-dim text-xs">Calculating road distance…</div>
-              ) : (
-                <div className="earn-formula text-dim text-xs">
-                  {roadDistanceKm < 1
-                    ? `${roadDistanceKm} km → base fare`
-                    : `${roadDistanceKm} km × ₹${({motorcycle:5,car:10,suv:12,xuv:14}[form.vehicleType]||10)}/km`}
-                </div>
-              )}
+              <div className="earn-formula text-dim text-xs">{fareFormula}</div>
               {roadDistanceKm > 30 && (
                 <div style={{fontSize:11,color:'#ff9800',marginTop:4}}>
-                  ⚠️ {roadDistanceKm} km seems far — use 📍 GPS or 🗺️ map pin for accurate fare
+                  ⚠️ {roadDistanceKm} km seems far — verify with 📍 GPS for accurate fare
                 </div>
               )}
             </div>
-            <div className="earn-amount">{fareLoading ? '…' : `₹${calculatedCost}`}</div>
+            <div className="earn-amount">₹{calculatedCost}</div>
           </div>
         )}
 
-        {/* ── Women-only ride toggle (female accounts only) ── */}
+        {/* Women-only toggle */}
         {user?.gender === 'female' && (
           <div className="field mb-20">
             <label>Safety Preference</label>
-            <button
-              type="button"
-              onClick={() => setWomenOnly(w => !w)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                background: womenOnly ? 'rgba(233,30,140,0.12)' : 'rgba(255,255,255,0.05)',
-                border: `2px solid ${womenOnly ? '#e91e8c' : 'rgba(255,255,255,0.1)'}`,
-                borderRadius: 12, padding: '14px 16px', cursor: 'pointer',
-                transition: 'all 0.2s', textAlign: 'left',
-              }}>
-              <span style={{fontSize: 24}}>{womenOnly ? '🔒' : '♀'}</span>
+            <button type="button" onClick={() => setWomenOnly(w => !w)}
+              style={{display:'flex',alignItems:'center',gap:10,width:'100%',
+                background:womenOnly?'rgba(233,30,140,0.12)':'rgba(255,255,255,0.05)',
+                border:`2px solid ${womenOnly?'#e91e8c':'rgba(255,255,255,0.1)'}`,
+                borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'all 0.2s',textAlign:'left'}}>
+              <span style={{fontSize:24}}>{womenOnly?'🔒':'♀'}</span>
               <div>
-                <div style={{color: womenOnly ? '#e91e8c' : '#ccc', fontWeight: 700, fontSize: 14}}>
+                <div style={{color:womenOnly?'#e91e8c':'#ccc',fontWeight:700,fontSize:14}}>
                   Women-only ride {womenOnly && <span style={{background:'#e91e8c',color:'#fff',borderRadius:4,padding:'1px 8px',fontSize:11,marginLeft:4}}>ON</span>}
                 </div>
-                <div style={{color: '#666', fontSize: 12, marginTop: 2}}>
-                  {womenOnly
-                    ? 'Only female seekers can book this ride.'
-                    : 'Enable to restrict this ride to female seekers only.'}
+                <div style={{color:'#666',fontSize:12,marginTop:2}}>
+                  {womenOnly?'Only female seekers can book this ride.':'Enable to restrict to female seekers only.'}
                 </div>
               </div>
             </button>
           </div>
         )}
 
-        {/* ── Error shown near submit button ── */}
         {error && <div className="alert alert-error mb-12">{error}</div>}
 
-        <button type="submit" className={`btn btn-primary btn-lg btn-full ${loading ? 'btn-loading' : ''}`} disabled={loading}>
+        <button type="submit" className={`btn btn-primary btn-lg btn-full ${loading?'btn-loading':''}`} disabled={loading}>
           {!loading && '🚗 Post Ride'}
         </button>
       </form>
 
-      {/* ── Nearby map (shows nearby seekers + optimal route preview) ── */}
-      <div style={{marginTop: 28}}>
+      <div style={{marginTop:28}}>
         <NearbyMap
-          pickupLat={form.pickupLat}
-          pickupLng={form.pickupLng}
-          dropLat={form.dropLat}
-          dropLng={form.dropLng}
+          pickupLat={form.pickupLat} pickupLng={form.pickupLng}
+          dropLat={form.dropLat}     dropLng={form.dropLng}
           userGender={user?.gender}
         />
       </div>
