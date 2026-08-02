@@ -25,7 +25,9 @@ const userSchema = new mongoose.Schema({
     default: 'prefer_not_to_say'
   },
 
-  // Existing fields...
+  // Profile photo (Cloudinary URL)
+  profilePhoto: { type: String, default: '' },
+
   suspended: { type: Boolean, default: false },
 
   // Block user fields
@@ -34,7 +36,7 @@ const userSchema = new mongoose.Schema({
   blockedAt: { type: Date },
   blockedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
-  // KYC fields...
+  // KYC fields
   kycStatus: {
     type: String,
     enum: ['pending', 'approved', 'rejected', 'not_submitted', 'not_required'],
@@ -47,13 +49,23 @@ const userSchema = new mongoose.Schema({
     selfie: String,
     vehiclePhoto: String,
     vehicleNumber: String,
-    vehicleName: String,  // e.g. "Innova Crysta", "TVS iQube", "Honda Activa"
+    vehicleName: String,
   },
   kycSubmittedAt: { type: Date },
   kycVerifiedAt: { type: Date },
   kycRemarks: { type: String },
 
   emergencyContact: { type: String, default: '' },
+
+  // ── Single-device login ─────────────────────────────────────────
+  // Rotated on every login. The JWT carries this seed; if it doesn't
+  // match the stored value the token is rejected (session replaced).
+  currentSessionSeed: { type: String, default: '' },
+
+  // ── Phone number edit throttle ──────────────────────────────────
+  // Users can only update their phone number once every 90 days.
+  phoneLastUpdatedAt: { type: Date, default: null },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);
