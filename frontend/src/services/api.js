@@ -650,6 +650,12 @@ export const addCommunityReply = (postId, content) =>
     body: JSON.stringify({ content })
   });
 
+export const deleteCommunityPost = (postId) =>
+  request(`/community/${postId}`, { method: 'DELETE' });
+
+export const updatePhoneNumber = (phone) =>
+  request('/users/profile/phone', { method: 'PUT', body: JSON.stringify({ phone }) });
+
 // ── Community Chat ────────────────────────────────────────────────
 export const getChatMessages = () => request('/community/chat/messages');
 export const deleteChatMessage = (id) =>
