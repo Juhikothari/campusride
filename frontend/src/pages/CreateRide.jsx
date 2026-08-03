@@ -7,52 +7,43 @@ import * as api from '../services/api.js';
 import './CreateRide.css';
 
 // ── College presets (corrected coords) ───────────────────────────
-// RNSIT + RNSFG are in Channasandra (west Bangalore), NOT Yelahanka
 const COLLEGE_PRESETS = [
-  { label: 'RNS Institute of Technology',          lat: 12.9218, lng: 77.4890, keys: ['rns','rnsit','rns institute','rns institute of technology'] },
-  { label: 'RNS First Grade College',              lat: 12.9220, lng: 77.4885, keys: ['rnsfg','rns first grade','rns fg','rns first grade college'] },
-  { label: 'Global Academy of Technology',         lat: 12.9449, lng: 77.4768, keys: ['gat','global academy','global academy of technology'] },
-  { label: 'Don Bosco Institute of Technology',    lat: 12.9282, lng: 77.5046, keys: ['dbit','don bosco','don bosco institute'] },
-  { label: 'RV College of Engineering',            lat: 12.9215, lng: 77.4958, keys: ['rv college','rvce'] },
-  { label: 'BMS College of Engineering',           lat: 12.9611, lng: 77.5908, keys: ['bms college','bmsce'] },
-  { label: 'BMS Institute of Technology',          lat: 13.0634, lng: 77.5122, keys: ['bmsit','bms institute of technology'] },
-  { label: 'PES University',                       lat: 12.9345, lng: 77.5366, keys: ['pes university','pesu','pesit'] },
-  { label: 'Dayananda Sagar College of Engg',      lat: 12.9019, lng: 77.5679, keys: ['dayananda sagar','dsce','dscet'] },
-  { label: 'SJB Institute of Technology',          lat: 12.8999, lng: 77.5526, keys: ['sjbit','sjb institute'] },
-  { label: 'Christ University',                    lat: 12.9360, lng: 77.6115, keys: ['christ university','christ college'] },
-  { label: 'MS Ramaiah Institute of Technology',   lat: 13.0163, lng: 77.5770, keys: ['ramaiah','msrit','ms ramaiah'] },
-  { label: 'CMR Institute of Technology',          lat: 13.1120, lng: 77.6120, keys: ['cmrit','cmr institute'] },
-  { label: 'Nitte Meenakshi Institute',            lat: 13.1114, lng: 77.5963, keys: ['nitte','nmit','nitte meenakshi'] },
-  { label: 'Sir MVIT (Yelahanka)',                 lat: 13.1337, lng: 77.5783, keys: ['mvit','sir mvit'] },
-  { label: 'Acharya Institute of Technology',      lat: 13.0633, lng: 77.5122, keys: ['acharya','ait'] },
-  { label: 'Bangalore Institute of Technology',    lat: 12.9539, lng: 77.6007, keys: ['bit bangalore','bangalore institute of technology'] },
-  { label: 'Jain University',                      lat: 12.9630, lng: 77.5750, keys: ['jain university','jain college'] },
-  { label: 'New Horizon College of Engineering',   lat: 13.0497, lng: 77.6408, keys: ['nhce','new horizon'] },
-  { label: 'REVA University (Yelahanka)',          lat: 13.1167, lng: 77.5942, keys: ['reva','reva university'] },
+  // RNSIT & RNSFG: Dr. Vishnuvardhana Road, Channasandra, RR Nagar — 12°54′5″N 77°31′4″E
+  { label: 'RNS Institute of Technology',        lat: 12.9011, lng: 77.5181, keys: ['rns','rnsit','rns institute','rns institute of technology'] },
+  { label: 'RNS First Grade College',            lat: 12.9008, lng: 77.5179, keys: ['rnsfg','rns first grade','rns fg','rns first grade college'] },
+  { label: 'Global Academy of Technology',       lat: 12.9449, lng: 77.4768, keys: ['gat','global academy','global academy of technology'] },
+  { label: 'Don Bosco Institute of Technology',  lat: 12.9282, lng: 77.5046, keys: ['dbit','don bosco','don bosco institute'] },
+  { label: 'RV College of Engineering',          lat: 12.9215, lng: 77.4958, keys: ['rv college','rvce'] },
+  { label: 'BMS College of Engineering',         lat: 12.9611, lng: 77.5908, keys: ['bms college','bmsce'] },
+  { label: 'BMS Institute of Technology',        lat: 13.0634, lng: 77.5122, keys: ['bmsit','bms institute of technology'] },
+  { label: 'PES University',                     lat: 12.9345, lng: 77.5366, keys: ['pes university','pesu','pesit'] },
+  { label: 'Dayananda Sagar College of Engg',    lat: 12.9019, lng: 77.5679, keys: ['dayananda sagar','dsce','dscet'] },
+  { label: 'SJB Institute of Technology',        lat: 12.8999, lng: 77.5526, keys: ['sjbit','sjb institute'] },
+  { label: 'Christ University',                  lat: 12.9360, lng: 77.6115, keys: ['christ university','christ college'] },
+  { label: 'MS Ramaiah Institute of Technology', lat: 13.0163, lng: 77.5770, keys: ['ramaiah','msrit','ms ramaiah'] },
+  { label: 'CMR Institute of Technology',        lat: 13.1120, lng: 77.6120, keys: ['cmrit','cmr institute'] },
+  { label: 'Nitte Meenakshi Institute',          lat: 13.1114, lng: 77.5963, keys: ['nitte','nmit','nitte meenakshi'] },
+  { label: 'Sir MVIT (Yelahanka)',               lat: 13.1337, lng: 77.5783, keys: ['mvit','sir mvit'] },
+  { label: 'Acharya Institute of Technology',    lat: 13.0633, lng: 77.5122, keys: ['acharya','ait'] },
+  { label: 'Bangalore Institute of Technology',  lat: 12.9539, lng: 77.6007, keys: ['bit bangalore','bangalore institute of technology'] },
+  { label: 'Jain University',                    lat: 12.9630, lng: 77.5750, keys: ['jain university','jain college'] },
+  { label: 'New Horizon College of Engineering', lat: 13.0497, lng: 77.6408, keys: ['nhce','new horizon'] },
+  { label: 'REVA University (Yelahanka)',        lat: 13.1167, lng: 77.5942, keys: ['reva','reva university'] },
 ];
 
 const snapToKnownCollege = (label) => {
   if (!label) return null;
   const n = label.toLowerCase();
   return COLLEGE_PRESETS.find(c =>
-    c.keys.some(k => n.includes(k)) ||
-    n.includes(c.label.toLowerCase())
+    c.keys.some(k => n.includes(k)) || n.includes(c.label.toLowerCase())
   ) || null;
 };
-
-const CITY_PRESETS = [
-  { label: 'Bangalore', lat: 12.9716, lng: 77.5946 },
-  { label: 'Hyderabad', lat: 17.3850, lng: 78.4867 },
-  { label: 'Delhi', lat: 28.6139, lng: 77.2090 },
-  { label: 'Mumbai', lat: 19.0760, lng: 72.8777 },
-  { label: 'Chennai', lat: 13.0827, lng: 80.2707 },
-];
 
 const EMPTY = {
   pickupLabel:'', pickupLat:'', pickupLng:'',
   dropLabel:'',   dropLat:'',   dropLng:'',
   date:'', time:'', seatsAvailable:3, costPerSeat:0,
-  vehicleType: 'car'
+  vehicleType: 'car',
 };
 
 const VEHICLE_TYPES = [
@@ -63,24 +54,22 @@ const VEHICLE_TYPES = [
 ];
 
 // ── Fare calculator ────────────────────────────────────────────────
-// Rules:
-//   ≤ 1 km              → base fare only (minimum charge)
-//   > 1 km              → per-km fare
-//   per-km < base fare  → show base fare  (e.g. 2km car = 14 < 25 → 25)
-//   per-km ≥ base fare  → show per-km fare
+// base is ALWAYS included. For trips > 1 km: base + per-km.
+// Minimum fare: ₹20 no matter what.
 const RATES = {
   motorcycle: { base: 20, perKm: 5  },
   car:        { base: 25, perKm: 7  },
   suv:        { base: 30, perKm: 9  },
   xuv:        { base: 35, perKm: 11 },
 };
+const MINIMUM_FARE = 20;
 
 const calculateCostPerSeat = (distanceKm, vehicleType) => {
   if (!distanceKm || distanceKm <= 0) return 0;
   const safeDistance = Math.min(distanceKm, 50);
   const { base, perKm } = RATES[vehicleType] || RATES.car;
-  if (safeDistance <= 1) return base;
-  return Math.max(base, Math.round(safeDistance * perKm));
+  const perKmPortion = safeDistance > 1 ? Math.round(safeDistance * perKm) : 0;
+  return Math.max(MINIMUM_FARE, base + perKmPortion);
 };
 
 const getLocationConfig = (pickupType) => {
@@ -89,30 +78,142 @@ const getLocationConfig = (pickupType) => {
   return { pickupIsCollege: false, dropIsCollege: false, message: '' };
 };
 
+// ── Vehicle details gate ───────────────────────────────────────────
+// If provider skipped vehicle details at registration, collect them here
+// before they can post a ride. We save them via the users/profile route.
+function VehicleDetailsGate({ onComplete }) {
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [vehicleName,   setVehicleName]   = useState('');
+  const [vehicleType,   setVehicleType]   = useState('car');
+  const [loading,       setLoading]       = useState(false);
+  const [error,         setError]         = useState('');
+
+  const vnRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/;
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (!vehicleNumber.trim()) { setError('Vehicle registration number is required'); return; }
+    if (!vnRegex.test(vehicleNumber.toUpperCase())) {
+      setError('Invalid format — use KA01AB1234 (state + district + series + number)');
+      return;
+    }
+    if (!vehicleName.trim()) { setError('Vehicle name / model is required'); return; }
+    setLoading(true);
+    try {
+      await api.updateProfile({
+        vehicleNumber: vehicleNumber.toUpperCase(),
+        vehicleName:   vehicleName.trim(),
+        vehicleType,
+      });
+      onComplete({ vehicleNumber: vehicleNumber.toUpperCase(), vehicleName: vehicleName.trim(), vehicleType });
+    } catch (err) {
+      setError(err.message || 'Failed to save vehicle details. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="narrow-wrap fade-up" style={{ paddingTop: 40 }}>
+      <div style={{ textAlign:'center', marginBottom:28 }}>
+        <div style={{ fontSize:52 }}>🚗</div>
+        <h2 className="heading mt-16" style={{ fontSize:24 }}>Add Vehicle Details</h2>
+        <p className="text-muted mt-8 text-sm">
+          You skipped vehicle details during registration.<br/>
+          Please fill them now to start offering rides.
+        </p>
+      </div>
+
+      <div className="card" style={{ padding:24 }}>
+        <form onSubmit={submit}>
+          {error && <div className="alert alert-error mb-16">{error}</div>}
+
+          {/* Vehicle type */}
+          <div className="field mb-20">
+            <label>Vehicle Type *</label>
+            <div className="vehicle-type-grid">
+              {VEHICLE_TYPES.map(v => {
+                const [icon, ...nameParts] = v.label.split(' ');
+                return (
+                  <div key={v.value}
+                    className={`vehicle-type-card ${vehicleType === v.value ? 'selected' : ''}`}
+                    onClick={() => setVehicleType(v.value)}>
+                    <div className="vehicle-icon">{icon}</div>
+                    <div className="vehicle-name">{nameParts.join(' ')}</div>
+                    <div className="vehicle-capacity">Max {v.capacity} seat{v.capacity > 1 ? 's' : ''}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Vehicle registration number */}
+          <div className="field mb-16">
+            <label>🔢 Vehicle Registration Number *</label>
+            <input className="input" type="text"
+              placeholder="e.g. KA01AB1234"
+              maxLength={12}
+              value={vehicleNumber}
+              onChange={e => setVehicleNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} />
+            <p className="field-hint-msg">Format: State + District + Series + Number (e.g. KA01AB1234)</p>
+          </div>
+
+          {/* Vehicle name */}
+          <div className="field mb-24">
+            <label>🚘 Vehicle Name / Model *</label>
+            <input className="input" type="text"
+              placeholder="e.g. Honda Activa, Innova Crysta, TVS iQube"
+              value={vehicleName}
+              onChange={e => setVehicleName(e.target.value)} />
+            <p className="field-hint-msg">Shown to seekers after booking confirmation</p>
+          </div>
+
+          <button type="submit"
+            className={`btn btn-primary btn-lg btn-full ${loading ? 'btn-loading' : ''}`}
+            disabled={loading}>
+            {!loading && 'Save & Continue to Post Ride →'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Main CreateRide ───────────────────────────────────────────────
 export default function CreateRide({ navigate }) {
   const { user } = useAuth();
-  const [form,          setForm]          = useState(EMPTY);
-  const [error,         setError]         = useState('');
-  const [loading,       setLoading]       = useState(false);
-  const [success,       setSuccess]       = useState(null);
-  const [pickupType,    setPickupType]    = useState('');
-  const [scheduleType,  setScheduleType]  = useState('');
-  const [locationConfig,setLocationConfig]= useState(getLocationConfig(''));
-  const [womenOnly,     setWomenOnly]     = useState(false);
-  const [roadDistanceKm,setRoadDistanceKm]= useState(0);
+  const [form,           setForm]           = useState(EMPTY);
+  const [error,          setError]          = useState('');
+  const [loading,        setLoading]        = useState(false);
+  const [success,        setSuccess]        = useState(null);
+  const [pickupType,     setPickupType]     = useState('');
+  const [scheduleType,   setScheduleType]   = useState('');
+  const [locationConfig, setLocationConfig] = useState(getLocationConfig(''));
+  const [womenOnly,      setWomenOnly]      = useState(false);
+  const [roadDistanceKm, setRoadDistanceKm] = useState(0);
+
+  // Track whether vehicle details are on the account
+  const [vehicleReady,   setVehicleReady]   = useState(null); // null = checking
+
+  useEffect(() => {
+    // Check if user already has vehicle details stored in their KYC docs
+    api.getProfile().then(profile => {
+      const hasVehicleNumber = !!(profile?.kycDocuments?.vehicleNumber || profile?.vehicleNumber);
+      const hasVehicleName   = !!(profile?.kycDocuments?.vehicleName   || profile?.vehicleName);
+      setVehicleReady(hasVehicleNumber && hasVehicleName);
+    }).catch(() => setVehicleReady(true)); // on error, don't block
+  }, []);
 
   useEffect(() => {
     const { pickupLat, pickupLng, dropLat, dropLng, pickupLabel, dropLabel } = form;
     if (!pickupLat || !pickupLng || !dropLat || !dropLng) { setRoadDistanceKm(0); return; }
-
     const pickupSnap = snapToKnownCollege(pickupLabel);
     const dropSnap   = snapToKnownCollege(dropLabel);
-
     const lat1 = parseFloat(pickupSnap ? pickupSnap.lat : pickupLat);
     const lng1 = parseFloat(pickupSnap ? pickupSnap.lng : pickupLng);
     const lat2 = parseFloat(dropSnap   ? dropSnap.lat   : dropLat);
     const lng2 = parseFloat(dropSnap   ? dropSnap.lng   : dropLng);
-
     const R    = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
@@ -126,22 +227,33 @@ export default function CreateRide({ navigate }) {
   useEffect(() => {
     if (scheduleType === 'now') {
       const now  = new Date();
-      const date = now.toISOString().split('T')[0];
-      const time = now.toTimeString().slice(0, 5);
-      setForm(f => ({ ...f, date, time }));
+      setForm(f => ({ ...f, date: now.toISOString().split('T')[0], time: now.toTimeString().slice(0,5) }));
     } else if (scheduleType === 'later') {
-      setForm(f => ({ ...f, date: '', time: '' }));
+      setForm(f => ({ ...f, date:'', time:'' }));
     }
   }, [scheduleType]);
 
   const isProvider = user?.role === 'provider' || user?.role === 'both';
+
   if (!isProvider) return (
-    <div className="narrow-wrap fade-up text-center" style={{paddingTop:80}}>
-      <div style={{fontSize:64}}>🚫</div>
-      <h2 className="heading mt-20" style={{fontSize:28}}>Access Denied</h2>
+    <div className="narrow-wrap fade-up text-center" style={{ paddingTop:80 }}>
+      <div style={{ fontSize:64 }}>🚫</div>
+      <h2 className="heading mt-20" style={{ fontSize:28 }}>Access Denied</h2>
       <p className="text-muted mt-8">Only providers can create rides.</p>
       <button className="btn btn-primary btn-lg mt-32" onClick={() => navigate('dashboard')}>Back to Dashboard</button>
     </div>
+  );
+
+  // Still checking
+  if (vehicleReady === null) return (
+    <div className="narrow-wrap fade-up text-center" style={{ paddingTop:80 }}>
+      <p className="text-muted">Loading…</p>
+    </div>
+  );
+
+  // Provider hasn't filled vehicle details — show the gate
+  if (vehicleReady === false) return (
+    <VehicleDetailsGate onComplete={() => setVehicleReady(true)} />
   );
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -183,9 +295,9 @@ export default function CreateRide({ navigate }) {
   };
 
   if (success) return (
-    <div className="narrow-wrap fade-up text-center" style={{paddingTop:80}}>
-      <div style={{fontSize:64}}>🎉</div>
-      <h2 className="heading mt-20" style={{fontSize:28}}>Ride Posted!</h2>
+    <div className="narrow-wrap fade-up text-center" style={{ paddingTop:80 }}>
+      <div style={{ fontSize:64 }}>🎉</div>
+      <h2 className="heading mt-20" style={{ fontSize:28 }}>Ride Posted!</h2>
       <p className="text-muted mt-8">Your ride is live. Seekers near your pickup can now find and book it.</p>
       <div className="flex-center gap-12 mt-32">
         <button className="btn btn-primary btn-lg" onClick={() => navigate('provider-bookings')}>View Requests</button>
@@ -195,21 +307,12 @@ export default function CreateRide({ navigate }) {
   );
 
   const calculatedCost = calculateCostPerSeat(roadDistanceKm, form.vehicleType);
-  const { base, perKm } = RATES[form.vehicleType] || RATES.car;
 
-  // Human-readable formula for earn card
-  const fareFormula = (() => {
-    if (roadDistanceKm <= 0) return '';
-    if (roadDistanceKm <= 1) return `${roadDistanceKm} km → base fare (₹${base} minimum)`;
-    const pkFare = Math.round(roadDistanceKm * perKm);
-    if (pkFare < base) return `${roadDistanceKm} km × ₹${perKm} = ₹${pkFare} < base → showing ₹${base}`;
-    return `${roadDistanceKm} km × ₹${perKm}/km = ₹${pkFare}`;
-  })();
 
   return (
     <div className="narrow-wrap fade-up">
       <p className="eyebrow mb-16">Provider</p>
-      <h1 className="heading mb-8" style={{fontSize:30}}>Offer a Ride</h1>
+      <h1 className="heading mb-8" style={{ fontSize:30 }}>Offer a Ride</h1>
       <p className="text-muted mb-28 text-sm">Set your route. Seekers near your pickup will find your ride.</p>
 
       <form onSubmit={submit}>
@@ -278,12 +381,12 @@ export default function CreateRide({ navigate }) {
         </div>
 
         {scheduleType === 'later' && (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}} className="mb-20">
-            <div className="field" style={{marginBottom:0}}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }} className="mb-20">
+            <div className="field" style={{ marginBottom:0 }}>
               <label>Date ✶</label>
               <input className="input" type="date" min={new Date().toISOString().split('T')[0]} value={form.date} onChange={set('date')} required />
             </div>
-            <div className="field" style={{marginBottom:0}}>
+            <div className="field" style={{ marginBottom:0 }}>
               <label>Time ✶</label>
               <input className="input" type="time" value={form.time} onChange={set('time')} required />
             </div>
@@ -291,16 +394,16 @@ export default function CreateRide({ navigate }) {
         )}
 
         {scheduleType === 'now' && (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}} className="mb-20">
-            <div className="field" style={{marginBottom:0}}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }} className="mb-20">
+            <div className="field" style={{ marginBottom:0 }}>
               <label>📅 Date</label>
-              <div className="input" style={{background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.5)',cursor:'default'}}>
+              <div className="input" style={{ background:'rgba(255,255,255,0.04)', color:'rgba(255,255,255,0.5)', cursor:'default' }}>
                 {form.date ? new Date(form.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}) : '—'}
               </div>
             </div>
-            <div className="field" style={{marginBottom:0}}>
+            <div className="field" style={{ marginBottom:0 }}>
               <label>🕐 Time</label>
-              <div className="input" style={{background:'rgba(255,255,255,0.04)',color:'rgba(255,255,255,0.5)',cursor:'default'}}>
+              <div className="input" style={{ background:'rgba(255,255,255,0.04)', color:'rgba(255,255,255,0.5)', cursor:'default' }}>
                 {form.time || '—'}
               </div>
             </div>
@@ -326,7 +429,7 @@ export default function CreateRide({ navigate }) {
           </div>
         </div>
 
-        {/* Auto Cost Display */}
+        {/* Cost display */}
         <div className="field mb-20">
           <label>Auto-Calculated Cost per Seat (₹)</label>
           <div className="cost-display">
@@ -339,14 +442,12 @@ export default function CreateRide({ navigate }) {
           </div>
         </div>
 
-        {/* Earn card with corrected formula */}
         {roadDistanceKm > 0 && (
           <div className="earn-card mb-20">
             <div>
               <div className="earn-label">Fare per seat</div>
-              <div className="earn-formula text-dim text-xs">{fareFormula}</div>
               {roadDistanceKm > 30 && (
-                <div style={{fontSize:11,color:'#ff9800',marginTop:4}}>
+                <div style={{ fontSize:11, color:'#ff9800', marginTop:4 }}>
                   ⚠️ {roadDistanceKm} km seems far — verify with 📍 GPS for accurate fare
                 </div>
               )}
@@ -360,17 +461,17 @@ export default function CreateRide({ navigate }) {
           <div className="field mb-20">
             <label>Safety Preference</label>
             <button type="button" onClick={() => setWomenOnly(w => !w)}
-              style={{display:'flex',alignItems:'center',gap:10,width:'100%',
+              style={{ display:'flex', alignItems:'center', gap:10, width:'100%',
                 background:womenOnly?'rgba(233,30,140,0.12)':'rgba(255,255,255,0.05)',
                 border:`2px solid ${womenOnly?'#e91e8c':'rgba(255,255,255,0.1)'}`,
-                borderRadius:12,padding:'14px 16px',cursor:'pointer',transition:'all 0.2s',textAlign:'left'}}>
-              <span style={{fontSize:24}}>{womenOnly?'🔒':'♀'}</span>
+                borderRadius:12, padding:'14px 16px', cursor:'pointer', transition:'all 0.2s', textAlign:'left' }}>
+              <span style={{ fontSize:24 }}>{womenOnly?'🔒':'♀'}</span>
               <div>
-                <div style={{color:womenOnly?'#e91e8c':'#ccc',fontWeight:700,fontSize:14}}>
-                  Women-only ride {womenOnly && <span style={{background:'#e91e8c',color:'#fff',borderRadius:4,padding:'1px 8px',fontSize:11,marginLeft:4}}>ON</span>}
+                <div style={{ color:womenOnly?'#e91e8c':'#ccc', fontWeight:700, fontSize:14 }}>
+                  Women-only ride {womenOnly && <span style={{ background:'#e91e8c', color:'#fff', borderRadius:4, padding:'1px 8px', fontSize:11, marginLeft:4 }}>ON</span>}
                 </div>
-                <div style={{color:'#666',fontSize:12,marginTop:2}}>
-                  {womenOnly?'Only female seekers can book this ride.':'Enable to restrict to female seekers only.'}
+                <div style={{ color:'#666', fontSize:12, marginTop:2 }}>
+                  {womenOnly ? 'Only female seekers can book this ride.' : 'Enable to restrict to female seekers only.'}
                 </div>
               </div>
             </button>
@@ -384,7 +485,7 @@ export default function CreateRide({ navigate }) {
         </button>
       </form>
 
-      <div style={{marginTop:28}}>
+      <div style={{ marginTop:28 }}>
         <NearbyMap
           pickupLat={form.pickupLat} pickupLng={form.pickupLng}
           dropLat={form.dropLat}     dropLng={form.dropLng}

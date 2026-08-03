@@ -4,37 +4,31 @@ import { validateCollegeEmail, getDomainsForCollege } from '../data/collegeDomai
 import CollegeSearch from '../components/CollegeSearch.jsx';
 import './AuthPages.css';
 
-const CLOUD_NAME = "dhkui5t39";
+const CLOUD_NAME    = "dhkui5t39";
 const UPLOAD_PRESET = "kyc_upload";
-
-const ROLES = [
-  { value:'both', icon:'🔄', title:'Rider', desc:'Book & offer rides' },
-];
 
 export default function RegisterPage({ navigate }) {
   const { registerUser } = useAuth();
-  const [form,      setForm]    = useState({ name:'', email:'', password:'', phone:'', college:'', role:'both' });
-  const [error,     setError]   = useState('');
-  const [loading,   setLoading] = useState(false);
-  const [showPass,  setShowPass]= useState(false);
+  const [form,        setForm]        = useState({ name:'', email:'', password:'', phone:'', college:'', role:'both' });
+  const [error,       setError]       = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [showPass,    setShowPass]    = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmPass, setConfirmPass] = useState('');
-  const [kycDocs,   setKycDocs] = useState({ aadhar: null, license: null, collegeId: null });
-  const [vehicleNumber, setVehicleNumber] = useState('');
-  const [vehicleName,   setVehicleName]   = useState('');
-  //const [vehicleType, setVehicleType] = useState('');
+  const [kycDocs,     setKycDocs]     = useState({ aadhar: null, license: null, collegeId: null });
+  const [vehicleNumber,      setVehicleNumber]      = useState('');
+  const [vehicleName,        setVehicleName]        = useState('');
   const [vehicleNumberError, setVehicleNumberError] = useState('');
-  const [emergencyContact, setEmergency] = useState('');
-  const [role, setRole] = useState('');
-  const [adminKey, setAdminKey] = useState('');
-  const [gender, setGender] = useState('');
-  const [usn, setUsn] = useState('');
+  const [emergencyContact,   setEmergency]          = useState('');
+  const [adminKey,    setAdminKey]    = useState('');
+  const [gender,      setGender]      = useState('');
+  const [usn,         setUsn]         = useState('');   // ← compulsory
 
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraType, setCameraType] = useState(null);
+  const [cameraOpen,   setCameraOpen]   = useState(false);
+  const [cameraType,   setCameraType]   = useState(null);
   const [cameraStream, setCameraStream] = useState(null);
 
-  const videoRef = useRef(null);
+  const videoRef  = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -42,65 +36,48 @@ export default function RegisterPage({ navigate }) {
   const isProvider = form.role === 'provider' || form.role === 'both';
 
   const uploadToCloudinary = (file) => {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", UPLOAD_PRESET);
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`);
+      xhr.onload = () => {
+        const data = JSON.parse(xhr.responseText);
+        if (data.secure_url) resolve(data.secure_url);
+        else reject("Upload failed");
+      };
+      xhr.onerror = () => reject("Upload error");
+      xhr.send(formData);
+    });
+  };
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`);
-
-    xhr.onload = () => {
-      const data = JSON.parse(xhr.responseText);
-      if (data.secure_url) resolve(data.secure_url);
-      else reject("Upload failed");
-    };
-
-    xhr.onerror = () => reject("Upload error");
-
-    xhr.send(formData);
-  });
-};
-  // Live email-domain validation (only for non-admin roles)
   const emailValidation = useMemo(() => {
     if (form.role === 'admin') return { valid: true, message: '' };
     if (!form.email || !form.college) return { valid: true, message: '' };
     return validateCollegeEmail(form.email, form.college);
   }, [form.email, form.college, form.role]);
 
-  // Hint text: show expected domain when college is filled
   const domainHint = useMemo(() => {
     if (form.role === 'admin' || !form.college) return null;
     const domains = getDomainsForCollege(form.college);
-    return domains.length > 0 ? `Use your @${domains[0]} college email` : 'Use your official college email (not Gmail/Yahoo)';
+    return domains.length > 0
+      ? `Use your @${domains[0]} college email`
+      : 'Use your official college email (not Gmail/Yahoo)';
   }, [form.college, form.role]);
 
   useEffect(() => {
-
-  if (
-    cameraOpen &&
-    cameraStream &&
-    videoRef.current
-  ) {
-
-    videoRef.current.srcObject = cameraStream;
-
-    videoRef.current.onloadedmetadata = async () => {
-
-      try {
-        await videoRef.current.play();
-      } catch (err) {
-        console.error(err);
-      }
-
-    };
-  }
-
-}, [cameraOpen, cameraStream]);
+    if (cameraOpen && cameraStream && videoRef.current) {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.onloadedmetadata = async () => {
+        try { await videoRef.current.play(); } catch (err) { console.error(err); }
+      };
+    }
+  }, [cameraOpen, cameraStream]);
 
   const validate = () => {
-    if (!form.name.trim())    return 'Name is required';
-    if (!form.email.trim())   return 'Email is required';
+    if (!form.name.trim())  return 'Name is required';
+    if (!form.email.trim()) return 'Email is required';
     if (!/\S+@\S+\.\S+/.test(form.email)) return 'Enter a valid email';
     if (form.role !== 'admin') {
       if (!form.college.trim()) return 'College name is required';
@@ -109,13 +86,11 @@ export default function RegisterPage({ navigate }) {
     }
     if (form.password.length < 6) return 'Password must be at least 6 characters';
     if (form.password !== confirmPass) return 'Passwords do not match';
-    if (!form.phone.trim())   return 'Phone number is required';
-    if (form.role === 'admin' && adminKey !== 'freewheel') {
-      return 'Invalid admin key';
-    }
-    /*if (isProvider && !vehicleType) {
-      return 'Select vehicle service type (car or bike)';
-    }*/
+    if (!form.phone.trim()) return 'Phone number is required';
+    // ── USN is now compulsory ──────────────────────────────────────
+    if (!usn.trim()) return 'USN (University Seat Number) is required';
+    if (form.role === 'admin' && adminKey !== 'freewheel') return 'Invalid admin key';
+    // Vehicle number format check only if they chose to fill it
     if (isProvider && vehicleNumber) {
       const vnRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/;
       if (!vnRegex.test(vehicleNumber.toUpperCase())) {
@@ -124,87 +99,47 @@ export default function RegisterPage({ navigate }) {
     }
     return null;
   };
+
   const openCamera = async (type) => {
-
-  try {
-
-    const stream =
-      await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'user',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
+      streamRef.current = stream;
+      setCameraType(type);
+      setCameraStream(stream);
+      setCameraOpen(true);
+    } catch (err) {
+      console.error(err);
+      setError('Unable to access camera');
+    }
+  };
 
-    streamRef.current = stream;
+  const closeCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+    }
+    setCameraStream(null);
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraOpen(false);
+  };
 
-    setCameraType(type);
+  const capturePhoto = () => {
+    const video  = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx    = canvas.getContext('2d');
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      const file = new File([blob], `${cameraType}.jpg`, { type: 'image/jpeg' });
+      setKycDocs(prev => ({ ...prev, [cameraType]: file }));
+      closeCamera();
+    }, 'image/jpeg', 0.9);
+  };
 
-    setCameraStream(stream);
-
-    setCameraOpen(true);
-
-  } catch (err) {
-
-    console.error(err);
-
-    setError(
-      'Unable to access camera'
-    );
-  }
-};
-
-const closeCamera = () => {
-
-  if (streamRef.current) {
-
-    streamRef.current
-      .getTracks()
-      .forEach(track => track.stop());
-
-    streamRef.current = null;
-  }
-
-  setCameraStream(null);
-
-  if (videoRef.current) {
-    videoRef.current.srcObject = null;
-  }
-
-  setCameraOpen(false);
-};
-
-const capturePhoto = () => {
-
-  const video = videoRef.current;
-  const canvas = canvasRef.current;
-
-  const context = canvas.getContext('2d');
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-
-  context.drawImage(video, 0, 0);
-
-  canvas.toBlob((blob) => {
-
-    const file = new File(
-      [blob],
-      `${cameraType}.jpg`,
-      { type: 'image/jpeg' }
-    );
-
-    setKycDocs(prev => ({
-      ...prev,
-      [cameraType]: file
-    }));
-
-    closeCamera();
-
-  }, 'image/jpeg', 0.9);
-};
   const submit = async e => {
     e.preventDefault();
     setError('');
@@ -212,32 +147,25 @@ const capturePhoto = () => {
     if (v) { setError(v); return; }
     setLoading(true);
     try {
-      let aadharUrl = null;
+      let aadharUrl    = null;
       let collegeIdUrl = null;
-      let licenseUrl = null;
+      let licenseUrl   = null;
+      if (kycDocs.aadhar)    aadharUrl    = await uploadToCloudinary(kycDocs.aadhar);
+      if (kycDocs.collegeId) collegeIdUrl = await uploadToCloudinary(kycDocs.collegeId);
+      if (kycDocs.license)   licenseUrl   = await uploadToCloudinary(kycDocs.license);
 
-if (kycDocs.aadhar) {
-  aadharUrl = await uploadToCloudinary(kycDocs.aadhar);
-}
-
-if (kycDocs.collegeId) {
-  collegeIdUrl = await uploadToCloudinary(kycDocs.collegeId);
-}
-
-if (kycDocs.license) {
-  licenseUrl = await uploadToCloudinary(kycDocs.license);
-}
       await registerUser({
         ...form,
         adminKey,
         emergencyContact,
         gender,
-        usn,
-        aadhar:        aadharUrl,
-        collegeIdCard:     collegeIdUrl,
-        drivingLicense:       licenseUrl,
-        vehicleNumber:  vehicleNumber ? vehicleNumber.toUpperCase() : '',
-        vehicleName:    vehicleName   || '',
+        usn: usn.toUpperCase(),
+        aadhar:         aadharUrl,
+        collegeIdCard:  collegeIdUrl,
+        drivingLicense: licenseUrl,
+        // optional — only sent if provider filled them
+        vehicleNumber: vehicleNumber ? vehicleNumber.toUpperCase() : '',
+        vehicleName:   vehicleName   || '',
       });
       navigate('dashboard');
     } catch (err) {
@@ -246,46 +174,29 @@ if (kycDocs.license) {
       setLoading(false);
     }
   };
-const UploadActions = ({ type }) => (
-  <div className="register-upload-actions">
 
-    {/* Upload */}
-    <label className="register-upload-btn">
-      📁 Upload
+  const UploadActions = ({ type }) => (
+    <div className="register-upload-actions">
+      <label className="register-upload-btn">
+        📁 Upload
+        <input type="file" accept="image/*,.pdf" hidden
+          onChange={e => setKycDocs(prev => ({ ...prev, [type]: e.target.files[0] }))} />
+      </label>
+      <button type="button" className="register-upload-btn webcam" onClick={() => openCamera(type)}>
+        📷 Camera
+      </button>
+    </div>
+  );
 
-      <input
-        type="file"
-        accept="image/*,.pdf"
-        hidden
-        onChange={e =>
-          setKycDocs(prev => ({
-            ...prev,
-            [type]: e.target.files[0]
-          }))
-        }
-      />
-    </label>
-
-    {/* Camera */}
-    <button
-      type="button"
-      className="register-upload-btn webcam"
-      onClick={() => openCamera(type)}
-    >
-      📷 Camera
-    </button>
-
-  </div>
-);
   return (
     <div className="auth-shell">
       <div className="auth-form-panel">
         <form className="auth-form fade-up" onSubmit={submit} noValidate>
           <div className="af-header">
-            <div style={{fontFamily:'var(--font-display)',fontSize:22,fontWeight:800,color:'var(--text)',marginBottom:12}}>
-              Campus<span style={{color:'var(--accent)'}}>Ride</span>
+            <div style={{ fontFamily:'var(--font-display)', fontSize:22, fontWeight:800, color:'var(--text)', marginBottom:12 }}>
+              Campus<span style={{ color:'var(--accent)' }}>Ride</span>
             </div>
-            <h2 className="heading" style={{fontSize:26}}>Create account</h2>
+            <h2 className="heading" style={{ fontSize:26 }}>Create account</h2>
             <p className="text-muted mt-8 text-sm">Join thousands of campus commuters</p>
           </div>
 
@@ -293,19 +204,19 @@ const UploadActions = ({ type }) => (
 
           <div className="grid-2">
             <div className="field">
-              <label>Full Name</label>
+              <label>Full Name *</label>
               <input className="input" placeholder="Arjun Sharma"
                 value={form.name} onChange={set('name')} />
             </div>
             <div className="field">
-              <label>Phone</label>
+              <label>Phone *</label>
               <input className="input" type="tel" placeholder="+91 9876543210"
                 value={form.phone} onChange={set('phone')} />
             </div>
           </div>
 
           <div className="field">
-            <label>College Email</label>
+            <label>College Email *</label>
             <input className="input" type="email" placeholder="you@college.edu"
               value={form.email} onChange={set('email')} />
             {domainHint && !form.email && (
@@ -320,7 +231,7 @@ const UploadActions = ({ type }) => (
 
           <div className="grid-2">
             <div className="field">
-              <label>College / University</label>
+              <label>College / University *</label>
               <CollegeSearch
                 value={form.college}
                 onChange={val => setForm(f => ({ ...f, college: val }))}
@@ -334,59 +245,50 @@ const UploadActions = ({ type }) => (
             </div>
           </div>
 
-          {/* Gender selector */}
+          {/* Gender */}
           <div className="field">
-            <label>Gender <span style={{color:'#f5a623',fontSize:11}}>(used for safety matching)</span></label>
-            <div className="role-grid" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
+            <label>Gender <span style={{ color:'#f5a623', fontSize:11 }}>(used for safety matching)</span></label>
+            <div className="role-grid" style={{ gridTemplateColumns:'repeat(4,1fr)' }}>
               {[
-                { value:'male',              icon:'♂',  title:'Male' },
-                { value:'female',            icon:'♀',  title:'Female' },
-                { value:'other',             icon:'⚧',  title:'Other' },
-                { value:'prefer_not_to_say', icon:'—',  title:'Prefer not to say' },
+                { value:'male',              icon:'♂', title:'Male' },
+                { value:'female',            icon:'♀', title:'Female' },
+                { value:'other',             icon:'⚧', title:'Other' },
+                { value:'prefer_not_to_say', icon:'—', title:'Prefer not to say' },
               ].map(g => (
                 <button key={g.value} type="button"
                   className={`role-card ${gender === g.value ? 'selected' : ''}`}
                   onClick={() => setGender(g.value)}
-                  style={{fontSize:12}}>
+                  style={{ fontSize:12 }}>
                   <span className="rc-r-icon">{g.icon}</span>
-                  <span className="rc-r-title" style={{fontSize:11}}>{g.title}</span>
+                  <span className="rc-r-title" style={{ fontSize:11 }}>{g.title}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Role selector hidden — all users get 'both' role by default */}
-          {/* Admin key — only shown via secret URL or special trigger */}
+          {/* Admin key */}
           {form.role === 'admin' && (
             <div className="field">
               <label>Admin Key</label>
               <div className="input-wrap">
                 <span className="input-icon">🔑</span>
-                <input
-                  className="input"
-                  type="password"
-                  placeholder="Enter admin key"
-                  value={adminKey}
-                  onChange={(e) => setAdminKey(e.target.value)}
-                />
+                <input className="input" type="password" placeholder="Enter admin key"
+                  value={adminKey} onChange={e => setAdminKey(e.target.value)} />
               </div>
             </div>
           )}
 
           {/* Password */}
           <div className="field">
-            <label>Password</label>
+            <label>Password *</label>
             <div className="input-wrap">
               <span className="input-icon">🔒</span>
-              <input
-                className="input input-with-toggle"
+              <input className="input input-with-toggle"
                 type={showPass ? 'text' : 'password'}
                 placeholder="Min. 6 characters"
-                value={form.password} onChange={set('password')}
-              />
+                value={form.password} onChange={set('password')} />
               <button type="button" className="show-pass-btn"
-                onClick={() => setShowPass(s => !s)} tabIndex={-1}
-                title={showPass ? 'Hide' : 'Show'}>
+                onClick={() => setShowPass(s => !s)} tabIndex={-1}>
                 {showPass ? '🙈' : '👁️'}
               </button>
             </div>
@@ -394,18 +296,15 @@ const UploadActions = ({ type }) => (
 
           {/* Confirm password */}
           <div className="field">
-            <label>Confirm Password</label>
+            <label>Confirm Password *</label>
             <div className="input-wrap">
               <span className="input-icon">🔒</span>
-              <input
-                className="input input-with-toggle"
+              <input className="input input-with-toggle"
                 type={showConfirm ? 'text' : 'password'}
                 placeholder="Re-enter password"
-                value={confirmPass} onChange={e => setConfirmPass(e.target.value)}
-              />
+                value={confirmPass} onChange={e => setConfirmPass(e.target.value)} />
               <button type="button" className="show-pass-btn"
-                onClick={() => setShowConfirm(s => !s)} tabIndex={-1}
-                title={showConfirm ? 'Hide' : 'Show'}>
+                onClick={() => setShowConfirm(s => !s)} tabIndex={-1}>
                 {showConfirm ? '🙈' : '👁️'}
               </button>
             </div>
@@ -417,73 +316,66 @@ const UploadActions = ({ type }) => (
             )}
           </div>
 
-          {/* KYC Documents — hidden for admin */}
+          {/* KYC Documents */}
           {form.role !== 'admin' && (
             <div className="kyc-docs-section">
               <div className="kyc-docs-header">
                 <span className="kyc-docs-icon">📋</span>
                 <div>
-                  <div className="kyc-docs-title">KYC Documents Required</div>
+                  <div className="kyc-docs-title">KYC Documents</div>
                   <div className="kyc-docs-sub">
                     {isProvider
-                      ? 'Upload Aadhar, College ID, Driving License, and your vehicle number'
+                      ? 'Aadhar, College ID and USN are required. License and vehicle details are optional — you can add them later.'
                       : 'Upload Aadhar and College ID for identity verification'}
                   </div>
                 </div>
-                <span className="badge badge-pending" style={{marginLeft:'auto',fontSize:11}}>Pending</span>
+                <span className="badge badge-pending" style={{ marginLeft:'auto', fontSize:11 }}>Pending</span>
               </div>
 
               <div className="kyc-docs-grid">
 
-                {/* Aadhar — all roles */}
+                {/* Aadhar — required */}
                 <div className="field">
                   <label>🪪 Aadhar Card *</label>
-                  {/*<input type="file" className="input kyc-file-input" accept="image/*,.pdf"
-                    onChange={e => setKycDocs(prev => ({ ...prev, aadhar: e.target.files[0] }))} />*/}
-                    <UploadActions type="aadhar" />
+                  <UploadActions type="aadhar" />
                   {kycDocs.aadhar && <p className="field-success-msg">✓ {kycDocs.aadhar.name}</p>}
                 </div>
 
-                {/* College ID — all roles */}
+                {/* College ID — required */}
                 <div className="field">
                   <label>🎓 College ID Card *</label>
-                    <UploadActions type="collegeId" />
+                  <UploadActions type="collegeId" />
                   {kycDocs.collegeId && <p className="field-success-msg">✓ {kycDocs.collegeId.name}</p>}
                 </div>
 
-                {/* USN */}
-                <div className="field" style={{ gridColumn: '1 / -1' }}>
-                  <label>🔢 USN (University Seat Number)</label>
-                  <input
-                    type="text"
-                    className="input"
+                {/* USN — now compulsory */}
+                <div className="field" style={{ gridColumn:'1 / -1' }}>
+                  <label>🔢 USN (University Seat Number) *</label>
+                  <input type="text" className="input"
                     placeholder="e.g. 1RN22AI051"
                     value={usn}
-                    onChange={e => setUsn(e.target.value.toUpperCase())}
-                  />
+                    onChange={e => setUsn(e.target.value.toUpperCase())} />
                   <p className="field-hint-msg">Shown to your ride partner for identity verification</p>
                 </div>
 
-                {/* Driving License — provider & both only */}
+                {/* Driving License — optional for providers */}
                 {isProvider && (
                   <div className="field">
-                    <label>🚗 Driving License *</label>
-                    {/*<input type="file" className="input kyc-file-input" accept="image/*,.pdf"
-                      onChange={e => setKycDocs(prev => ({ ...prev, license: e.target.files[0] }))} />*/}
-                      <UploadActions type="license" />
+                    <label>🚗 Driving License
+                      <span style={{ color:'#888', fontWeight:400, fontSize:11, marginLeft:6 }}>(optional — add now or later via KYC)</span>
+                    </label>
+                    <UploadActions type="license" />
                     {kycDocs.license && <p className="field-success-msg">✓ {kycDocs.license.name}</p>}
-                    
                   </div>
                 )}
 
-                
-
+                {/* Vehicle Number — optional for providers */}
                 {isProvider && (
-                  <div className="field" style={{ gridColumn: '1 / -1' }}>
-                    <label>🔢 Vehicle Registration Number *</label>
-                    <input
-                      type="text"
-                      className="input"
+                  <div className="field" style={{ gridColumn:'1 / -1' }}>
+                    <label>🔢 Vehicle Registration Number
+                      <span style={{ color:'#888', fontWeight:400, fontSize:11, marginLeft:6 }}>(optional — add now or later)</span>
+                    </label>
+                    <input type="text" className="input"
                       placeholder="e.g. KA01AB1234"
                       maxLength={12}
                       value={vehicleNumber}
@@ -491,26 +383,23 @@ const UploadActions = ({ type }) => (
                         const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
                         setVehicleNumber(val);
                         setVehicleNumberError('');
-                      }}
-                    />
-                    {vehicleNumberError && (
-                      <p className="field-error-msg">{vehicleNumberError}</p>
-                    )}
+                      }} />
+                    {vehicleNumberError && <p className="field-error-msg">{vehicleNumberError}</p>}
                     <p className="field-hint-msg">Format: State + District + Series + Number (e.g. KA01AB1234)</p>
                   </div>
                 )}
 
+                {/* Vehicle Name — optional for providers */}
                 {isProvider && (
-                  <div className="field" style={{ gridColumn: '1 / -1' }}>
-                    <label>🚘 Vehicle Name / Model *</label>
-                    <input
-                      type="text"
-                      className="input"
+                  <div className="field" style={{ gridColumn:'1 / -1' }}>
+                    <label>🚘 Vehicle Name / Model
+                      <span style={{ color:'#888', fontWeight:400, fontSize:11, marginLeft:6 }}>(optional — add now or later)</span>
+                    </label>
+                    <input type="text" className="input"
                       placeholder="e.g. Innova Crysta, TVS iQube, Honda Activa"
                       value={vehicleName}
-                      onChange={e => setVehicleName(e.target.value)}
-                    />
-                    <p className="field-hint-msg">Enter the exact vehicle name shown to seekers after booking</p>
+                      onChange={e => setVehicleName(e.target.value)} />
+                    <p className="field-hint-msg">Shown to seekers after booking</p>
                   </div>
                 )}
 
@@ -529,53 +418,22 @@ const UploadActions = ({ type }) => (
 
           <p className="text-center text-muted text-sm mt-16">
             Already have an account?{' '}
-            <button type="button" className="link-btn" onClick={() => navigate('login')}>
-              Sign in
-            </button>
+            <button type="button" className="link-btn" onClick={() => navigate('login')}>Sign in</button>
           </p>
         </form>
+
         {cameraOpen && (
-  <div className="camera-modal">
-
-    <div className="camera-box">
-
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        className="camera-video"
-      />
-
-      <canvas
-        ref={canvasRef}
-        style={{ display: 'none' }}
-      />
-
-      <div className="camera-actions">
-
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={closeCamera}
-        >
-          Cancel
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={capturePhoto}
-        >
-          Capture
-        </button>
-
-      </div>
-
-    </div>
-
-  </div>
-)}
+          <div className="camera-modal">
+            <div className="camera-box">
+              <video ref={videoRef} autoPlay muted playsInline className="camera-video" />
+              <canvas ref={canvasRef} style={{ display:'none' }} />
+              <div className="camera-actions">
+                <button type="button" className="btn btn-outline" onClick={closeCamera}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={capturePhoto}>Capture</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
