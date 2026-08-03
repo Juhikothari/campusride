@@ -1,17 +1,18 @@
-const bcrypt = require('bcryptjs');
-const jwt    = require('jsonwebtoken');
-const crypto = require('crypto');
+const bcrypt   = require('bcryptjs');
+const jwt      = require('jsonwebtoken');
+const crypto   = require('crypto');
+const dns      = require('dns');
 const nodemailer = require('nodemailer');
-const net    = require('net'); // used to force IPv4
-const User   = require('../users/users.model');
+const User     = require('../users/users.model');
 const { validateCollegeEmail } = require('../config/collegeDomains');
 
-// ── In-memory OTP store (use Redis in production) ─────────────────
+// ── In-memory OTP store ────────────────────────────────────────────
 const otpStore = new Map();
 
 // ── Nodemailer transporter ─────────────────────────────────────────
-// FIX: localAddress: '0.0.0.0' forces IPv4 so the connection doesn't
-//      try the IPv6 path (2607:…) which Render/Railway block.
+// FIX: localAddress:'0.0.0.0' causes EINVAL on some hosts (Render/Railway).
+//      Instead, use a custom dnsLookup that forces IPv4 resolution so the
+//      socket never attempts the IPv6 path.
 const createTransporter = async () => {
   const transporter = nodemailer.createTransport({
     host:   process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -21,18 +22,19 @@ const createTransporter = async () => {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    // ✅ KEY FIX: bind to 0.0.0.0 so Node picks IPv4, not IPv6
-    localAddress: '0.0.0.0',
+    // ✅ Force IPv4 DNS resolution — avoids ENETUNREACH on IPv6 and EINVAL on localAddress
+    dnsLookup: (hostname, options, callback) => {
+      dns.lookup(hostname, { family: 4, ...options }, callback);
+    },
     connectionTimeout: 15000,
     greetingTimeout:   10000,
     socketTimeout:     20000,
-    // Also works as an alternative — disable IPv6 at the socket level
     tls: { rejectUnauthorized: false },
   });
 
   try {
     await transporter.verify();
-    console.log('✅ SMTP transporter verified (IPv4)');
+    console.log('✅ SMTP transporter verified (IPv4 forced via dnsLookup)');
   } catch (err) {
     console.error('❌ SMTP verification failed:', err.message);
     console.error('   Host:', process.env.SMTP_HOST || 'smtp.gmail.com');
@@ -134,7 +136,7 @@ const register = async (req, res) => {
   }
 };
 
-// ── Login (rotates sessionSeed → single-device enforcement) ──────
+// ── Login ─────────────────────────────────────────────────────────
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -195,7 +197,7 @@ const sendOtp = async (req, res) => {
     otpStore.set(email.toLowerCase(), { otp, expiresAt, userId: user._id });
 
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('❌ SMTP_USER or SMTP_PASS not set');
+      console.error('❌ SMTP_USER or SMTP_PASS not set in environment');
       console.log(`🔑 DEV OTP for ${email}: ${otp}`);
       return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
     }
@@ -204,28 +206,34 @@ const sendOtp = async (req, res) => {
       const transporter = await createTransporter();
       const info = await transporter.sendMail({
         from: `"CampusRide" <${process.env.SMTP_USER}>`,
-        to: email,
+        to:   email,
         subject: 'CampusRide — Password Reset OTP',
         html: `
-          <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#07090d;color:#fff;border-radius:12px;padding:32px;">
+          <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;
+                      background:#07090d;color:#fff;border-radius:12px;padding:32px;">
             <div style="font-size:22px;font-weight:800;margin-bottom:8px;">
               Campus<span style="color:#f5a623;">Ride</span>
             </div>
             <h2 style="color:#f5a623;margin-top:0;">Password Reset OTP</h2>
             <p style="color:#aaa;">Hi ${user.name},</p>
-            <p style="color:#aaa;">Your one-time password to reset your CampusRide password is:</p>
-            <div style="background:#1a1d24;border:2px solid #f5a623;border-radius:10px;text-align:center;padding:24px;margin:20px 0;">
-              <span style="font-size:40px;font-weight:900;letter-spacing:12px;color:#f5a623;">${otp}</span>
+            <p style="color:#aaa;">Your one-time password to reset your CampusRide password:</p>
+            <div style="background:#1a1d24;border:2px solid #f5a623;border-radius:10px;
+                        text-align:center;padding:24px;margin:20px 0;">
+              <span style="font-size:40px;font-weight:900;letter-spacing:12px;
+                           color:#f5a623;">${otp}</span>
             </div>
-            <p style="color:#aaa;font-size:13px;">Valid for <strong style="color:#fff;">10 minutes</strong>. Do not share with anyone.</p>
-            <p style="color:#555;font-size:12px;margin-top:24px;">If you didn't request this, ignore this email.</p>
+            <p style="color:#aaa;font-size:13px;">
+              Valid for <strong style="color:#fff;">10 minutes</strong>. Do not share with anyone.
+            </p>
+            <p style="color:#555;font-size:12px;margin-top:24px;">
+              If you didn't request this, ignore this email.
+            </p>
           </div>
         `,
       });
       console.log(`✅ OTP sent to ${email} — ID: ${info.messageId}`);
     } catch (mailErr) {
       console.error('❌ Email send failed:', mailErr.message);
-      // In dev: print OTP to console so you can still test
       if (process.env.NODE_ENV !== 'production') {
         console.log(`🔑 DEV OTP for ${email}: ${otp}`);
         return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
