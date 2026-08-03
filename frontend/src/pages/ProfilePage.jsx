@@ -2,7 +2,7 @@
 // Read-only profile page. Only phone number is editable, once per 90 days.
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getMyProfile, updatePhoneNumber } from '../services/api.js';
+import { getProfile, updatePhoneNumber } from '../services/api.js';
 import './ProfilePage.css';
 
 const ROLE_LABEL = { provider: 'Provider', seeker: 'Seeker', both: 'Provider & Seeker', admin: 'Admin' };
@@ -22,7 +22,7 @@ export default function ProfilePage({ navigate }) {
   const [phoneError,   setPhoneError]   = useState('');
 
   useEffect(() => {
-    getMyProfile()
+    getProfile()
       .then(p => { setProfile(p); setNewPhone(p.phone || ''); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
