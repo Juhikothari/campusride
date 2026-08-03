@@ -270,6 +270,7 @@ function ChatTab({ user }) {
   const [loading,     setLoading]     = useState(true);
   const [socketReady, setSocketReady] = useState(false);
   const [deletingId,  setDeletingId]  = useState(null);
+  const [anonChat,    setAnonChat]    = useState(false);  // ← anonymous chat toggle
   const socketRef = useRef(null);
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
@@ -303,10 +304,10 @@ function ChatTab({ user }) {
     const msg = text.trim();
     if (!msg || !socketReady) return;
     const userId = user?._id || user?.id;
-    socketRef.current?.emit('send-community-message', { userId, message:msg });
+    socketRef.current?.emit('send-community-message', { userId, message:msg, anonymous:anonChat });
     setText('');
     inputRef.current?.focus();
-  }, [text, socketReady, user]);
+  }, [text, socketReady, user, anonChat]);
 
   const deleteMsg = async (msg) => {
     const userId = user?._id || user?.id;
@@ -322,6 +323,7 @@ function ChatTab({ user }) {
 
   const userId  = user?._id || user?.id;
   const isMyMsg = (msg) => {
+    if (msg.anonymous) return false; // anon msgs have no senderId — can't delete
     const sid = msg.senderId || msg.sender?._id || msg.sender;
     return sid === userId;
   };
@@ -342,8 +344,9 @@ function ChatTab({ user }) {
         )}
         {messages.map(msg => {
           const mine = isMyMsg(msg);
-          const name = msg.senderName || msg.sender?.name || 'Unknown';
-          const usn  = msg.senderUsn  || msg.sender?.usn  || '';
+          const isAnon = msg.anonymous;
+          const name = isAnon ? 'Anonymous' : (msg.senderName || msg.sender?.name || 'Unknown');
+          const usn  = isAnon ? '' : (msg.senderUsn  || msg.sender?.usn  || '');
           return (
             <div key={msg._id} className={`comm-msg-row ${mine?'mine':'theirs'}`}>
               {!mine && <div className="comm-msg-avatar">{name.charAt(0).toUpperCase()}</div>}
@@ -372,9 +375,24 @@ function ChatTab({ user }) {
         <div ref={bottomRef}/>
       </div>
 
+      <div style={{padding:'4px 12px 2px',display:'flex',alignItems:'center',gap:6}}>
+        <button
+          type="button"
+          onClick={() => setAnonChat(a => !a)}
+          title={anonChat ? 'Sending anonymously — tap to send as yourself' : 'Tap to send anonymously'}
+          style={{
+            background: anonChat ? 'rgba(245,166,35,0.15)' : 'transparent',
+            border: `1px solid ${anonChat ? '#f5a623' : '#333'}`,
+            borderRadius: 8, padding: '4px 10px', cursor: 'pointer',
+            color: anonChat ? '#f5a623' : '#666', fontSize: 12, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+          }}>
+          {anonChat ? '🎭 Anonymous' : '👤 Public'}
+        </button>
+      </div>
       <div className="comm-chat-input-row">
         <textarea ref={inputRef} className="comm-chat-input"
-          placeholder="Type a message… (Enter to send)"
+          placeholder={anonChat ? 'Sending anonymously… (Enter to send)' : 'Type a message… (Enter to send)'}
           value={text} onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
           rows={1} maxLength={500} disabled={!socketReady} />
