@@ -466,6 +466,12 @@ export const getRoute = ({ fromLat, fromLng, toLat, toLng }) =>
 //  USERS
 // ══════════════════════════════════════════════════════════════════
 export const getProfile    = ()     => request('/users/profile');
+export const updatePhoneNumber = (phone) =>
+  request('/users/profile/phone', { method: 'PUT', body: JSON.stringify({ phone }) });
+export const deleteCommunityPost = (postId) =>
+  request(`/community/${postId}`, { method: 'DELETE' });
+export const updateVehicleDetails = (body) =>
+  request('/users/profile/vehicle', { method: 'PUT', body: JSON.stringify(body) });
 export const updateProfile = (body) =>
   request('/users/profile', { method: 'PUT', body: JSON.stringify(body) });
 
@@ -653,7 +659,6 @@ export const addCommunityReply = (postId, content) =>
 export const deleteCommunityPost = (postId) =>
   request(`/community/${postId}`, { method: 'DELETE' });
 
-export const updatePhoneNumber = (phone) =>
   request('/users/profile/phone', { method: 'PUT', body: JSON.stringify({ phone }) });
 
 // ── Community Chat ────────────────────────────────────────────────
