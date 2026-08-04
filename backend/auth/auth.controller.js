@@ -1,20 +1,28 @@
-const bcrypt   = require('bcryptjs');
-const jwt      = require('jsonwebtoken');
-const crypto   = require('crypto');
-const dns      = require('dns');
+// ✅ MUST be first — forces IPv4 DNS globally, fixes ENETUNREACH on Render
+// Works regardless of whether server.js has it too
+try {
+  const dns = require('dns');
+  if (typeof dns.setDefaultResultOrder === 'function') {
+    dns.setDefaultResultOrder('ipv4first');
+    console.log('✅ DNS IPv4-first set in auth.controller');
+  }
+} catch (_) {}
+
+const bcrypt     = require('bcryptjs');
+const jwt        = require('jsonwebtoken');
+const crypto     = require('crypto');
 const nodemailer = require('nodemailer');
-const User     = require('../users/users.model');
+const User       = require('../users/users.model');
 const { validateCollegeEmail } = require('../config/collegeDomains');
 
 // ── In-memory OTP store ────────────────────────────────────────────
 const otpStore = new Map();
 
 // ── Nodemailer transporter ─────────────────────────────────────────
-// FIX: localAddress:'0.0.0.0' causes EINVAL on some hosts (Render/Railway).
-//      Instead, use a custom dnsLookup that forces IPv4 resolution so the
-//      socket never attempts the IPv6 path.
-const createTransporter = async () => {
-  const transporter = nodemailer.createTransport({
+// No localAddress, no dnsLookup — both cause errors on Render.
+// dns.setDefaultResultOrder('ipv4first') above handles IPv4 forcing globally.
+const createTransporter = () => {
+  return nodemailer.createTransport({
     host:   process.env.SMTP_HOST || 'smtp.gmail.com',
     port:   parseInt(process.env.SMTP_PORT || '587'),
     secure: process.env.SMTP_PORT === '465',
@@ -22,28 +30,11 @@ const createTransporter = async () => {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    // ✅ Force IPv4 DNS resolution — avoids ENETUNREACH on IPv6 and EINVAL on localAddress
-    dnsLookup: (hostname, options, callback) => {
-      dns.lookup(hostname, { family: 4, ...options }, callback);
-    },
-    connectionTimeout: 15000,
-    greetingTimeout:   10000,
-    socketTimeout:     20000,
+    connectionTimeout: 20000,
+    greetingTimeout:   15000,
+    socketTimeout:     30000,
     tls: { rejectUnauthorized: false },
   });
-
-  try {
-    await transporter.verify();
-    console.log('✅ SMTP transporter verified (IPv4 forced via dnsLookup)');
-  } catch (err) {
-    console.error('❌ SMTP verification failed:', err.message);
-    console.error('   Host:', process.env.SMTP_HOST || 'smtp.gmail.com');
-    console.error('   Port:', process.env.SMTP_PORT || '587');
-    console.error('   User:', process.env.SMTP_USER ? process.env.SMTP_USER.slice(0, 4) + '***' : 'NOT SET');
-    console.error('   Pass:', process.env.SMTP_PASS ? '***set***' : 'NOT SET');
-    throw err;
-  }
-  return transporter;
 };
 
 // ── Register ──────────────────────────────────────────────────────
@@ -202,11 +193,12 @@ const sendOtp = async (req, res) => {
       return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
     }
 
+    const transporter = createTransporter();
+
     try {
-      const transporter = await createTransporter();
       const info = await transporter.sendMail({
-        from: `"CampusRide" <${process.env.SMTP_USER}>`,
-        to:   email,
+        from:    `"CampusRide" <${process.env.SMTP_USER}>`,
+        to:      email,
         subject: 'CampusRide — Password Reset OTP',
         html: `
           <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;
@@ -232,18 +224,15 @@ const sendOtp = async (req, res) => {
         `,
       });
       console.log(`✅ OTP sent to ${email} — ID: ${info.messageId}`);
+      res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
     } catch (mailErr) {
       console.error('❌ Email send failed:', mailErr.message);
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`🔑 DEV OTP for ${email}: ${otp}`);
-        return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
-      }
+      // Always log OTP so you can test even in production if email fails
+      console.log(`🔑 FALLBACK OTP for ${email}: ${otp}`);
       return res.status(500).json({
         message: `Could not send OTP email. Error: ${mailErr.message}`
       });
     }
-
-    res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
   } catch (error) {
     console.error('sendOtp error:', error);
     res.status(500).json({ message: error.message });
