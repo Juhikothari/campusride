@@ -101,7 +101,7 @@ function VehicleDetailsGate({ onComplete }) {
     if (!vehicleName.trim()) { setError('Vehicle name / model is required'); return; }
     setLoading(true);
     try {
-      await api.updateProfile({
+      await api.updateVehicleDetails({
         vehicleNumber: vehicleNumber.toUpperCase(),
         vehicleName:   vehicleName.trim(),
         vehicleType,
@@ -197,12 +197,17 @@ export default function CreateRide({ navigate }) {
   const [vehicleReady,   setVehicleReady]   = useState(null); // null = checking
 
   useEffect(() => {
-    // Check if user already has vehicle details stored in their KYC docs
+    // Check if provider already has vehicle details (from registration or previous save)
     api.getProfile().then(profile => {
-      const hasVehicleNumber = !!(profile?.kycDocuments?.vehicleNumber || profile?.vehicleNumber);
-      const hasVehicleName   = !!(profile?.kycDocuments?.vehicleName   || profile?.vehicleName);
-      setVehicleReady(hasVehicleNumber && hasVehicleName);
-    }).catch(() => setVehicleReady(true)); // on error, don't block
+      const vn = profile?.kycDocuments?.vehicleNumber
+              || profile?.vehicleNumber
+              || '';
+      const vm = profile?.kycDocuments?.vehicleName
+              || profile?.vehicleName
+              || '';
+      // Gate only shown if BOTH are missing
+      setVehicleReady(!!(vn.trim() && vm.trim()));
+    }).catch(() => setVehicleReady(true)); // on any error, don't block the user
   }, []);
 
   useEffect(() => {
