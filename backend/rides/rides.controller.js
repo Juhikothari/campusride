@@ -31,6 +31,27 @@ exports.createRide = async (req, res) => {
       return res.status(403).json({ message: 'KYC not approved' });
     }
 
+    // ── 2 rides per day limit ──────────────────────────────────────
+    const DAILY_RIDE_LIMIT = 2;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const ridesCreatedToday = await Ride.countDocuments({
+      providerId: userId,
+      createdAt: { $gte: startOfDay, $lte: endOfDay },
+      status: { $nin: ['cancelled'] },
+    });
+
+    if (ridesCreatedToday >= DAILY_RIDE_LIMIT) {
+      return res.status(429).json({
+        message: `You can only offer ${DAILY_RIDE_LIMIT} rides per day. You have already posted ${ridesCreatedToday} ride(s) today. Try again tomorrow.`,
+        ridesPostedToday: ridesCreatedToday,
+        limit: DAILY_RIDE_LIMIT,
+      });
+    }
+
     //const pickupAddress = pickup?.address || pickup?.label || 'Unknown Location';
     //const dropAddress = drop?.address || drop?.label || 'Unknown Location';
     const extractAddress = (location, fallback = 'Location') => {
