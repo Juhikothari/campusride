@@ -1,16 +1,7 @@
-// ✅ MUST be first — forces IPv4 DNS globally, fixes ENETUNREACH on Render
-// Works regardless of whether server.js has it too
-try {
-  const dns = require('dns');
-  if (typeof dns.setDefaultResultOrder === 'function') {
-    dns.setDefaultResultOrder('ipv4first');
-    console.log('✅ DNS IPv4-first set in auth.controller');
-  }
-} catch (_) {}
-
 const bcrypt     = require('bcryptjs');
 const jwt        = require('jsonwebtoken');
 const crypto     = require('crypto');
+const dns        = require('dns').promises;
 const nodemailer = require('nodemailer');
 const User       = require('../users/users.model');
 const { validateCollegeEmail } = require('../config/collegeDomains');
@@ -18,22 +9,51 @@ const { validateCollegeEmail } = require('../config/collegeDomains');
 // ── In-memory OTP store ────────────────────────────────────────────
 const otpStore = new Map();
 
+// ── Resolve Gmail SMTP to IPv4 at startup and cache it ────────────
+// Render blocks IPv6 outbound. By resolving smtp.gmail.com to its
+// IPv4 address once and passing the IP directly to nodemailer,
+// we bypass DNS entirely at send time — no more ENETUNREACH.
+let smtpHostIPv4 = null;
+
+const resolveSmtpHost = async () => {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  // If user already set an IP, use it directly
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) { smtpHostIPv4 = host; return; }
+  try {
+    const addresses = await dns.resolve4(host);
+    smtpHostIPv4 = addresses[0];
+    console.log(\`✅ SMTP host \${host} resolved to IPv4: \${smtpHostIPv4}\`);
+  } catch (err) {
+    console.warn(\`⚠️ Could not resolve \${host} to IPv4, falling back to hostname: \${err.message}\`);
+    smtpHostIPv4 = host;
+  }
+};
+
+// Resolve immediately at module load time
+resolveSmtpHost().catch(() => {});
+
 // ── Nodemailer transporter ─────────────────────────────────────────
-// No localAddress, no dnsLookup — both cause errors on Render.
-// dns.setDefaultResultOrder('ipv4first') above handles IPv4 forcing globally.
-const createTransporter = () => {
+const createTransporter = async () => {
+  // Ensure we have an IPv4 address resolved
+  if (!smtpHostIPv4) await resolveSmtpHost();
+
   return nodemailer.createTransport({
-    host:   process.env.SMTP_HOST || 'smtp.gmail.com',
+    // Pass IPv4 address directly — nodemailer skips DNS, connects over IPv4
+    host:   smtpHostIPv4 || process.env.SMTP_HOST || 'smtp.gmail.com',
     port:   parseInt(process.env.SMTP_PORT || '587'),
     secure: process.env.SMTP_PORT === '465',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // Tell TLS the real hostname for SNI (certificate validation uses this)
+    tls: {
+      servername:        process.env.SMTP_HOST || 'smtp.gmail.com',
+      rejectUnauthorized: false,
+    },
     connectionTimeout: 20000,
     greetingTimeout:   15000,
     socketTimeout:     30000,
-    tls: { rejectUnauthorized: false },
   });
 };
 
@@ -193,7 +213,7 @@ const sendOtp = async (req, res) => {
       return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
     }
 
-    const transporter = createTransporter();
+    const transporter = await createTransporter();
 
     try {
       const info = await transporter.sendMail({
