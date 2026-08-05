@@ -465,6 +465,12 @@ const rideStatusBadge = (s) => ({
                               <div style={{ fontSize: 12, color: '#fbbf24', fontWeight: 600 }}>
                                     💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested
                                </div>
+                            {b.seekerId?.usn && (
+                              <div style={{fontSize:12,color:'#aaa',marginTop:2}}>🪪 USN: <strong style={{color:'#fff'}}>{b.seekerId.usn}</strong></div>
+                            )}
+                            {b.seekerId?.phone && (
+                              <div style={{fontSize:12,color:'#aaa',marginTop:2}}>📞 {b.seekerId.phone}</div>
+                            )}
                             {b.seekerId?.college && (
                               <div className="pb2-bk-college">{b.seekerId.college}</div>
                             )}
@@ -525,22 +531,20 @@ const rideStatusBadge = (s) => ({
                           </div>
                           <div className="pb2-bk-info">
                             <div className="pb2-bk-name">{b.seekerId?.name || 'Seeker'}</div>
-                            <div className="pb2-bk-seats">
-                              <div className="pb2-bk-seats-icon"></div>
-                              <div className="pb2-bk-seats-info">
-                                <div className="pb2-bk-seats-count">💺{b.seats || 1}</div>
-                              </div>
+                            <div style={{fontSize:12,color:'#fbbf24',fontWeight:600,marginTop:2}}>
+                              💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''}
                             </div>
-                            {b.seekerId?.phone && (
-                              <div className="pb2-bk-contact">
-                                <div className="pb2-bk-contact-icon"></div>
-                                <div className="pb2-bk-contact-text">📞{b.seekerId.phone}</div>
+                            {b.seekerId?.usn && (
+                              <div style={{fontSize:12,color:'#aaa',marginTop:4}}>
+                                🪪 USN: <strong style={{color:'#fff'}}>{b.seekerId.usn}</strong>
                               </div>
                             )}
-                            {b.seekerId?.email && (
-                              <div className="pb2-bk-contact">
-                                <div className="pb2-bk-contact-icon">📧</div>
-                                <div className="pb2-bk-contact-text">{b.seekerId.email}</div>
+                            {b.seekerId?.phone && (
+                              <div style={{fontSize:12,color:'#aaa',marginTop:2}}>📞 {b.seekerId.phone}</div>
+                            )}
+                            {b.seekerId?.gender && (
+                              <div style={{fontSize:12,color: b.seekerId.gender==='female'?'#ff6ab0':'#6ab0ff',marginTop:2}}>
+                                {b.seekerId.gender==='female'?'♀ Female':'♂ Male'}
                               </div>
                             )}
                             {b.seekerId?.college && (

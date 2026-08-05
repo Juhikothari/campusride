@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import * as api from '../services/api.js';
 import io from 'socket.io-client';
 import RideTracker from './RideTracker.jsx';
+import PreRideChecklist from './PreRideChecklist.jsx';
 import './SharedPages.css';
 
 function useLocationName(locationField) {
@@ -188,6 +189,8 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
   const ride = b.rideId;
   const pickupName = useLocationName(ride?.pickup);
   const dropName   = useLocationName(ride?.drop);
+  const [showChecklist, setShowChecklist] = React.useState(false);
+  const [checklistDone, setChecklistDone] = React.useState(false);
 
   if (!ride) return null;
 
@@ -241,24 +244,69 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
 
         {/* Provider details — shown only after booking accepted */}
         {b.status === 'accepted' && ride.providerId && (
-          <div style={{marginTop:14, padding:'12px 14px', background:'rgba(245,166,35,0.08)', border:'1px solid rgba(245,166,35,0.2)', borderRadius:10}}>
-            <div style={{fontSize:11,color:'#888',marginBottom:8,fontWeight:600}}>PROVIDER DETAILS</div>
+          <div style={{marginTop:14,padding:'12px 14px',background:'rgba(245,166,35,0.08)',border:'1px solid rgba(245,166,35,0.2)',borderRadius:10}}>
+            <div style={{fontSize:11,color:'#888',marginBottom:8,fontWeight:600,letterSpacing:'.05em'}}>PROVIDER DETAILS</div>
             <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {ride.providerId.name && <div style={{fontSize:13,color:'#fff'}}>👤 {ride.providerId.name}</div>}
-              {ride.providerId.phone && <div style={{fontSize:13,color:'#aaa'}}>📞 {ride.providerId.phone}</div>}
-              {ride.providerId.usn && <div style={{fontSize:13,color:'#aaa'}}>🪪 USN: <strong style={{color:'#fff'}}>{ride.providerId.usn}</strong></div>}
-              {ride.vehicleName && <div style={{fontSize:13,color:'#f5a623',fontWeight:600}}>🚘 {ride.vehicleName}</div>}
-              {ride.providerId.kycDocuments?.vehicleName && !ride.vehicleName && (
-                <div style={{fontSize:13,color:'#f5a623',fontWeight:600}}>🚘 {ride.providerId.kycDocuments.vehicleName}</div>
+              {ride.providerId.name && (
+                <div style={{fontSize:13,color:'#fff',fontWeight:600}}>👤 {ride.providerId.name}</div>
               )}
+              {ride.providerId.phone && (
+                <div style={{fontSize:13,color:'#aaa'}}>📞 {ride.providerId.phone}</div>
+              )}
+              {/* USN — shown after booking accepted for identity verification */}
+              {(ride.providerId.usn || ride.providerId.kycDocuments?.usn) && (
+                <div style={{fontSize:13,color:'#aaa'}}>
+                  🪪 USN: <strong style={{color:'#fff',letterSpacing:1}}>
+                    {ride.providerId.usn || ride.providerId.kycDocuments?.usn}
+                  </strong>
+                </div>
+              )}
+              {/* Vehicle name */}
+              {(ride.vehicleName || ride.providerId.kycDocuments?.vehicleName) && (
+                <div style={{fontSize:13,color:'#f5a623',fontWeight:600}}>
+                  🚘 {ride.vehicleName || ride.providerId.kycDocuments.vehicleName}
+                </div>
+              )}
+              {/* Vehicle number plate */}
               {ride.providerId.kycDocuments?.vehicleNumber && (
-                <div style={{marginTop:4,background:'rgba(245,166,35,0.12)',borderRadius:8,padding:'8px 10px'}}>
-                  <div style={{fontSize:10,color:'#888',marginBottom:2}}>VEHICLE NUMBER</div>
-                  <div style={{fontSize:20,fontWeight:900,color:'#f5a623',letterSpacing:3}}>
+                <div style={{marginTop:4,background:'rgba(245,166,35,0.12)',borderRadius:8,padding:'8px 12px'}}>
+                  <div style={{fontSize:10,color:'#888',marginBottom:3,letterSpacing:'.08em'}}>VEHICLE NUMBER</div>
+                  <div style={{fontSize:22,fontWeight:900,color:'#f5a623',letterSpacing:4,fontFamily:'monospace'}}>
                     {ride.providerId.kycDocuments.vehicleNumber}
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Safety checklist — shown after booking accepted, before tracking */}
+        {b.status === 'accepted' && ride.status !== 'cancelled' && ride.status !== 'completed' && (
+          <div style={{marginTop:12}}>
+            {!checklistDone ? (
+              <button className="btn btn-primary btn-full"
+                onClick={() => setShowChecklist(true)}
+                style={{background:'linear-gradient(135deg,#4caf50,#2e7d32)'}}>
+                📋 Complete Safety Checklist Before Riding
+              </button>
+            ) : (
+              <div style={{background:'rgba(76,175,80,0.1)',border:'1px solid #4caf50',
+                borderRadius:10,padding:'10px 14px',fontSize:13,color:'#4caf50',fontWeight:600}}>
+                ✅ Safety checklist done — you're ready to ride!
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Checklist modal */}
+        {showChecklist && (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',zIndex:9999,
+            display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+            <div style={{width:'100%',maxWidth:460}}>
+              <PreRideChecklist
+                onComplete={() => { setChecklistDone(true); setShowChecklist(false); }}
+                onCancel={() => setShowChecklist(false)}
+              />
             </div>
           </div>
         )}
