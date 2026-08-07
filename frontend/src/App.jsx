@@ -42,6 +42,8 @@ const PAGE_MAP = {
   "incident-report":   IncidentReport,
   "admin-settings":    AdminSettings,
   "reset-password":    ResetPassword,
+  "walk-together":     WalkTogetherPage,
+  "whats-my-route":    WhatsMyRoutePage,
   "profile":           ProfilePage,             // ← NEW
 };
 
