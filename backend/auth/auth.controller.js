@@ -22,9 +22,9 @@ const resolveSmtpHost = async () => {
   try {
     const addresses = await dns.resolve4(host);
     smtpHostIPv4 = addresses[0];
-    console.log(\`✅ SMTP host \${host} resolved to IPv4: \${smtpHostIPv4}\`);
+    console.log('✅ SMTP host ' + host + ' resolved to IPv4: ' + smtpHostIPv4);
   } catch (err) {
-    console.warn(\`⚠️ Could not resolve \${host} to IPv4, falling back to hostname: \${err.message}\`);
+    console.warn('⚠️ Could not resolve ' + host + ' to IPv4, falling back to hostname: ' + err.message);
     smtpHostIPv4 = host;
   }
 };
