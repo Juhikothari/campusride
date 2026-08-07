@@ -19,6 +19,8 @@ export default function Dashboard({ navigate }) {
     //{ key:'live-tracking',     icon:'📍', title:'Live Tracking',     sub:'Track ride with emergency SOS',          primary: false, show: true },
     { key:'community',         icon:'💬', title:'Community',         sub:'Tips, landmarks and alerts',             primary: false, show: true },
     { key:'admin',             icon:'⚙️',  title:'Admin Dashboard',   sub:'Manage users, KYC and incidents',        primary: false, show: user?.role === 'admin' },
+    { key:'incident-report',   icon:'🚨', title:'Report Incident',   sub:'Report a safety concern from a ride',    primary: false, show: isProvider || isSeeker },
+    { key:'profile',           icon:'👤', title:'My Profile',        sub:'View your details and verification',     primary: false, show: true },
   ].filter(a => a.show);
 
   return (
