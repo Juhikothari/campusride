@@ -402,6 +402,287 @@ function ChatTab({ user }) {
   );
 }
 
+
+
+// ── ROUTE MATCH TAB ───────────────────────────────────────────────
+// "What's My Route?" — shows other commuters from same college
+// who have the same or nearby pickup/drop.
+function RouteMatchTab({ user, navigate }) {
+  const [pickup,   setPickup]   = React.useState('');
+  const [drop,     setDrop]     = React.useState('');
+  const [matches,  setMatches]  = React.useState(null);
+  const [loading,  setLoading]  = React.useState(false);
+  const [searched, setSearched] = React.useState(false);
+
+  const search = async () => {
+    if (!pickup.trim() || !drop.trim()) return;
+    setLoading(true);
+    setSearched(true);
+    // Use the existing searchRides API to find rides matching the area
+    // We filter by pickup keyword since we don't have exact coords here
+    try {
+      const { searchRides } = await import('../services/api.js');
+      // Geocode pickup from the backend location proxy
+      const { searchLocation } = await import('../services/api.js');
+      const pickupResults = await searchLocation(pickup);
+      const dropResults   = await searchLocation(drop);
+
+      if (!pickupResults?.length) { setMatches([]); setLoading(false); return; }
+
+      const pLat = pickupResults[0].lat;
+      const pLng = pickupResults[0].lng;
+
+      const rides = await searchRides({ lat: pLat, lng: pLng, maxDistance: 5000 });
+      // Filter rides whose drop address includes the drop keyword
+      const dropKey = drop.toLowerCase();
+      const filtered = (rides || []).filter(r =>
+        r.drop?.address?.toLowerCase().includes(dropKey) ||
+        r.drop?.address?.toLowerCase().includes(dropKey.split(' ')[0])
+      );
+      setMatches(filtered);
+    } catch {
+      setMatches([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{padding:'16px 12px'}}>
+      <div style={{marginBottom:20}}>
+        <h3 style={{color:'#fff',fontSize:16,fontWeight:700,margin:'0 0 6px'}}>
+          🗺️ What's My Route?
+        </h3>
+        <p style={{color:'#666',fontSize:13,margin:0}}>
+          Find commuters from {user?.college || 'your college'} who travel the same route as you.
+        </p>
+      </div>
+
+      <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
+        <input
+          className="comm-reply-input"
+          placeholder="📍 Your pickup area (e.g. Rajarajeshwari Nagar)"
+          value={pickup}
+          onChange={e => setPickup(e.target.value)}
+          style={{width:'100%',padding:'10px 14px',borderRadius:10,
+            background:'#111318',border:'1px solid #2a2d35',color:'#fff',fontSize:14}}
+        />
+        <input
+          className="comm-reply-input"
+          placeholder="🏁 Your drop area (e.g. RNS Institute of Technology)"
+          value={drop}
+          onChange={e => setDrop(e.target.value)}
+          style={{width:'100%',padding:'10px 14px',borderRadius:10,
+            background:'#111318',border:'1px solid #2a2d35',color:'#fff',fontSize:14}}
+          onKeyDown={e => e.key === 'Enter' && search()}
+        />
+        <button
+          onClick={search}
+          disabled={loading || !pickup.trim() || !drop.trim()}
+          style={{background:'#f5a623',color:'#000',border:'none',borderRadius:10,
+            padding:'11px',fontWeight:700,fontSize:14,cursor:'pointer'}}
+        >
+          {loading ? 'Searching…' : '🔍 Find Route Matches'}
+        </button>
+      </div>
+
+      {searched && !loading && matches !== null && (
+        matches.length === 0 ? (
+          <div style={{textAlign:'center',padding:'32px 16px',color:'#555'}}>
+            <div style={{fontSize:36,marginBottom:8}}>🗺️</div>
+            <div style={{fontWeight:600,color:'#888',marginBottom:6}}>No matches found yet</div>
+            <div style={{fontSize:12,color:'#555'}}>
+              Be the first to post this route! Others looking for the same commute will find you.
+            </div>
+            <button
+              onClick={() => navigate('create-ride')}
+              style={{marginTop:16,background:'transparent',border:'1px solid #f5a623',
+                color:'#f5a623',borderRadius:10,padding:'8px 18px',fontSize:13,
+                fontWeight:600,cursor:'pointer'}}
+            >
+              + Post This Route
+            </button>
+          </div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{fontSize:13,color:'#888',marginBottom:4}}>
+              {matches.length} commuter{matches.length !== 1 ? 's' : ''} found on this route
+            </div>
+            {matches.map(ride => (
+              <div key={ride._id} style={{
+                background:'#111318',border:'1px solid #1f2330',borderRadius:12,padding:'14px 16px',
+              }}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+                  <div>
+                    <div style={{color:'#fff',fontWeight:600,fontSize:14}}>
+                      👤 {ride.providerId?.name || 'Commuter'}
+                    </div>
+                    <div style={{color:'#aaa',fontSize:12,marginTop:4}}>
+                      📍 {ride.pickup?.address?.split(',')[0]} → {ride.drop?.address?.split(',')[0]}
+                    </div>
+                    <div style={{color:'#666',fontSize:11,marginTop:3}}>
+                      {new Date(ride.date).toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'})} · {ride.time} · ₹{ride.costPerSeat}/seat
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('ride-detail', { rideId: ride._id })}
+                    style={{background:'#f5a623',color:'#000',border:'none',borderRadius:8,
+                      padding:'6px 14px',fontSize:12,fontWeight:700,cursor:'pointer',flexShrink:0}}
+                  >
+                    View
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+// ── WALK TOGETHER TAB ─────────────────────────────────────────────
+// Match students walking the same campus route.
+// Posts are stored as community posts with type 'walk'.
+function WalkTogetherTab({ user }) {
+  const [posts,    setPosts]    = React.useState([]);
+  const [loading,  setLoading]  = React.useState(true);
+  const [from,     setFrom]     = React.useState('');
+  const [to,       setTo]       = React.useState('');
+  const [time,     setTime]     = React.useState('');
+  const [posting,  setPosting]  = React.useState(false);
+  const [joined,   setJoined]   = React.useState({});
+
+  React.useEffect(() => {
+    import('../services/api.js').then(({ getCommunityPosts }) => {
+      getCommunityPosts()
+        .then(data => {
+          const walkPosts = (Array.isArray(data) ? data : []).filter(p => p.type === 'walk');
+          setPosts(walkPosts);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    });
+  }, []);
+
+  const postWalk = async () => {
+    if (!from.trim() || !to.trim() || !time.trim()) return;
+    setPosting(true);
+    try {
+      const { createCommunityPost } = await import('../services/api.js');
+      const content = `🚶 Walking from ${from.trim()} → ${to.trim()} at ${time}. Anyone joining?`;
+      const post = await createCommunityPost({ content, type: 'walk', anonymous: false });
+      setPosts(prev => [post, ...prev]);
+      setFrom(''); setTo(''); setTime('');
+    } catch (e) {
+      alert(e.message || 'Failed to post');
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  const toggleJoin = (postId) => {
+    setJoined(j => ({ ...j, [postId]: !j[postId] }));
+  };
+
+  const timeAgoStr = (dateStr) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'Just now';
+    if (m < 60) return m + 'm ago';
+    return Math.floor(m / 60) + 'h ago';
+  };
+
+  return (
+    <div style={{padding:'16px 12px'}}>
+      <div style={{marginBottom:20}}>
+        <h3 style={{color:'#fff',fontSize:16,fontWeight:700,margin:'0 0 6px'}}>
+          🚶 Walk Together
+        </h3>
+        <p style={{color:'#666',fontSize:13,margin:0}}>
+          Find a walking companion on campus. Post your route and time — others can join you.
+        </p>
+      </div>
+
+      {/* Post a walk */}
+      <div style={{background:'#111318',border:'1px solid #1f2330',borderRadius:12,padding:16,marginBottom:20}}>
+        <div style={{fontSize:13,color:'#888',fontWeight:600,marginBottom:12}}>📢 I'm walking…</div>
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <input
+            placeholder="From (e.g. Gate 1, Main Block, Hostel)"
+            value={from}
+            onChange={e => setFrom(e.target.value)}
+            style={{padding:'9px 12px',borderRadius:8,background:'#0d0f14',
+              border:'1px solid #2a2d35',color:'#fff',fontSize:13}}
+          />
+          <input
+            placeholder="To (e.g. Library, Lab Block, Canteen)"
+            value={to}
+            onChange={e => setTo(e.target.value)}
+            style={{padding:'9px 12px',borderRadius:8,background:'#0d0f14',
+              border:'1px solid #2a2d35',color:'#fff',fontSize:13}}
+          />
+          <input
+            type="time"
+            value={time}
+            onChange={e => setTime(e.target.value)}
+            style={{padding:'9px 12px',borderRadius:8,background:'#0d0f14',
+              border:'1px solid #2a2d35',color:'#fff',fontSize:13}}
+          />
+          <button
+            onClick={postWalk}
+            disabled={posting || !from.trim() || !to.trim() || !time.trim()}
+            style={{background:'#f5a623',color:'#000',border:'none',borderRadius:8,
+              padding:'10px',fontWeight:700,fontSize:13,cursor:'pointer'}}
+          >
+            {posting ? 'Posting…' : '🚶 Post Walk Request'}
+          </button>
+        </div>
+      </div>
+
+      {/* Walk posts */}
+      {loading && <div style={{textAlign:'center',color:'#555',padding:24}}>Loading…</div>}
+      {!loading && posts.length === 0 && (
+        <div style={{textAlign:'center',padding:'32px 16px',color:'#555'}}>
+          <div style={{fontSize:36,marginBottom:8}}>🚶</div>
+          <div style={{fontWeight:600,color:'#888'}}>No walk requests yet</div>
+          <div style={{fontSize:12,marginTop:6}}>Be the first to post one!</div>
+        </div>
+      )}
+      {posts.map(post => {
+        const isJoined = joined[post._id];
+        return (
+          <div key={post._id} style={{
+            background:'#111318',border:'1px solid #1f2330',borderRadius:12,
+            padding:'14px 16px',marginBottom:10,
+          }}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}}>
+              <div style={{flex:1}}>
+                <div style={{color:'#fff',fontSize:14,lineHeight:1.5}}>{post.content}</div>
+                <div style={{color:'#555',fontSize:11,marginTop:6}}>
+                  {post.anonymous ? '🎭 Anonymous' : (post.author?.name || 'Someone')} · {timeAgoStr(post.createdAt)}
+                </div>
+              </div>
+              <button
+                onClick={() => toggleJoin(post._id)}
+                style={{
+                  background: isJoined ? 'rgba(76,175,80,0.15)' : 'rgba(245,166,35,0.12)',
+                  border: `1px solid ${isJoined ? '#4caf50' : '#f5a623'}`,
+                  color: isJoined ? '#4caf50' : '#f5a623',
+                  borderRadius:8,padding:'6px 12px',fontSize:12,fontWeight:700,
+                  cursor:'pointer',flexShrink:0,whiteSpace:'nowrap',
+                }}
+              >
+                {isJoined ? '✅ Joined' : '+ Join'}
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Main CommunityPage ─────────────────────────────────────────────
 export default function CommunityPage({ navigate }) {
   const { user } = useAuth();
@@ -410,13 +691,18 @@ export default function CommunityPage({ navigate }) {
   return (
     <div className="comm-shell">
       <div className="comm-header">
-        <div className="comm-header-title">🏫 {user?.college||'College'} Community</div>
-        <div className="comm-tabs">
-          <button className={`comm-tab ${tab==='posts'?'active':''}`} onClick={() => setTab('posts')}>📋 Posts</button>
-          <button className={`comm-tab ${tab==='chat'?'active':''}`}  onClick={() => setTab('chat')}>💬 Chat</button>
+        <div className="comm-header-title">🏫 {user?.college ? user.college + ' Commuters' : 'Commuter Community'}</div>
+        <div className="comm-tabs" style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+          <button className={`comm-tab ${tab==='posts'?'active':''}`}  onClick={() => setTab('posts')}>📋 Posts</button>
+          <button className={`comm-tab ${tab==='chat'?'active':''}`}   onClick={() => setTab('chat')}>💬 Chat</button>
+          <button className={`comm-tab ${tab==='route'?'active':''}`}  onClick={() => setTab('route')}>🗺️ My Route</button>
+          <button className={`comm-tab ${tab==='walk'?'active':''}`}   onClick={() => setTab('walk')}>🚶 Walk</button>
         </div>
       </div>
-      {tab === 'posts' ? <PostsTab user={user}/> : <ChatTab user={user}/>}
+      {tab === 'posts' && <PostsTab user={user}/>}
+      {tab === 'chat'  && <ChatTab user={user}/>}
+      {tab === 'route' && <RouteMatchTab user={user} navigate={navigate}/>}
+      {tab === 'walk'  && <WalkTogetherTab user={user}/>}
     </div>
   );
 }

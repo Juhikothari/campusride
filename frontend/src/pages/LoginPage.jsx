@@ -123,7 +123,7 @@ const handleForgot = async (e) => {
               Campus<span style={{color:'var(--accent)'}}>Ride</span>
             </div>
             <h2 className="heading" style={{fontSize:26}}>Welcome back</h2>
-            <p className="text-muted mt-8 text-sm">Sign in to your CampusRide account</p>
+            <p className="text-muted mt-8 text-sm">Your commute matching platform for Indian campuses</p>
           </div>
 
           {error && <div className="alert alert-error">{error}</div>}
