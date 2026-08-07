@@ -188,8 +188,8 @@ const getFallbackLocations = (query) => {
     { name: 'presidency', display: 'Presidency College of Engineering, Bangalore', lat: 12.9187, lng: 77.5401 },
     { name: 'ramaiah institute of technology', display: 'Ramaiah Institute of Technology, Bangalore', lat: 13.0163, lng: 77.5770 },
     { name: 'rit', display: 'Ramaiah Institute of Technology, Bangalore', lat: 13.0163, lng: 77.5770 },
-    { name: 'rns institute of technology', display: 'RNS Institute of Technology, Channasandra, Bangalore', lat: 12.9218, lng: 77.4890 },
-    { name: 'rnsit', display: 'RNS Institute of Technology, Channasandra, Bangalore', lat: 12.9218, lng: 77.4890 },
+    { name: 'rns institute of technology', display: 'RNS Institute of Technology, RR Nagar, Bangalore', lat: 12.9011, lng: 77.5181 },
+    { name: 'rnsit', display: 'RNS Institute of Technology, RR Nagar, Bangalore', lat: 12.9011, lng: 77.5181 },
     { name: 's j b institute of technology', display: 'SJB Institute of Technology, Uttarahalli, Bangalore', lat: 12.8999, lng: 77.5526 },
     { name: 'sjbit', display: 'SJB Institute of Technology, Uttarahalli, Bangalore', lat: 12.8999, lng: 77.5526 },
     { name: 's j c institute of technology', display: 'S J C Institute of Technology, Bangalore', lat: 12.9187, lng: 77.5401 },
@@ -414,13 +414,13 @@ const getFallbackLocations = (query) => {
     college.name.includes(lowerQuery) || lowerQuery.includes(college.name)
   );
   
-  // Combine areas and colleges
-  found = [...found, ...collegeResults];
+  // Results
+  found = [...collegeResults];
   
   // If no match, return Bangalore areas + colleges
   if (found.length === 0) {
     console.log('No specific match, returning Bangalore areas and colleges');
-    found = [...bangaloreAreas.slice(0, 8), ...bangaloreColleges.slice(0, 7)];
+    found = bangaloreColleges.slice(0, 10);
   }
   
   console.log('Found locations:', found);
@@ -665,7 +665,10 @@ export const deleteChatMessage = (id) =>
   export const getNotifications = async () => {
   try {
     //const res = await fetch("/api/notifications/my");
-    const res = await fetch(`${API_BASE}/notifications/my`);    return await res.json();
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/api/notifications/my`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) return [];
+    return await res.json();
   } catch (err) {
     console.error("getNotifications error:", err);
     return [];
