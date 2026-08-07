@@ -78,108 +78,6 @@ const getLocationConfig = (pickupType) => {
   return { pickupIsCollege: false, dropIsCollege: false, message: '' };
 };
 
-// ── Vehicle details gate ───────────────────────────────────────────
-// If provider skipped vehicle details at registration, collect them here
-// before they can post a ride. We save them via the users/profile route.
-function VehicleDetailsGate({ onComplete }) {
-  const [vehicleNumber, setVehicleNumber] = useState('');
-  const [vehicleName,   setVehicleName]   = useState('');
-  const [vehicleType,   setVehicleType]   = useState('car');
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState('');
-
-  const vnRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/;
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setError('');
-    if (!vehicleNumber.trim()) { setError('Vehicle registration number is required'); return; }
-    if (!vnRegex.test(vehicleNumber.toUpperCase())) {
-      setError('Invalid format — use KA01AB1234 (state + district + series + number)');
-      return;
-    }
-    if (!vehicleName.trim()) { setError('Vehicle name / model is required'); return; }
-    setLoading(true);
-    try {
-      await api.updateVehicleDetails({
-        vehicleNumber: vehicleNumber.toUpperCase(),
-        vehicleName:   vehicleName.trim(),
-        vehicleType,
-      });
-      onComplete({ vehicleNumber: vehicleNumber.toUpperCase(), vehicleName: vehicleName.trim(), vehicleType });
-    } catch (err) {
-      setError(err.message || 'Failed to save vehicle details. Try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="narrow-wrap fade-up" style={{ paddingTop: 40 }}>
-      <div style={{ textAlign:'center', marginBottom:28 }}>
-        <div style={{ fontSize:52 }}>🚗</div>
-        <h2 className="heading mt-16" style={{ fontSize:24 }}>Add Vehicle Details</h2>
-        <p className="text-muted mt-8 text-sm">
-          You skipped vehicle details during registration.<br/>
-          Please fill them now to start offering rides.
-        </p>
-      </div>
-
-      <div className="card" style={{ padding:24 }}>
-        <form onSubmit={submit}>
-          {error && <div className="alert alert-error mb-16">{error}</div>}
-
-          {/* Vehicle type */}
-          <div className="field mb-20">
-            <label>Vehicle Type *</label>
-            <div className="vehicle-type-grid">
-              {VEHICLE_TYPES.map(v => {
-                const [icon, ...nameParts] = v.label.split(' ');
-                return (
-                  <div key={v.value}
-                    className={`vehicle-type-card ${vehicleType === v.value ? 'selected' : ''}`}
-                    onClick={() => setVehicleType(v.value)}>
-                    <div className="vehicle-icon">{icon}</div>
-                    <div className="vehicle-name">{nameParts.join(' ')}</div>
-                    <div className="vehicle-capacity">Max {v.capacity} seat{v.capacity > 1 ? 's' : ''}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Vehicle registration number */}
-          <div className="field mb-16">
-            <label>🔢 Vehicle Registration Number *</label>
-            <input className="input" type="text"
-              placeholder="e.g. KA01AB1234"
-              maxLength={12}
-              value={vehicleNumber}
-              onChange={e => setVehicleNumber(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} />
-            <p className="field-hint-msg">Format: State + District + Series + Number (e.g. KA01AB1234)</p>
-          </div>
-
-          {/* Vehicle name */}
-          <div className="field mb-24">
-            <label>🚘 Vehicle Name / Model *</label>
-            <input className="input" type="text"
-              placeholder="e.g. Honda Activa, Innova Crysta, TVS iQube"
-              value={vehicleName}
-              onChange={e => setVehicleName(e.target.value)} />
-            <p className="field-hint-msg">Shown to seekers after booking confirmation</p>
-          </div>
-
-          <button type="submit"
-            className={`btn btn-primary btn-lg btn-full ${loading ? 'btn-loading' : ''}`}
-            disabled={loading}>
-            {!loading && 'Save & Continue to Post Ride →'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 // ── Main CreateRide ───────────────────────────────────────────────
 export default function CreateRide({ navigate }) {
   const { user } = useAuth();
@@ -193,22 +91,7 @@ export default function CreateRide({ navigate }) {
   const [womenOnly,      setWomenOnly]      = useState(false);
   const [roadDistanceKm, setRoadDistanceKm] = useState(0);
 
-  // Track whether vehicle details are on the account
-  const [vehicleReady,   setVehicleReady]   = useState(null); // null = checking
 
-  useEffect(() => {
-    // Check if provider already has vehicle details (from registration or previous save)
-    api.getProfile().then(profile => {
-      const vn = profile?.kycDocuments?.vehicleNumber
-              || profile?.vehicleNumber
-              || '';
-      const vm = profile?.kycDocuments?.vehicleName
-              || profile?.vehicleName
-              || '';
-      // Gate only shown if BOTH are missing
-      setVehicleReady(!!(vn.trim() && vm.trim()));
-    }).catch(() => setVehicleReady(true)); // on any error, don't block the user
-  }, []);
 
   useEffect(() => {
     const { pickupLat, pickupLng, dropLat, dropLng, pickupLabel, dropLabel } = form;
@@ -249,17 +132,7 @@ export default function CreateRide({ navigate }) {
     </div>
   );
 
-  // Still checking
-  if (vehicleReady === null) return (
-    <div className="narrow-wrap fade-up text-center" style={{ paddingTop:80 }}>
-      <p className="text-muted">Loading…</p>
-    </div>
-  );
 
-  // Provider hasn't filled vehicle details — show the gate
-  if (vehicleReady === false) return (
-    <VehicleDetailsGate onComplete={() => setVehicleReady(true)} />
-  );
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
 

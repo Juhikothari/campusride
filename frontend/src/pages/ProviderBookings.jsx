@@ -290,6 +290,37 @@ const rideStatusBadge = (s) => ({
         </div>
       )}
 
+      {/* ── TRIP CONTROLS — top of page when a ride is selected ── */}
+      {selectedRide && selectedRide.status !== 'cancelled' && (
+        <div className="card mb-20" style={{border:'1px solid rgba(245,166,35,0.3)'}}>
+          <div className="card-header" style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:18}}>🚗</span>
+            <span className="card-title">Trip Controls</span>
+            <span style={{marginLeft:8,fontSize:12,color:'#888'}}>— {selectedRide.pickup?.address?.split(',')[0]} → {selectedRide.drop?.address?.split(',')[0]}</span>
+          </div>
+          <div className="card-body">
+            <TripStatusFlow
+              ride={selectedRide}
+              onUpdate={() => { fetchRides(); if (selected) loadBookings(selected); }}
+            />
+            {(selectedRide.status === 'active' || selectedRide.status === 'in-progress') && (
+              <div className="mt-16">
+                <button
+                  className="btn btn-success btn-lg"
+                  onClick={checkRideCompletion}
+                  style={{width:'100%'}}
+                >
+                  ✅ Mark Ride as Completed
+                </button>
+                <div className="text-muted text-xs mt-8" style={{textAlign:'center'}}>
+                  Or wait 5 minutes after ride time for auto-completion
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="pb2-layout">
 
         {/* ── Left sidebar: Rides list ── */}
@@ -360,37 +391,6 @@ const rideStatusBadge = (s) => ({
             )}
           </div>
 
-          {/* Trip controls card */}
-          {selectedRide && selectedRide.status !== 'cancelled' && (
-            <div className="card mt-16">
-              <div className="card-header"><span className="card-title">Trip Controls</span></div>
-              <div className="card-body">
-                <TripStatusFlow
-                  ride={selectedRide}
-                  onUpdate={() => { fetchRides(); if (selected) loadBookings(selected); }}
-                />
-                
-                {/* Manual Completion Button */}
-                {(selectedRide.status === 'active' || selectedRide.status === 'in-progress') && (
-                  <div className="mt-16">
-                    <button 
-                      className="btn btn-success btn-lg"
-                      onClick={checkRideCompletion}
-                      style={{width: '100%'}}
-                    >
-                      ✅ Mark Ride as Completed
-                    </button>
-                    <div className="text-muted text-xs mt-8" style={{textAlign: 'center'}}>
-                      Or wait 5 minutes after ride time for auto-completion
-                    </div>
-                    <div className="text-muted text-xs mt-4" style={{textAlign: 'center'}}>
-                      Status: {selectedRide.status}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
         </aside>
 
         {/* ── Right main: Bookings panel ── */}
