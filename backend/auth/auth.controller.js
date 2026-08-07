@@ -1,59 +1,57 @@
-const bcrypt     = require('bcryptjs');
-const jwt        = require('jsonwebtoken');
-const crypto     = require('crypto');
-const dns        = require('dns').promises;
-const nodemailer = require('nodemailer');
-const User       = require('../users/users.model');
+const bcrypt  = require('bcryptjs');
+const jwt     = require('jsonwebtoken');
+const crypto  = require('crypto');
+const https   = require('https');
+const User    = require('../users/users.model');
 const { validateCollegeEmail } = require('../config/collegeDomains');
 
 // ── In-memory OTP store ────────────────────────────────────────────
 const otpStore = new Map();
 
-// ── Resolve Gmail SMTP to IPv4 at startup and cache it ────────────
-// Render blocks IPv6 outbound. By resolving smtp.gmail.com to its
-// IPv4 address once and passing the IP directly to nodemailer,
-// we bypass DNS entirely at send time — no more ENETUNREACH.
-let smtpHostIPv4 = null;
+// ── Send email via Brevo HTTPS API ────────────────────────────────
+// Render blocks all outbound SMTP (ports 587 and 465).
+// Brevo's transactional email API uses HTTPS on port 443 which
+// Render allows. @getbrevo/brevo is already in package.json.
+const sendEmailViaBrevo = async ({ to, toName, subject, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error('BREVO_API_KEY is not set in environment variables');
 
-const resolveSmtpHost = async () => {
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  // If user already set an IP, use it directly
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) { smtpHostIPv4 = host; return; }
-  try {
-    const addresses = await dns.resolve4(host);
-    smtpHostIPv4 = addresses[0];
-    console.log('✅ SMTP host ' + host + ' resolved to IPv4: ' + smtpHostIPv4);
-  } catch (err) {
-    console.warn('⚠️ Could not resolve ' + host + ' to IPv4, falling back to hostname: ' + err.message);
-    smtpHostIPv4 = host;
-  }
-};
+  const body = JSON.stringify({
+    sender:  { name: 'CampusRide', email: process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || 'noreply@campusride.app' },
+    to:      [{ email: to, name: toName || to }],
+    subject,
+    htmlContent: html,
+  });
 
-// Resolve immediately at module load time
-resolveSmtpHost().catch(() => {});
-
-// ── Nodemailer transporter ─────────────────────────────────────────
-const createTransporter = async () => {
-  // Ensure we have an IPv4 address resolved
-  if (!smtpHostIPv4) await resolveSmtpHost();
-
-  return nodemailer.createTransport({
-    // Pass IPv4 address directly — nodemailer skips DNS, connects over IPv4
-    host:   smtpHostIPv4 || process.env.SMTP_HOST || 'smtp.gmail.com',
-    port:   parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_PORT === '465',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    // Tell TLS the real hostname for SNI (certificate validation uses this)
-    tls: {
-      servername:        process.env.SMTP_HOST || 'smtp.gmail.com',
-      rejectUnauthorized: false,
-    },
-    connectionTimeout: 20000,
-    greetingTimeout:   15000,
-    socketTimeout:     30000,
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.brevo.com',
+        path:     '/v3/smtp/email',
+        method:   'POST',
+        headers: {
+          'api-key':       apiKey,
+          'Content-Type':  'application/json',
+          'Accept':        'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      res => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(JSON.parse(data));
+          } else {
+            reject(new Error('Brevo API error ' + res.statusCode + ': ' + data));
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.setTimeout(15000, () => { req.destroy(new Error('Brevo API request timed out')); });
+    req.write(body);
+    req.end();
   });
 };
 
@@ -213,44 +211,30 @@ const sendOtp = async (req, res) => {
       return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
     }
 
-    const transporter = await createTransporter();
-
     try {
-      const info = await transporter.sendMail({
-        from:    `"CampusRide" <${process.env.SMTP_USER}>`,
+      await sendEmailViaBrevo({
         to:      email,
+        toName:  user.name,
         subject: 'CampusRide — Password Reset OTP',
-        html: `
-          <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;
-                      background:#07090d;color:#fff;border-radius:12px;padding:32px;">
-            <div style="font-size:22px;font-weight:800;margin-bottom:8px;">
-              Campus<span style="color:#f5a623;">Ride</span>
-            </div>
-            <h2 style="color:#f5a623;margin-top:0;">Password Reset OTP</h2>
-            <p style="color:#aaa;">Hi ${user.name},</p>
-            <p style="color:#aaa;">Your one-time password to reset your CampusRide password:</p>
-            <div style="background:#1a1d24;border:2px solid #f5a623;border-radius:10px;
-                        text-align:center;padding:24px;margin:20px 0;">
-              <span style="font-size:40px;font-weight:900;letter-spacing:12px;
-                           color:#f5a623;">${otp}</span>
-            </div>
-            <p style="color:#aaa;font-size:13px;">
-              Valid for <strong style="color:#fff;">10 minutes</strong>. Do not share with anyone.
-            </p>
-            <p style="color:#555;font-size:12px;margin-top:24px;">
-              If you didn't request this, ignore this email.
-            </p>
-          </div>
-        `,
+        html: '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#07090d;color:#fff;border-radius:12px;padding:32px;">' +
+              '<div style="font-size:22px;font-weight:800;margin-bottom:8px;">Campus<span style="color:#f5a623;">Ride</span></div>' +
+              '<h2 style="color:#f5a623;margin-top:0;">Password Reset OTP</h2>' +
+              '<p style="color:#aaa;">Hi ' + user.name + ',</p>' +
+              '<p style="color:#aaa;">Your one-time password to reset your CampusRide password:</p>' +
+              '<div style="background:#1a1d24;border:2px solid #f5a623;border-radius:10px;text-align:center;padding:24px;margin:20px 0;">' +
+              '<span style="font-size:40px;font-weight:900;letter-spacing:12px;color:#f5a623;">' + otp + '</span>' +
+              '</div>' +
+              '<p style="color:#aaa;font-size:13px;">Valid for <strong style="color:#fff;">10 minutes</strong>. Do not share with anyone.</p>' +
+              '<p style="color:#555;font-size:12px;margin-top:24px;">If you did not request this, ignore this email.</p>' +
+              '</div>',
       });
-      console.log(`✅ OTP sent to ${email} — ID: ${info.messageId}`);
+      console.log('✅ OTP sent to ' + email + ' via Brevo');
       res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
     } catch (mailErr) {
-      console.error('❌ Email send failed:', mailErr.message);
-      // Always log OTP so you can test even in production if email fails
-      console.log(`🔑 FALLBACK OTP for ${email}: ${otp}`);
+      console.error('❌ Brevo send failed:', mailErr.message);
+      console.log('🔑 FALLBACK OTP for ' + email + ': ' + otp);
       return res.status(500).json({
-        message: `Could not send OTP email. Error: ${mailErr.message}`
+        message: 'Could not send OTP email. Error: ' + mailErr.message
       });
     }
   } catch (error) {
