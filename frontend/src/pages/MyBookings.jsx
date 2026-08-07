@@ -205,6 +205,7 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
                    : '🗺️ Track Ride';
 
   return (
+    <>
     <div className={`bk-card card ${isCancelled ? 'cancelled' : ''}`}>
       <div className="card-header">
         <span className="card-title">Booking #{b._id.slice(-6).toUpperCase()}</span>
@@ -312,5 +313,6 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
       </div>,
       document.body
     )}
-  )
+    </>
+  );
 }
