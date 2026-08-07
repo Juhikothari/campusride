@@ -31,7 +31,6 @@ exports.createRide = async (req, res) => {
       return res.status(403).json({ message: 'KYC not approved' });
     }
 
-
     //const pickupAddress = pickup?.address || pickup?.label || 'Unknown Location';
     //const dropAddress = drop?.address || drop?.label || 'Unknown Location';
     const extractAddress = (location, fallback = 'Location') => {
@@ -394,19 +393,6 @@ exports.pickupPassenger = async (req, res) => {
 
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
 
-    // FIXED: Check if pre-ride checklist is completed
-    const preRide = ride.preRideChecklist || {};
-    const allChecksDone = preRide.vehicleInspected && 
-                          preRide.emergencyKitReady && 
-                          preRide.routeConfirmed && 
-                          preRide.contactsNotified;
-    
-    if (!allChecksDone) {
-      return res.status(400).json({ 
-        message: 'Pre-ride checklist not completed. Please complete all safety checks first.' 
-      });
-    }
-
     ride.status = 'in-progress';
     ride.passengerPickedUpAt = new Date();
     await ride.save();
@@ -547,19 +533,6 @@ exports.startRide = async (req, res) => {
     
     if (ride.status !== 'active') {
       return res.status(400).json({ message: 'Ride cannot be started' });
-    }
-
-    // FIXED: Check if pre-ride checklist is completed
-    const preRide = ride.preRideChecklist || {};
-    const allChecksDone = preRide.vehicleInspected && 
-                          preRide.emergencyKitReady && 
-                          preRide.routeConfirmed && 
-                          preRide.contactsNotified;
-    
-    if (!allChecksDone) {
-      return res.status(400).json({ 
-        message: 'Pre-ride checklist not completed. Please complete all safety checks first.' 
-      });
     }
 
     ride.status = 'in-progress';
