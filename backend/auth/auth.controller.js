@@ -13,15 +13,22 @@ const otpStore = new Map();
 // Brevo's transactional email API uses HTTPS on port 443 which
 // Render allows. @getbrevo/brevo is already in package.json.
 const sendEmailViaBrevo = async ({ to, toName, subject, html }) => {
-  const apiKey = process.env.BREVO_API_KEY;
+  const apiKey = (process.env.BREVO_API_KEY || '').trim();
   if (!apiKey) throw new Error('BREVO_API_KEY is not set in environment variables');
 
-  const body = JSON.stringify({
-    sender:  { name: 'CampusRide', email: process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || 'noreply@campusride.app' },
-    to:      [{ email: to, name: toName || to }],
+  const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || '').trim();
+  if (!senderEmail) throw new Error('No sender email set (BREVO_SENDER_EMAIL or SMTP_USER required)');
+
+  // Use Buffer to correctly compute byte length for Unicode/emoji content
+  const bodyStr = JSON.stringify({
+    sender:      { name: 'CampusRide', email: senderEmail },
+    to:          [{ email: to, name: toName || to }],
     subject,
     htmlContent: html,
   });
+  const bodyBuf = Buffer.from(bodyStr, 'utf8');
+
+  console.log('Brevo: sending to', to, 'from', senderEmail, 'key prefix', apiKey.slice(0, 8) + '...');
 
   return new Promise((resolve, reject) => {
     const req = https.request(
@@ -30,16 +37,17 @@ const sendEmailViaBrevo = async ({ to, toName, subject, html }) => {
         path:     '/v3/smtp/email',
         method:   'POST',
         headers: {
-          'api-key':       apiKey,
-          'Content-Type':  'application/json',
-          'Accept':        'application/json',
-          'Content-Length': Buffer.byteLength(body),
+          'api-key':        apiKey,
+          'Content-Type':   'application/json',
+          'Accept':         'application/json',
+          'Content-Length': bodyBuf.length,
         },
       },
       res => {
         let data = '';
         res.on('data', chunk => { data += chunk; });
         res.on('end', () => {
+          console.log('Brevo response:', res.statusCode, data.slice(0, 200));
           if (res.statusCode >= 200 && res.statusCode < 300) {
             resolve(JSON.parse(data));
           } else {
@@ -48,9 +56,9 @@ const sendEmailViaBrevo = async ({ to, toName, subject, html }) => {
         });
       }
     );
-    req.on('error', reject);
-    req.setTimeout(15000, () => { req.destroy(new Error('Brevo API request timed out')); });
-    req.write(body);
+    req.on('error', e => { console.error('Brevo request error:', e.message); reject(e); });
+    req.setTimeout(20000, () => { req.destroy(new Error('Brevo API request timed out after 20s')); });
+    req.write(bodyBuf);
     req.end();
   });
 };
