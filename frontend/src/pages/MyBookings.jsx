@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import * as api from '../services/api.js';
 import io from 'socket.io-client';
 import RideTracker from './RideTracker.jsx';
+import PreRideChecklist from './PreRideChecklist.jsx';
 import './SharedPages.css';
 
 function useLocationName(locationField) {
@@ -189,6 +191,8 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
   const ride = b.rideId;
   const pickupName = useLocationName(ride?.pickup);
   const dropName   = useLocationName(ride?.drop);
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [checklistDone, setChecklistDone] = useState(false);
 
   if (!ride) return null;
 
@@ -243,25 +247,54 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
 
         {/* Provider details — shown only after booking accepted */}
         {b.status === 'accepted' && ride.providerId && (
-          <div style={{marginTop:14, padding:'12px 14px', background:'rgba(245,166,35,0.08)', border:'1px solid rgba(245,166,35,0.2)', borderRadius:10}}>
-            <div style={{fontSize:11,color:'#888',marginBottom:8,fontWeight:600}}>PROVIDER DETAILS</div>
-            <div style={{display:'flex',flexDirection:'column',gap:6}}>
-              {ride.providerId.name && <div style={{fontSize:13,color:'#fff'}}>👤 {ride.providerId.name}</div>}
+          <div style={{marginTop:14,padding:'12px 14px',background:'rgba(245,166,35,0.08)',border:'1px solid rgba(245,166,35,0.2)',borderRadius:10}}>
+            <div style={{fontSize:11,color:'#888',marginBottom:10,fontWeight:700,letterSpacing:'.05em'}}>PROVIDER DETAILS</div>
+            <div style={{display:'flex',flexDirection:'column',gap:7}}>
+              {ride.providerId.name && <div style={{fontSize:14,color:'#fff',fontWeight:600}}>👤 {ride.providerId.name}</div>}
               {ride.providerId.phone && <div style={{fontSize:13,color:'#aaa'}}>📞 {ride.providerId.phone}</div>}
-              {ride.providerId.usn && <div style={{fontSize:13,color:'#aaa'}}>🪪 USN: <strong style={{color:'#fff'}}>{ride.providerId.usn}</strong></div>}
-              {ride.vehicleName && <div style={{fontSize:13,color:'#f5a623',fontWeight:600}}>🚘 {ride.vehicleName}</div>}
-              {ride.providerId.kycDocuments?.vehicleName && !ride.vehicleName && (
-                <div style={{fontSize:13,color:'#f5a623',fontWeight:600}}>🚘 {ride.providerId.kycDocuments.vehicleName}</div>
+              {(ride.providerId.usn || ride.providerId.kycDocuments?.usn) && (
+                <div style={{fontSize:13,color:'#aaa'}}>
+                  🪪 USN: <strong style={{color:'#fff',letterSpacing:1,fontFamily:'monospace'}}>
+                    {ride.providerId.usn || ride.providerId.kycDocuments?.usn}
+                  </strong>
+                </div>
+              )}
+              {ride.vehicleType && (
+                <div style={{fontSize:13,color:'#aaa'}}>
+                  🚙 Type: <strong style={{color:'#fff'}}>
+                    {{motorcycle:'Bike 🏍️',car:'Car 🚗',suv:'SUV 🚙',xuv:'XUV 🛻'}[ride.vehicleType] || ride.vehicleType}
+                  </strong>
+                </div>
+              )}
+              {(ride.vehicleName || ride.providerId.kycDocuments?.vehicleName) && (
+                <div style={{fontSize:13,color:'#f5a623',fontWeight:600}}>
+                  🚘 {ride.vehicleName || ride.providerId.kycDocuments.vehicleName}
+                </div>
               )}
               {ride.providerId.kycDocuments?.vehicleNumber && (
-                <div style={{marginTop:4,background:'rgba(245,166,35,0.12)',borderRadius:8,padding:'8px 10px'}}>
-                  <div style={{fontSize:10,color:'#888',marginBottom:2}}>VEHICLE NUMBER</div>
-                  <div style={{fontSize:20,fontWeight:900,color:'#f5a623',letterSpacing:3}}>
+                <div style={{marginTop:4,background:'rgba(245,166,35,0.12)',borderRadius:8,padding:'10px 12px'}}>
+                  <div style={{fontSize:10,color:'#888',marginBottom:3,letterSpacing:'.08em'}}>VEHICLE NUMBER</div>
+                  <div style={{fontSize:22,fontWeight:900,color:'#f5a623',letterSpacing:4,fontFamily:'monospace'}}>
                     {ride.providerId.kycDocuments.vehicleNumber}
                   </div>
                 </div>
               )}
             </div>
+          </div>
+        )}
+        {b.status === 'accepted' && ride.status !== 'completed' && ride.status !== 'cancelled' && (
+          <div style={{marginTop:12}}>
+            {!checklistDone ? (
+              <button className="btn btn-full" onClick={() => setShowChecklist(true)}
+                style={{background:'linear-gradient(135deg,#4caf50,#2e7d32)',color:'#fff',fontWeight:700,fontSize:13}}>
+                📋 Safety Checklist Before Riding
+              </button>
+            ) : (
+              <div style={{background:'rgba(76,175,80,0.1)',border:'1px solid #4caf50',borderRadius:10,
+                padding:'10px 14px',fontSize:13,color:'#4caf50',fontWeight:600}}>
+                ✅ Safety checklist done — you are ready to ride!
+              </div>
+            )}
           </div>
         )}
         {canTrack && (
@@ -273,7 +306,7 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
         )}
 
         {/* Cancel booking — seeker can cancel pending/accepted bookings */}
-        {['pending', 'accepted'].includes(b.status) && !isCancelled && (
+        {['pending', 'accepted'].includes(b.status) && !isCancelled && ride.status !== 'completed' && (
           <button className="btn btn-danger btn-full mt-8" style={{fontSize:13}}
             onClick={async () => {
               if (!window.confirm('Are you sure you want to cancel this booking?')) return;
@@ -294,17 +327,21 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
         {b.status === 'rejected' && (
           <div className="alert alert-error mt-16">Booking rejected. Try searching for another ride.</div>
         )}
+        {b.status === 'accepted' && ride.status === 'completed' && (
+          <div style={{marginTop:12,background:'rgba(99,102,241,0.1)',border:'1px solid #6366f1',
+            borderRadius:10,padding:'12px 14px',textAlign:'center'}}>
+            <div style={{fontSize:24,marginBottom:4}}>🎉</div>
+            <div style={{color:'#a5b4fc',fontWeight:700,fontSize:14}}>Ride Completed!</div>
+            <div style={{color:'#666',fontSize:12,marginTop:4}}>Hope you had a great commute. Rate your experience!</div>
+          </div>
+        )}
       </div>
     </div>
 
-    {/* ── Checklist portal — renders at document.body so position:fixed works ── */}
     {showChecklist && createPortal(
-      <div style={{
-        position:'fixed', inset:0, background:'rgba(0,0,0,0.88)',
-        zIndex:99999, display:'flex', alignItems:'center',
-        justifyContent:'center', padding:20,
-      }}>
-        <div style={{width:'100%', maxWidth:460}}>
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',zIndex:99999,
+        display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+        <div style={{width:'100%',maxWidth:460}}>
           <PreRideChecklist
             onComplete={() => { setChecklistDone(true); setShowChecklist(false); }}
             onCancel={() => setShowChecklist(false)}

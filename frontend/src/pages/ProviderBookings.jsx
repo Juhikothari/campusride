@@ -291,7 +291,7 @@ const rideStatusBadge = (s) => ({
       )}
 
       {/* ── TRIP CONTROLS — top of page when a ride is selected ── */}
-      {selectedRide && selectedRide.status !== 'cancelled' && (
+      {selectedRide && selectedRide.status !== 'cancelled' && selectedRide.status !== 'completed' && (
         <div className="card mb-20" style={{border:'1px solid rgba(245,166,35,0.3)'}}>
           <div className="card-header" style={{display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontSize:18}}>🚗</span>
@@ -317,6 +317,17 @@ const rideStatusBadge = (s) => ({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {selectedRide && selectedRide.status === 'completed' && (
+        <div style={{background:'rgba(99,102,241,0.1)',border:'1px solid #6366f1',borderRadius:12,
+          padding:'16px 20px',marginBottom:20,textAlign:'center'}}>
+          <div style={{fontSize:28,marginBottom:6}}>🎉</div>
+          <div style={{color:'#a5b4fc',fontWeight:700,fontSize:16}}>Ride Completed</div>
+          <div style={{color:'#666',fontSize:13,marginTop:4}}>
+            {selectedRide.pickup?.address?.split(',')[0]} → {selectedRide.drop?.address?.split(',')[0]}
           </div>
         </div>
       )}
