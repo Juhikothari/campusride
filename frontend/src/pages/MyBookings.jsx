@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import * as api from '../services/api.js';
 import io from 'socket.io-client';
