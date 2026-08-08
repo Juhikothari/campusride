@@ -691,7 +691,7 @@ export default function CommunityPage({ navigate }) {
   return (
     <div className="comm-shell">
       <div className="comm-header">
-        <div className="comm-header-title">🏫 {user?.college ? user.college + ' Commuters' : 'Commuter Community'}</div>
+        <div className="comm-header-title">🏫 {user?.college ? user.college.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ' Commuters' : 'Commuter Community'}</div>
         <div className="comm-tabs" style={{display:'flex',gap:4,flexWrap:'wrap'}}>
           <button className={`comm-tab ${tab==='posts'?'active':''}`}  onClick={() => setTab('posts')}>📋 Posts</button>
           <button className={`comm-tab ${tab==='chat'?'active':''}`}   onClick={() => setTab('chat')}>💬 Chat</button>
