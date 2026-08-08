@@ -213,12 +213,6 @@ const sendOtp = async (req, res) => {
     const expiresAt = Date.now() + 10 * 60 * 1000;
     otpStore.set(email.toLowerCase(), { otp, expiresAt, userId: user._id });
 
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      console.error('❌ SMTP_USER or SMTP_PASS not set in environment');
-      console.log(`🔑 DEV OTP for ${email}: ${otp}`);
-      return res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
-    }
-
     try {
       await sendEmailViaBrevo({
         to:      email,
