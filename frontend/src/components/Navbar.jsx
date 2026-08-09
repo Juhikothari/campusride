@@ -29,11 +29,13 @@ export default function Navbar({ navigate, currentPage }) {
 
   const links = [
     { key: 'dashboard',         label: 'Home',            icon: '⊞',  show: true },
+    { key: 'admin',             label: 'Admin Dashboard', icon: '🛠️', show: isAdmin },
     { key: 'search-rides',      label: 'Find a Ride',     icon: '🔍', show: isSeeker },
     { key: 'create-ride',       label: 'Offer Ride',      icon: '＋', show: isProvider },
     { key: 'my-bookings',       label: 'My Bookings',     icon: '📋', show: isSeeker },
     { key: 'provider-bookings', label: 'Manage Requests', icon: '📬', show: isProvider },
-    { key: 'community',         label: 'Community',       icon: '💬', show: true },
+    { key: 'notifications',     label: 'Notifications',   icon: '🔔', show: true },
+    { key: 'incident-report',   label: 'Incidents',       icon: '⚠️', show: isProvider || isSeeker },
     { key: 'admin-settings',    label: 'Admin Settings',  icon: '⚙️', show: isAdmin },
   ].filter(l => l.show);
 
@@ -63,8 +65,12 @@ export default function Navbar({ navigate, currentPage }) {
             <button className="back-btn" onClick={handleBack}>❮</button>
           )}
 
-          <button className="nav-logo" onClick={() => go('dashboard')}>
-            Campus<span>Ride</span>
+          <button className="nav-logo" onClick={() => go('dashboard')}
+            style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:1}}>
+            <span>Campus<span style={{color:'var(--accent,#f5a623)'}}>Ride</span></span>
+            <span style={{fontSize:9,color:'#555',fontWeight:400,letterSpacing:'.04em',fontStyle:'italic',lineHeight:1}}>
+              commute matching platform
+            </span>
           </button>
 
           <div className="nav-links">
@@ -96,23 +102,20 @@ export default function Navbar({ navigate, currentPage }) {
                     <div className="text-dim text-xs mt-4">{user?.college}</div>
                   </div>
                   <div className="dd-sep"/>
+                  {/* ── Profile link in dropdown ── */}
+                  <button className="dd-item" onClick={() => go('walk-together')}>
+                    <span>🚶</span> Walk Together
+                  </button>
+                  <button className="dd-item" onClick={() => go('whats-my-route')}>
+                    <span>🗺️</span> What's My Route?
+                  </button>
+                  <button className="dd-item" onClick={() => go('community')}>
+                    <span>💬</span> Community
+                  </button>
+                  <div className="dd-sep"/>
                   <button className="dd-item" onClick={() => go('profile')}>
                     <span>👤</span> My Profile
                   </button>
-                  <button className="dd-item" onClick={() => go('kyc')}>
-                    <span>🪪</span> KYC Verification
-                  </button>
-                  <button className="dd-item" onClick={() => go('ratings')}>
-                    <span>⭐</span> Ratings
-                  </button>
-                  <button className="dd-item" onClick={() => go('incident-report')}>
-                    <span>🚨</span> Report Incident
-                  </button>
-                  {user?.role === 'admin' && (
-                    <button className="dd-item" onClick={() => go('admin')}>
-                      <span>⚙️</span> Admin Dashboard
-                    </button>
-                  )}
                   <div className="dd-sep"/>
                   <button className="dd-item" onClick={handleLogout}>
                     <span>⬡</span> Sign out
@@ -158,23 +161,19 @@ export default function Navbar({ navigate, currentPage }) {
           ))}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
           {/* Profile in mobile menu */}
+          <button className="mobile-link" onClick={() => go('walk-together')}>
+            <span>🚶</span> Walk Together
+          </button>
+          <button className="mobile-link" onClick={() => go('whats-my-route')}>
+            <span>🗺️</span> What's My Route?
+          </button>
+          <button className="mobile-link" onClick={() => go('community')}>
+            <span>💬</span> Community
+          </button>
+          <div className="dd-sep" style={{margin:'8px 16px'}}/>
           <button className="mobile-link" onClick={() => go('profile')}>
             <span>👤</span> My Profile
           </button>
-          <button className="mobile-link" onClick={() => go('kyc')}>
-            <span>🪪</span> KYC Verification
-          </button>
-          <button className="mobile-link" onClick={() => go('ratings')}>
-            <span>⭐</span> Ratings
-          </button>
-          <button className="mobile-link" onClick={() => go('incident-report')}>
-            <span>🚨</span> Report Incident
-          </button>
-          {user?.role === 'admin' && (
-            <button className="mobile-link" onClick={() => go('admin')}>
-              <span>⚙️</span> Admin Dashboard
-            </button>
-          )}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
           <button className="mobile-link" onClick={handleLogout}>
             <span>⬡</span> Sign out
