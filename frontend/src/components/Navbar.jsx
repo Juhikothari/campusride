@@ -66,9 +66,11 @@ export default function Navbar({ navigate, currentPage }) {
           )}
 
           <button className="nav-logo" onClick={() => go('dashboard')}
-            style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:1}}>
-            <span>Campus<span style={{color:'var(--accent,#f5a623)'}}>Ride</span></span>
-            <span style={{fontSize:9,color:'#555',fontWeight:400,letterSpacing:'.04em',fontStyle:'italic',lineHeight:1}}>
+            style={{display:'flex',flexDirection:'column',alignItems:'flex-start',gap:2,background:'none',border:'none',cursor:'pointer',padding:0}}>
+            <span style={{fontFamily:'var(--font-display,Syne,sans-serif)',fontWeight:800,fontSize:20,color:'#fff'}}>
+              Campus<span style={{color:'#f5a623'}}>Ride</span>
+            </span>
+            <span style={{fontSize:8,color:'#444',fontWeight:400,letterSpacing:'.05em',fontStyle:'italic',lineHeight:1}}>
               commute matching platform
             </span>
           </button>
@@ -103,16 +105,6 @@ export default function Navbar({ navigate, currentPage }) {
                   </div>
                   <div className="dd-sep"/>
                   {/* ── Profile link in dropdown ── */}
-                  <button className="dd-item" onClick={() => go('walk-together')}>
-                    <span>🚶</span> Walk Together
-                  </button>
-                  <button className="dd-item" onClick={() => go('whats-my-route')}>
-                    <span>🗺️</span> What's My Route?
-                  </button>
-                  <button className="dd-item" onClick={() => go('community')}>
-                    <span>💬</span> Community
-                  </button>
-                  <div className="dd-sep"/>
                   <button className="dd-item" onClick={() => go('profile')}>
                     <span>👤</span> My Profile
                   </button>
@@ -161,16 +153,6 @@ export default function Navbar({ navigate, currentPage }) {
           ))}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
           {/* Profile in mobile menu */}
-          <button className="mobile-link" onClick={() => go('walk-together')}>
-            <span>🚶</span> Walk Together
-          </button>
-          <button className="mobile-link" onClick={() => go('whats-my-route')}>
-            <span>🗺️</span> What's My Route?
-          </button>
-          <button className="mobile-link" onClick={() => go('community')}>
-            <span>💬</span> Community
-          </button>
-          <div className="dd-sep" style={{margin:'8px 16px'}}/>
           <button className="mobile-link" onClick={() => go('profile')}>
             <span>👤</span> My Profile
           </button>
