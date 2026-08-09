@@ -20,7 +20,9 @@ import NotificationsPage from "./pages/NotificationsPage.jsx";
 import IncidentReport   from "./pages/IncidentReport.jsx";
 import AdminSettings    from "./pages/AdminSettings.jsx";
 import ResetPassword    from "./pages/ResetPassword.jsx";
-import ProfilePage      from "./pages/ProfilePage.jsx";   // ← NEW
+import ProfilePage        from "./pages/ProfilePage.jsx";
+import WalkTogetherPage   from "./pages/WalkTogetherPage.jsx";
+import WhatsMyRoutePage   from "./pages/WhatsMyRoutePage.jsx";
 import Chatbot from "./components/Chatbot.jsx";
 
 const PAGE_MAP = {
