@@ -104,6 +104,17 @@ export default function Navbar({ navigate, currentPage }) {
                     <div className="text-dim text-xs mt-4">{user?.college}</div>
                   </div>
                   <div className="dd-sep"/>
+                  {/* ── Profile link in dropdown ── */}
+                  {isSeeker && (
+                    <button className="dd-item" onClick={() => go('my-bookings')}>
+                      <span>📋</span> My Bookings
+                    </button>
+                  )}
+                  {isProvider && (
+                    <button className="dd-item" onClick={() => go('provider-bookings')}>
+                      <span>📬</span> Manage Requests
+                    </button>
+                  )}
                   <button className="dd-item" onClick={() => go('walk-together')}>
                     <span>🚶</span> Walk Together
                   </button>
@@ -180,6 +191,17 @@ export default function Navbar({ navigate, currentPage }) {
             </button>
           ))}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
+          {/* Profile in mobile menu */}
+          {isSeeker && (
+            <button className="mobile-link" onClick={() => go('my-bookings')}>
+              <span>📋</span> My Bookings
+            </button>
+          )}
+          {isProvider && (
+            <button className="mobile-link" onClick={() => go('provider-bookings')}>
+              <span>📬</span> Manage Requests
+            </button>
+          )}
           <button className="mobile-link" onClick={() => go('walk-together')}>
             <span>🚶</span> Walk Together
           </button>
