@@ -695,14 +695,11 @@ export default function CommunityPage({ navigate }) {
         <div className="comm-tabs" style={{display:'flex',gap:4,flexWrap:'wrap'}}>
           <button className={`comm-tab ${tab==='posts'?'active':''}`}  onClick={() => setTab('posts')}>📋 Posts</button>
           <button className={`comm-tab ${tab==='chat'?'active':''}`}   onClick={() => setTab('chat')}>💬 Chat</button>
-          <button className={`comm-tab ${tab==='route'?'active':''}`}  onClick={() => setTab('route')}>🗺️ My Route</button>
-          <button className={`comm-tab ${tab==='walk'?'active':''}`}   onClick={() => setTab('walk')}>🚶 Walk</button>
+
         </div>
       </div>
       {tab === 'posts' && <PostsTab user={user}/>}
       {tab === 'chat'  && <ChatTab user={user}/>}
-      {tab === 'route' && <RouteMatchTab user={user} navigate={navigate}/>}
-      {tab === 'walk'  && <WalkTogetherTab user={user}/>}
     </div>
   );
 }
