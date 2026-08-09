@@ -42,6 +42,8 @@ const PAGE_MAP = {
   "incident-report":   IncidentReport,
   "admin-settings":    AdminSettings,
   "reset-password":    ResetPassword,
+  "walk-together":     WalkTogetherPage,
+  "whats-my-route":    WhatsMyRoutePage,
 
   "profile":           ProfilePage,             // ← NEW
 };
@@ -64,9 +66,6 @@ function Router() {
   }, []);
 
   const navigate = (to, props = {}) => {
-    // walk-together and whats-my-route open the community page
-    if (to === 'walk-together') { to = 'community'; }
-    if (to === 'whats-my-route') { to = 'community'; }
     setPage(to);
     setPageProps(props);
     window.scrollTo({ top: 0, behavior: "smooth" });
