@@ -77,7 +77,6 @@ export default function ProfilePage({ navigate }) {
         </div>
 
         <h1 className="profile-name">{p?.name}</h1>
-        <p className="profile-role">{ROLE_LABEL[p?.role] || p?.role}</p>
         {p?.college && <p className="profile-college">🏫 {p.college}</p>}
       </div>
 

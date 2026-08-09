@@ -325,7 +325,7 @@ export default function RegisterPage({ navigate }) {
                   <div className="kyc-docs-title">KYC Documents</div>
                   <div className="kyc-docs-sub">
                     {isProvider
-                      ? 'Aadhar, College ID and USN are required. License and vehicle details are optional — you can add them later.'
+                      ? 'Upload your documents for verification.'
                       : 'Upload Aadhar and College ID for identity verification'}
                   </div>
                 </div>
@@ -362,7 +362,7 @@ export default function RegisterPage({ navigate }) {
                 {isProvider && (
                   <div className="field">
                     <label>🚗 Driving License
-                      <span style={{ color:'#888', fontWeight:400, fontSize:11, marginLeft:6 }}>(optional — add now or later via KYC)</span>
+
                     </label>
                     <UploadActions type="license" />
                     {kycDocs.license && <p className="field-success-msg">✓ {kycDocs.license.name}</p>}
@@ -373,7 +373,7 @@ export default function RegisterPage({ navigate }) {
                 {isProvider && (
                   <div className="field" style={{ gridColumn:'1 / -1' }}>
                     <label>🔢 Vehicle Registration Number
-                      <span style={{ color:'#888', fontWeight:400, fontSize:11, marginLeft:6 }}>(optional — add now or later)</span>
+
                     </label>
                     <input type="text" className="input"
                       placeholder="e.g. KA01AB1234"
@@ -393,7 +393,7 @@ export default function RegisterPage({ navigate }) {
                 {isProvider && (
                   <div className="field" style={{ gridColumn:'1 / -1' }}>
                     <label>🚘 Vehicle Name / Model
-                      <span style={{ color:'#888', fontWeight:400, fontSize:11, marginLeft:6 }}>(optional — add now or later)</span>
+
                     </label>
                     <input type="text" className="input"
                       placeholder="e.g. Innova Crysta, TVS iQube, Honda Activa"
