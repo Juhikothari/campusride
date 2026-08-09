@@ -29,13 +29,11 @@ export default function Navbar({ navigate, currentPage }) {
 
   const links = [
     { key: 'dashboard',         label: 'Home',            icon: '⊞',  show: true },
-    { key: 'admin',             label: 'Admin Dashboard', icon: '🛠️', show: isAdmin },
     { key: 'search-rides',      label: 'Find a Ride',     icon: '🔍', show: isSeeker },
     { key: 'create-ride',       label: 'Offer Ride',      icon: '＋', show: isProvider },
     { key: 'my-bookings',       label: 'My Bookings',     icon: '📋', show: isSeeker },
     { key: 'provider-bookings', label: 'Manage Requests', icon: '📬', show: isProvider },
-    { key: 'notifications',     label: 'Notifications',   icon: '🔔', show: true },
-    { key: 'incident-report',   label: 'Incidents',       icon: '⚠️', show: isProvider || isSeeker },
+    { key: 'community',         label: 'Community',       icon: '💬', show: true },
     { key: 'admin-settings',    label: 'Admin Settings',  icon: '⚙️', show: isAdmin },
   ].filter(l => l.show);
 
@@ -98,10 +96,23 @@ export default function Navbar({ navigate, currentPage }) {
                     <div className="text-dim text-xs mt-4">{user?.college}</div>
                   </div>
                   <div className="dd-sep"/>
-                  {/* ── Profile link in dropdown ── */}
                   <button className="dd-item" onClick={() => go('profile')}>
                     <span>👤</span> My Profile
                   </button>
+                  <button className="dd-item" onClick={() => go('kyc')}>
+                    <span>🪪</span> KYC Verification
+                  </button>
+                  <button className="dd-item" onClick={() => go('ratings')}>
+                    <span>⭐</span> Ratings
+                  </button>
+                  <button className="dd-item" onClick={() => go('incident-report')}>
+                    <span>🚨</span> Report Incident
+                  </button>
+                  {user?.role === 'admin' && (
+                    <button className="dd-item" onClick={() => go('admin')}>
+                      <span>⚙️</span> Admin Dashboard
+                    </button>
+                  )}
                   <div className="dd-sep"/>
                   <button className="dd-item" onClick={handleLogout}>
                     <span>⬡</span> Sign out
@@ -150,6 +161,20 @@ export default function Navbar({ navigate, currentPage }) {
           <button className="mobile-link" onClick={() => go('profile')}>
             <span>👤</span> My Profile
           </button>
+          <button className="mobile-link" onClick={() => go('kyc')}>
+            <span>🪪</span> KYC Verification
+          </button>
+          <button className="mobile-link" onClick={() => go('ratings')}>
+            <span>⭐</span> Ratings
+          </button>
+          <button className="mobile-link" onClick={() => go('incident-report')}>
+            <span>🚨</span> Report Incident
+          </button>
+          {user?.role === 'admin' && (
+            <button className="mobile-link" onClick={() => go('admin')}>
+              <span>⚙️</span> Admin Dashboard
+            </button>
+          )}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
           <button className="mobile-link" onClick={handleLogout}>
             <span>⬡</span> Sign out
