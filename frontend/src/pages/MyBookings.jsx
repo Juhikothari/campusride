@@ -210,6 +210,8 @@ function BookingCard({ b, getRideStatusBadge, bookingIcon, onTrack }) {
   const ride = b.rideId;
   const pickupName = useLocationName(ride?.pickup);
   const dropName   = useLocationName(ride?.drop);
+  const [showChecklist,  setShowChecklist]  = useState(false);
+  const [checklistDone,  setChecklistDone]  = useState(false);
 
   if (!ride) return null;
 
