@@ -21,7 +21,8 @@ import IncidentReport   from "./pages/IncidentReport.jsx";
 import AdminSettings    from "./pages/AdminSettings.jsx";
 import ResetPassword    from "./pages/ResetPassword.jsx";
 import ProfilePage        from "./pages/ProfilePage.jsx";
-import WalkTogetherPage   from "./pages/WalkTogetherPage.jsx";
+import WalkTogetherPage    from "./pages/WalkTogetherPage.jsx";
+import ContactSupportPage  from "./pages/ContactSupportPage.jsx";
 import WhatsMyRoutePage   from "./pages/WhatsMyRoutePage.jsx";
 import Chatbot from "./components/Chatbot.jsx";
 
@@ -45,6 +46,7 @@ const PAGE_MAP = {
   "admin-settings":    AdminSettings,
   "reset-password":    ResetPassword,
   "walk-together":     WalkTogetherPage,
+  "contact-support":   ContactSupportPage,
   "whats-my-route":    WhatsMyRoutePage,
 
   "profile":           ProfilePage,             // ← NEW
