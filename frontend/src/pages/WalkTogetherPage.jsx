@@ -17,7 +17,8 @@ export default function WalkTogetherPage({ navigate }) {
   const [from,    setFrom]    = useState('');
   const [to,      setTo]      = useState('');
   const [time,    setTime]    = useState('');
-  const [posting, setPosting] = useState(false);
+  const [posting,   setPosting]   = useState(false);
+  const [womenOnly, setWomenOnly] = useState(false);
   const [joined,  setJoined]  = useState({});
 
   useEffect(() => {
@@ -34,7 +35,8 @@ export default function WalkTogetherPage({ navigate }) {
     if (!from.trim() || !to.trim() || !time.trim()) return;
     setPosting(true);
     try {
-      const content = `🚶 Walking from ${from.trim()} → ${to.trim()} at ${time}. Anyone joining?`;
+      const womenTag = womenOnly ? ' 👩 Women only.' : '';
+      const content = `🚶 Walking from ${from.trim()} → ${to.trim()} at ${time}. Anyone joining?${womenTag}`;
       const post = await createCommunityPost({ content, type: 'walk', anonymous: false });
       setPosts(prev => [post, ...prev]);
       setFrom(''); setTo(''); setTime('');
@@ -74,6 +76,34 @@ export default function WalkTogetherPage({ navigate }) {
             type="time" value={time} onChange={e => setTime(e.target.value)}
             className="input"
           />
+          {/* Women-only toggle — visible only to female users */}
+          {user?.gender === 'female' && (
+            <button
+              type="button"
+              onClick={() => setWomenOnly(w => !w)}
+              style={{
+                background: womenOnly ? 'rgba(233,30,140,0.15)' : 'transparent',
+                border: `1.5px solid ${womenOnly ? '#e91e8c' : '#333'}`,
+                borderRadius: 8, padding: '9px 14px', cursor: 'pointer',
+                color: womenOnly ? '#e91e8c' : '#666',
+                fontSize: 13, fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 8,
+                width: '100%', textAlign: 'left',
+              }}
+            >
+              <span style={{fontSize:18}}>{womenOnly ? '🔒' : '♀'}</span>
+              <div>
+                <div>{womenOnly ? 'Women Only 🔒' : 'Open to everyone'}</div>
+                <div style={{fontSize:11,fontWeight:400,color:womenOnly?'#c2185b':'#555',marginTop:2}}>
+                  {womenOnly ? 'Only female commuters will see this walk request' : 'Tap to make this women-only'}
+                </div>
+              </div>
+              {womenOnly && (
+                <span style={{marginLeft:'auto',background:'#e91e8c',color:'#fff',
+                  borderRadius:6,fontSize:10,padding:'2px 8px',fontWeight:700}}>ON</span>
+              )}
+            </button>
+          )}
           <button
             onClick={postWalk}
             disabled={posting || !from.trim() || !to.trim() || !time.trim()}
@@ -93,7 +123,13 @@ export default function WalkTogetherPage({ navigate }) {
           <div style={{fontSize:12}}>Be the first to post one above!</div>
         </div>
       )}
-      {posts.map(post => {
+      {posts
+        .filter(post => {
+          // Hide women-only walk requests from male users
+          if (user?.gender === 'male' && post.content?.includes('👩 Women only')) return false;
+          return true;
+        })
+        .map(post => {
         const isJoined = joined[post._id];
         return (
           <div key={post._id} style={{

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import * as api from '../services/api.js';
 import io from 'socket.io-client';
 import RideTracker from './RideTracker.jsx';
+import PreRideChecklist from './PreRideChecklist.jsx';
 import './SharedPages.css';
 
 function useLocationName(locationField) {
