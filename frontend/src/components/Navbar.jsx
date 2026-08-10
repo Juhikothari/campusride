@@ -123,6 +123,10 @@ export default function Navbar({ navigate, currentPage }) {
                     <span>👤</span> My Profile
                   </button>
                   <div className="dd-sep"/>
+                  <button className="dd-item" onClick={() => go('contact-support')}>
+                    <span>🛟</span> Help & Support
+                  </button>
+                  <div className="dd-sep"/>
                   <button className="dd-item" onClick={handleLogout}>
                     <span>⬡</span> Sign out
                   </button>
@@ -177,6 +181,10 @@ export default function Navbar({ navigate, currentPage }) {
           {/* Profile in mobile menu */}
           <button className="mobile-link" onClick={() => go('profile')}>
             <span>👤</span> My Profile
+          </button>
+          <div className="dd-sep" style={{margin:'8px 16px'}}/>
+          <button className="mobile-link" onClick={() => go('contact-support')}>
+            <span>🛟</span> Help & Support
           </button>
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
           <button className="mobile-link" onClick={handleLogout}>
