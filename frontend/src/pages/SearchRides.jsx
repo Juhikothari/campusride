@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import LocationSearch from '../components/LocationSearch.jsx';
 import NearbyMap from '../components/NearbyMap.jsx';
@@ -19,19 +19,29 @@ export default function SearchRides({ navigate }) {
     </div>
   );
 
-  const [filters,  setFilters]  = useState({
+  // Persist filters across page navigation using sessionStorage
+  const savedFilters = (() => { try { return JSON.parse(sessionStorage.getItem('sr_filters') || 'null'); } catch { return null; } })();
+  const [filters,  setFilters]  = useState(savedFilters || {
     pickupLat: '', pickupLng: '', pickupLabel: '',
     dropLat:   '', dropLng:   '', dropLabel:   '',
     date: '', time: '',
   });
-  const [womenOnly, setWomenOnly] = useState(false);
-  const [vehicleFilter, setVehicleFilter] = useState('');
+  const [womenOnly,     setWomenOnly]     = useState(() => sessionStorage.getItem('sr_womenOnly') === '1');
+  const [vehicleFilter, setVehicleFilter] = useState(() => sessionStorage.getItem('sr_vehicle') || '');
+
+  // Save filters whenever they change
+  useEffect(() => { sessionStorage.setItem('sr_filters', JSON.stringify(filters)); }, [filters]);
+  useEffect(() => { sessionStorage.setItem('sr_womenOnly', womenOnly ? '1' : '0'); }, [womenOnly]);
+  useEffect(() => { sessionStorage.setItem('sr_vehicle', vehicleFilter); }, [vehicleFilter]);
+
+  // Restore previous results if any
+  const [savedRides] = useState(() => { try { return JSON.parse(sessionStorage.getItem('sr_results') || 'null'); } catch { return null; } });
   const isFemale = user?.gender === 'female';
   const [scheduleMode, setScheduleMode] = useState('now'); // 'now' | 'later'
-  const [rides,        setRides]        = useState([]);
+  const [rides,        setRides]        = useState(() => savedRides || []);
   const [loading,      setLoading]      = useState(false);
   const [geoLoading,   setGeoLoading]   = useState(false);
-  const [searched,     setSearched]     = useState(false);
+  const [searched,     setSearched]     = useState(() => !!savedRides?.length);
   const [error,        setError]        = useState('');
   const [bookingMap,   setBookingMap]   = useState({});
   const [noMatchSuggestions, setNoMatchSuggestions] = useState(null);
@@ -84,6 +94,7 @@ export default function SearchRides({ navigate }) {
         results = results.filter(r => r.vehicleType === vehicleFilter);
       }
       setRides(results);
+      sessionStorage.setItem('sr_results', JSON.stringify(results));
       setSearched(true);
       setBookingMap({});
       if (!data || data.length === 0) {

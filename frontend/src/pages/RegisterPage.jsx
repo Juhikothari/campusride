@@ -24,9 +24,13 @@ export default function RegisterPage({ navigate }) {
   const [gender,      setGender]      = useState('');
   const [usn,         setUsn]         = useState('');   // ← compulsory
 
-  const [cameraOpen,   setCameraOpen]   = useState(false);
-  const [cameraType,   setCameraType]   = useState(null);
-  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraOpen,    setCameraOpen]    = useState(false);
+  const [cameraType,    setCameraType]    = useState(null);
+  const [cameraStream,  setCameraStream]  = useState(null);
+  const [cameraFacing,  setCameraFacing]  = useState('environment'); // 'user'=front, 'environment'=back
+
+  // Multiple vehicles support
+  const [extraVehicles, setExtraVehicles] = useState([]); // [{type, number, name}]
 
   const videoRef  = useRef(null);
   const canvasRef = useRef(null);
@@ -103,7 +107,7 @@ export default function RegisterPage({ navigate }) {
   const openCamera = async (type) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: cameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
       streamRef.current = stream;
@@ -166,6 +170,7 @@ export default function RegisterPage({ navigate }) {
         // optional — only sent if provider filled them
         vehicleNumber: vehicleNumber ? vehicleNumber.toUpperCase() : '',
         vehicleName:   vehicleName   || '',
+        extraVehicles: extraVehicles.filter(v => v.number || v.name),
       });
       navigate('dashboard');
     } catch (err) {
@@ -392,14 +397,56 @@ export default function RegisterPage({ navigate }) {
                 {/* Vehicle Name — optional for providers */}
                 {isProvider && (
                   <div className="field" style={{ gridColumn:'1 / -1' }}>
-                    <label>🚘 Vehicle Name / Model
-
-                    </label>
+                    <label>🚘 Vehicle Name / Model</label>
                     <input type="text" className="input"
                       placeholder="e.g. Innova Crysta, TVS iQube, Honda Activa"
                       value={vehicleName}
                       onChange={e => setVehicleName(e.target.value)} />
                     <p className="field-hint-msg">Shown to seekers after booking</p>
+                  </div>
+                )}
+
+                {/* Add more vehicles */}
+                {isProvider && (
+                  <div style={{ gridColumn:'1 / -1' }}>
+                    {extraVehicles.map((v, i) => (
+                      <div key={i} style={{background:'#0d0f14',border:'1px solid #2a2d35',
+                        borderRadius:10,padding:'14px',marginBottom:10,position:'relative'}}>
+                        <div style={{fontSize:12,color:'#888',marginBottom:10,fontWeight:600}}>
+                          Vehicle {i + 2}
+                        </div>
+                        <button type="button"
+                          onClick={() => setExtraVehicles(ev => ev.filter((_,j)=>j!==i))}
+                          style={{position:'absolute',top:12,right:12,background:'none',
+                            border:'none',color:'#666',cursor:'pointer',fontSize:16}}>✕</button>
+                        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                          <select className="input"
+                            value={v.type}
+                            onChange={e => setExtraVehicles(ev => ev.map((x,j)=>j===i?{...x,type:e.target.value}:x))}>
+                            <option value="">Select vehicle type</option>
+                            <option value="motorcycle">🏍️ Bike</option>
+                            <option value="car">🚗 Car</option>
+                            <option value="suv">🚙 SUV</option>
+                            <option value="xuv">🛻 XUV</option>
+                          </select>
+                          <input className="input" placeholder="Vehicle number (e.g. KA01AB1234)"
+                            value={v.number}
+                            onChange={e => setExtraVehicles(ev => ev.map((x,j)=>j===i?{...x,number:e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')}:x))}
+                            maxLength={12} />
+                          <input className="input" placeholder="Vehicle name / model"
+                            value={v.name}
+                            onChange={e => setExtraVehicles(ev => ev.map((x,j)=>j===i?{...x,name:e.target.value}:x))} />
+                        </div>
+                      </div>
+                    ))}
+                    <button type="button"
+                      onClick={() => setExtraVehicles(ev => [...ev, {type:'',number:'',name:''}])}
+                      style={{background:'transparent',border:'1px dashed #333',color:'#888',
+                        borderRadius:10,padding:'10px',width:'100%',cursor:'pointer',
+                        fontSize:13,fontWeight:600,display:'flex',alignItems:'center',
+                        justifyContent:'center',gap:6}}>
+                      + Add Another Vehicle
+                    </button>
                   </div>
                 )}
 
@@ -429,6 +476,14 @@ export default function RegisterPage({ navigate }) {
               <canvas ref={canvasRef} style={{ display:'none' }} />
               <div className="camera-actions">
                 <button type="button" className="btn btn-outline" onClick={closeCamera}>Cancel</button>
+                <button type="button" className="btn btn-outline"
+                  onClick={() => {
+                    closeCamera();
+                    setCameraFacing(f => f === 'user' ? 'environment' : 'user');
+                    setTimeout(() => openCamera(cameraType), 100);
+                  }}>
+                  🔄 Flip
+                </button>
                 <button type="button" className="btn btn-primary" onClick={capturePhoto}>Capture</button>
               </div>
             </div>
