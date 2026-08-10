@@ -282,6 +282,31 @@ exports.respondBooking = async (req, res) => {
       } catch (cancelErr) {
         console.error('Auto-cancel other rides error:', cancelErr.message);
       }
+
+      // ── Also cancel all other pending bookings from this same seeker ──────
+      // If seeker has requested multiple rides, accepting one cancels their others
+      try {
+        const otherSeekerBookings = await Booking.find({
+          seekerId: booking.seekerId._id,
+          _id: { $ne: bookingId },
+          status: 'pending',
+        });
+        const io = req.app.get('io');
+        for (const ob of otherSeekerBookings) {
+          ob.status = 'cancelled';
+          ob.cancelReason = 'You already have a confirmed booking for this time';
+          await ob.save();
+          // Restore seat on that ride
+          const otherRide = await Ride.findById(ob.rideId);
+          if (otherRide) {
+            otherRide.seatsAvailable += ob.seats || 1;
+            await otherRide.save();
+          }
+        }
+        console.log('Auto-cancelled ' + otherSeekerBookings.length + ' other bookings for seeker');
+      } catch (seekerCancelErr) {
+        console.error('Seeker auto-cancel error:', seekerCancelErr.message);
+      }
     }
 
     // ================= SEEKER NOTIFICATION: Booking Response =================
