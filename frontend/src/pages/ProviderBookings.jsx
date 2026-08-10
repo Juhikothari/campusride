@@ -50,12 +50,20 @@ export default function ProviderBookings({ navigate }) {
   const fetchRides = async () => {
     try {
       const r = await api.getMyRides();
-      setMyRides(r);
-      if (r.length && !selectedRide) {
-        loadBookings(r[0]._id);
-        setSelectedRide(r[0]);
+      // Sort: active first, then in-progress, then by date descending
+      const sorted = [...r].sort((a, b) => {
+        const order = { active: 0, 'in-progress': 1, completed: 2, cancelled: 3 };
+        const oa = order[a.status] ?? 9, ob = order[b.status] ?? 9;
+        if (oa !== ob) return oa - ob;
+        return new Date(b.date) - new Date(a.date);
+      });
+      setMyRides(sorted);
+      const r_sorted = sorted;
+      if (r_sorted.length && !selectedRide) {
+        loadBookings(r_sorted[0]._id);
+        setSelectedRide(r_sorted[0]);
       } else if (selectedRide) {
-        const updated = r.find(x => x._id === selectedRide._id);
+        const updated = r_sorted.find(x => x._id === selectedRide._id);
         if (updated) setSelectedRide(updated);
       }
     } catch (e) {
@@ -299,9 +307,18 @@ const rideStatusBadge = (s) => ({
             <span style={{marginLeft:8,fontSize:12,color:'#888'}}>— {selectedRide.pickup?.address?.split(',')[0]} → {selectedRide.drop?.address?.split(',')[0]}</span>
           </div>
           <div className="card-body">
+            {/* Only allow starting if at least 1 booking is accepted */}
+            {bookings.filter(b => b.status === 'accepted').length === 0 &&
+             selectedRide.status === 'active' && (
+              <div style={{background:'rgba(245,166,35,0.1)',border:'1px solid #f5a623',
+                borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:13,color:'#f5a623'}}>
+                ⚠️ Accept at least one booking request before starting the ride.
+              </div>
+            )}
             <TripStatusFlow
               ride={selectedRide}
               onUpdate={() => { fetchRides(); if (selected) loadBookings(selected); }}
+              canStart={bookings.filter(b => b.status === 'accepted').length > 0}
             />
             {(selectedRide.status === 'active' || selectedRide.status === 'in-progress') && (
               <div className="mt-16">
