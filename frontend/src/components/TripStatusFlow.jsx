@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import * as api from '../services/api.js';
 import './TripStatusFlow.css';
 
-export default function TripStatusFlow({ ride, onUpdate }) {
+export default function TripStatusFlow({ ride, onUpdate, canStart = true }) {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
 
@@ -39,7 +39,10 @@ export default function TripStatusFlow({ ride, onUpdate }) {
       <div className="tsf-actions">
         {status === 'active' && (
           <button className="btn btn-success btn-lg btn-full"
-            onClick={() => act(() => api.startRide(ride._id))}
+            onClick={() => { if (!canStart) { alert('Please accept at least one booking request before starting the ride.'); return; } act(() => api.startRide(ride._id)); }}
+            disabled={!canStart}
+            title={!canStart ? 'Accept a booking first' : 'Start Ride'}
+            style={!canStart ? {opacity:0.5,cursor:'not-allowed'} : {}}
             disabled={loading}>
             {loading ? '⏳ Starting...' : '🚀 Start Ride'}
           </button>

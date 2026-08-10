@@ -11,6 +11,20 @@ export default function Navbar({ navigate, currentPage }) {
   const isProvider = user?.role === 'provider' || user?.role === 'both';
   const isSeeker   = user?.role === 'seeker'   || user?.role === 'both';
   const isAdmin    = user?.role === 'admin';
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const mod = await import('../services/api.js');
+        const data = await mod.getNotifications();
+        setUnreadCount(data?.unreadCount || 0);
+      } catch {}
+    };
+    fetchCount();
+    const iv = setInterval(fetchCount, 30000);
+    return () => clearInterval(iv);
+  }, [currentPage]);
 
   const hideBackButtonPages = ['login','register','dashboard'];
   const [previousPage, setPreviousPage] = useState(null);
@@ -105,48 +119,9 @@ export default function Navbar({ navigate, currentPage }) {
                   </div>
                   <div className="dd-sep"/>
                   {/* ── Profile link in dropdown ── */}
-                  {isSeeker && (
-                    <button className="dd-item" onClick={() => go('my-bookings')}>
-                      <span>📋</span> My Bookings
-                    </button>
-                  )}
-                  {isProvider && (
-                    <button className="dd-item" onClick={() => go('provider-bookings')}>
-                      <span>📬</span> Manage Requests
-                    </button>
-                  )}
-                  <button className="dd-item" onClick={() => go('walk-together')}>
-                    <span>🚶</span> Walk Together
-                  </button>
-                  <button className="dd-item" onClick={() => go('whats-my-route')}>
-                    <span>🗺️</span> What's My Route?
-                  </button>
-                  <button className="dd-item" onClick={() => go('community')}>
-                    <span>💬</span> Community
-                  </button>
-                  <div className="dd-sep"/>
                   <button className="dd-item" onClick={() => go('profile')}>
                     <span>👤</span> My Profile
                   </button>
-                  <button className="dd-item" onClick={() => go('kyc')}>
-                    <span>🪪</span> KYC Verification
-                  </button>
-                  <button className="dd-item" onClick={() => go('ratings')}>
-                    <span>⭐</span> Ratings
-                  </button>
-                  <button className="dd-item" onClick={() => go('incident-report')}>
-                    <span>🚨</span> Report Incident
-                  </button>
-                  {user?.role === 'admin' && (
-                    <>
-                      <button className="dd-item" onClick={() => go('admin')}>
-                        <span>⚙️</span> Admin Dashboard
-                      </button>
-                      <button className="dd-item" onClick={() => go('admin-settings')}>
-                        <span>🛠️</span> Admin Settings
-                      </button>
-                    </>
-                  )}
                   <div className="dd-sep"/>
                   <button className="dd-item" onClick={handleLogout}>
                     <span>⬡</span> Sign out
@@ -169,6 +144,14 @@ export default function Navbar({ navigate, currentPage }) {
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
               </svg>
+              {unreadCount > 0 && (
+                <span style={{position:'absolute',top:1,right:1,background:'#ef4444',color:'#fff',
+                  borderRadius:'50%',fontSize:9,fontWeight:700,minWidth:15,height:15,
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                  padding:'0 3px',lineHeight:1,border:'1px solid #07090d'}}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </button>
 
             <button className="hamburger" onClick={() => setMobileOpen(o => !o)} aria-label="Menu">
@@ -192,48 +175,9 @@ export default function Navbar({ navigate, currentPage }) {
           ))}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
           {/* Profile in mobile menu */}
-          {isSeeker && (
-            <button className="mobile-link" onClick={() => go('my-bookings')}>
-              <span>📋</span> My Bookings
-            </button>
-          )}
-          {isProvider && (
-            <button className="mobile-link" onClick={() => go('provider-bookings')}>
-              <span>📬</span> Manage Requests
-            </button>
-          )}
-          <button className="mobile-link" onClick={() => go('walk-together')}>
-            <span>🚶</span> Walk Together
-          </button>
-          <button className="mobile-link" onClick={() => go('whats-my-route')}>
-            <span>🗺️</span> What's My Route?
-          </button>
-          <button className="mobile-link" onClick={() => go('community')}>
-            <span>💬</span> Community
-          </button>
-          <div className="dd-sep" style={{margin:'8px 16px'}}/>
           <button className="mobile-link" onClick={() => go('profile')}>
             <span>👤</span> My Profile
           </button>
-          <button className="mobile-link" onClick={() => go('kyc')}>
-            <span>🪪</span> KYC Verification
-          </button>
-          <button className="mobile-link" onClick={() => go('ratings')}>
-            <span>⭐</span> Ratings
-          </button>
-          <button className="mobile-link" onClick={() => go('incident-report')}>
-            <span>🚨</span> Report Incident
-          </button>
-          {user?.role === 'admin' && (
-            <>
-              <button className="mobile-link" onClick={() => go('admin')}>
-                <span>⚙️</span> Admin Dashboard
-              </button>
-              <button className="mobile-link" onClick={() => go('admin-settings')}>
-                <span>🛠️</span> Admin Settings
-              </button>
-            </>
-          )}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
           <button className="mobile-link" onClick={handleLogout}>
             <span>⬡</span> Sign out
