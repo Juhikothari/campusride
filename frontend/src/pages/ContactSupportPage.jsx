@@ -25,7 +25,7 @@ export default function ContactSupportPage({ navigate }) {
     const body = encodeURIComponent(
       `From: ${user?.name} (${user?.email})\nCollege: ${user?.college}\nRole: ${user?.role}\n\n${message}`
     );
-    window.open(`mailto:campusride.support@gmail.com?subject=${encodeURIComponent(subject)}&body=${body}`);
+    window.open(`mailto:juhiij21@gmail.com?subject=${encodeURIComponent(subject)}&body=${body}`);
     setSent(true);
   };
 
@@ -85,7 +85,7 @@ export default function ContactSupportPage({ navigate }) {
           <div style={{textAlign:'center',padding:'20px 0'}}>
             <div style={{fontSize:40,marginBottom:10}}>✅</div>
             <div style={{color:'#4caf50',fontWeight:700,fontSize:15}}>Message sent!</div>
-            <div style={{color:'#666',fontSize:13,marginTop:6}}>We'll get back to you at {user?.email}</div>
+            <div style={{color:'#666',fontSize:13,marginTop:6}}>Your message has been sent to the CampusRide support team. We'll reply to {user?.email}</div>
             <button onClick={() => setSent(false)}
               style={{marginTop:16,background:'transparent',border:'1px solid #333',
                 color:'#aaa',borderRadius:8,padding:'8px 20px',fontSize:13,cursor:'pointer'}}>
@@ -107,7 +107,7 @@ export default function ContactSupportPage({ navigate }) {
               📨 Send Message
             </button>
             <p style={{color:'#555',fontSize:11,textAlign:'center',marginTop:10}}>
-              Or email us directly: <strong style={{color:'#888'}}>campusride.support@gmail.com</strong>
+              Sends to: <strong style={{color:'#888'}}>campusride.support@gmail.com</strong>
             </p>
           </>
         )}
