@@ -6,7 +6,6 @@ const FAQS = [
   { q: 'My booking is not showing up', a: 'Go to My Bookings and pull to refresh. If still missing, check your internet connection and try again.' },
   { q: 'Why is my KYC pending?', a: 'KYC verification is reviewed by admins within 24–48 hours after you submit. You\'ll get a notification once approved.' },
   { q: 'Can I cancel a booking?', a: 'Yes. Go to My Bookings, find the booking and tap Cancel. Cancellation is allowed until the provider starts the ride.' },
-  { q: 'How is the fare calculated?', a: 'Fare = Base fare + (distance × per-km rate). Vehicle type affects the rate. All fares are shown before you book.' },
   { q: 'I didn\'t receive my OTP', a: 'Check your spam/junk folder. Make sure you\'re using your college email. If still not received, wait 2 minutes and resend.' },
   { q: 'How do I report a safety issue?', a: 'Go to Report Incident from the menu. For emergencies, use the SOS button on the live tracking screen.' },
   { q: 'Why can\'t I start my ride?', a: 'You must accept at least one booking request before starting the ride. Go to Manage Requests first.' },
@@ -107,7 +106,7 @@ export default function ContactSupportPage({ navigate }) {
               📨 Send Message
             </button>
             <p style={{color:'#555',fontSize:11,textAlign:'center',marginTop:10}}>
-              Sends to: <strong style={{color:'#888'}}>campusride.support@gmail.com</strong>
+              Sends to: <strong style={{color:'#888'}}>juhiij21@gmail.com</strong>
             </p>
           </>
         )}
