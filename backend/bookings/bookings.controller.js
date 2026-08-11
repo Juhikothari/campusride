@@ -42,6 +42,20 @@ exports.requestBooking = async (req, res) => {
       return res.status(400).json({ message: 'You already requested this ride' });
     }
 
+    // ── Block seeker if they already have an accepted booking ────────────
+    // A seeker can only have 1 active ride at a time
+    const activeBooking = await Booking.findOne({
+      seekerId,
+      status: 'accepted',
+    }).populate('rideId', 'date status');
+
+    if (activeBooking && activeBooking.rideId?.status !== 'completed' && activeBooking.rideId?.status !== 'cancelled') {
+      return res.status(400).json({
+        message: 'You already have a confirmed ride. Complete or cancel it before booking another.',
+        bookingId: activeBooking._id,
+      });
+    }
+
     // Create booking
     const requestedSeats = Math.max(1, parseInt(seats) || 1);
 
