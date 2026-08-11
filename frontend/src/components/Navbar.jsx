@@ -118,18 +118,21 @@ export default function Navbar({ navigate, currentPage }) {
                     <div className="text-dim text-xs mt-4">{user?.college}</div>
                   </div>
                   <div className="dd-sep"/>
-                  {/* ── Profile link in dropdown ── */}
-                  <button className="dd-item" onClick={() => go('profile')}>
-                    <span>👤</span> My Profile
-                  </button>
+                  {isSeeker && <button className="dd-item" onClick={() => go('my-bookings')}><span>📋</span> My Bookings</button>}
+                  {isProvider && <button className="dd-item" onClick={() => go('provider-bookings')}><span>📬</span> Manage Requests</button>}
+                  <button className="dd-item" onClick={() => go('walk-together')}><span>🚶</span> Walk Together</button>
+                  <button className="dd-item" onClick={() => go('whats-my-route')}><span>🗺️</span> What's My Route?</button>
+                  <button className="dd-item" onClick={() => go('community')}><span>💬</span> Community</button>
                   <div className="dd-sep"/>
-                  <button className="dd-item" onClick={() => go('contact-support')}>
-                    <span>🛟</span> Help & Support
-                  </button>
+                  <button className="dd-item" onClick={() => go('profile')}><span>👤</span> My Profile</button>
+                  <button className="dd-item" onClick={() => go('kyc')}><span>🪪</span> KYC Verification</button>
+                  <button className="dd-item" onClick={() => go('ratings')}><span>⭐</span> Ratings</button>
+                  <button className="dd-item" onClick={() => go('incident-report')}><span>🚨</span> Report Incident</button>
+                  {user?.role === 'admin' && <><button className="dd-item" onClick={() => go('admin')}><span>⚙️</span> Admin Dashboard</button><button className="dd-item" onClick={() => go('admin-settings')}><span>🛠️</span> Admin Settings</button></>}
                   <div className="dd-sep"/>
-                  <button className="dd-item" onClick={handleLogout}>
-                    <span>⬡</span> Sign out
-                  </button>
+                  <button className="dd-item" onClick={() => go('contact-support')}><span>🛟</span> Help & Support</button>
+                  <div className="dd-sep"/>
+                  <button className="dd-item" onClick={handleLogout}><span>⬡</span> Sign out</button>
                 </div>
               )}
             </div>
@@ -178,18 +181,21 @@ export default function Navbar({ navigate, currentPage }) {
             </button>
           ))}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
-          {/* Profile in mobile menu */}
-          <button className="mobile-link" onClick={() => go('profile')}>
-            <span>👤</span> My Profile
-          </button>
+          {isSeeker && <button className="mobile-link" onClick={() => go('my-bookings')}><span>📋</span> My Bookings</button>}
+          {isProvider && <button className="mobile-link" onClick={() => go('provider-bookings')}><span>📬</span> Manage Requests</button>}
+          <button className="mobile-link" onClick={() => go('walk-together')}><span>🚶</span> Walk Together</button>
+          <button className="mobile-link" onClick={() => go('whats-my-route')}><span>🗺️</span> What's My Route?</button>
+          <button className="mobile-link" onClick={() => go('community')}><span>💬</span> Community</button>
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
-          <button className="mobile-link" onClick={() => go('contact-support')}>
-            <span>🛟</span> Help & Support
-          </button>
+          <button className="mobile-link" onClick={() => go('profile')}><span>👤</span> My Profile</button>
+          <button className="mobile-link" onClick={() => go('kyc')}><span>🪪</span> KYC Verification</button>
+          <button className="mobile-link" onClick={() => go('ratings')}><span>⭐</span> Ratings</button>
+          <button className="mobile-link" onClick={() => go('incident-report')}><span>🚨</span> Report Incident</button>
+          {user?.role === 'admin' && <><button className="mobile-link" onClick={() => go('admin')}><span>⚙️</span> Admin Dashboard</button><button className="mobile-link" onClick={() => go('admin-settings')}><span>🛠️</span> Admin Settings</button></>}
           <div className="dd-sep" style={{margin:'8px 16px'}}/>
-          <button className="mobile-link" onClick={handleLogout}>
-            <span>⬡</span> Sign out
-          </button>
+          <button className="mobile-link" onClick={() => go('contact-support')}><span>🛟</span> Help & Support</button>
+          <div className="dd-sep" style={{margin:'8px 16px'}}/>
+          <button className="mobile-link" onClick={handleLogout}><span>⬡</span> Sign out</button>
         </div>
       )}
     </>
