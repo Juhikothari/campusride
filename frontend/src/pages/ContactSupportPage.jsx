@@ -24,7 +24,7 @@ export default function ContactSupportPage({ navigate }) {
     const body = encodeURIComponent(
       `From: ${user?.name} (${user?.email})\nCollege: ${user?.college}\nRole: ${user?.role}\n\n${message}`
     );
-    window.open(`mailto:juhiij21@gmail.com?subject=${encodeURIComponent(subject)}&body=${body}`);
+    window.location.href = `mailto:juhiij21@gmail.com?subject=${encodeURIComponent(subject)}&body=${body}`;
     setSent(true);
   };
 

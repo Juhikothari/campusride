@@ -85,11 +85,37 @@ export default function SearchRides({ navigate }) {
       const data = await api.searchRides({
         lat:         filters.pickupLat,
         lng:         filters.pickupLng,
-        maxDistance: 50000,
+        maxDistance: 8000,  // 8km radius — only show nearby rides
         date: scheduleMode === 'later' && filters.date ? filters.date : undefined,
         womenOnly: womenOnly || undefined,
       });
       let results = data || [];
+
+      // ── Filter by drop proximity if seeker entered a drop location ────
+      // Only show rides whose drop is within 5km of seeker's drop
+      if (filters.dropLat && filters.dropLng) {
+        const seekerDropLat = parseFloat(filters.dropLat);
+        const seekerDropLng = parseFloat(filters.dropLng);
+        const DROP_RADIUS_KM = 5;
+
+        results = results.filter(ride => {
+          const rideDropLat = ride.drop?.coordinates?.[1] || ride.drop?.lat;
+          const rideDropLng = ride.drop?.coordinates?.[0] || ride.drop?.lng;
+          if (!rideDropLat || !rideDropLng) return true; // keep if no drop coords
+
+          // Haversine distance
+          const R = 6371;
+          const dLat = (rideDropLat - seekerDropLat) * Math.PI / 180;
+          const dLng = (rideDropLng - seekerDropLng) * Math.PI / 180;
+          const a = Math.sin(dLat/2)**2 +
+            Math.cos(seekerDropLat * Math.PI/180) *
+            Math.cos(rideDropLat  * Math.PI/180) *
+            Math.sin(dLng/2)**2;
+          const distKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          return distKm <= DROP_RADIUS_KM;
+        });
+      }
+
       if (vehicleFilter) {
         results = results.filter(r => r.vehicleType === vehicleFilter);
       }
