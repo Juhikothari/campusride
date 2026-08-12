@@ -313,4 +313,76 @@ const resetPasswordDirect = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, sendOtp, verifyOtp, resetPasswordWithToken, resetPasswordDirect };
+
+// ── Contact Support — sends message via Brevo to support email ───
+const contactSupport = async (req, res) => {
+  try {
+    const { fromName, fromEmail, college, role, subject, message } = req.body;
+    if (!subject?.trim() || !message?.trim()) {
+      return res.status(400).json({ message: 'Subject and message are required' });
+    }
+
+    const apiKey = (process.env.BREVO_API_KEY || '').trim();
+    const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || '').trim();
+    const supportEmail = process.env.SUPPORT_EMAIL || 'juhiij21@gmail.com';
+
+    if (!apiKey || !senderEmail) {
+      return res.status(500).json({ message: 'Email service not configured' });
+    }
+
+    const html = '<div style="font-family:Arial,sans-serif;padding:20px;">' +
+      '<h2 style="color:#f5a623;">CampusRide Support Request</h2>' +
+      '<table style="width:100%;border-collapse:collapse;">' +
+      '<tr><td style="padding:6px;color:#888;width:120px;">From</td><td style="padding:6px;color:#fff;">' + fromName + ' (' + fromEmail + ')</td></tr>' +
+      '<tr><td style="padding:6px;color:#888;">College</td><td style="padding:6px;color:#fff;">' + (college || '—') + '</td></tr>' +
+      '<tr><td style="padding:6px;color:#888;">Role</td><td style="padding:6px;color:#fff;">' + (role || '—') + '</td></tr>' +
+      '<tr><td style="padding:6px;color:#888;">Subject</td><td style="padding:6px;color:#fff;font-weight:bold;">' + subject + '</td></tr>' +
+      '</table>' +
+      '<div style="margin-top:16px;padding:16px;background:#1a1d24;border-radius:8px;">' +
+      '<p style="color:#aaa;white-space:pre-wrap;">' + message.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>' +
+      '</div></div>';
+
+    const bodyStr = JSON.stringify({
+      sender:      { name: 'CampusRide Support', email: senderEmail },
+      to:          [{ email: supportEmail, name: 'CampusRide Support' }],
+      replyTo:     { email: fromEmail, name: fromName },
+      subject:     '[CampusRide Support] ' + subject,
+      htmlContent: html,
+    });
+    const bodyBuf = Buffer.from(bodyStr, 'utf8');
+
+    const https = require('https');
+    await new Promise((resolve, reject) => {
+      const req2 = https.request({
+        hostname: 'api.brevo.com',
+        path:     '/v3/smtp/email',
+        method:   'POST',
+        headers: {
+          'api-key':        apiKey,
+          'Content-Type':   'application/json',
+          'Accept':         'application/json',
+          'Content-Length': bodyBuf.length,
+        },
+      }, res2 => {
+        let data = '';
+        res2.on('data', c => { data += c; });
+        res2.on('end', () => {
+          if (res2.statusCode >= 200 && res2.statusCode < 300) resolve(data);
+          else reject(new Error('Brevo error ' + res2.statusCode + ': ' + data));
+        });
+      });
+      req2.on('error', reject);
+      req2.setTimeout(15000, () => req2.destroy(new Error('Timeout')));
+      req2.write(bodyBuf);
+      req2.end();
+    });
+
+    console.log('✅ Support message sent from ' + fromEmail);
+    res.json({ message: 'Support message sent successfully' });
+  } catch (err) {
+    console.error('contactSupport error:', err.message);
+    res.status(500).json({ message: 'Failed to send: ' + err.message });
+  }
+};
+
+module.exports = { register, login, getMe, sendOtp, verifyOtp, resetPasswordWithToken, resetPasswordDirect, contactSupport };
