@@ -2,10 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CampusRide — College Ride Sharing</title>
-    <meta name="description" content="Verified ride-sharing for college students" />
+    <!-- Mobile viewport — prevents zoom, fits to screen width -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>CampusRide</title>
+    <meta name="description" content="The commute matching platform for Indian campuses" />
+    <!-- PWA / mobile app feel -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CampusRide" />
+    <meta name="theme-color" content="#07090d" />
+    <!-- Prevent phone number auto-detection on iOS -->
+    <meta name="format-detection" content="telephone=no" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>" />
+    <style>
+      /* Prevent overscroll bounce on iOS */
+      html, body {
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+      }
+      /* Safe area insets for notched phones */
+      #root {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
