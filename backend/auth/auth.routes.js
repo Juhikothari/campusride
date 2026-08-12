@@ -15,6 +15,6 @@ router.post('/reset-password-otp', controller.resetPasswordWithToken);
 // Legacy
 router.post('/reset-password-direct', controller.resetPasswordDirect);
 
-router.post('/contact-support', contactSupport);
+router.post("/contact-support", controller.contactSupport);
 
 module.exports = router;
