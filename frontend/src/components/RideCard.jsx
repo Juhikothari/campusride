@@ -1,285 +1,183 @@
-import React, { useState, useEffect } from 'react';
-import * as api from '../services/api.js';
-import './RideCard.css';
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { colors, radius, spacing } from '../theme';
+import { Badge } from './UI';
 
-// ══════════════════════════════════════════════════════════════════
-//  FALLBACK LOCATIONS DATABASE
-// ══════════════════════════════════════════════════════════════════
+const STATUS_COLOR = {
+  active:       colors.green,
+  'in-progress': colors.blue,
+  completed:    colors.text3,
+  cancelled:    colors.red,
+};
 
-const FALLBACK_LOCATIONS = [
-  // Colleges
-  { name: 'rv college of engineering', display: 'RV College of Engineering', coords: [77.4958, 12.9215] },
-  { name: 'bms college of engineering', display: 'BMS College of Engineering', coords: [77.5908, 12.9611] },
-  { name: 'pes university', display: 'PES University', coords: [77.5366, 12.9345] },
-  { name: 'pesit', display: 'PESIT', coords: [77.5366, 12.9345] },
-  { name: 'ms ramaiah institute', display: 'MS Ramaiah Institute of Technology', coords: [77.5770, 13.0163] },
-  { name: 'ramaiah', display: 'MS Ramaiah Institute of Technology', coords: [77.5770, 13.0163] },
-  { name: 'bangalore institute of technology', display: 'Bangalore Institute of Technology', coords: [77.6007, 12.9539] },
-  { name: 'bit', display: 'Bangalore Institute of Technology', coords: [77.6007, 12.9539] },
-  { name: 'rns institute of technology', display: 'RNS Institute of Technology', coords: [77.4983, 12.9358] },
-  { name: 'rnsit', display: 'RNS Institute of Technology', coords: [77.4983, 12.9358] },
-  
-  // Areas
-  { name: 'marathahalli', display: 'Marathahalli', coords: [77.6995, 12.9591] },
-  { name: 'marthahalli', display: 'Marathahalli', coords: [77.6995, 12.9591] },
-  { name: 'whitefield', display: 'Whitefield', coords: [77.7499, 12.9698] },
-  { name: 'electronic city', display: 'Electronic City', coords: [77.6763, 12.8445] },
-  { name: 'indiranagar', display: 'Indiranagar', coords: [77.6408, 12.9793] },
-  { name: 'koramangala', display: 'Koramangala', coords: [77.6234, 12.9345] },
-  { name: 'jayanagar', display: 'Jayanagar', coords: [77.5811, 12.9257] },
-  { name: 'basavanagudi', display: 'Basavanagudi', coords: [77.5657, 12.9406] },
-  { name: 'malleshwaram', display: 'Malleshwaram', coords: [77.5806, 13.0039] },
-  { name: 'rajajinagar', display: 'Rajajinagar', coords: [77.5578, 13.0011] },
-  { name: 'yeshwanthpur', display: 'Yeshwanthpur', coords: [77.5510, 13.0167] },
-  { name: 'hsr layout', display: 'HSR Layout', coords: [77.6479, 12.9081] },
-  { name: 'btm layout', display: 'BTM Layout', coords: [77.6107, 12.9162] },
-  { name: 'banashankari', display: 'Banashankari', coords: [77.5439, 12.9317] },
-  { name: 'kalyan nagar', display: 'Kalyan Nagar', coords: [77.6408, 13.0163] },
-  { name: 'domlur', display: 'Domlur', coords: [77.6408, 12.9611] },
-  { name: 'bellandur', display: 'Bellandur', coords: [77.6806, 12.9257] },
-  { name: 'sarjapur', display: 'Sarjapur', coords: [77.7833, 12.9187] },
-  { name: 'd\'souza layout', display: 'D\'Souza Layout', coords: [77.5946, 12.9716] },
-  { name: 'bharath aikya ward', display: 'Bharath Aikya Ward', coords: [77.5946, 12.9716] },
-  { name: 'bharathi aikya ward', display: 'Bharath Aikya Ward', coords: [77.5946, 12.9716] },
-  
-  // Cities
-  { name: 'bangalore', display: 'Bangalore', coords: [77.5946, 12.9716] },
-  { name: 'bengaluru', display: 'Bengaluru', coords: [77.5946, 12.9716] },
-  { name: 'hyderabad', display: 'Hyderabad', coords: [78.4867, 17.3850] },
-  { name: 'delhi', display: 'Delhi', coords: [77.2090, 28.6139] },
-  { name: 'mumbai', display: 'Mumbai', coords: [72.8777, 19.0760] },
-  { name: 'chennai', display: 'Chennai', coords: [80.2707, 13.0827] },
-  { name: 'pune', display: 'Pune', coords: [73.8567, 18.5204] },
-  { name: 'kolkata', display: 'Kolkata', coords: [88.3639, 22.5726] },
-  { name: 'jaipur', display: 'Jaipur', coords: [75.7873, 26.9124] },
-  { name: 'lucknow', display: 'Lucknow', coords: [80.9462, 26.8467] },
-  { name: 'indore', display: 'Indore', coords: [75.8577, 22.7196] }
-];
+const VEHICLE_ICON = {
+  motorcycle: '🏍️',
+  car:        '🚗',
+  suv:        '🚙',
+  xuv:        '🛻',
+};
 
-// Find location name from coordinates using fallback database
-function findLocationByCoords(coords) {
-  if (!coords || !Array.isArray(coords) || coords.length !== 2) return null;
-  
-  const [lng, lat] = coords;
-  
-  // Find closest match within 0.02 degrees (roughly 2km)
-  const match = FALLBACK_LOCATIONS.find(loc => {
-    const [locLng, locLat] = loc.coords;
-    return Math.abs(locLat - lat) < 0.02 && Math.abs(locLng - lng) < 0.02;
-  });
-  
-  return match ? match.display : null;
+function formatTime(date, time) {
+  try {
+    if (time) return time;
+    return new Date(date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  } catch { return '—'; }
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  HOOK
-// ══════════════════════════════════════════════════════════════════
-
-function useLocationName(locationField) {
-  const [name, setName] = useState('');
-  useEffect(() => {
-    if (!locationField) { setName('Unknown location'); return; }
-    const storedAddress = locationField.address?.trim();
-    if (storedAddress && storedAddress.length > 0 && storedAddress !== 'Unknown Location') {
-      setName(storedAddress);
-      return;
-    }
-    const coords = locationField.coordinates;
-    if (Array.isArray(coords) && coords.length === 2) {
-      const fallbackName = findLocationByCoords(coords);
-      if (fallbackName) { setName(fallbackName); return; }
-      const [lng, lat] = coords;
-      setName(`${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`);
-    } else {
-      setName('Unknown location');
-    }
-  }, [locationField]);
-  return name;
+function formatDate(date) {
+  try {
+    return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  } catch { return '—'; }
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  COMPONENT
-// ══════════════════════════════════════════════════════════════════
-
-export default function RideCard({ ride, onView, onBook, bookingStatus, provRating }) {
-  const [showSeatDialog, setShowSeatDialog] = useState(false);
-  const [selectedSeats, setSelectedSeats] = useState(1);
-  // FIXED: Don't render if no seats available
-  if ((ride.seatsAvailable ?? 0) === 0) {
-    return null;
+function getAddress(field) {
+  if (!field) return '—';
+  if (field.address?.trim()) return field.address.trim();
+  if (field.coordinates?.length === 2) {
+    const [lng, lat] = field.coordinates;
+    return `${lat.toFixed(3)}°N, ${lng.toFixed(3)}°E`;
   }
+  return '—';
+}
 
-  const pickupName = useLocationName(ride.pickup);
-  const dropName = useLocationName(ride.drop);
-  const provider = ride.providerId;
-  const provName = typeof provider === 'object' ? (provider?.name || 'Provider') : 'Provider';
-  const dateStr = ride.date
-    ? new Date(ride.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '—';
-  const isLoading = v => !v || v === '…' || v === 'Loading…' || v === 'Loading location...';
-
-  const handleBookClick = () => {
-    if (ride.seatsAvailable > 1) {
-      // Multi-seat ride: use selectedSeats from inline selector
-      onBook?.(ride._id, selectedSeats);
-    } else {
-      // Single seat ride: book directly
-      onBook?.(ride._id, 1);
-    }
-  };
-
-  const handleSeatConfirm = () => {
-    setShowSeatDialog(false);
-    onBook?.(ride._id, selectedSeats);
-  };
+export default function RideCard({ ride, onView, onBook, bookingStatus }) {
+  const vehicleIcon = VEHICLE_ICON[ride.vehicleType] || '🚗';
+  const statusColor = STATUS_COLOR[ride.status] || colors.text2;
+  const pickup = getAddress(ride.pickup);
+  const drop   = getAddress(ride.drop);
+  const isBooked = bookingStatus === 'pending' || bookingStatus === 'accepted';
 
   return (
-    <>
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="card-body" style={{ padding: '20px 22px' }}>
+    <View style={styles.card}>
+      {/* Header row */}
+      <View style={styles.headerRow}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 22 }}>{vehicleIcon}</Text>
+          <View>
+            <Text style={styles.vehicleName}>
+              {ride.vehicleName || (ride.vehicleType ? ride.vehicleType.charAt(0).toUpperCase() + ride.vehicleType.slice(1) : 'Ride')}
+            </Text>
+            <Text style={styles.providerName}>{ride.providerName || ride.provider?.name || 'Provider'}</Text>
+          </View>
+        </View>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <Badge label={ride.status || 'active'} color={statusColor} />
+          {ride.womenOnly && <Badge label="♀ Women Only" color={colors.pink} />}
+        </View>
+      </View>
 
-          {/* Route row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, overflow: 'hidden' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-              <span style={{ 
-                fontSize: 14, 
-                fontWeight: 600, 
-                color: isLoading(pickupName) ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.88)', 
-                fontStyle: isLoading(pickupName) ? 'italic' : 'normal', 
-                whiteSpace: 'nowrap', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis' 
-              }}>
-                {pickupName || '…'}
-              </span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0, fontSize: 16, fontWeight: 'bold' }}>+</span>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
-              <span style={{ 
-                fontSize: 14, 
-                fontWeight: 600, 
-                color: isLoading(dropName) ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.88)', 
-                fontStyle: isLoading(dropName) ? 'italic' : 'normal', 
-                whiteSpace: 'nowrap', 
-                overflow: 'hidden', 
-                textOverflow: 'ellipsis' 
-              }}>
-                {dropName || '…'}
-              </span>
-            </div>
-            <span className={`badge badge-${ride.status || 'active'}`} style={{ flexShrink: 0, marginLeft: 12 }}>
-              {ride.status || 'active'}
-            </span>
-            {ride.womenOnly && (
-              <span style={{
-                flexShrink: 0, marginLeft: 8,
-                background: 'rgba(233,30,140,0.18)', color: '#e91e8c',
-                border: '1px solid rgba(233,30,140,0.4)',
-                borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
-              }}>♀ Women Only</span>
-            )}
-          </div>
+      {/* Route */}
+      <View style={styles.route}>
+        <View style={styles.routePoint}>
+          <View style={[styles.dot, { backgroundColor: colors.green }]} />
+          <Text style={styles.routeText} numberOfLines={1}>{pickup}</Text>
+        </View>
+        <View style={styles.routeLine} />
+        <View style={styles.routePoint}>
+          <View style={[styles.dot, { backgroundColor: colors.red }]} />
+          <Text style={styles.routeText} numberOfLines={1}>{drop}</Text>
+        </View>
+      </View>
 
-          {/* Details row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap:'wrap' }}>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
-                {dateStr} at {ride.time || '—'}
-              </span>
-              {ride.vehicleType && (
-                <span style={{ fontSize: 13, color: '#f5a623', fontWeight: 600 }}>
-                  {{motorcycle:'🏍️',car:'🚗',suv:'🚙',xuv:'🛻'}[ride.vehicleType] || '🚗'}{' '}
-                  {ride.vehicleName || {motorcycle:'Bike',car:'Car',suv:'SUV',xuv:'XUV'}[ride.vehicleType]}
-                </span>
-              )}
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
-                {ride.seatsAvailable} seat{ride.seatsAvailable > 1 ? 's' : ''} left
-              </span>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
-                ₹{ride.costPerSeat}/seat
-              </span>
-            </div>
-          </div>
+      {/* Details row */}
+      <View style={styles.detailRow}>
+        <DetailChip icon="📅" text={formatDate(ride.date)} />
+        <DetailChip icon="🕐" text={formatTime(ride.date, ride.time)} />
+        <DetailChip icon="💺" text={`${ride.seatsAvailable} seat${ride.seatsAvailable !== 1 ? 's' : ''}`} />
+        <DetailChip icon="₹" text={`${ride.costPerSeat}/seat`} />
+      </View>
 
-          {/* Provider row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                👤
-              </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)', display:'flex', alignItems:'center', gap:6 }}>
-                  {provName}
-                  {provider?.gender === 'female' && (
-                    <span style={{fontSize:11, background:'rgba(255,106,176,0.15)', color:'#ff6ab0', border:'1px solid rgba(255,106,176,0.3)', borderRadius:4, padding:'1px 6px'}}>♀ Female</span>
-                  )}
-                </div>
-                {provRating > 0 && <div style={{ fontSize: 11, color: '#f59e0b' }}>★ {provRating.toFixed(1)}</div>}
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {/* Inline Seat Selector */}
-              {ride.seatsAvailable > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  <button 
-                    style={{ 
-                      width: '24px', 
-                      height: '24px', 
-                      border: '1px solid #dee2e6', 
-                      background: '#ffffff', 
-                      color: '#495057', 
-                      borderRadius: '4px', 
-                      fontSize: '14px', 
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    onClick={() => setSelectedSeats(Math.max(1, selectedSeats - 1))}
-                    disabled={selectedSeats <= 1}
-                  >
-                    −
-                  </button>
-                  <span style={{ 
-                    fontSize: '16px', 
-                    fontWeight: '700', 
-                    color: '#fbbf24', 
-                    minWidth: '24px',
-                    textAlign: 'center'
-                  }}>{selectedSeats}</span>
-                  <button 
-                    style={{ 
-                      width: '24px', 
-                      height: '24px', 
-                      border: '1px solid #dee2e6', 
-                      background: '#ffffff', 
-                      color: '#495057', 
-                      borderRadius: '4px', 
-                      fontSize: '14px', 
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                    onClick={() => setSelectedSeats(Math.min(ride.seatsAvailable, selectedSeats + 1))}
-                    disabled={selectedSeats >= ride.seatsAvailable}
-                  >
-                    +
-                  </button>
-                </div>
-              )}
-              <button className="btn btn-ghost btn-sm" onClick={() => onView?.(ride._id)}>Details</button>
-              {bookingStatus === 'pending'
-                ? <span className="badge badge-pending" style={{ padding: '6px 12px', fontSize: 12 }}>Requested</span>
-                : <button className="btn btn-primary btn-sm" onClick={handleBookClick} disabled={!onBook}>Book Seat →</button>
-              }
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </>
+      {/* Actions */}
+      <View style={styles.actions}>
+        <TouchableOpacity style={styles.viewBtn} onPress={() => onView?.(ride._id)}>
+          <Text style={styles.viewBtnText}>View Details</Text>
+        </TouchableOpacity>
+        {onBook && !isBooked && (
+          <TouchableOpacity style={styles.bookBtn} onPress={() => onBook(ride._id)}>
+            <Text style={styles.bookBtnText}>Book Now</Text>
+          </TouchableOpacity>
+        )}
+        {isBooked && (
+          <View style={styles.bookedBadge}>
+            <Text style={styles.bookedText}>
+              {bookingStatus === 'accepted' ? '✓ Accepted' : '⏳ Pending'}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
+
+function DetailChip({ icon, text }) {
+  return (
+    <View style={styles.chip}>
+      <Text style={{ fontSize: 11 }}>{icon}</Text>
+      <Text style={styles.chipText}>{text}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: 12,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  vehicleName: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  providerName: { color: colors.text2, fontSize: 12, marginTop: 1 },
+
+  route: { marginBottom: 12 },
+  routePoint: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 3 },
+  routeLine: { width: 2, height: 12, backgroundColor: colors.border, marginLeft: 6 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  routeText: { flex: 1, color: colors.text, fontSize: 13 },
+
+  detailRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  chipText: { color: colors.text2, fontSize: 11 },
+
+  actions: { flexDirection: 'row', gap: 8 },
+  viewBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border2,
+    alignItems: 'center',
+  },
+  viewBtnText: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  bookBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+  },
+  bookBtnText: { color: '#000', fontSize: 13, fontWeight: '700' },
+  bookedBadge: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: colors.greenDim,
+    alignItems: 'center',
+  },
+  bookedText: { color: colors.green, fontSize: 13, fontWeight: '700' },
+});
