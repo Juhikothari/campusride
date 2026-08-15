@@ -1,79 +1,44 @@
-// frontend/src/hooks/useSocket.js
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
-import { API_BASE } from '../services/api.js';
+import { API_BASE } from '../services/api';
 
-export const useSocket = (userId, userType) => {
+export function useSocket(userId, userType) {
   const socketRef = useRef(null);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState(null);
+  const [connected,     setConnected]     = useState(false);
   const [notifications, setNotifications] = useState([]);
 
-  const getSocketUrl = useCallback(() => {
-    return API_BASE.replace(/\/api\/?$/, '');
-  }, []);
-
   useEffect(() => {
-    if (!userId || !userType) return;
+    if (!userId) return;
 
-    const socket = io(getSocketUrl(), {
+    const socket = io(API_BASE, {
       transports: ['websocket', 'polling'],
+      withCredentials: false,
       reconnection: true,
-      reconnectionAttempts: 10,
-      timeout: 20000,
-      withCredentials: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
     });
 
     socketRef.current = socket;
 
     socket.on('connect', () => {
       setConnected(true);
-      setError(null);
-
-      // ✅ AUTH (works for BOTH roles now)
       socket.emit('authenticate', { userId, userType });
-    });
-
-    socket.on('authenticated', (data) => {
-      if (data.success && (userType === 'provider' || userType === 'both')) {
-        socket.emit('join-provider', userId);
-      }
-    });
-
-    socket.on('connect_error', (err) => {
-      setError(err.message);
-      setConnected(false);
     });
 
     socket.on('disconnect', () => setConnected(false));
 
-    // Notifications
-    socket.on('new-booking', (data) => {
-      setNotifications(prev => [data, ...prev]);
+    socket.on('booking-update', (data) => {
+      setNotifications(prev => [{ ...data, id: Date.now() }, ...prev]);
     });
 
-    socket.on('booking-response', (data) => {
-      setNotifications(prev => [data, ...prev]);
-    });
-
-    socket.on('urgent-availability', (data) => {
-      setNotifications(prev => [data, ...prev]);
-    });
-
-    socket.on('notification', (data) => {
-      setNotifications(prev => [data, ...prev]);
+    socket.on('ride-update', (data) => {
+      setNotifications(prev => [{ ...data, id: Date.now() }, ...prev]);
     });
 
     return () => {
-      socket.removeAllListeners();
       socket.disconnect();
     };
-  }, [userId, userType, getSocketUrl]);
+  }, [userId, userType]);
 
-  return {
-    socket: socketRef.current,
-    connected,
-    error,
-    notifications,
-  };
-};
+  return { socket: socketRef.current, connected, notifications };
+}
