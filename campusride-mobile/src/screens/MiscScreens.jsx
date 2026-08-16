@@ -390,7 +390,7 @@ export function RouteAlertsScreen({ navigation }) {
     setBusy(true); setError(''); setSuccess('');
     try {
       await api.subscribeAlert({ pickupLabel: subPickup, dropLabel: subDrop, name: subName });
-      setSuccess('Subscribed! You'll be notified when a matching ride is posted.');
+      setSuccess("Subscribed! You'll be notified when a matching ride is posted.");
       setSubPickup(''); setSubDrop(''); setSubName('');
       const data = await api.getRouteAlerts();
       setAlerts(Array.isArray(data) ? data : []);
