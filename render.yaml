@@ -1,0 +1,31 @@
+services:
+  # ── Backend API ───────────────────────────────────────────────
+  - type: web
+    name: campusride-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Set these in Render dashboard → Environment:
+      # MONGO_URI, JWT_SECRET, CLOUDINARY_CLOUD_NAME,
+      # CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET,
+      # BREVO_API_KEY, FRONTEND_URL
+    healthCheckPath: /api/health
+
+  # ── Frontend (web) — only needed if you keep the web app ─────
+  # Delete this section if you're going mobile-only
+  - type: web
+    name: campusride-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
