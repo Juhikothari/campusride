@@ -1,0 +1,280 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
+import { useAuth } from '../context/AuthContext';
+import LocationSearch from '../components/LocationSearch';
+import { Input, Btn, Alert, EmptyState, TogglePill } from '../components/UI';
+import { colors, spacing, radius } from '../theme';
+import * as api from '../services/api';
+
+const VEHICLES = [
+  { value: 'motorcycle', label: '🏍 Bike', capacity: 1 },
+  { value: 'car',        label: '🚗 Car',  capacity: 3 },
+  { value: 'suv',        label: '🚙 SUV',  capacity: 4 },
+  { value: 'xuv',        label: '🛻 XUV',  capacity: 6 },
+];
+
+const RATES = {
+  motorcycle: { base: 20, perKm: 5  },
+  car:        { base: 25, perKm: 7  },
+  suv:        { base: 30, perKm: 9  },
+  xuv:        { base: 35, perKm: 11 },
+};
+
+function calcCost(distKm, vehicleType) {
+  if (!distKm || distKm <= 0) return 0;
+  const d = Math.min(distKm, 50);
+  const { base, perKm } = RATES[vehicleType] || RATES.car;
+  return Math.max(20, base + (d > 1 ? Math.round(d * perKm) : 0));
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
+}
+
+export default function CreateRideScreen({ navigation }) {
+  const { user } = useAuth();
+  const isProvider = user?.role === 'provider' || user?.role === 'both';
+
+  const [pickup,      setPickup]      = useState({ label: '', lat: '', lng: '' });
+  const [drop,        setDrop]        = useState({ label: '', lat: '', lng: '' });
+  const [vehicleType, setVehicleType] = useState('car');
+  const [vehicleName, setVehicleName] = useState('');
+  const [seats,       setSeats]       = useState('3');
+  const [cost,        setCost]        = useState('0');
+  const [date,        setDate]        = useState('');
+  const [time,        setTime]        = useState('');
+  const [womenOnly,   setWomenOnly]   = useState(false);
+  const [schedMode,   setSchedMode]   = useState('now');
+  const [loading,     setLoading]     = useState(false);
+  const [success,     setSuccess]     = useState(null);
+  const [error,       setError]       = useState('');
+  const [distKm,      setDistKm]      = useState(0);
+
+  if (!isProvider) return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+      <EmptyState icon="🚫" title="Access Denied" subtitle="Only providers can create rides." action={() => navigation.goBack()} actionLabel="Go Back" />
+    </SafeAreaView>
+  );
+
+  // Auto-calculate distance + cost
+  useEffect(() => {
+    if (!pickup.lat || !pickup.lng || !drop.lat || !drop.lng) { setDistKm(0); return; }
+    const d = haversineKm(parseFloat(pickup.lat), parseFloat(pickup.lng), parseFloat(drop.lat), parseFloat(drop.lng));
+    setDistKm(d);
+    setCost(String(calcCost(d, vehicleType)));
+  }, [pickup.lat, pickup.lng, drop.lat, drop.lng, vehicleType]);
+
+  // Set current time when "Ride Now" selected
+  useEffect(() => {
+    if (schedMode === 'now') {
+      const now = new Date();
+      setDate(now.toISOString().split('T')[0]);
+      setTime(now.toTimeString().slice(0, 5));
+    }
+  }, [schedMode]);
+
+  const geoLocate = async (field) => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude: lat, longitude: lng } = loc.coords;
+      const res = await api.reverseGeocode(lat, lng).catch(() => null);
+      const label = res?.label || 'Current Location';
+      if (field === 'pickup') setPickup({ label, lat: lat.toString(), lng: lng.toString() });
+      else                    setDrop({ label, lat: lat.toString(), lng: lng.toString() });
+    } catch {}
+  };
+
+  const submit = async () => {
+    setError('');
+    if (!pickup.lat) { setError('Enter pickup location'); return; }
+    if (!drop.lat)   { setError('Enter drop location');   return; }
+    if (!date || !time) { setError('Enter date and time'); return; }
+    if (!seats || parseInt(seats) < 1) { setError('Enter available seats'); return; }
+
+    setLoading(true);
+    try {
+      const ride = await api.createRide({
+        pickup: {
+          type: 'Point',
+          coordinates: [parseFloat(pickup.lng), parseFloat(pickup.lat)],
+          address: pickup.label,
+        },
+        drop: {
+          type: 'Point',
+          coordinates: [parseFloat(drop.lng), parseFloat(drop.lat)],
+          address: drop.label,
+        },
+        date, time,
+        seatsAvailable: parseInt(seats),
+        costPerSeat:    parseInt(cost),
+        vehicleType,
+        vehicleName: vehicleName.trim(),
+        womenOnly,
+        college: user?.college || '',
+      });
+      setSuccess(ride);
+    } catch (e) {
+      setError(e.message || 'Failed to create ride');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (success) return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
+      <Text style={{ fontSize: 60, marginBottom: 16 }}>🎉</Text>
+      <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>Ride Created!</Text>
+      <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 20 }}>
+        Your ride has been posted. Seekers from your college can now book it.
+      </Text>
+      <Btn label="View My Rides" onPress={() => navigation.navigate('ProviderBookings')} style={{ width: '100%', marginBottom: 12 }} />
+      <Btn label="Create Another Ride" onPress={() => setSuccess(null)} variant="outline" style={{ width: '100%' }} />
+    </SafeAreaView>
+  );
+
+  const selectedVehicle = VEHICLES.find(v => v.value === vehicleType);
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <Text style={styles.pageTitle}>🚗 Offer a Ride</Text>
+          <Text style={styles.pageSubtitle}>Post your route and connect with fellow students</Text>
+
+          <Alert message={error} />
+
+          {/* Locations */}
+          <View style={styles.locRow}>
+            <View style={{ flex: 1 }}>
+              <LocationSearch label="Pickup Location" value={pickup.label} onChange={(label, lat, lng) => setPickup({ label, lat: lat.toString(), lng: lng.toString() })} placeholder="Where from?" />
+            </View>
+            <TouchableOpacity style={styles.geoBtn} onPress={() => geoLocate('pickup')}>
+              <Text style={{ fontSize: 18 }}>🎯</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.locRow}>
+            <View style={{ flex: 1 }}>
+              <LocationSearch label="Drop Location" value={drop.label} onChange={(label, lat, lng) => setDrop({ label, lat: lat.toString(), lng: lng.toString() })} placeholder="Where to?" />
+            </View>
+            <TouchableOpacity style={styles.geoBtn} onPress={() => geoLocate('drop')}>
+              <Text style={{ fontSize: 18 }}>🎯</Text>
+            </TouchableOpacity>
+          </View>
+
+          {distKm > 0 && (
+            <View style={styles.distChip}>
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700' }}>📏 {distKm} km route</Text>
+            </View>
+          )}
+
+          {/* Schedule */}
+          <Text style={styles.fieldLabel}>When?</Text>
+          <TogglePill
+            options={[{ value: 'now', label: 'Now', icon: '⚡' }, { value: 'later', label: 'Schedule', icon: '🗓' }]}
+            value={schedMode}
+            onChange={setSchedMode}
+          />
+          {schedMode === 'later' && (
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.md }}>
+              <Input label="Date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" containerStyle={{ flex: 1 }} />
+              <Input label="Time" value={time} onChangeText={setTime} placeholder="HH:MM" containerStyle={{ flex: 1 }} />
+            </View>
+          )}
+
+          {/* Vehicle */}
+          <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Vehicle</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.md, flexWrap: 'wrap' }}>
+            {VEHICLES.map(v => (
+              <TouchableOpacity
+                key={v.value}
+                onPress={() => { setVehicleType(v.value); setSeats(String(v.capacity)); }}
+                style={[styles.vehicleChip, vehicleType === v.value && styles.vehicleChipActive]}
+              >
+                <Text style={[styles.vehicleChipText, vehicleType === v.value && styles.vehicleChipTextActive]}>{v.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Input label="Vehicle Name (optional)" icon="🚗" value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa" autoCapitalize="words" />
+
+          {/* Seats & Cost */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Input
+              label={`Seats (max ${selectedVehicle?.capacity || 3})`}
+              icon="💺"
+              value={seats}
+              onChangeText={setSeats}
+              keyboardType="number-pad"
+              maxLength={1}
+              containerStyle={{ flex: 1 }}
+            />
+            <Input
+              label="Cost per seat (₹)"
+              icon="₹"
+              value={cost}
+              onChangeText={setCost}
+              keyboardType="number-pad"
+              containerStyle={{ flex: 1 }}
+            />
+          </View>
+
+          {distKm > 0 && parseInt(cost) > 0 && (
+            <View style={styles.fareCard}>
+              <Text style={{ color: colors.text2, fontSize: 12, marginBottom: 4 }}>Fare estimate</Text>
+              <Text style={{ color: colors.accent, fontSize: 20, fontWeight: '800' }}>₹{cost} / seat</Text>
+              <Text style={{ color: colors.text2, fontSize: 12, marginTop: 2 }}>
+                Based on {distKm} km {vehicleType} ride
+              </Text>
+            </View>
+          )}
+
+          {/* Women-only toggle */}
+          <TouchableOpacity
+            onPress={() => setWomenOnly(w => !w)}
+            style={[styles.womenToggle, womenOnly && styles.womenToggleActive]}
+          >
+            <Text style={{ fontSize: 16 }}>♀</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.womenToggleTitle, womenOnly && { color: colors.pink }]}>Women-only ride</Text>
+              <Text style={{ color: colors.text2, fontSize: 12 }}>Only female seekers can book</Text>
+            </View>
+            <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
+          </TouchableOpacity>
+
+          <Btn label="🚗 Post Ride" onPress={submit} loading={loading} style={{ marginTop: spacing.md }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe:        { flex: 1, backgroundColor: colors.bg },
+  scroll:      { padding: spacing.md, paddingBottom: 48 },
+  pageTitle:   { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 },
+  pageSubtitle:{ color: colors.text2, fontSize: 13, marginBottom: spacing.md },
+  fieldLabel:  { color: colors.text2, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  locRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  geoBtn:      { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, marginBottom: spacing.md },
+  distChip:    { backgroundColor: colors.accentDim, borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 6, alignSelf: 'flex-start', marginBottom: spacing.md, borderWidth: 1, borderColor: colors.accent + '44' },
+  vehicleChip: { borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10 },
+  vehicleChipActive:     { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  vehicleChipText:       { color: colors.text2, fontSize: 14, fontWeight: '600' },
+  vehicleChipTextActive: { color: colors.accent },
+  fareCard:    { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md, alignItems: 'center' },
+  womenToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: spacing.md },
+  womenToggleActive: { borderColor: colors.pink, backgroundColor: 'rgba(233,30,140,0.08)' },
+  womenToggleTitle: { color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: 2 },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.border },
+  toggleDotActive: { backgroundColor: colors.pink },
+});
