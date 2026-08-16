@@ -1,10 +1,14 @@
 {
-  "name": "backend",
+  "name": "campusride-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "CampusRide backend API server",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node server.js",
+    "build": "echo 'No build step required for Node.js backend'",
     "dev": "nodemon server.js"
   },
   "keywords": [],
