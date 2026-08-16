@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "build": "echo 'No build step required for Node.js backend'",
+    "build": "echo 'No build step'",
     "dev": "nodemon server.js"
   },
   "keywords": [],
