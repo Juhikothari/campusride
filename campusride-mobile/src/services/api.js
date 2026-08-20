@@ -5,7 +5,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ⚠️ Update this to your deployed Render backend API URL
-export const API_BASE = 'https://fw-mq8p.onrender.com';
+export const API_BASE = 'https://campusride-backend-gwgr.onrender.com';
 const BASE = `${API_BASE}/api`;
 
 // ── Token / User helpers ──────────────────────────────
