@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform,
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
+import TopHeader from '../components/TopHeader';
 import LocationSearch from '../components/LocationSearch';
 import { Input, Btn, Alert, EmptyState, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
@@ -57,6 +58,10 @@ export default function CreateRideScreen({ navigation }) {
   const [error,       setError]       = useState('');
   const [distKm,      setDistKm]      = useState(0);
 
+  // Route preview
+  const [routeInfo,    setRouteInfo]    = useState(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+
   if (!isProvider) return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
       <EmptyState icon="🚫" title="Access Denied" subtitle="Only providers can create rides." action={() => navigation.goBack()} actionLabel="Go Back" />
@@ -91,6 +96,23 @@ export default function CreateRideScreen({ navigation }) {
       if (field === 'pickup') setPickup({ label, lat: lat.toString(), lng: lng.toString() });
       else                    setDrop({ label, lat: lat.toString(), lng: lng.toString() });
     } catch {}
+  };
+
+  const calculateRoute = async () => {
+    if (!pickup.lat || !pickup.lng || !drop.lat || !drop.lng) {
+      setError('Enter both pickup and drop locations to preview your route.');
+      return;
+    }
+    setRouteLoading(true);
+    setError('');
+    try {
+      const routeData = await api.getOptimalRoute(pickup.lat, pickup.lng, drop.lat, drop.lng);
+      setRouteInfo(routeData);
+    } catch (e) {
+      setError('Could not calculate route.');
+    } finally {
+      setRouteLoading(false);
+    }
   };
 
   const submit = async () => {
@@ -134,10 +156,10 @@ export default function CreateRideScreen({ navigation }) {
       <Text style={{ fontSize: 60, marginBottom: 16 }}>🎉</Text>
       <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>Ride Created!</Text>
       <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 20 }}>
-        Your ride has been posted. Seekers from your college can now book it.
+        Your ride has been posted on HOGO. Students from your college can now book seats.
       </Text>
-      <Btn label="View My Rides" onPress={() => navigation.navigate('ProviderBookings')} style={{ width: '100%', marginBottom: 12 }} />
-      <Btn label="Create Another Ride" onPress={() => setSuccess(null)} variant="outline" style={{ width: '100%' }} />
+      <Btn label="View Ride Requests" onPress={() => navigation.navigate('ProviderBookings')} style={{ width: '100%', marginBottom: 12 }} />
+      <Btn label="Post Another Ride" onPress={() => setSuccess(null)} variant="outline" style={{ width: '100%' }} />
     </SafeAreaView>
   );
 
@@ -145,17 +167,24 @@ export default function CreateRideScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopHeader title="HOGO" subtitle="Offer Campus Ride" />
+
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <Text style={styles.pageTitle}>🚗 Offer a Ride</Text>
-          <Text style={styles.pageSubtitle}>Post your route and connect with fellow students</Text>
-
           <Alert message={error} />
 
           {/* Locations */}
           <View style={styles.locRow}>
             <View style={{ flex: 1 }}>
-              <LocationSearch label="Pickup Location" value={pickup.label} onChange={(label, lat, lng) => setPickup({ label, lat: lat.toString(), lng: lng.toString() })} placeholder="Where from?" />
+              <LocationSearch
+                label="Pickup Location"
+                value={pickup.label}
+                onChange={(label, lat, lng) => {
+                  setPickup({ label, lat: lat.toString(), lng: lng.toString() });
+                  setRouteInfo(null);
+                }}
+                placeholder="Where from?"
+              />
             </View>
             <TouchableOpacity style={styles.geoBtn} onPress={() => geoLocate('pickup')}>
               <Text style={{ fontSize: 18 }}>🎯</Text>
@@ -164,16 +193,48 @@ export default function CreateRideScreen({ navigation }) {
 
           <View style={styles.locRow}>
             <View style={{ flex: 1 }}>
-              <LocationSearch label="Drop Location" value={drop.label} onChange={(label, lat, lng) => setDrop({ label, lat: lat.toString(), lng: lng.toString() })} placeholder="Where to?" />
+              <LocationSearch
+                label="Drop Location"
+                value={drop.label}
+                onChange={(label, lat, lng) => {
+                  setDrop({ label, lat: lat.toString(), lng: lng.toString() });
+                  setRouteInfo(null);
+                }}
+                placeholder="Where to?"
+              />
             </View>
             <TouchableOpacity style={styles.geoBtn} onPress={() => geoLocate('drop')}>
               <Text style={{ fontSize: 18 }}>🎯</Text>
             </TouchableOpacity>
           </View>
 
-          {distKm > 0 && (
-            <View style={styles.distChip}>
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700' }}>📏 {distKm} km route</Text>
+          {/* What's My Route Button */}
+          {pickup.lat && drop.lat && (
+            <TouchableOpacity
+              style={styles.routeBtn}
+              onPress={calculateRoute}
+              disabled={routeLoading}
+              activeOpacity={0.8}
+            >
+              {routeLoading ? (
+                <ActivityIndicator color={colors.accent} size="small" />
+              ) : (
+                <Text style={styles.routeBtnText}>🗺️ What's my route & estimated time?</Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {/* Route Details Card */}
+          {routeInfo && (
+            <View style={styles.routeCard}>
+              <View style={styles.routeCardHeader}>
+                <Text style={styles.routeCardTitle}>📍 Optimal Route Calculated</Text>
+                <Text style={styles.routeTimePill}>⏱ ~{routeInfo.durationMin} mins</Text>
+              </View>
+              <View style={styles.routeCardStats}>
+                <Text style={styles.routeStatText}>📏 Total Distance: <Text style={{ color: colors.text, fontWeight: '700' }}>{routeInfo.distanceKm} km</Text></Text>
+                <Text style={styles.routeStatText}>⚡ Estimated Travel: <Text style={{ color: colors.accent, fontWeight: '700' }}>{routeInfo.durationMin} minutes</Text></Text>
+              </View>
             </View>
           )}
 
@@ -251,7 +312,7 @@ export default function CreateRideScreen({ navigation }) {
             <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
           </TouchableOpacity>
 
-          <Btn label="🚗 Post Ride" onPress={submit} loading={loading} style={{ marginTop: spacing.md }} />
+          <Btn label="🚗 Post Ride on HOGO" onPress={submit} loading={loading} style={{ marginTop: spacing.md }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -261,12 +322,24 @@ export default function CreateRideScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: colors.bg },
   scroll:      { padding: spacing.md, paddingBottom: 48 },
-  pageTitle:   { color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 },
-  pageSubtitle:{ color: colors.text2, fontSize: 13, marginBottom: spacing.md },
   fieldLabel:  { color: colors.text2, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   locRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   geoBtn:      { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, marginBottom: spacing.md },
-  distChip:    { backgroundColor: colors.accentDim, borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 6, alignSelf: 'flex-start', marginBottom: spacing.md, borderWidth: 1, borderColor: colors.accent + '44' },
+  routeBtn: {
+    backgroundColor: colors.accentDim, borderWidth: 1, borderColor: colors.accent + '55',
+    borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 14,
+    alignItems: 'center', marginBottom: 14,
+  },
+  routeBtnText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+  routeCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg,
+    borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: spacing.md,
+  },
+  routeCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  routeCardTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  routeTimePill: { backgroundColor: colors.accentDim, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full, color: colors.accent, fontSize: 11, fontWeight: '800' },
+  routeCardStats: { gap: 4 },
+  routeStatText: { color: colors.text2, fontSize: 12 },
   vehicleChip: { borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10 },
   vehicleChipActive:     { borderColor: colors.accent, backgroundColor: colors.accentDim },
   vehicleChipText:       { color: colors.text2, fontSize: 14, fontWeight: '600' },

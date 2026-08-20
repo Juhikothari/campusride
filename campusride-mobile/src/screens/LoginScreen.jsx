@@ -22,7 +22,6 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     try {
       await loginUser(email.trim().toLowerCase(), password);
-      // Navigation handled by AppNavigator watching auth state
     } catch (err) {
       setError(err.message || 'Login failed. Check your credentials.');
     } finally {
@@ -37,16 +36,19 @@ export default function LoginScreen({ navigation }) {
 
           {/* Logo */}
           <View style={styles.logoWrap}>
+            <View style={styles.badgeWrap}>
+              <Text style={styles.logoBadge}>⚡</Text>
+            </View>
             <Text style={styles.logo}>
-              Campus<Text style={{ color: colors.accent }}>Ride</Text>
+              HO<Text style={{ color: colors.accent }}>GO</Text>
             </Text>
-            <Text style={styles.tagline}>Your commute matching platform for Indian campuses</Text>
+            <Text style={styles.tagline}>Smart & Verified Commutes for Indian Campuses</Text>
           </View>
 
           {/* Form card */}
           <View style={styles.card}>
             <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
+            <Text style={styles.subtitle}>Sign in to your HOGO account</Text>
 
             <Alert message={error} />
 
@@ -55,7 +57,7 @@ export default function LoginScreen({ navigation }) {
               icon="✉"
               value={email}
               onChangeText={setEmail}
-              placeholder="you@college.edu"
+              placeholder="you@college.edu.in"
               keyboardType="email-address"
               autoCapitalize="none"
               containerStyle={{ marginTop: spacing.md }}
@@ -79,7 +81,7 @@ export default function LoginScreen({ navigation }) {
               <Text style={styles.forgotLink}>Forgot password?</Text>
             </TouchableOpacity>
 
-            <Btn label="Sign In →" onPress={submit} loading={loading} />
+            <Btn label="Sign In to HOGO →" onPress={submit} loading={loading} />
 
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
@@ -88,7 +90,7 @@ export default function LoginScreen({ navigation }) {
             </View>
 
             <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
-              <Text style={{ color: colors.text2, fontSize: 14 }}>New here? </Text>
+              <Text style={{ color: colors.text2, fontSize: 14 }}>New to HOGO? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Register')}>
                 <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '700' }}>Create account →</Text>
               </TouchableOpacity>
@@ -104,18 +106,24 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.bg },
   scroll: { flexGrow: 1, padding: spacing.lg, justifyContent: 'center' },
-  logoWrap: { alignItems: 'center', marginBottom: 32 },
+  logoWrap: { alignItems: 'center', marginBottom: 28 },
+  badgeWrap: {
+    width: 50, height: 50, borderRadius: 25,
+    backgroundColor: colors.accentDim, borderWidth: 1.5, borderColor: colors.accent,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  logoBadge: { fontSize: 24 },
   logo: {
-    fontSize: 32,
-    fontWeight: '800',
+    fontSize: 36,
+    fontWeight: '900',
     color: colors.text,
-    letterSpacing: 0.5,
+    letterSpacing: 2,
   },
   tagline: {
     color: colors.text2,
     fontSize: 13,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: 6,
     lineHeight: 18,
   },
   card: {

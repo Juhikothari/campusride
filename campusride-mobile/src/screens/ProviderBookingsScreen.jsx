@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert as RNAlert,
+  StyleSheet, ActivityIndicator, Alert as RNAlert, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +19,7 @@ const RIDE_STATUS_CONFIG = {
 
 function getAddr(field) {
   if (!field) return '—';
+  if (typeof field === 'string') return field;
   return field.address?.split(',')[0]?.trim() || '—';
 }
 
@@ -36,6 +37,7 @@ export default function ProviderBookingsScreen({ navigation }) {
   const [bookings,      setBookings]      = useState([]);
   const [ridesLoading,  setRidesLoading]  = useState(true);
   const [bkLoading,     setBkLoading]     = useState(false);
+  const [refreshing,    setRefreshing]    = useState(false);
   const [error,         setError]         = useState('');
   const [actionMap,     setActionMap]     = useState({});
 
@@ -49,8 +51,10 @@ export default function ProviderBookingsScreen({ navigation }) {
 
   const fetchRides = async () => {
     try {
+      setError('');
       const r = await api.getMyRides();
-      const sorted = [...r].sort((a, b) => {
+      const list = Array.isArray(r) ? r : r?.rides || [];
+      const sorted = [...list].sort((a, b) => {
         const order = { active: 0, 'in-progress': 1, completed: 2, cancelled: 3 };
         return (order[a.status] ?? 9) - (order[b.status] ?? 9);
       });
@@ -59,20 +63,22 @@ export default function ProviderBookingsScreen({ navigation }) {
         setSelectedRide(sorted[0]);
         loadBookings(sorted[0]._id);
       }
-    } catch (e) { setError(e.message); }
+    } catch (e) { setError(e.message || 'Failed to load rides'); }
+    finally { setRidesLoading(false); setRefreshing(false); }
   };
 
   const loadBookings = async (rideId) => {
+    if (!rideId) return;
     setBkLoading(true);
     try {
       const data = await api.getRideBookings(rideId);
-      setBookings(Array.isArray(data) ? data : []);
-    } catch (e) { setError(e.message); }
+      setBookings(Array.isArray(data) ? data : data?.bookings || []);
+    } catch (e) { setError(e.message || 'Failed to load requests'); }
     finally { setBkLoading(false); }
   };
 
   useEffect(() => {
-    fetchRides().finally(() => setRidesLoading(false));
+    fetchRides();
   }, []);
 
   // Real-time: refresh bookings on socket notification
@@ -99,6 +105,9 @@ export default function ProviderBookingsScreen({ navigation }) {
       await api.updateRideStatus(rideId, status);
       setMyRides(prev => prev.map(r => r._id === rideId ? { ...r, status } : r));
       if (selectedRide?._id === rideId) setSelectedRide(r => ({ ...r, status }));
+      if (status === 'in-progress') {
+        navigation.navigate('LiveTracking', { rideId });
+      }
     } catch (e) {
       RNAlert.alert('Error', e.message || 'Failed to update status');
     }
@@ -109,7 +118,11 @@ export default function ProviderBookingsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchRides(); }} tintColor={colors.accent} />}
+      >
         <Text style={styles.title}>Ride Requests</Text>
         <Alert message={error} />
 
@@ -117,10 +130,10 @@ export default function ProviderBookingsScreen({ navigation }) {
         {ridesLoading ? (
           <ActivityIndicator color={colors.accent} />
         ) : myRides.length === 0 ? (
-          <EmptyState icon="🚗" title="No rides posted yet" action={() => navigation.navigate('CreateRide')} actionLabel="Post a Ride" />
+          <EmptyState icon="🚗" title="No rides posted yet" action={() => navigation.navigate('OfferRide')} actionLabel="Post a Ride" />
         ) : (
           <>
-            <Text style={styles.sectionLabel}>YOUR RIDES</Text>
+            <Text style={styles.sectionLabel}>YOUR POSTED RIDES</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {myRides.map(r => {
@@ -153,12 +166,15 @@ export default function ProviderBookingsScreen({ navigation }) {
             {/* Ride status controls */}
             {selectedRide.status === 'active' && (
               <View style={styles.statusRow}>
-                <Btn label="▶ Start Ride" onPress={() => updateRideStatus(selectedRide._id, 'in-progress')} style={{ flex: 1 }} />
+                <Btn label="▶ Start Ride & Track" onPress={() => updateRideStatus(selectedRide._id, 'in-progress')} style={{ flex: 1 }} />
                 <Btn label="✕ Cancel" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" style={{ flex: 1 }} />
               </View>
             )}
             {selectedRide.status === 'in-progress' && (
-              <Btn label="🏁 Complete Ride" onPress={() => updateRideStatus(selectedRide._id, 'completed')} style={{ marginBottom: spacing.md }} />
+              <View style={{ gap: 8, marginBottom: spacing.md }}>
+                <Btn label="📍 Open Live Route & Tracking" onPress={() => navigation.navigate('LiveTracking', { rideId: selectedRide._id })} />
+                <Btn label="🏁 Complete Ride" onPress={() => updateRideStatus(selectedRide._id, 'completed')} variant="outline" />
+              </View>
             )}
 
             {/* Stats */}

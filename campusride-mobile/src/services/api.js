@@ -1,10 +1,9 @@
 // ══════════════════════════════════════════════════════
-//  API SERVICE  —  React Native version
-//  Same endpoints as backend; token stored in AsyncStorage
+//  HOGO API SERVICE  —  React Native version
 // ══════════════════════════════════════════════════════
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ⚠️ Update this to your deployed Render backend API URL
+// Live Render backend API URL
 export const API_BASE = 'https://campusride-backend-gwgr.onrender.com';
 const BASE = `${API_BASE}/api`;
 
@@ -27,7 +26,7 @@ const request = async (path, options = {}) => {
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timeoutMs  = options.timeout || 10000;
+  const timeoutMs  = options.timeout || 12000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let res;
@@ -35,13 +34,13 @@ const request = async (path, options = {}) => {
     res = await fetch(`${BASE}${path}`, { ...options, headers, signal: controller.signal });
   } catch (networkErr) {
     if (networkErr.name === 'AbortError') {
-      const err = new Error(`Request timed out (10s). The backend on Render may be waking up.`);
+      const err = new Error(`Request timed out (12s). Server may be busy or waking up.`);
       err.isTimeout = true;
       throw err;
     }
     throw new Error(
       `Cannot connect to server at ${API_BASE}. ` +
-      `Check your internet connection or verify your Render backend is running.`
+      `Check your internet connection or verify your backend is running.`
     );
   } finally {
     clearTimeout(timer);
@@ -70,81 +69,87 @@ const request = async (path, options = {}) => {
 };
 
 // ── Auth ──────────────────────────────────────────────
-export const login    = (body) => request('/auth/login',    { method:'POST', body: JSON.stringify(body) });
-export const register = (body) => request('/auth/register', { method:'POST', body: JSON.stringify(body) });
-export const getMe    = ()     => request('/auth/me');
-export const forgotPassword   = (email) => request('/auth/forgot-password', { method:'POST', body: JSON.stringify({ email }) });
-export const resetPassword    = (token, password) => request('/auth/reset-password', { method:'POST', body: JSON.stringify({ token, password }) });
+export const login          = (body) => request('/auth/login',    { method:'POST', body: JSON.stringify(body) });
+export const register       = (body) => request('/auth/register', { method:'POST', body: JSON.stringify(body) });
+export const getMe          = ()     => request('/auth/me');
+export const forgotPassword = (email) => request('/auth/forgot-password', { method:'POST', body: JSON.stringify({ email }) });
+export const resetPassword  = (token, password) => request('/auth/reset-password', { method:'POST', body: JSON.stringify({ token, password }) });
 
 // ── Users ─────────────────────────────────────────────
-export const getProfile       = ()     => request('/users/profile');
+export const getProfile        = ()     => request('/users/profile');
 export const updatePhoneNumber = (phone) => request('/users/update-phone', { method:'PUT', body: JSON.stringify({ phone }) });
 
-// ── Location (backend proxy) ──────────────────────────
-export const searchLocation   = (q)   => request(`/location/search?q=${encodeURIComponent(q)}`);
-export const reverseGeocode   = (lat, lng) => request(`/location/reverse?lat=${lat}&lng=${lng}`);
+// ── Location & Routing ────────────────────────────────
+export const searchLocation    = (q)   => request(`/location/search?q=${encodeURIComponent(q)}`);
+export const reverseGeocode    = (lat, lng) => request(`/location/reverse?lat=${lat}&lng=${lng}`);
+export const getOptimalRoute   = (fromLat, fromLng, toLat, toLng) =>
+  request(`/location/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`);
+export const getDistance       = (fromLat, fromLng, toLat, toLng) =>
+  request(`/location/distance?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`);
 
 // ── Rides ─────────────────────────────────────────────
-export const searchRides      = (params) => {
+export const searchRides       = (params) => {
   const qs = new URLSearchParams(
     Object.fromEntries(Object.entries(params).filter(([,v]) => v !== undefined && v !== ''))
   ).toString();
   return request(`/ride/search?${qs}`);
 };
-export const getRideById      = (id)   => request(`/ride/${id}`);
-export const createRide       = (body) => request('/ride', { method:'POST', body: JSON.stringify(body) });
-export const getMyRides       = ()     => request('/ride/my-rides');
-export const cancelRide       = (id, reason) => request(`/ride/${id}/cancel`, { method:'PUT', body: JSON.stringify({ reason }) });
-export const updateRideStatus = (id, status) => request(`/ride/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });
+export const getRideById       = (id)   => request(`/ride/${id}`);
+export const createRide        = (body) => request('/ride/create', { method:'POST', body: JSON.stringify(body) });
+export const getMyRides        = ()     => request('/ride/my');
+export const startRide         = (id)   => request(`/ride/${id}/start`, { method:'POST' });
+export const completeRide      = (id)   => request(`/ride/${id}/complete`, { method:'POST' });
+export const cancelRide        = (id, reason) => request(`/ride/${id}/cancel`, { method:'POST', body: JSON.stringify({ reason }) });
+export const updateRideStatus  = (id, status) => {
+  if (status === 'in-progress') return startRide(id);
+  if (status === 'completed')   return completeRide(id);
+  if (status === 'cancelled')   return cancelRide(id, 'Cancelled by provider');
+  return request(`/ride/${id}`, { method:'PUT', body: JSON.stringify({ status }) });
+};
 
 // ── Bookings ──────────────────────────────────────────
-export const bookRide         = (rideId) => request('/booking', { method:'POST', body: JSON.stringify({ rideId }) });
-export const getMyBookings    = ()     => request('/booking/my-bookings');
-export const getRideBookings  = (rideId) => request(`/booking/ride/${rideId}`);
-export const acceptBooking    = (id)   => request(`/booking/${id}/accept`, { method:'PUT' });
-export const rejectBooking    = (id)   => request(`/booking/${id}/reject`, { method:'PUT' });
-export const cancelBooking    = (id)   => request(`/booking/${id}/cancel`, { method:'PUT' });
+export const bookRide          = (rideId, seats = 1) => request('/booking/request', { method:'POST', body: JSON.stringify({ rideId, seats }) });
+export const getMyBookings     = ()     => request('/booking/my');
+export const getRideRequests   = ()     => request('/booking/requests');
+export const getRideBookings   = (rideId) => request(`/booking/ride/${rideId}`);
+export const acceptBooking     = (id)   => request('/booking/respond', { method:'PUT', body: JSON.stringify({ bookingId: id, status: 'accepted' }) });
+export const rejectBooking     = (id)   => request('/booking/respond', { method:'PUT', body: JSON.stringify({ bookingId: id, status: 'rejected' }) });
+export const cancelBooking     = (id)   => request(`/booking/${id}/cancel`, { method:'DELETE' });
 
 // ── Ratings ───────────────────────────────────────────
-export const submitRating     = (body) => request('/ratings', { method:'POST', body: JSON.stringify(body) });
-export const getMyRatings     = ()     => request('/ratings/my-ratings');
+export const submitRating      = (body) => request('/ratings', { method:'POST', body: JSON.stringify(body) });
+export const getMyRatings      = ()     => request('/ratings/my-ratings');
 
 // ── KYC ───────────────────────────────────────────────
-export const submitKyc        = (body) => request('/kyc/submit', { method:'POST', body: JSON.stringify(body) });
-export const getKycStatus     = ()     => request('/kyc/status');
+export const submitKyc         = (body) => request('/kyc/submit', { method:'POST', body: JSON.stringify(body) });
+export const getKycStatus      = ()     => request('/kyc/status');
 
 // ── Community ─────────────────────────────────────────
-export const getCommunityPosts    = ()     => request('/community/posts');
-export const createCommunityPost  = (body) => request('/community/posts', { method:'POST', body: JSON.stringify(body) });
-export const toggleCommunityLike  = (id)   => request(`/community/posts/${id}/like`, { method:'POST' });
-export const addCommunityReply    = (id, content) => request(`/community/posts/${id}/reply`, { method:'POST', body: JSON.stringify({ content }) });
-export const deleteCommunityPost  = (id)   => request(`/community/posts/${id}`, { method:'DELETE' });
-export const getChatMessages      = (college) => request(`/community/chat/${encodeURIComponent(college)}`);
-export const deleteChatMessage    = (id)   => request(`/community/chat/${id}`, { method:'DELETE' });
+export const getCommunityPosts = ()     => request('/community/posts');
+export const createCommunityPost = (body) => request('/community/posts', { method:'POST', body: JSON.stringify(body) });
+export const toggleCommunityLike = (id)   => request(`/community/posts/${id}/like`, { method:'POST' });
+export const addCommunityReply   = (id, content) => request(`/community/posts/${id}/reply`, { method:'POST', body: JSON.stringify({ content }) });
+export const deleteCommunityPost = (id)   => request(`/community/posts/${id}`, { method:'DELETE' });
+export const getChatMessages   = (college) => request(`/community/chat/${encodeURIComponent(college)}`);
+export const deleteChatMessage = (id)   => request(`/community/chat/${id}`, { method:'DELETE' });
 
 // ── Notifications ─────────────────────────────────────
-export const getNotifications     = ()     => request('/notifications');
-export const markNotificationsRead = ()    => request('/notifications/read-all', { method:'PUT' });
+export const getNotifications  = ()     => request('/notifications');
+export const markNotificationsRead = () => request('/notifications/read-all', { method:'PUT' });
 
-// ── Alerts ───────────────────────────────────────────
-export const getRouteAlerts       = ()     => request('/alerts');
-export const subscribeAlert       = (body) => request('/alerts/subscribe', { method:'POST', body: JSON.stringify(body) });
-
-// ── SOS ───────────────────────────────────────────────
-export const triggerSOS           = (body) => request('/sos', { method:'POST', body: JSON.stringify(body) });
-
-// ── Incidents ─────────────────────────────────────────
-export const reportIncident       = (body) => request('/incidents', { method:'POST', body: JSON.stringify(body) });
+// ── SOS & Safety ──────────────────────────────────────
+export const triggerSOS        = (body) => request('/sos', { method:'POST', body: JSON.stringify(body) });
+export const reportIncident    = (body) => request('/incidents', { method:'POST', body: JSON.stringify(body) });
 
 // ── Tracking ──────────────────────────────────────────
-export const updateLocation       = (body) => request('/tracking/update', { method:'POST', body: JSON.stringify(body) });
-export const getTracking          = (rideId) => request(`/tracking/${rideId}`);
+export const updateLocation    = (body) => request('/tracking/update', { method:'POST', body: JSON.stringify(body) });
+export const getTracking       = (rideId) => request(`/tracking/${rideId}`);
 
 // ── Admin ─────────────────────────────────────────────
-export const getAdminStats        = ()     => request('/admin/stats');
-export const getAllUsers           = ()     => request('/admin/users');
-export const blockUser            = (id, reason) => request(`/admin/users/${id}/block`, { method:'PUT', body: JSON.stringify({ reason }) });
-export const unblockUser          = (id)   => request(`/admin/users/${id}/unblock`, { method:'PUT' });
-export const getKycRequests       = ()     => request('/admin/kyc');
-export const approveKyc           = (id)   => request(`/admin/kyc/${id}/approve`, { method:'PUT' });
-export const rejectKyc            = (id, remarks) => request(`/admin/kyc/${id}/reject`, { method:'PUT', body: JSON.stringify({ remarks }) });
+export const getAdminStats     = ()     => request('/admin/stats');
+export const getAllUsers        = ()     => request('/admin/users');
+export const blockUser         = (id, reason) => request(`/admin/users/${id}/block`, { method:'PUT', body: JSON.stringify({ reason }) });
+export const unblockUser       = (id)   => request(`/admin/users/${id}/unblock`, { method:'PUT' });
+export const getKycRequests    = ()     => request('/admin/kyc');
+export const approveKyc        = (id)   => request(`/admin/kyc/${id}/approve`, { method:'PUT' });
+export const rejectKyc         = (id, remarks) => request(`/admin/kyc/${id}/reject`, { method:'PUT', body: JSON.stringify({ remarks }) });

@@ -10,23 +10,21 @@ import LoginScreen    from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 
 // ── Tab screens ───────────────────────────────────────────────
-import DashboardScreen        from '../screens/DashboardScreen';
 import SearchRidesScreen      from '../screens/SearchRidesScreen';
 import CreateRideScreen       from '../screens/CreateRideScreen';
+import LiveTrackingScreen     from '../screens/LiveTrackingScreen';
 import CommunityScreen        from '../screens/CommunityScreen';
 import ProfileScreen          from '../screens/ProfileScreen';
 
 // ── Stack screens ─────────────────────────────────────────────
 import MyBookingsScreen       from '../screens/MyBookingsScreen';
 import ProviderBookingsScreen from '../screens/ProviderBookingsScreen';
-import LiveTrackingScreen     from '../screens/LiveTrackingScreen';
 import KYCScreen              from '../screens/KYCScreen';
 
 import {
   RideDetailScreen,
   NotificationsScreen,
   WalkTogetherScreen,
-  RouteAlertsScreen,
   IncidentReportScreen,
   ForgotPasswordScreen,
 } from '../screens/MiscScreens';
@@ -60,14 +58,14 @@ function TabIcon({ emoji, focused }) {
   );
 }
 
-// ── Bottom tab navigator ──────────────────────────────────────
+// ── Main Tabs Navigator (Home removed; Track Ride added) ──────
 function MainTabs() {
   const { user } = useAuth();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
-  const isSeeker   = user?.role === 'seeker'   || user?.role === 'both';
 
   return (
     <Tab.Navigator
+      initialRouteName="FindRide"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
@@ -83,24 +81,43 @@ function MainTabs() {
         tabBarInactiveTintColor: colors.text3,
       }}
     >
-      <Tab.Screen name="Home" component={DashboardScreen}
-        options={{ tabBarLabel: 'Home', tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} /> }} />
-
-      {isSeeker && (
-        <Tab.Screen name="FindRide" component={SearchRidesScreen}
-          options={{ tabBarLabel: 'Find Ride', tabBarIcon: ({ focused }) => <TabIcon emoji="🔍" focused={focused} /> }} />
-      )}
+      <Tab.Screen
+        name="FindRide"
+        component={SearchRidesScreen}
+        options={{
+          tabBarLabel: 'Find Ride',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🔍" focused={focused} />
+        }}
+      />
 
       {isProvider && (
-        <Tab.Screen name="OfferRide" component={CreateRideScreen}
-          options={{ tabBarLabel: 'Offer Ride', tabBarIcon: ({ focused }) => <TabIcon emoji="🚗" focused={focused} /> }} />
+        <Tab.Screen
+          name="OfferRide"
+          component={CreateRideScreen}
+          options={{
+            tabBarLabel: 'Offer Ride',
+            tabBarIcon: ({ focused }) => <TabIcon emoji="🚗" focused={focused} />
+          }}
+        />
       )}
 
-      <Tab.Screen name="Community" component={CommunityScreen}
-        options={{ tabBarLabel: 'Community', tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} /> }} />
+      <Tab.Screen
+        name="TrackRide"
+        component={LiveTrackingScreen}
+        options={{
+          tabBarLabel: 'Track Ride',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="📍" focused={focused} />
+        }}
+      />
 
-      <Tab.Screen name="Profile" component={ProfileScreen}
-        options={{ tabBarLabel: 'Profile', tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} /> }} />
+      <Tab.Screen
+        name="Community"
+        component={CommunityScreen}
+        options={{
+          tabBarLabel: 'Community',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />
+        }}
+      />
     </Tab.Navigator>
   );
 }
@@ -130,18 +147,18 @@ function AppStack() {
       <Stack.Screen name="SearchRides"       component={SearchRidesScreen}      options={{ title: 'Find a Ride' }} />
       <Stack.Screen name="CreateRide"        component={CreateRideScreen}       options={{ title: 'Offer a Ride' }} />
       <Stack.Screen name="RideDetail"        component={RideDetailScreen}       options={{ title: 'Ride Details' }} />
-      <Stack.Screen name="LiveTracking"      component={LiveTrackingScreen}     options={{ title: 'Live Tracking' }} />
+      <Stack.Screen name="LiveTracking"      component={LiveTrackingScreen}     options={{ headerShown: false }} />
 
       {/* Bookings */}
       <Stack.Screen name="MyBookings"        component={MyBookingsScreen}       options={{ title: 'My Bookings' }} />
       <Stack.Screen name="ProviderBookings"  component={ProviderBookingsScreen} options={{ title: 'Ride Requests' }} />
 
-      {/* Community & safety */}
+      {/* Community & Safety */}
       <Stack.Screen name="WalkTogether"      component={WalkTogetherScreen}     options={{ title: 'Walk Together' }} />
-      <Stack.Screen name="RouteAlerts"       component={RouteAlertsScreen}      options={{ title: 'Route Alerts' }} />
       <Stack.Screen name="IncidentReport"    component={IncidentReportScreen}   options={{ title: 'Report Incident' }} />
 
-      {/* Profile & account */}
+      {/* Profile & Account */}
+      <Stack.Screen name="Profile"           component={ProfileScreen}          options={{ title: 'My Profile' }} />
       <Stack.Screen name="KYC"               component={KYCScreen}              options={{ title: 'KYC Verification' }} />
       <Stack.Screen name="Ratings"           component={RatingsScreen}          options={{ title: 'Ratings & Reviews' }} />
       <Stack.Screen name="ContactSupport"    component={ContactSupportScreen}   options={{ title: 'Contact Support' }} />

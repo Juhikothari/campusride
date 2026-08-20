@@ -240,7 +240,7 @@ io.on("connection", (socket) => {
 // 5. HEALTH ROUTES
 // ==========================================
 app.get('/', (req, res) => res.json({
-  message: 'FreeWheels API is running!',
+  message: 'HOGO API is running!',
   timestamp: new Date().toISOString(),
   socketConnections: connectedUsers.size
 }));

@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import TopHeader from '../components/TopHeader';
 import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, getChatMessages } from '../services/api';
 import { colors, spacing, radius } from '../theme';
 import { Btn, Alert } from '../components/UI';
@@ -293,6 +294,8 @@ export default function CommunityScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+      <TopHeader title="HOGO Community" subtitle="Campus Forum & Chat" />
+
       {/* Tabs */}
       <View style={styles.tabBar}>
         {TABS.map((tab, i) => (

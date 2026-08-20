@@ -157,8 +157,8 @@ export default function RegisterScreen({ navigation }) {
             <Text style={{ color: colors.text2, fontSize: 14 }}>← Back to Login</Text>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join CampusRide — verified students only</Text>
+          <Text style={styles.title}>Join HOGO</Text>
+          <Text style={styles.subtitle}>Verified student rides for your campus</Text>
 
           <Alert message={error} />
 
@@ -173,7 +173,7 @@ export default function RegisterScreen({ navigation }) {
           <View style={{ height: spacing.lg }} />
 
           <Input label="Full Name"     icon="👤" value={name}    onChangeText={setName}    placeholder="Your full name" autoCapitalize="words" />
-          <Input label="College Email" icon="✉"  value={email}   onChangeText={setEmail}   placeholder="you@college.edu" keyboardType="email-address" />
+          <Input label="College Email" icon="✉"  value={email}   onChangeText={setEmail}   placeholder="you@college.edu.in" keyboardType="email-address" />
           {role !== 'admin' && (
             <Input label="College Name" icon="🏫" value={college} onChangeText={setCollege} placeholder="e.g. RNS Institute of Technology" autoCapitalize="words" />
           )}
@@ -207,7 +207,7 @@ export default function RegisterScreen({ navigation }) {
           <Input label="Confirm Password" icon="🔒" value={confirm} onChangeText={setConfirm} placeholder="Repeat password" secureTextEntry />
 
           <Btn
-            label={isProvider ? 'Next: Upload Documents →' : 'Create Account'}
+            label={isProvider ? 'Next: Upload Documents →' : 'Create HOGO Account'}
             onPress={handleNext}
             loading={loading}
             style={{ marginTop: 8 }}
@@ -234,7 +234,7 @@ export default function RegisterScreen({ navigation }) {
           </TouchableOpacity>
 
           <Text style={styles.title}>Upload Documents</Text>
-          <Text style={styles.subtitle}>As a provider, we need to verify your identity</Text>
+          <Text style={styles.subtitle}>As a provider on HOGO, we need to verify your credentials</Text>
 
           <Alert message={error} />
 
@@ -246,13 +246,13 @@ export default function RegisterScreen({ navigation }) {
           <Input label="Vehicle Name (e.g. Honda City)"  icon="🚗" value={vehicleName}   onChangeText={setVehicleName} placeholder="e.g. Swift Dezire, Activa" autoCapitalize="words" />
 
           <Btn
-            label={uploading ? 'Uploading…' : 'Create Account'}
+            label={uploading ? 'Uploading…' : 'Complete HOGO Registration'}
             onPress={handleSubmitWithDocs}
             loading={loading || uploading}
             style={{ marginTop: 8 }}
           />
           <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 10 }}>
-            Documents are verified by admins within 24 hours
+            Documents are verified by college administrators within 24 hours
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
