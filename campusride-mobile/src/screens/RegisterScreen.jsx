@@ -131,9 +131,11 @@ export default function RegisterScreen({ navigation }) {
         emergencyContact: emergency.trim(),
         ...(role === 'admin' && { adminKey }),
         ...(isProvider && {
-          vehicleNumber: vehicleNumber.toUpperCase(),
-          vehicleName:   vehicleName.trim(),
-          kycDocuments:  uploadedDocs,
+          vehicleNumber:  vehicleNumber.toUpperCase(),
+          vehicleName:    vehicleName.trim(),
+          aadhar:         uploadedDocs.aadhar || null,
+          drivingLicense: uploadedDocs.drivingLicense || null,
+          collegeIdCard:  uploadedDocs.collegeIdCard || null,
         }),
       });
     } catch (err) {

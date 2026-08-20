@@ -1,10 +1,10 @@
 // ══════════════════════════════════════════════════════
 //  API SERVICE  —  React Native version
-//  Same endpoints as web; token stored in AsyncStorage
+//  Same endpoints as backend; token stored in AsyncStorage
 // ══════════════════════════════════════════════════════
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ⚠️  Update this to your deployed backend URL
+// ⚠️ Update this to your deployed Render backend API URL
 export const API_BASE = 'https://fw-mq8p.onrender.com';
 const BASE = `${API_BASE}/api`;
 
@@ -20,17 +20,49 @@ export const getUser     = async () => {
 export const setUser     = (u)  => AsyncStorage.setItem('cr_user', JSON.stringify(u));
 export const removeUser  = ()   => AsyncStorage.removeItem('cr_user');
 
-// ── Base fetch wrapper ────────────────────────────────
+// ── Base fetch wrapper with 10-second timeout ─────────
 const request = async (path, options = {}) => {
   const token = await getToken();
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res  = await fetch(`${BASE}${path}`, { ...options, headers });
+  const controller = new AbortController();
+  const timeoutMs  = options.timeout || 10000;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, { ...options, headers, signal: controller.signal });
+  } catch (networkErr) {
+    if (networkErr.name === 'AbortError') {
+      const err = new Error(`Request timed out (10s). The backend on Render may be waking up.`);
+      err.isTimeout = true;
+      throw err;
+    }
+    throw new Error(
+      `Cannot connect to server at ${API_BASE}. ` +
+      `Check your internet connection or verify your Render backend is running.`
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    if (res.status === 404) {
+      const err = new Error(`Endpoint not found (404) on ${API_BASE}.`);
+      err.status = 404;
+      throw err;
+    }
+    const err = new Error(`Server returned non-JSON response (Status ${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
+
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const err = new Error(data.message || `HTTP ${res.status}`);
+    const err = new Error(data.message || data.error || `HTTP ${res.status}`);
     err.status = res.status;
     throw err;
   }

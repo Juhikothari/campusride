@@ -85,9 +85,13 @@ export default function KYCScreen({ navigation }) {
       uploadedDocs.aadhar       = await uploadToCloudinary(docs.aadhar);
       uploadedDocs.collegeIdCard = await uploadToCloudinary(docs.collegeId);
       if (docs.license) uploadedDocs.drivingLicense = await uploadToCloudinary(docs.license);
-      if (vehicleNum.trim())  uploadedDocs.vehicleNumber = vehicleNum.trim().toUpperCase();
-      if (vehicleName.trim()) uploadedDocs.vehicleName   = vehicleName.trim();
-      await api.submitKyc({ documents: uploadedDocs });
+      await api.submitKyc({
+        aadharUrl:         uploadedDocs.aadhar,
+        collegeIdCardUrl:  uploadedDocs.collegeIdCard,
+        drivingLicenseUrl: uploadedDocs.drivingLicense || null,
+        vehicleNumber:     vehicleNum.trim() ? vehicleNum.trim().toUpperCase() : null,
+        vehicleName:       vehicleName.trim() || null,
+      });
       setSubmitted(true);
       setKycStatus({ kycStatus: 'pending' });
     } catch (e) {

@@ -11,14 +11,14 @@ export function AuthProvider({ children }) {
   const [initDone, setInitDone]  = useState(false);
 
   const saveAuth = async ({ token, user }) => {
-    await api.setToken(token);
-    await api.setUser(user);
+    if (token) await api.setToken(token);
+    if (user)  await api.setUser(user);
     setUserState(user);
   };
 
   const logout = useCallback(async () => {
-    await api.removeToken();
-    await api.removeUser();
+    await api.removeToken().catch(() => {});
+    await api.removeUser().catch(() => {});
     setUserState(null);
   }, []);
 
@@ -29,9 +29,13 @@ export function AuthProvider({ children }) {
       await saveAuth(data);
       try {
         const fullUser = await api.getMe();
-        await api.setUser(fullUser);
-        setUserState(fullUser);
-      } catch {}
+        if (fullUser && (fullUser._id || fullUser.id)) {
+          await api.setUser(fullUser);
+          setUserState(fullUser);
+        }
+      } catch (err) {
+        console.log('Post-login profile refresh note:', err.message);
+      }
       return data;
     } finally {
       setLoading(false);
@@ -49,30 +53,58 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Validate stored token on mount
+  // Validate stored token and load user on mount (with guaranteed timeout)
   useEffect(() => {
+    let isMounted = true;
+
     (async () => {
-      const token = await api.getToken();
-      if (token) {
-        try {
-          const u = await api.getMe();
-          await api.setUser(u);
-          setUserState(u);
-        } catch {
-          await logout();
+      try {
+        const [token, cachedUser] = await Promise.all([
+          api.getToken().catch(() => ''),
+          api.getUser().catch(() => null)
+        ]);
+
+        if (cachedUser && isMounted) {
+          setUserState(cachedUser);
+        }
+
+        if (token) {
+          try {
+            const u = await api.getMe();
+            if (u && isMounted) {
+              await api.setUser(u);
+              setUserState(u);
+            }
+          } catch (e) {
+            console.log('Session verification error:', e.message);
+            // Only force logout if the token is explicitly rejected (401/403),
+            // but keep cached session if it was just a temporary network timeout.
+            if (e.status === 401 || e.status === 403) {
+              if (isMounted) await logout();
+            }
+          }
+        }
+      } catch (err) {
+        console.log('Auth initialization error:', err);
+      } finally {
+        if (isMounted) {
+          setInitDone(true);
         }
       }
-      setInitDone(true);
     })();
-  }, []);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [logout]);
 
   if (!initDone) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: colors.accent, fontSize: 22, fontWeight: '800', letterSpacing: 1 }}>
+        <Text style={{ color: colors.accent, fontSize: 24, fontWeight: '800', letterSpacing: 1 }}>
           Campus<Text style={{ color: colors.text }}>Ride</Text>
         </Text>
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.accent} size="large" style={{ marginTop: 24 }} />
       </View>
     );
   }
