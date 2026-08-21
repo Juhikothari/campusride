@@ -10,13 +10,14 @@ import LoginScreen    from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 
 // ── Tab screens ───────────────────────────────────────────────
-import SearchRidesScreen      from '../screens/SearchRidesScreen';
-import CreateRideScreen       from '../screens/CreateRideScreen';
-import LiveTrackingScreen     from '../screens/LiveTrackingScreen';
-import CommunityScreen        from '../screens/CommunityScreen';
-import ProfileScreen          from '../screens/ProfileScreen';
+import SearchRidesScreen  from '../screens/SearchRidesScreen';
+import CreateRideScreen   from '../screens/CreateRideScreen';
+import ChatBotScreen      from '../screens/ChatBotScreen';
+import CommunityScreen    from '../screens/CommunityScreen';
+import ProfileScreen      from '../screens/ProfileScreen';
 
 // ── Stack screens ─────────────────────────────────────────────
+import LiveTrackingScreen     from '../screens/LiveTrackingScreen';
 import MyBookingsScreen       from '../screens/MyBookingsScreen';
 import ProviderBookingsScreen from '../screens/ProviderBookingsScreen';
 import KYCScreen              from '../screens/KYCScreen';
@@ -58,14 +59,14 @@ function TabIcon({ emoji, focused }) {
   );
 }
 
-// ── Main Tabs Navigator (Home removed; Track Ride added) ──────
+// ── Main Tabs Navigator (The 4 Clean Tabs) ────────────────────
 function MainTabs() {
   const { user } = useAuth();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
   return (
     <Tab.Navigator
-      initialRouteName="FindRide"
+      initialRouteName="SearchMatch"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
@@ -82,31 +83,29 @@ function MainTabs() {
       }}
     >
       <Tab.Screen
-        name="FindRide"
+        name="SearchMatch"
         component={SearchRidesScreen}
         options={{
-          tabBarLabel: 'Find Ride',
+          tabBarLabel: 'Search Match',
           tabBarIcon: ({ focused }) => <TabIcon emoji="🔍" focused={focused} />
         }}
       />
 
-      {isProvider && (
-        <Tab.Screen
-          name="OfferRide"
-          component={CreateRideScreen}
-          options={{
-            tabBarLabel: 'Offer Ride',
-            tabBarIcon: ({ focused }) => <TabIcon emoji="🚗" focused={focused} />
-          }}
-        />
-      )}
+      <Tab.Screen
+        name="OfferRide"
+        component={CreateRideScreen}
+        options={{
+          tabBarLabel: 'Offer Ride',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🚗" focused={focused} />
+        }}
+      />
 
       <Tab.Screen
-        name="TrackRide"
-        component={LiveTrackingScreen}
+        name="ChatBot"
+        component={ChatBotScreen}
         options={{
-          tabBarLabel: 'Track Ride',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📍" focused={focused} />
+          tabBarLabel: 'HOGO AI',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🤖" focused={focused} />
         }}
       />
 

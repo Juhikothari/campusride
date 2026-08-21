@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
-export default function TopHeader({ title = 'HOGO', subtitle = '' }) {
+export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Match' }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -120,10 +120,9 @@ export default function TopHeader({ title = 'HOGO', subtitle = '' }) {
               {isProvider && (
                 <MenuItem icon="📬" label="Ride Requests" onPress={() => navTo('ProviderBookings')} />
               )}
-              <MenuItem icon="📍" label="Track Active Ride" onPress={() => navTo('TrackRide')} />
+              <MenuItem icon="📍" label="Track Active Ride" onPress={() => navTo('LiveTracking')} />
               <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} />
               <MenuItem icon="⭐" label="Ratings & Reviews" onPress={() => navTo('Ratings')} />
-              <MenuItem icon="🚶" label="Walk Together" onPress={() => navTo('WalkTogether')} />
               <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} />
 
               {isAdmin && (

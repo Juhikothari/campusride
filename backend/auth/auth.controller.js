@@ -269,30 +269,51 @@ const verifyOtp = async (req, res) => {
   }
 };
 
-// ── Reset Password with token ─────────────────────────────────────
+// ── Reset Password with token or OTP ─────────────────────────────
 const resetPasswordWithToken = async (req, res) => {
   try {
-    const { resetToken, password } = req.body;
-    if (!resetToken || !password)
-      return res.status(400).json({ message: 'Reset token and new password are required' });
+    const resetToken = req.body.resetToken || req.body.token;
+    const newPwd     = req.body.password || req.body.newPassword;
+    const { email, otp } = req.body;
 
-    const record = otpStore.get(`reset:${resetToken}`);
-    if (!record) return res.status(400).json({ message: 'Invalid or expired reset session. Start over.' });
-    if (Date.now() > record.expiresAt) {
-      otpStore.delete(`reset:${resetToken}`);
-      return res.status(400).json({ message: 'Reset session expired. Please start over.' });
+    if (!newPwd) {
+      return res.status(400).json({ message: 'New password is required' });
     }
 
-    const user = await User.findOne({ email: record.email });
+    let targetEmail = null;
+
+    if (resetToken) {
+      const record = otpStore.get(`reset:${resetToken}`);
+      if (!record) return res.status(400).json({ message: 'Invalid or expired reset session. Start over.' });
+      if (Date.now() > record.expiresAt) {
+        otpStore.delete(`reset:${resetToken}`);
+        return res.status(400).json({ message: 'Reset session expired. Please start over.' });
+      }
+      targetEmail = record.email;
+      otpStore.delete(`reset:${resetToken}`);
+    } else if (email && otp) {
+      const record = otpStore.get(email.toLowerCase());
+      if (!record) return res.status(400).json({ message: 'No OTP requested for this email. Request a new one.' });
+      if (Date.now() > record.expiresAt) {
+        otpStore.delete(email.toLowerCase());
+        return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+      }
+      if (record.otp !== otp.toString()) return res.status(400).json({ message: 'Incorrect OTP. Try again.' });
+      targetEmail = email.toLowerCase();
+      otpStore.delete(email.toLowerCase());
+    } else {
+      return res.status(400).json({ message: 'Reset token or OTP with email is required' });
+    }
+
+    const user = await User.findOne({ email: { $regex: new RegExp(`^${targetEmail}$`, 'i') } });
     if (!user) return res.status(404).json({ message: 'User not found.' });
 
     const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
+    user.password = await bcrypt.hash(newPwd, salt);
     user.currentSessionSeed = crypto.randomBytes(16).toString('hex');
     await user.save();
 
-    otpStore.delete(`reset:${resetToken}`);
-    res.json({ message: 'Password reset successfully.' });
+    res.json({ message: 'Password reset successfully. You can now log in.' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

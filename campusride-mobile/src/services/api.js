@@ -69,11 +69,16 @@ const request = async (path, options = {}) => {
 };
 
 // ── Auth ──────────────────────────────────────────────
-export const login          = (body) => request('/auth/login',    { method:'POST', body: JSON.stringify(body) });
-export const register       = (body) => request('/auth/register', { method:'POST', body: JSON.stringify(body) });
-export const getMe          = ()     => request('/auth/me');
-export const forgotPassword = (email) => request('/auth/forgot-password', { method:'POST', body: JSON.stringify({ email }) });
-export const resetPassword  = (token, password) => request('/auth/reset-password', { method:'POST', body: JSON.stringify({ token, password }) });
+export const login             = (body) => request('/auth/login',    { method:'POST', body: JSON.stringify(body) });
+export const register          = (body) => request('/auth/register', { method:'POST', body: JSON.stringify(body) });
+export const getMe             = ()     => request('/auth/me');
+export const forgotPassword    = (email) => request('/auth/send-otp', { method:'POST', body: JSON.stringify({ email }) });
+export const sendOtp           = (email) => request('/auth/send-otp', { method:'POST', body: JSON.stringify({ email }) });
+export const verifyOtp         = (email, otp) => request('/auth/verify-otp', { method:'POST', body: JSON.stringify({ email, otp }) });
+export const resetPassword     = (payload) => request('/auth/reset-password-otp', { method:'POST', body: JSON.stringify(typeof payload === 'object' ? payload : { resetToken: arguments[0], password: arguments[1] }) });
+
+// ── AI Chatbot ────────────────────────────────────────
+export const sendChatbotMessage = (messages) => request('/chatbot/message', { method:'POST', body: JSON.stringify({ messages }) });
 
 // ── Users ─────────────────────────────────────────────
 export const getProfile        = ()     => request('/users/profile');

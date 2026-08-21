@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "CampusRide",
+    "name": "HOGO",
     "slug": "campusride",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "scheme": "campusride",
+    "scheme": "hogo",
     "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash.png",
@@ -20,10 +20,10 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.campusride.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "CampusRide needs your location to find rides near you.",
-        "NSLocationAlwaysUsageDescription": "CampusRide needs background location to track your active ride.",
-        "NSCameraUsageDescription": "CampusRide needs camera access to capture KYC documents.",
-        "NSPhotoLibraryUsageDescription": "CampusRide needs photo access for profile and KYC uploads."
+        "NSLocationWhenInUseUsageDescription": "HOGO needs your location to match you with rides near your campus.",
+        "NSLocationAlwaysUsageDescription": "HOGO needs background location to track your active ride.",
+        "NSCameraUsageDescription": "HOGO needs camera access to capture KYC documents.",
+        "NSPhotoLibraryUsageDescription": "HOGO needs photo access for profile and KYC uploads."
       }
     },
     "android": {
@@ -52,14 +52,14 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow CampusRide to use your location."
+          "locationAlwaysAndWhenInUsePermission": "Allow HOGO to use your location for matching rides and live tracking."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "CampusRide needs photo access for KYC uploads.",
-          "cameraPermission": "CampusRide needs camera access for KYC documents."
+          "photosPermission": "HOGO needs photo access for KYC and profile uploads.",
+          "cameraPermission": "HOGO needs camera access for KYC documents."
         }
       ],
       "expo-font"

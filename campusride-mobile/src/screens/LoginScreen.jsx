@@ -42,7 +42,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.logo}>
               HO<Text style={{ color: colors.accent }}>GO</Text>
             </Text>
-            <Text style={styles.tagline}>Smart & Verified Commutes for Indian Campuses</Text>
+            <Text style={styles.tagline}>Find Your Match</Text>
           </View>
 
           {/* Form card */}

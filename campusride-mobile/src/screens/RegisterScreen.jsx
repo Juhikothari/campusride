@@ -158,7 +158,7 @@ export default function RegisterScreen({ navigation }) {
           </TouchableOpacity>
 
           <Text style={styles.title}>Join HOGO</Text>
-          <Text style={styles.subtitle}>Verified student rides for your campus</Text>
+          <Text style={styles.subtitle}>Find Your Match — Verified Student Commutes</Text>
 
           <Alert message={error} />
 

@@ -14,11 +14,10 @@ import { Btn, Alert } from '../components/UI';
 
 const TABS = ['Posts', 'College Chat'];
 const POST_TYPES = [
+  { value: 'general',   label: '💬 General' },
   { value: 'tip',       label: '💡 Tip' },
   { value: 'question',  label: '❓ Question' },
   { value: 'alert',     label: '🚨 Alert' },
-  { value: 'walk',      label: '🚶 Walk' },
-  { value: 'general',   label: '💬 General' },
 ];
 
 function timeAgo(dateStr) {

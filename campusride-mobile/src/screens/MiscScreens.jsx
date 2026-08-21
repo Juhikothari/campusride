@@ -555,46 +555,156 @@ export function IncidentReportScreen({ navigation }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  FORGOT PASSWORD SCREEN
+//  FORGOT PASSWORD / OTP RESET SCREEN
 // ═══════════════════════════════════════════════════════════════
 export function ForgotPasswordScreen({ navigation }) {
   const { TextInput } = require('react-native');
-  const [email,   setEmail]   = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sent,    setSent]    = useState(false);
-  const [error,   setError]   = useState('');
+  const [step,        setStep]        = useState(1); // 1: Email, 2: OTP & New Password, 3: Success
+  const [email,       setEmail]       = useState('');
+  const [otp,         setOtp]         = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPwd,  setConfirmPwd]  = useState('');
+  const [resetToken,  setResetToken]  = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState('');
+  const [successMsg,  setSuccessMsg]  = useState('');
 
-  const submit = async () => {
-    if (!email.trim()) { setError('Enter your email'); return; }
-    setLoading(true); setError('');
+  const handleSendOtp = async () => {
+    if (!email.trim()) { setError('Enter your registered college email'); return; }
+    setLoading(true); setError(''); setSuccessMsg('');
     try {
-      await api.forgotPassword(email.trim().toLowerCase());
-      setSent(true);
-    } catch (e) { setError(e.message || 'Failed to send reset email'); }
-    finally { setLoading(false); }
+      const res = await api.sendOtp(email.trim().toLowerCase());
+      setSuccessMsg(res.message || `OTP sent to ${email.trim()}`);
+      setStep(2);
+    } catch (e) {
+      setError(e.message || 'Failed to send OTP. Please check your email.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const inputStyle = { backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border, borderRadius:radius.md, color:colors.text, paddingHorizontal:14, paddingVertical:13, fontSize:14, marginBottom:12 };
+  const handleResetPassword = async () => {
+    if (!otp.trim() || otp.trim().length < 4) {
+      setError('Enter the 6-digit OTP sent to your email');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+    if (newPassword !== confirmPwd) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setLoading(true); setError('');
+    try {
+      await api.resetPassword({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+        password: newPassword,
+        newPassword: newPassword,
+        resetToken: resetToken || undefined,
+      });
+      setStep(3);
+    } catch (e) {
+      setError(e.message || 'Failed to reset password. Please verify OTP.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputStyle = {
+    backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, color: colors.text, paddingHorizontal: 14,
+    paddingVertical: 13, fontSize: 14, marginBottom: 12,
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
           <Text style={{ color: colors.text2 }}>← Back to Login</Text>
         </TouchableOpacity>
-        <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 6 }}>Forgot Password</Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.lg }}>We'll send a reset link to your inbox</Text>
+
+        <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 4 }}>
+          {step === 3 ? '🎉 All Set!' : 'Reset Password'}
+        </Text>
+        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.lg }}>
+          {step === 1 && 'Enter your registered email to receive a 6-digit verification code.'}
+          {step === 2 && `Enter the OTP sent to ${email} and your new password.`}
+          {step === 3 && 'Your password has been successfully updated.'}
+        </Text>
 
         <Alert message={error} />
-        {sent ? (
-          <Alert message={`Reset link sent to ${email}. Check your inbox!`} type="success" />
-        ) : (
-          <>
-            <TextInput style={inputStyle} value={email} onChangeText={setEmail} placeholder="you@college.edu" placeholderTextColor={colors.text3} keyboardType="email-address" autoCapitalize="none" />
-            <TouchableOpacity onPress={submit} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }]}>
-              <Text style={styles.btnText}>{loading ? '…' : 'Continue →'}</Text>
+        {successMsg && step === 2 ? <Alert message={successMsg} type="success" /> : null}
+
+        {step === 1 && (
+          <View>
+            <TextInput
+              style={inputStyle}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@college.edu"
+              placeholderTextColor={colors.text3}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity onPress={handleSendOtp} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }]}>
+              <Text style={styles.btnText}>{loading ? 'Sending OTP…' : 'Send Verification OTP ✉️'}</Text>
             </TouchableOpacity>
-          </>
+          </View>
+        )}
+
+        {step === 2 && (
+          <View>
+            <TextInput
+              style={[inputStyle, { letterSpacing: 4, fontWeight: '700', textAlign: 'center', fontSize: 18 }]}
+              value={otp}
+              onChangeText={setOtp}
+              placeholder="Enter 6-digit OTP"
+              placeholderTextColor={colors.text3}
+              keyboardType="number-pad"
+              maxLength={6}
+            />
+            <TextInput
+              style={inputStyle}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="New password (min 6 chars)"
+              placeholderTextColor={colors.text3}
+              secureTextEntry
+            />
+            <TextInput
+              style={inputStyle}
+              value={confirmPwd}
+              onChangeText={setConfirmPwd}
+              placeholder="Confirm new password"
+              placeholderTextColor={colors.text3}
+              secureTextEntry
+            />
+
+            <TouchableOpacity onPress={handleResetPassword} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }, { marginTop: 4 }]}>
+              <Text style={styles.btnText}>{loading ? 'Resetting…' : 'Reset Password 🔒'}</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleSendOtp} disabled={loading} style={{ marginTop: 16, alignItems: 'center' }}>
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>Didn't receive OTP? Resend code</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {step === 3 && (
+          <View style={{ alignItems: 'center', paddingTop: 20 }}>
+            <Text style={{ fontSize: 50, marginBottom: 16 }}>✅</Text>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Password Reset Successful</Text>
+            <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
+              You can now sign in to HOGO with your new password.
+            </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={[styles.btn, { width: '100%' }]}>
+              <Text style={styles.btnText}>Sign In Now →</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </ScrollView>
     </SafeAreaView>

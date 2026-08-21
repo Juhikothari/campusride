@@ -115,12 +115,16 @@ export default function CreateRideScreen({ navigation }) {
     }
   };
 
+  const isFemale = user?.gender === 'female';
+
   const submit = async () => {
     setError('');
     if (!pickup.lat) { setError('Enter pickup location'); return; }
     if (!drop.lat)   { setError('Enter drop location');   return; }
     if (!date || !time) { setError('Enter date and time'); return; }
-    if (!seats || parseInt(seats) < 1) { setError('Enter available seats'); return; }
+
+    const selectedCap = VEHICLES.find(v => v.value === vehicleType)?.capacity || 1;
+    const computedCost = calcCost(distKm, vehicleType) || 0;
 
     setLoading(true);
     try {
@@ -136,12 +140,12 @@ export default function CreateRideScreen({ navigation }) {
           address: drop.label,
         },
         date, time,
-        seatsAvailable: parseInt(seats),
-        costPerSeat:    parseInt(cost),
+        seatsAvailable: selectedCap,
+        costPerSeat:    computedCost,
         vehicleType,
-        vehicleName: vehicleName.trim(),
-        womenOnly,
-        college: user?.college || '',
+        vehicleName:    vehicleType.toUpperCase(),
+        womenOnly:      isFemale ? womenOnly : false,
+        college:        user?.college || '',
       });
       setSuccess(ride);
     } catch (e) {
@@ -167,7 +171,7 @@ export default function CreateRideScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="HOGO" subtitle="Offer Campus Ride" />
+      <TopHeader title="HOGO" subtitle="Find Your Match" />
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -252,13 +256,13 @@ export default function CreateRideScreen({ navigation }) {
             </View>
           )}
 
-          {/* Vehicle */}
-          <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Vehicle</Text>
+          {/* Vehicle Selection */}
+          <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Vehicle Type</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.md, flexWrap: 'wrap' }}>
             {VEHICLES.map(v => (
               <TouchableOpacity
                 key={v.value}
-                onPress={() => { setVehicleType(v.value); setSeats(String(v.capacity)); }}
+                onPress={() => setVehicleType(v.value)}
                 style={[styles.vehicleChip, vehicleType === v.value && styles.vehicleChipActive]}
               >
                 <Text style={[styles.vehicleChipText, vehicleType === v.value && styles.vehicleChipTextActive]}>{v.label}</Text>
@@ -266,51 +270,21 @@ export default function CreateRideScreen({ navigation }) {
             ))}
           </View>
 
-          <Input label="Vehicle Name (optional)" icon="🚗" value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa" autoCapitalize="words" />
-
-          {/* Seats & Cost */}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Input
-              label={`Seats (max ${selectedVehicle?.capacity || 3})`}
-              icon="💺"
-              value={seats}
-              onChangeText={setSeats}
-              keyboardType="number-pad"
-              maxLength={1}
-              containerStyle={{ flex: 1 }}
-            />
-            <Input
-              label="Cost per seat (₹)"
-              icon="₹"
-              value={cost}
-              onChangeText={setCost}
-              keyboardType="number-pad"
-              containerStyle={{ flex: 1 }}
-            />
-          </View>
-
-          {distKm > 0 && parseInt(cost) > 0 && (
-            <View style={styles.fareCard}>
-              <Text style={{ color: colors.text2, fontSize: 12, marginBottom: 4 }}>Fare estimate</Text>
-              <Text style={{ color: colors.accent, fontSize: 20, fontWeight: '800' }}>₹{cost} / seat</Text>
-              <Text style={{ color: colors.text2, fontSize: 12, marginTop: 2 }}>
-                Based on {distKm} km {vehicleType} ride
-              </Text>
-            </View>
+          {/* Women-only toggle — Only visible to female accounts */}
+          {isFemale && (
+            <TouchableOpacity
+              onPress={() => setWomenOnly(w => !w)}
+              style={[styles.womenToggle, womenOnly && styles.womenToggleActive]}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 16 }}>♀</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.womenToggleTitle, womenOnly && { color: colors.pink }]}>Women-only ride</Text>
+                <Text style={{ color: colors.text2, fontSize: 12 }}>Only female seekers from your college can book</Text>
+              </View>
+              <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
+            </TouchableOpacity>
           )}
-
-          {/* Women-only toggle */}
-          <TouchableOpacity
-            onPress={() => setWomenOnly(w => !w)}
-            style={[styles.womenToggle, womenOnly && styles.womenToggleActive]}
-          >
-            <Text style={{ fontSize: 16 }}>♀</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.womenToggleTitle, womenOnly && { color: colors.pink }]}>Women-only ride</Text>
-              <Text style={{ color: colors.text2, fontSize: 12 }}>Only female seekers can book</Text>
-            </View>
-            <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
-          </TouchableOpacity>
 
           <Btn label="🚗 Post Ride on HOGO" onPress={submit} loading={loading} style={{ marginTop: spacing.md }} />
         </ScrollView>

@@ -39,9 +39,34 @@ export default function SearchRidesScreen({ navigation }) {
   const [error,      setError]      = useState('');
   const [bookingMap, setBookingMap] = useState({});
 
+  // Active in-progress ride state
+  const [activeRide,   setActiveRide]   = useState(null);
+
   // Route preview state
   const [routeInfo,    setRouteInfo]    = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
+
+  // Check for any ongoing live ride
+  useEffect(() => {
+    let mounted = true;
+    const checkActiveRide = async () => {
+      try {
+        const [bookingsRes, ridesRes] = await Promise.allSettled([
+          api.getMyBookings(),
+          api.getMyRides(),
+        ]);
+        if (!mounted) return;
+        const bList = bookingsRes.status === 'fulfilled' ? (Array.isArray(bookingsRes.value) ? bookingsRes.value : bookingsRes.value?.bookings || []) : [];
+        const rList = ridesRes.status === 'fulfilled' ? (Array.isArray(ridesRes.value) ? ridesRes.value : ridesRes.value?.rides || []) : [];
+        
+        const activeB = bList.find(b => b.status === 'accepted' && (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active'));
+        const activeR = rList.find(r => r.status === 'in-progress' || r.status === 'active');
+        setActiveRide(activeR || activeB?.rideId || null);
+      } catch {}
+    };
+    checkActiveRide();
+    return () => { mounted = false; };
+  }, []);
 
   if (!isSeeker) return (
     <SafeAreaView style={styles.safe}>
@@ -119,9 +144,27 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="HOGO" subtitle="Find Campus Rides" />
+      <TopHeader title="HOGO" subtitle="Find Your Match" />
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {/* Active Ride Banner (Only visible when a ride is ongoing) */}
+        {activeRide && (
+          <TouchableOpacity
+            style={styles.activeRideBanner}
+            onPress={() => navigation.navigate('LiveTracking', { rideId: activeRide._id || activeRide.id })}
+            activeOpacity={0.85}
+          >
+            <View style={styles.activeDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.activeRideTitle}>🚨 Live Ride In Progress</Text>
+              <Text style={styles.activeRideSub}>Tap here to track real-time live map & SOS</Text>
+            </View>
+            <View style={styles.trackBtnPill}>
+              <Text style={styles.trackBtnText}>Track Ride →</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Pickup */}
         <View style={styles.locRow}>
           <View style={{ flex: 1 }}>
@@ -132,7 +175,7 @@ export default function SearchRidesScreen({ navigation }) {
                 setPickup({ label, lat: lat.toString(), lng: lng.toString() });
                 setRouteInfo(null);
               }}
-              placeholder="Where are you?"
+              placeholder="Where are you starting from?"
             />
           </View>
           <TouchableOpacity
@@ -166,7 +209,7 @@ export default function SearchRidesScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* What's My Route Button */}
+        {/* Find My Route Button */}
         {pickup.lat && drop.lat && (
           <TouchableOpacity
             style={styles.routeBtn}
@@ -177,7 +220,7 @@ export default function SearchRidesScreen({ navigation }) {
             {routeLoading ? (
               <ActivityIndicator color={colors.accent} size="small" />
             ) : (
-              <Text style={styles.routeBtnText}>🗺️ What's my route & travel time?</Text>
+              <Text style={styles.routeBtnText}>🗺️ Find My Route & Travel Time</Text>
             )}
           </TouchableOpacity>
         )}
@@ -239,21 +282,21 @@ export default function SearchRidesScreen({ navigation }) {
 
         <Alert message={error} />
 
-        <Btn label="🔍 Search Rides" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
+        <Btn label="🔍 Search Your Match" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
 
         {/* Results */}
         {searched && (
           <View style={{ marginTop: spacing.lg }}>
             <Text style={styles.resultsHeader}>
-              {rides.length} ride{rides.length !== 1 ? 's' : ''} found
+              {rides.length} match{rides.length !== 1 ? 'es' : ''} found
             </Text>
 
             {rides.length === 0 ? (
               <View style={styles.noRidesCard}>
                 <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🚗</Text>
-                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No rides found nearby</Text>
-                <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>Try searching for a different destination or time.</Text>
-                <Btn label="Post Ride in Community" onPress={() => navigation.navigate('Community')} variant="outline" />
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No matching rides found</Text>
+                <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>Try searching for a different destination or check the community tab.</Text>
+                <Btn label="Check Community" onPress={() => navigation.navigate('Community')} variant="outline" />
               </View>
             ) : (
               rides.map(ride => {
@@ -325,4 +368,30 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface2, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.border, padding: spacing.lg,
   },
+  activeRideBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accentDim,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: radius.lg,
+    padding: 12,
+    marginBottom: spacing.md,
+    gap: 10,
+  },
+  activeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.green,
+  },
+  activeRideTitle: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  activeRideSub: { color: colors.text2, fontSize: 11, marginTop: 2 },
+  trackBtnPill: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+  },
+  trackBtnText: { color: '#000', fontSize: 11, fontWeight: '800' },
 });
