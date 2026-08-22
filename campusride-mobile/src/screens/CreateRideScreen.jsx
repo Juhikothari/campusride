@@ -178,39 +178,25 @@ export default function CreateRideScreen({ navigation }) {
           <Alert message={error} />
 
           {/* Locations */}
-          <View style={styles.locRow}>
-            <View style={{ flex: 1 }}>
-              <LocationSearch
-                label="Pickup Location"
-                value={pickup.label}
-                onChange={(label, lat, lng) => {
-                  setPickup({ label, lat: lat.toString(), lng: lng.toString() });
-                  setRouteInfo(null);
-                }}
-                placeholder="Where from?"
-              />
-            </View>
-            <TouchableOpacity style={styles.geoBtn} onPress={() => geoLocate('pickup')}>
-              <Text style={{ fontSize: 18 }}>🎯</Text>
-            </TouchableOpacity>
-          </View>
+          <LocationSearch
+            label="Pickup Location"
+            value={pickup.label}
+            onChange={(label, lat, lng) => {
+              setPickup({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              setRouteInfo(null);
+            }}
+            placeholder="Where from?"
+          />
 
-          <View style={styles.locRow}>
-            <View style={{ flex: 1 }}>
-              <LocationSearch
-                label="Drop Location"
-                value={drop.label}
-                onChange={(label, lat, lng) => {
-                  setDrop({ label, lat: lat.toString(), lng: lng.toString() });
-                  setRouteInfo(null);
-                }}
-                placeholder="Where to?"
-              />
-            </View>
-            <TouchableOpacity style={styles.geoBtn} onPress={() => geoLocate('drop')}>
-              <Text style={{ fontSize: 18 }}>🎯</Text>
-            </TouchableOpacity>
-          </View>
+          <LocationSearch
+            label="Drop Location"
+            value={drop.label}
+            onChange={(label, lat, lng) => {
+              setDrop({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              setRouteInfo(null);
+            }}
+            placeholder="Where to?"
+          />
 
           {/* What's My Route Button */}
           {pickup.lat && drop.lat && (

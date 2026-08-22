@@ -166,48 +166,26 @@ export default function SearchRidesScreen({ navigation }) {
         )}
 
         {/* Pickup */}
-        <View style={styles.locRow}>
-          <View style={{ flex: 1 }}>
-            <LocationSearch
-              label="Pickup Location"
-              value={pickup.label}
-              onChange={(label, lat, lng) => {
-                setPickup({ label, lat: lat.toString(), lng: lng.toString() });
-                setRouteInfo(null);
-              }}
-              placeholder="Where are you starting from?"
-            />
-          </View>
-          <TouchableOpacity
-            style={[styles.geoBtn, geoLoading === 'pickup' && { opacity: 0.5 }]}
-            onPress={() => geoLocate('pickup')}
-            disabled={!!geoLoading}
-          >
-            <Text style={{ fontSize: 18 }}>🎯</Text>
-          </TouchableOpacity>
-        </View>
+        <LocationSearch
+          label="Pickup Location"
+          value={pickup.label}
+          onChange={(label, lat, lng) => {
+            setPickup({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+            setRouteInfo(null);
+          }}
+          placeholder="Where are you starting from?"
+        />
 
         {/* Drop */}
-        <View style={styles.locRow}>
-          <View style={{ flex: 1 }}>
-            <LocationSearch
-              label="Drop Location"
-              value={drop.label}
-              onChange={(label, lat, lng) => {
-                setDrop({ label, lat: lat.toString(), lng: lng.toString() });
-                setRouteInfo(null);
-              }}
-              placeholder="Where do you want to go?"
-            />
-          </View>
-          <TouchableOpacity
-            style={[styles.geoBtn, geoLoading === 'drop' && { opacity: 0.5 }]}
-            onPress={() => geoLocate('drop')}
-            disabled={!!geoLoading}
-          >
-            <Text style={{ fontSize: 18 }}>🎯</Text>
-          </TouchableOpacity>
-        </View>
+        <LocationSearch
+          label="Drop Location"
+          value={drop.label}
+          onChange={(label, lat, lng) => {
+            setDrop({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+            setRouteInfo(null);
+          }}
+          placeholder="Where do you want to go?"
+        />
 
         {/* Find My Route Button */}
         {pickup.lat && drop.lat && (
