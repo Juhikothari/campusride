@@ -101,10 +101,14 @@ export function AuthProvider({ children }) {
   if (!initDone) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: colors.accent, fontSize: 24, fontWeight: '800', letterSpacing: 1 }}>
-          Campus<Text style={{ color: colors.text }}>Ride</Text>
+        <Text style={{ fontSize: 44, marginBottom: 12 }}>⚡</Text>
+        <Text style={{ color: colors.accent, fontSize: 28, fontWeight: '900', letterSpacing: 2 }}>
+          HO<Text style={{ color: colors.text }}>GO</Text>
         </Text>
-        <ActivityIndicator color={colors.accent} size="large" style={{ marginTop: 24 }} />
+        <Text style={{ color: colors.text3, fontSize: 13, marginTop: 4, fontWeight: '600', letterSpacing: 0.5 }}>
+          Find Your Match
+        </Text>
+        <ActivityIndicator color={colors.accent} size="small" style={{ marginTop: 28 }} />
       </View>
     );
   }

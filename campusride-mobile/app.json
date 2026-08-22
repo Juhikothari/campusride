@@ -32,11 +32,6 @@
         "backgroundColor": "#07090d"
       },
       "package": "com.campusride.app",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyDEFAULT_PLACEHOLDER_MAPS_KEY"
-        }
-      },
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",

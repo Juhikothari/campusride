@@ -217,12 +217,12 @@ const sendOtp = async (req, res) => {
       await sendEmailViaBrevo({
         to:      email,
         toName:  user.name,
-        subject: 'CampusRide — Password Reset OTP',
+        subject: 'HOGO — Password Reset OTP',
         html: '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#07090d;color:#fff;border-radius:12px;padding:32px;">' +
-              '<div style="font-size:22px;font-weight:800;margin-bottom:8px;">Campus<span style="color:#f5a623;">Ride</span></div>' +
+              '<div style="font-size:24px;font-weight:900;margin-bottom:8px;letter-spacing:1px;">HO<span style="color:#f5a623;">GO</span></div>' +
               '<h2 style="color:#f5a623;margin-top:0;">Password Reset OTP</h2>' +
               '<p style="color:#aaa;">Hi ' + user.name + ',</p>' +
-              '<p style="color:#aaa;">Your one-time password to reset your CampusRide password:</p>' +
+              '<p style="color:#aaa;">Your one-time password to reset your HOGO account password is:</p>' +
               '<div style="background:#1a1d24;border:2px solid #f5a623;border-radius:10px;text-align:center;padding:24px;margin:20px 0;">' +
               '<span style="font-size:40px;font-weight:900;letter-spacing:12px;color:#f5a623;">' + otp + '</span>' +
               '</div>' +
@@ -352,7 +352,7 @@ const contactSupport = async (req, res) => {
     }
 
     const html = '<div style="font-family:Arial,sans-serif;padding:20px;">' +
-      '<h2 style="color:#f5a623;">CampusRide Support Request</h2>' +
+      '<h2 style="color:#f5a623;">HOGO Support Request</h2>' +
       '<table style="width:100%;border-collapse:collapse;">' +
       '<tr><td style="padding:6px;color:#888;width:120px;">From</td><td style="padding:6px;color:#fff;">' + fromName + ' (' + fromEmail + ')</td></tr>' +
       '<tr><td style="padding:6px;color:#888;">College</td><td style="padding:6px;color:#fff;">' + (college || '—') + '</td></tr>' +
@@ -364,10 +364,10 @@ const contactSupport = async (req, res) => {
       '</div></div>';
 
     const bodyStr = JSON.stringify({
-      sender:      { name: 'CampusRide Support', email: senderEmail },
-      to:          [{ email: supportEmail, name: 'CampusRide Support' }],
+      sender:      { name: 'HOGO Support', email: senderEmail },
+      to:          [{ email: supportEmail, name: 'HOGO Support' }],
       replyTo:     { email: fromEmail, name: fromName },
-      subject:     '[CampusRide Support] ' + subject,
+      subject:     '[HOGO Support] ' + subject,
       htmlContent: html,
     });
     const bodyBuf = Buffer.from(bodyStr, 'utf8');
