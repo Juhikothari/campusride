@@ -1,59 +1,42 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal,
-  ActivityIndicator, Platform,
+  TextInput, ActivityIndicator, Platform, ScrollView,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { colors, radius, spacing } from '../theme';
 import * as api from '../services/api';
 
-const DEFAULT_REGION = {
-  latitude: 12.9716,
-  longitude: 77.5946,
-  latitudeDelta: 0.025,
-  longitudeDelta: 0.025,
-};
+const POPULAR_CAMPUS_SPOTS = [
+  'Campus Main Gate',
+  'Central Library',
+  'Boys Hostel Block A',
+  'Girls Hostel Block B',
+  'Student Activity Center (SAC)',
+  'Main Canteen / Food Court',
+  'Sports Complex & Ground',
+  'Admin Block / Reception',
+  'Metro / Bus Station Entrance',
+];
 
-export default function MapPickerModal({ visible, onClose, onSelect, initialLocation, title = 'Drop Pin on Map' }) {
-  const mapRef = useRef(null);
-  const [selectedCoord, setSelectedCoord] = useState(null);
+export default function MapPickerModal({ visible, onClose, onSelect, initialLocation, title = 'Pick Campus Location' }) {
   const [addressLabel,  setAddressLabel]  = useState('');
-  const [geocoding,     setGeocoding]     = useState(false);
+  const [coords,        setCoords]        = useState(null);
   const [locating,      setLocating]      = useState(false);
-  const debounceTimer = useRef(null);
+  const [searching,     setSearching]     = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [query,         setQuery]         = useState('');
 
-  const fetchAddress = useCallback((lat, lng) => {
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    setGeocoding(true);
-    debounceTimer.current = setTimeout(async () => {
-      try {
-        const res = await api.reverseGeocode(lat, lng);
-        const name = res?.label || res?.display_name || res?.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        setAddressLabel(name);
-      } catch {
-        setAddressLabel(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-      } finally {
-        setGeocoding(false);
-      }
-    }, 400);
-  }, []);
-
-  // Initialize position on open
   useEffect(() => {
     if (!visible) return;
-
-    if (initialLocation?.lat && initialLocation?.lng) {
-      const lat = parseFloat(initialLocation.lat);
-      const lng = parseFloat(initialLocation.lng);
-      setSelectedCoord({ latitude: lat, longitude: lng });
-      setAddressLabel(initialLocation.label || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-      mapRef.current?.animateToRegion({
-        latitude: lat,
-        longitude: lng,
-        latitudeDelta: 0.015,
-        longitudeDelta: 0.015,
-      }, 500);
+    if (initialLocation?.label) {
+      setAddressLabel(initialLocation.label);
+      if (initialLocation.lat && initialLocation.lng) {
+        setCoords({
+          lat: parseFloat(initialLocation.lat),
+          lng: parseFloat(initialLocation.lng),
+        });
+      }
     } else {
       locateUser();
     }
@@ -64,50 +47,70 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        const fallback = { latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude };
-        setSelectedCoord(fallback);
-        fetchAddress(fallback.latitude, fallback.longitude);
+        setAddressLabel('Campus Main Gate');
+        setCoords({ lat: 12.9716, lng: 77.5946 });
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-      setSelectedCoord(coord);
-      fetchAddress(coord.latitude, coord.longitude);
-      mapRef.current?.animateToRegion({
-        ...coord,
-        latitudeDelta: 0.012,
-        longitudeDelta: 0.012,
-      }, 600);
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+      setCoords({ lat, lng });
+
+      try {
+        const res = await api.reverseGeocode(lat, lng);
+        const name = res?.label || res?.display_name || res?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        setAddressLabel(name);
+      } catch {
+        setAddressLabel(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      }
     } catch {
-      const fallback = { latitude: DEFAULT_REGION.latitude, longitude: DEFAULT_REGION.longitude };
-      setSelectedCoord(fallback);
-      fetchAddress(fallback.latitude, fallback.longitude);
+      setAddressLabel('Current Campus Location');
+      setCoords({ lat: 12.9716, lng: 77.5946 });
     } finally {
       setLocating(false);
     }
   };
 
-  const handleMapPress = (e) => {
-    const coord = e.nativeEvent.coordinate;
-    if (!coord) return;
-    setSelectedCoord(coord);
-    fetchAddress(coord.latitude, coord.longitude);
+  const handleSearch = async (text) => {
+    setQuery(text);
+    if (!text.trim() || text.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await api.searchLocation(text);
+      const list = Array.isArray(results) ? results : results?.results || [];
+      setSearchResults(list);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
   };
 
-  const handleMarkerDragEnd = (e) => {
-    const coord = e.nativeEvent.coordinate;
-    if (!coord) return;
-    setSelectedCoord(coord);
-    fetchAddress(coord.latitude, coord.longitude);
+  const selectSpot = (spotName) => {
+    setAddressLabel(spotName);
+    setSearchResults([]);
+    setQuery('');
+  };
+
+  const selectSearchResult = (item) => {
+    const label = item.label || item.formatted || item.display_name || item.name;
+    const lat = item.lat || item.latitude;
+    const lng = item.lon || item.lng || item.longitude;
+    setAddressLabel(label);
+    if (lat && lng) setCoords({ lat: parseFloat(lat), lng: parseFloat(lng) });
+    setSearchResults([]);
+    setQuery('');
   };
 
   const handleConfirm = () => {
-    if (!selectedCoord) return;
-    const finalLabel = addressLabel.trim() || `${selectedCoord.latitude.toFixed(5)}, ${selectedCoord.longitude.toFixed(5)}`;
+    if (!addressLabel.trim()) return;
     onSelect({
-      label: finalLabel,
-      lat: selectedCoord.latitude.toString(),
-      lng: selectedCoord.longitude.toString(),
+      label: addressLabel.trim(),
+      lat: coords?.lat ? coords.lat.toString() : '12.9716',
+      lng: coords?.lng ? coords.lng.toString() : '77.5946',
     });
     onClose();
   };
@@ -127,78 +130,86 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
             {locating ? (
               <ActivityIndicator color={colors.accent} size="small" />
             ) : (
-              <Text style={{ fontSize: 16 }}>📍 GPS</Text>
+              <Text style={{ fontSize: 13, color: colors.accent, fontWeight: '700' }}>📍 GPS</Text>
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Interactive Map */}
-        <View style={styles.mapWrap}>
-          <MapView
-            ref={mapRef}
-            style={StyleSheet.absoluteFillObject}
-            initialRegion={DEFAULT_REGION}
-            onPress={handleMapPress}
-            showsUserLocation
-            showsMyLocationButton={false}
-          >
-            {selectedCoord && (
-              <Marker
-                coordinate={selectedCoord}
-                draggable
-                onDragEnd={handleMarkerDragEnd}
-                title="Selected Location"
-                description={addressLabel}
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          {/* Search Box */}
+          <View style={styles.searchBox}>
+            <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
+            <TextInput
+              style={styles.input}
+              value={query}
+              onChangeText={handleSearch}
+              placeholder="Search location, landmark, hostel, gate..."
+              placeholderTextColor={colors.text3}
+            />
+            {searching && <ActivityIndicator color={colors.accent} size="small" />}
+          </View>
+
+          {/* Search Dropdown Results */}
+          {searchResults.length > 0 && (
+            <View style={styles.resultsBox}>
+              {searchResults.slice(0, 5).map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.resultItem}
+                  onPress={() => selectSearchResult(item)}
+                >
+                  <Text style={{ fontSize: 14 }}>📍</Text>
+                  <Text style={styles.resultText} numberOfLines={1}>
+                    {item.label || item.formatted || item.display_name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Selected Location Banner */}
+          <View style={styles.selectedCard}>
+            <Text style={styles.cardHeader}>SELECTED LOCATION</Text>
+            <View style={styles.selectedRow}>
+              <View style={styles.pinCircle}>
+                <Text style={{ fontSize: 18 }}>📍</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.selectedAddress}>{addressLabel || 'Locating...'}</Text>
+                {coords && (
+                  <Text style={styles.coordSub}>GPS: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</Text>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Quick Campus Landmarks */}
+          <Text style={styles.sectionTitle}>🏫 QUICK CAMPUS LANDMARKS</Text>
+          <View style={styles.spotsGrid}>
+            {POPULAR_CAMPUS_SPOTS.map((spot, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.spotChip, addressLabel === spot && styles.spotChipActive]}
+                onPress={() => selectSpot(spot)}
+                activeOpacity={0.7}
               >
-                <View style={styles.customPin}>
-                  <View style={styles.pinBubble}>
-                    <Text style={{ fontSize: 20 }}>📍</Text>
-                  </View>
-                  <View style={styles.pinDot} />
-                </View>
-              </Marker>
-            )}
-          </MapView>
-
-          {/* Hint Overlay */}
-          <View style={styles.hintBadge}>
-            <Text style={styles.hintText}>👆 Tap anywhere on map or drag pin to adjust</Text>
-          </View>
-        </View>
-
-        {/* Bottom Details & Confirm Card */}
-        <View style={styles.bottomCard}>
-          <View style={styles.addressRow}>
-            <View style={styles.addrIcon}>
-              <Text style={{ fontSize: 18 }}>📍</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.addrLabel}>Selected Location</Text>
-              {geocoding ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                  <ActivityIndicator color={colors.accent} size="small" />
-                  <Text style={{ color: colors.text3, fontSize: 12 }}>Resolving address…</Text>
-                </View>
-              ) : (
-                <Text style={styles.addrText} numberOfLines={2}>
-                  {addressLabel || 'Tap on map to select a point'}
+                <Text style={[styles.spotText, addressLabel === spot && styles.spotTextActive]}>
+                  {spot}
                 </Text>
-              )}
-              {selectedCoord && (
-                <Text style={styles.coordSub}>
-                  {selectedCoord.latitude.toFixed(5)}, {selectedCoord.longitude.toFixed(5)}
-                </Text>
-              )}
-            </View>
+              </TouchableOpacity>
+            ))}
           </View>
+        </ScrollView>
 
+        {/* Bottom Confirm */}
+        <View style={styles.bottomBar}>
           <TouchableOpacity
-            style={[styles.confirmBtn, (!selectedCoord || geocoding) && { opacity: 0.6 }]}
+            style={[styles.confirmBtn, !addressLabel && { opacity: 0.5 }]}
             onPress={handleConfirm}
-            disabled={!selectedCoord || geocoding}
+            disabled={!addressLabel}
             activeOpacity={0.8}
           >
-            <Text style={styles.confirmBtnText}>📍 Confirm This Location</Text>
+            <Text style={styles.confirmBtnText}>✓ Confirm "{addressLabel.slice(0, 24)}{addressLabel.length > 24 ? '...' : ''}"</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -224,70 +235,139 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   closeBtnText: { color: colors.text2, fontSize: 12, fontWeight: '700' },
-  topBarTitle: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1, textAlign: 'center', marginHorizontal: 8 },
+  topBarTitle: { color: colors.text, fontSize: 15, fontWeight: '700', flex: 1, textAlign: 'center' },
   gpsBtn: {
     backgroundColor: colors.accentDim,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.accent,
   },
 
-  mapWrap: { flex: 1, position: 'relative' },
-  hintBadge: {
-    position: 'absolute',
-    top: 12,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(7,9,13,0.85)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: radius.full,
+  scroll: { padding: spacing.md, paddingBottom: 100 },
+
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
   },
-  hintText: { color: colors.accent, fontSize: 11, fontWeight: '600' },
+  input: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+  },
+  resultsBox: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  resultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  resultText: { color: colors.text, fontSize: 13, flex: 1 },
 
-  customPin: { alignItems: 'center', justifyContent: 'center' },
-  pinBubble: {
+  selectedCard: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 4,
+    borderRadius: radius.xl,
+    padding: spacing.md,
     borderWidth: 1.5,
     borderColor: colors.accent,
+    marginBottom: spacing.lg,
   },
-  pinDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.accent,
-    marginTop: -2,
+  cardHeader: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  selectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pinCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectedAddress: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  coordSub: {
+    color: colors.text3,
+    fontSize: 11,
+    marginTop: 2,
   },
 
-  bottomCard: {
+  sectionTitle: {
+    color: colors.text2,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  spotsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  spotChip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.lg,
+  },
+  spotChipActive: {
+    backgroundColor: colors.accentDim,
+    borderColor: colors.accent,
+  },
+  spotText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  spotTextActive: {
+    color: colors.accent,
+    fontWeight: '700',
+  },
+
+  bottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     padding: spacing.md,
     paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
   },
-  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
-  addrIcon: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.accentDim,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.accent,
-  },
-  addrLabel: { color: colors.text3, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' },
-  addrText: { color: colors.text, fontSize: 13, fontWeight: '600', marginTop: 2, lineHeight: 18 },
-  coordSub: { color: colors.text3, fontSize: 10, marginTop: 2 },
-
   confirmBtn: {
     backgroundColor: colors.accent,
     borderRadius: radius.lg,
@@ -295,5 +375,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  confirmBtnText: { color: '#000', fontSize: 14, fontWeight: '800' },
+  confirmBtnText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '800',
+  },
 });

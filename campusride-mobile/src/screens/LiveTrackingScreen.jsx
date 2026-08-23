@@ -4,7 +4,6 @@ import {
   ActivityIndicator, Alert as RNAlert, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
@@ -31,7 +30,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [userLng,      setUserLng]      = useState(null);
   const [pickupCoords, setPickupCoords] = useState(null);
   const [dropCoords,   setDropCoords]   = useState(null);
-  const [routePolyline, setRoutePolyline] = useState([]);
   const [routeDistance, setRouteDistance] = useState('');
   const [routeDuration, setRouteDuration] = useState('');
   const [rideInfo,     setRideInfo]     = useState(null);
@@ -40,7 +38,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [lookingUp,    setLookingUp]    = useState(!paramRideId);
 
   const timerRef = useRef(null);
-  const mapRef   = useRef(null);
 
   // 1. Auto-discover active ride if no rideId was passed
   useEffect(() => {
@@ -84,7 +81,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => { isMounted = false; };
   }, [paramRideId]);
 
-  // 2. Fetch ride info & calculate optimal route / ETA
+  // 2. Fetch ride info & calculate ETA
   useEffect(() => {
     if (!activeRideId) {
       setLoading(false);
@@ -98,44 +95,31 @@ export default function LiveTrackingScreen({ navigation, route }) {
     api.getRideById(activeRideId)
       .then(async (data) => {
         if (!isMounted) return;
-        const r = data?.ride || data;
-        setRideInfo(r);
+        setRideInfo(data);
 
-        let pLat = null, pLng = null, dLat = null, dLng = null;
+        const pLat = data?.pickup?.coordinates?.[1];
+        const pLng = data?.pickup?.coordinates?.[0];
+        const dLat = data?.drop?.coordinates?.[1];
+        const dLng = data?.drop?.coordinates?.[0];
 
-        if (r?.pickup?.coordinates?.length === 2) {
-          const [lng, lat] = r.pickup.coordinates;
-          pLat = lat; pLng = lng;
-          setPickupCoords({ latitude: lat, longitude: lng });
-        }
-        if (r?.drop?.coordinates?.length === 2) {
-          const [lng, lat] = r.drop.coordinates;
-          dLat = lat; dLng = lng;
-          setDropCoords({ latitude: lat, longitude: lng });
-        }
+        if (pLat && pLng) setPickupCoords({ latitude: pLat, longitude: pLng });
+        if (dLat && dLng) setDropCoords({ latitude: dLat, longitude: dLng });
 
-        // Fetch optimal road route polyline & ETA
+        // Calculate route distance & duration
         if (pLat && pLng && dLat && dLng) {
           try {
             const routeData = await api.getOptimalRoute(pLat, pLng, dLat, dLng);
-            if (isMounted && routeData?.coordinates) {
-              setRoutePolyline(routeData.coordinates);
-              setRouteDistance(routeData.distanceKm || '');
+            if (isMounted && routeData) {
+              setRouteDistance(routeData.distanceKm ? `${routeData.distanceKm} km` : '');
               setRouteDuration(routeData.durationMin ? `${routeData.durationMin} mins` : '');
             }
-          } catch (routeErr) {
-            // Fallback straight line
-            if (isMounted) {
-              setRoutePolyline([
-                { latitude: pLat, longitude: pLng },
-                { latitude: dLat, longitude: dLng },
-              ]);
-            }
+          } catch (e) {
+            console.log('Route calc note:', e.message);
           }
         }
       })
-      .catch(e => {
-        if (isMounted) setError(e.message || 'Could not load ride tracking');
+      .catch((e) => {
+        if (isMounted) setError(e.message || 'Failed to load ride details');
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -144,25 +128,24 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => { isMounted = false; };
   }, [activeRideId]);
 
-  // 3. Timer for elapsed duration
+  // 3. Elapsed ride timer
   useEffect(() => {
     if (!tracking) return;
     timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
     return () => clearInterval(timerRef.current);
   }, [tracking]);
 
-  // 4. GPS tracking & location reporting
+  // 4. GPS tracking & real-time broadcast
   useEffect(() => {
-    if (!tracking) return;
-    let sub;
+    if (!tracking || !activeRideId) return;
+    let sub = null;
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return;
-
         sub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, timeInterval: 4000, distanceInterval: 10 },
-          loc => {
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 15, timeInterval: 8000 },
+          (loc) => {
             const { latitude, longitude } = loc.coords;
             setUserLat(latitude);
             setUserLng(longitude);
@@ -207,23 +190,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
     );
   }, [activeRideId, userLat, userLng]);
 
-  const mapRegion = userLat && userLng ? {
-    latitude: userLat,
-    longitude: userLng,
-    latitudeDelta: 0.03,
-    longitudeDelta: 0.03,
-  } : pickupCoords ? {
-    latitude: pickupCoords.latitude,
-    longitude: pickupCoords.longitude,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
-  } : {
-    latitude: 12.9716,
-    longitude: 77.5946,
-    latitudeDelta: 0.08,
-    longitudeDelta: 0.08,
-  };
-
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopHeader title="HOGO Track" subtitle="Live Route & Navigation" />
@@ -239,145 +205,112 @@ export default function LiveTrackingScreen({ navigation, route }) {
             icon="📍"
             title="No Active Ride to Track"
             subtitle="When you start or book a ride, your live route, GPS location, and ETA will show here in real time."
-            action={() => navigation.navigate('FindRide')}
+            action={() => navigation.navigate('SearchMatch')}
             actionLabel="Find a Ride →"
           />
         </View>
       ) : (
-        <View style={{ flex: 1 }}>
-          {/* Map View */}
-          <MapView
-            ref={mapRef}
-            style={styles.map}
-            region={mapRegion}
-            showsUserLocation
-            showsMyLocationButton
-          >
-            {/* Live user position */}
-            {userLat && userLng && (
-              <Marker coordinate={{ latitude: userLat, longitude: userLng }} title="You are here">
-                <View style={styles.liveMarker}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Live GPS Radar & Route Visualizer */}
+          <View style={styles.radarCard}>
+            <View style={styles.radarHeader}>
+              <View style={styles.livePulseDot} />
+              <Text style={styles.radarTitle}>🛰️ LIVE GPS TRACKING ACTIVE</Text>
+              <View style={styles.timerBadge}>
+                <Text style={styles.timerText}>{fmt(elapsed)}</Text>
+              </View>
+            </View>
+
+            {/* Visual Route Path */}
+            <View style={styles.routeDiagram}>
+              <View style={styles.routeNode}>
+                <View style={[styles.nodeIcon, { backgroundColor: colors.green + '22', borderColor: colors.green }]}>
                   <Text style={{ fontSize: 16 }}>📍</Text>
                 </View>
-              </Marker>
-            )}
-
-            {/* Pickup Marker */}
-            {pickupCoords && (
-              <Marker coordinate={pickupCoords} title={`Pickup: ${rideInfo?.pickup?.address || 'Pickup'}`}>
-                <View style={[styles.markerBadge, { backgroundColor: colors.green }]}>
-                  <Text style={styles.markerBadgeText}>A</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nodeLabel}>PICKUP POINT</Text>
+                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.pickup?.address || 'Pickup Location'}</Text>
                 </View>
-              </Marker>
-            )}
-
-            {/* Drop Marker */}
-            {dropCoords && (
-              <Marker coordinate={dropCoords} title={`Drop: ${rideInfo?.drop?.address || 'Destination'}`}>
-                <View style={[styles.markerBadge, { backgroundColor: colors.red }]}>
-                  <Text style={styles.markerBadgeText}>B</Text>
-                </View>
-              </Marker>
-            )}
-
-            {/* Optimal Road Polyline */}
-            {routePolyline.length > 0 && (
-              <Polyline
-                coordinates={routePolyline}
-                strokeColor={colors.accent}
-                strokeWidth={4}
-              />
-            )}
-          </MapView>
-
-          {/* Floating Route & ETA Information Card */}
-          <View style={styles.panel}>
-            {/* Status & ETA Header */}
-            <View style={styles.statusBar}>
-              <View style={styles.livePill}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>
-                  {rideInfo?.status === 'in-progress' ? 'RIDE IN PROGRESS' : 'ACTIVE RIDE'}
-                </Text>
               </View>
 
-              {routeDuration ? (
-                <View style={styles.etaPill}>
-                  <Text style={styles.etaText}>⏱ Est. {routeDuration}</Text>
+              <View style={styles.nodeConnector}>
+                <View style={styles.connectorLine} />
+                <View style={styles.liveCarBadge}>
+                  <Text style={{ fontSize: 14 }}>🚗</Text>
+                  <Text style={styles.liveCarText}>In Transit</Text>
                 </View>
-              ) : null}
+              </View>
 
-              <View style={styles.timer}>
-                <Text style={styles.timerText}>⏳ {fmt(elapsed)}</Text>
+              <View style={styles.routeNode}>
+                <View style={[styles.nodeIcon, { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}>
+                  <Text style={{ fontSize: 16 }}>🏁</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nodeLabel}>DROP-OFF DESTINATION</Text>
+                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
+                </View>
               </View>
             </View>
 
-            {/* Route Addresses */}
-            <View style={styles.routeBox}>
-              <View style={styles.routeRow}>
-                <View style={[styles.dot, { backgroundColor: colors.green }]} />
-                <Text style={styles.routeText} numberOfLines={1}>
-                  {rideInfo?.pickup?.address || 'Pickup Point'}
-                </Text>
+            {/* GPS Telemetry Bar */}
+            <View style={styles.telemetryBar}>
+              <View style={styles.telemetryItem}>
+                <Text style={styles.telemetryLabel}>EST. DISTANCE</Text>
+                <Text style={styles.telemetryVal}>{routeDistance || 'Calculating...'}</Text>
               </View>
-              <View style={styles.routeLine} />
-              <View style={styles.routeRow}>
-                <View style={[styles.dot, { backgroundColor: colors.red }]} />
-                <Text style={styles.routeText} numberOfLines={1}>
-                  {rideInfo?.drop?.address || 'Drop Point'}
-                </Text>
+              <View style={styles.telemetryDivider} />
+              <View style={styles.telemetryItem}>
+                <Text style={styles.telemetryLabel}>EST. TIME</Text>
+                <Text style={[styles.telemetryVal, { color: colors.accent }]}>{routeDuration || 'Calculating...'}</Text>
               </View>
-            </View>
-
-            {/* Route Stats */}
-            <View style={styles.statsRow}>
-              {routeDistance ? (
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>DISTANCE</Text>
-                  <Text style={styles.statVal}>{routeDistance} km</Text>
-                </View>
-              ) : null}
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>COST</Text>
-                <Text style={[styles.statVal, { color: colors.accent }]}>₹{rideInfo?.costPerSeat}/seat</Text>
+              <View style={styles.telemetryDivider} />
+              <View style={styles.telemetryItem}>
+                <Text style={styles.telemetryLabel}>VEHICLE</Text>
+                <Text style={styles.telemetryVal}>{rideInfo?.vehicleType ? rideInfo.vehicleType.toUpperCase() : 'CAR'}</Text>
               </View>
-              <View style={styles.statItem}>
-                <Text style={styles.statLabel}>VEHICLE</Text>
-                <Text style={styles.statVal}>{rideInfo?.vehicleName || rideInfo?.vehicleType || 'Vehicle'}</Text>
-              </View>
-            </View>
-
-            <Alert message={error} />
-
-            {sosSent && (
-              <View style={styles.sosSentBanner}>
-                <Text style={styles.sosSentText}>🆘 SOS Alert broadcasted! Help is on the way.</Text>
-              </View>
-            )}
-
-            {/* Action Buttons */}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-              <TouchableOpacity
-                style={[styles.sosBtn, sosSent && { opacity: 0.5 }]}
-                onPress={triggerSOS}
-                disabled={sosSent || sosLoading}
-              >
-                {sosLoading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.sosBtnText}>🆘 SOS Emergency</Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.detailsBtn}
-                onPress={() => navigation.navigate('RideDetail', { rideId: activeRideId })}
-              >
-                <Text style={styles.detailsBtnText}>Ride Details →</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+
+          {/* Current Live Coordinates Card */}
+          {userLat && userLng && (
+            <View style={styles.coordCard}>
+              <Text style={styles.coordTitle}>📍 Device Live Coordinates</Text>
+              <Text style={styles.coordText}>Lat: {userLat.toFixed(5)}  |  Lng: {userLng.toFixed(5)}</Text>
+            </View>
+          )}
+
+          <Alert message={error} />
+
+          {sosSent && (
+            <View style={styles.sosSentBanner}>
+              <Text style={styles.sosSentText}>🆘 SOS Alert broadcasted! Help is on the way.</Text>
+            </View>
+          )}
+
+          {/* Emergency & Action Buttons */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.sosBtn, sosSent && { opacity: 0.5 }]}
+              onPress={triggerSOS}
+              disabled={sosSent || sosLoading}
+              activeOpacity={0.8}
+            >
+              {sosLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.sosBtnText}>🆘 SOS EMERGENCY</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.detailsBtn}
+              onPress={() => navigation.navigate('RideDetail', { rideId: activeRideId })}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.detailsBtnText}>Ride Details →</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       )}
     </SafeAreaView>
   );
@@ -385,83 +318,210 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  map:  { flex: 1 },
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
-  emptyContainer:  { flex: 1, justifyContent: 'center', padding: spacing.lg },
-  loadingText: { color: colors.text2, fontSize: 13, marginTop: 12 },
+  emptyContainer: { flex: 1, justifyContent: 'center' },
+  loadingText: { color: colors.text2, marginTop: 14, fontSize: 14, fontWeight: '600' },
+  scroll: { padding: spacing.md, paddingBottom: 40 },
 
-  liveMarker: {
-    backgroundColor: colors.accentDim, borderRadius: 20, padding: 6,
-    borderWidth: 2, borderColor: colors.accent,
-  },
-  markerBadge: {
-    width: 26, height: 26, borderRadius: 13,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#fff',
-  },
-  markerBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900' },
-
-  panel: {
+  radarCard: {
     backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.md,
-    paddingBottom: 20,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
+    marginBottom: spacing.md,
   },
-  statusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  livePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(45,212,160,0.15)', borderRadius: radius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+  radarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.green },
-  liveText: { color: colors.green, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  etaPill: {
-    backgroundColor: colors.accentDim, borderRadius: radius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+  livePulseDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.green,
+    marginRight: 8,
   },
-  etaText: { color: colors.accent, fontSize: 11, fontWeight: '700' },
-  timer: {
-    backgroundColor: colors.surface2, borderRadius: radius.full,
-    paddingHorizontal: 10, paddingVertical: 4, marginLeft: 'auto',
+  radarTitle: {
+    color: colors.green,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    flex: 1,
   },
-  timerText: { color: colors.text, fontSize: 11, fontWeight: '700' },
+  timerBadge: {
+    backgroundColor: colors.surface2,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  timerText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '800',
+  },
 
-  routeBox: {
-    backgroundColor: colors.surface2, borderRadius: radius.lg,
-    padding: 12, marginBottom: 10,
+  routeDiagram: {
+    paddingVertical: 8,
   },
-  routeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  routeLine: { width: 2, height: 10, backgroundColor: colors.border, marginLeft: 4, marginVertical: 2 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  routeText: { flex: 1, color: colors.text, fontSize: 12, fontWeight: '600' },
+  routeNode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  nodeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nodeLabel: {
+    color: colors.text3,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  nodeAddress: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  nodeConnector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingLeft: 17,
+  },
+  connectorLine: {
+    width: 2,
+    height: 32,
+    backgroundColor: colors.border,
+  },
+  liveCarBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.accentDim,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    marginLeft: 14,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.accent + '55',
+  },
+  liveCarText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+  },
 
-  statsRow: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    borderTopWidth: 1, borderTopColor: colors.border,
-    paddingTop: 10, marginBottom: 4,
+  telemetryBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: colors.surface2,
+    borderRadius: radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  statItem: { alignItems: 'center' },
-  statLabel: { color: colors.text3, fontSize: 9, fontWeight: '800', letterSpacing: 0.5, marginBottom: 2 },
-  statVal: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  telemetryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  telemetryLabel: {
+    color: colors.text3,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  telemetryVal: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  telemetryDivider: {
+    width: 1,
+    backgroundColor: colors.border,
+  },
+
+  coordCard: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.lg,
+    padding: 12,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+  },
+  coordTitle: {
+    color: colors.text2,
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  coordText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
   sosSentBanner: {
-    backgroundColor: 'rgba(224,85,85,0.15)', borderRadius: radius.md,
-    padding: 10, marginTop: 8, borderWidth: 1, borderColor: colors.red + '44',
+    backgroundColor: 'rgba(224,85,85,0.15)',
+    borderRadius: radius.md,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.red + '55',
   },
-  sosSentText: { color: colors.red, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  sosSentText: {
+    color: colors.red,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
 
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
   sosBtn: {
-    flex: 1, backgroundColor: colors.red, borderRadius: radius.lg,
-    paddingVertical: 13, alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    backgroundColor: colors.red,
+    borderRadius: radius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  sosBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  sosBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
   detailsBtn: {
-    flex: 1, backgroundColor: colors.surface2, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.border,
-    paddingVertical: 13, alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  detailsBtnText: { color: colors.text, fontWeight: '700', fontSize: 13 },
+  detailsBtnText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });
