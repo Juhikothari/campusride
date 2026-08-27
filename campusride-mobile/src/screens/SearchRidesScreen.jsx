@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Alert as RNAlert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
@@ -110,11 +111,52 @@ export default function SearchRidesScreen({ navigation }) {
     }
   };
 
+  // Search history state
+  const [searchHistory, setSearchHistory] = useState([]);
+
+  // Load search history from AsyncStorage
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('cr_search_history');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) setSearchHistory(list.slice(0, 6));
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const saveSearchHistoryItem = async (p, d) => {
+    if (!p?.label && !d?.label) return;
+    try {
+      const newItem = {
+        pickup: p,
+        drop: d,
+        timestamp: Date.now(),
+      };
+      setSearchHistory(prev => {
+        const filtered = prev.filter(item =>
+          !(item.pickup?.label === p.label && item.drop?.label === d.label)
+        );
+        const updated = [newItem, ...filtered].slice(0, 6);
+        AsyncStorage.setItem('cr_search_history', JSON.stringify(updated)).catch(() => {});
+        return updated;
+      });
+    } catch {}
+  };
+
+  const applyHistorySearch = (item) => {
+    if (item.pickup) setPickup(item.pickup);
+    if (item.drop) setDrop(item.drop);
+  };
+
   const doSearch = useCallback(async () => {
     setError('');
     if (!pickup.lat || !pickup.lng) { setError('Enter or detect your pickup location'); return; }
     setLoading(true);
     setSearched(true);
+    saveSearchHistoryItem(pickup, drop);
     try {
       const params = {
         lat: pickup.lat, lng: pickup.lng, maxDistance: 10000,
@@ -228,7 +270,6 @@ export default function SearchRidesScreen({ navigation }) {
           value={pickup.label}
           onChange={(label, lat, lng) => {
             setPickup({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
-            setRouteInfo(null);
           }}
           placeholder="Where are you starting from?"
         />
@@ -239,48 +280,58 @@ export default function SearchRidesScreen({ navigation }) {
           value={drop.label}
           onChange={(label, lat, lng) => {
             setDrop({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
-            setRouteInfo(null);
           }}
           placeholder="Where do you want to go?"
         />
 
-        {/* Find My Route Button */}
-        {pickup.lat && drop.lat && (
-          <TouchableOpacity
-            style={styles.routeBtn}
-            onPress={calculateRoute}
-            disabled={routeLoading}
-            activeOpacity={0.8}
-          >
-            {routeLoading ? (
-              <ActivityIndicator color={colors.accent} size="small" />
-            ) : (
-              <Text style={styles.routeBtnText}>🗺️ Find My Route & Travel Time</Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Route Details Card */}
-        {routeInfo && (
-          <View style={styles.routeCard}>
-            <View style={styles.routeCardHeader}>
-              <Text style={styles.routeCardTitle}>📍 Optimal Route Summary</Text>
-              <Text style={styles.routeTimePill}>⏱ ~{routeInfo.durationMin} mins</Text>
-            </View>
-            <View style={styles.routeCardStats}>
-              <Text style={styles.routeStatText}>📏 Total Distance: <Text style={{ color: colors.text, fontWeight: '700' }}>{routeInfo.distanceKm} km</Text></Text>
-              <Text style={styles.routeStatText}>⚡ Estimated Commute: <Text style={{ color: colors.accent, fontWeight: '700' }}>{routeInfo.durationMin} minutes</Text></Text>
-            </View>
+        {/* ── Recent Search History Chips ── */}
+        {searchHistory.length > 0 && (
+          <View style={styles.historySection}>
+            <Text style={styles.historyLabel}>🕒 RECENT SEARCHES</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {searchHistory.map((item, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.historyChip}
+                    onPress={() => applyHistorySearch(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 12 }}>📍</Text>
+                    <Text style={styles.historyText} numberOfLines={1}>
+                      {item.pickup?.label?.split(',')[0] || 'Pickup'} → {item.drop?.label?.split(',')[0] || 'Drop'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
           </View>
         )}
 
         {/* Schedule */}
         <Text style={styles.filterLabel}>When do you need a ride?</Text>
         <TogglePill
-          options={[{ value: 'now', label: 'Ride Now', icon: '⚡' }, { value: 'later', label: 'Schedule', icon: '🗓' }]}
+          options={[{ value: 'now', label: '⚡ Ride Now' }, { value: 'later', label: '🗓 Schedule' }]}
           value={schedMode}
           onChange={setSchedMode}
         />
+
+        {schedMode === 'later' && (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: spacing.sm, marginBottom: spacing.md }}>
+            <TouchableOpacity
+              style={[styles.dateChip, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipActive]}
+              onPress={() => setDate(new Date().toISOString().split('T')[0])}
+            >
+              <Text style={[styles.dateChipText, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipTextActive]}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.dateChip, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipActive]}
+              onPress={() => setDate(new Date(Date.now() + 86400000).toISOString().split('T')[0])}
+            >
+              <Text style={[styles.dateChipText, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipTextActive]}>Tomorrow</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Vehicle filter */}
         <Text style={[styles.filterLabel, { marginTop: spacing.md }]}>Vehicle Type</Text>
@@ -362,25 +413,45 @@ const styles = StyleSheet.create({
   scroll:    { padding: spacing.md, paddingBottom: 48 },
   filterLabel: { color: colors.text2, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   locRow:    { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  geoBtn: {
-    backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, padding: 12, marginBottom: spacing.md, alignItems: 'center',
+  historySection: {
+    marginBottom: spacing.xs,
   },
-  routeBtn: {
-    backgroundColor: colors.accentDim, borderWidth: 1, borderColor: colors.accent + '55',
-    borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 14,
-    alignItems: 'center', marginBottom: 14,
+  historyLabel: {
+    color: colors.text3,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+    textTransform: 'uppercase',
   },
-  routeBtnText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
-  routeCard: {
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: spacing.md,
+  historyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: 220,
   },
-  routeCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  routeCardTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  routeTimePill: { backgroundColor: colors.accentDim, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full, color: colors.accent, fontSize: 11, fontWeight: '800' },
-  routeCardStats: { gap: 4 },
-  routeStatText: { color: colors.text2, fontSize: 12 },
+  historyText: {
+    color: colors.text2,
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  dateChip: {
+    backgroundColor: colors.surface2,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateChipActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  dateChipText: { color: colors.text2, fontSize: 12, fontWeight: '600' },
+  dateChipTextActive: { color: colors.accent, fontWeight: '700' },
   vehicleChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 2,

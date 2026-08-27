@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
+  StyleSheet, KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
 import LocationSearch from '../components/LocationSearch';
@@ -43,11 +42,21 @@ export default function CreateRideScreen({ navigation }) {
   const { user } = useAuth();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
-  const [pickup,      setPickup]      = useState({ label: '', lat: '', lng: '' });
-  const [drop,        setDrop]        = useState({ label: '', lat: '', lng: '' });
-  const [vehicleType, setVehicleType] = useState('car');
-  const [vehicleName, setVehicleName] = useState('');
-  const [seats,       setSeats]       = useState('3');
+  const [pickupFrom,    setPickupFrom]    = useState('college'); // 'college' | 'home'
+  const [pickup,        setPickup]        = useState({ label: '', lat: '', lng: '' });
+  const [drop,          setDrop]          = useState({ label: '', lat: '', lng: '' });
+  const [vehicleType,   setVehicleType]   = useState('car');
+  const [vehicleName,   setVehicleName]   = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [userVehicles,  setUserVehicles]  = useState([]);
+  const [selectedVIdx,  setSelectedVIdx]  = useState(0);
+
+  // Missing vehicle modal
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [modalVName,       setModalVName]       = useState('');
+  const [modalVNum,        setModalVNum]        = useState('');
+  const [modalSaving,      setModalSaving]      = useState(false);
+
   const [cost,        setCost]        = useState('0');
   const [date,        setDate]        = useState('');
   const [time,        setTime]        = useState('');
@@ -58,15 +67,37 @@ export default function CreateRideScreen({ navigation }) {
   const [error,       setError]       = useState('');
   const [distKm,      setDistKm]      = useState(0);
 
-  // Route preview
-  const [routeInfo,    setRouteInfo]    = useState(null);
-  const [routeLoading, setRouteLoading] = useState(false);
+  // Load user vehicles
+  useEffect(() => {
+    if (!isProvider) return;
+    api.getUserVehicles()
+      .then(list => {
+        const vList = Array.isArray(list) ? list : [];
+        setUserVehicles(vList);
+        if (vList.length > 0) {
+          setVehicleName(vList[0].vehicleName || '');
+          setVehicleNumber(vList[0].vehicleNumber || '');
+          if (vList[0].vehicleType) setVehicleType(vList[0].vehicleType);
+        } else if (user?.kycDocuments?.vehicleNumber) {
+          setVehicleNumber(user.kycDocuments.vehicleNumber);
+          setVehicleName(user.kycDocuments.vehicleName || 'Car');
+        }
+      })
+      .catch(() => {});
+  }, [isProvider]);
 
-  if (!isProvider) return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <EmptyState icon="🚫" title="Access Denied" subtitle="Only providers can create rides." action={() => navigation.goBack()} actionLabel="Go Back" />
-    </SafeAreaView>
-  );
+  // Set default college pickup when "college" is chosen
+  useEffect(() => {
+    if (pickupFrom === 'college' && user?.college) {
+      setPickup({
+        label: `${user.college} (Campus Main Gate)`,
+        lat: '12.9716',
+        lng: '77.5946',
+      });
+    } else if (pickupFrom === 'home') {
+      setPickup({ label: '', lat: '', lng: '' });
+    }
+  }, [pickupFrom, user?.college]);
 
   // Auto-calculate distance + cost
   useEffect(() => {
@@ -76,52 +107,79 @@ export default function CreateRideScreen({ navigation }) {
     setCost(String(calcCost(d, vehicleType)));
   }, [pickup.lat, pickup.lng, drop.lat, drop.lng, vehicleType]);
 
-  // Set current time when "Ride Now" selected
+  // Set current date & time for "now"
   useEffect(() => {
+    const now = new Date();
+    setDate(now.toISOString().split('T')[0]);
     if (schedMode === 'now') {
-      const now = new Date();
-      setDate(now.toISOString().split('T')[0]);
-      setTime(now.toTimeString().slice(0, 5));
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      setTime(`${hh}:${mm}`);
     }
   }, [schedMode]);
 
-  const geoLocate = async (field) => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { latitude: lat, longitude: lng } = loc.coords;
-      const res = await api.reverseGeocode(lat, lng).catch(() => null);
-      const label = res?.label || 'Current Location';
-      if (field === 'pickup') setPickup({ label, lat: lat.toString(), lng: lng.toString() });
-      else                    setDrop({ label, lat: lat.toString(), lng: lng.toString() });
-    } catch {}
-  };
-
-  const calculateRoute = async () => {
-    if (!pickup.lat || !pickup.lng || !drop.lat || !drop.lng) {
-      setError('Enter both pickup and drop locations to preview your route.');
-      return;
-    }
-    setRouteLoading(true);
-    setError('');
-    try {
-      const routeData = await api.getOptimalRoute(pickup.lat, pickup.lng, drop.lat, drop.lng);
-      setRouteInfo(routeData);
-    } catch (e) {
-      setError('Could not calculate route.');
-    } finally {
-      setRouteLoading(false);
-    }
-  };
+  if (!isProvider) return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+      <EmptyState icon="🚫" title="Access Denied" subtitle="Only providers can create rides." action={() => navigation.goBack()} actionLabel="Go Back" />
+    </SafeAreaView>
+  );
 
   const isFemale = user?.gender === 'female';
 
+  const handleSelectVehicle = (v, idx) => {
+    setSelectedVIdx(idx);
+    setVehicleName(v.vehicleName || '');
+    setVehicleNumber(v.vehicleNumber || '');
+    if (v.vehicleType) setVehicleType(v.vehicleType);
+  };
+
+  const handleSaveModalVehicle = async () => {
+    if (!modalVNum.trim() || !modalVName.trim()) {
+      setError('Enter both vehicle registration number and name/model.');
+      return;
+    }
+    setModalSaving(true);
+    try {
+      await api.saveVehicle({
+        vehicleNumber: modalVNum.trim().toUpperCase(),
+        vehicleName:   modalVName.trim(),
+        vehicleType,
+      });
+      setVehicleNumber(modalVNum.trim().toUpperCase());
+      setVehicleName(modalVName.trim());
+      setUserVehicles(prev => [
+        ...prev,
+        { vehicleNumber: modalVNum.trim().toUpperCase(), vehicleName: modalVName.trim(), vehicleType }
+      ]);
+      setShowVehicleModal(false);
+      setModalVNum('');
+      setModalVName('');
+    } catch (e) {
+      setError(e.message || 'Failed to save vehicle details');
+    } finally {
+      setModalSaving(false);
+    }
+  };
+
+  const setPresetTime = (offsetMins) => {
+    const d = new Date(Date.now() + offsetMins * 60 * 1000);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    setTime(`${hh}:${mm}`);
+  };
+
   const submit = async () => {
     setError('');
-    if (!pickup.lat) { setError('Enter pickup location'); return; }
+
+    // Check if vehicle details are missing
+    if (!vehicleNumber.trim() && userVehicles.length === 0) {
+      setShowVehicleModal(true);
+      return;
+    }
+
+    if (!pickup.lat) { setError('Enter or select pickup location'); return; }
     if (!drop.lat)   { setError('Enter drop location');   return; }
-    if (!date || !time) { setError('Enter date and time'); return; }
+    if (!date || !time) { setError('Select a valid date and time'); return; }
 
     const selectedCap = VEHICLES.find(v => v.value === vehicleType)?.capacity || 1;
     const computedCost = calcCost(distKm, vehicleType) || 0;
@@ -143,7 +201,8 @@ export default function CreateRideScreen({ navigation }) {
         seatsAvailable: selectedCap,
         costPerSeat:    computedCost,
         vehicleType,
-        vehicleName:    vehicleType.toUpperCase(),
+        vehicleName:    vehicleName.trim() || 'Car',
+        vehicleNumber:  vehicleNumber.toUpperCase().trim(),
         womenOnly:      isFemale ? womenOnly : false,
         college:        user?.college || '',
       });
@@ -158,16 +217,14 @@ export default function CreateRideScreen({ navigation }) {
   if (success) return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
       <Text style={{ fontSize: 60, marginBottom: 16 }}>🎉</Text>
-      <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>Ride Created!</Text>
+      <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>Ride Posted Successfully!</Text>
       <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 20 }}>
-        Your ride has been posted on HOGO. Students from your college can now book seats.
+        Your ride is now visible to students from {user?.college || 'your campus'}.
       </Text>
       <Btn label="View Ride Requests" onPress={() => navigation.navigate('ProviderBookings')} style={{ width: '100%', marginBottom: 12 }} />
       <Btn label="Post Another Ride" onPress={() => setSuccess(null)} variant="outline" style={{ width: '100%' }} />
     </SafeAreaView>
   );
-
-  const selectedVehicle = VEHICLES.find(v => v.value === vehicleType);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -177,15 +234,36 @@ export default function CreateRideScreen({ navigation }) {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Alert message={error} />
 
-          {/* Locations */}
+          {/* ── WHERE ARE YOU PICKING UP FROM? ── */}
+          <Text style={styles.sectionHeading}>WHERE ARE YOU PICKING UP FROM? *</Text>
+          <View style={styles.pickupSourceRow}>
+            <TouchableOpacity
+              style={[styles.pickupSourceBtn, pickupFrom === 'college' && styles.pickupSourceBtnActive]}
+              onPress={() => setPickupFrom('college')}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 24, marginBottom: 4 }}>🏫</Text>
+              <Text style={[styles.pickupSourceText, pickupFrom === 'college' && styles.pickupSourceTextActive]}>COLLEGE</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.pickupSourceBtn, pickupFrom === 'home' && styles.pickupSourceBtnActive]}
+              onPress={() => setPickupFrom('home')}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 24, marginBottom: 4 }}>🏠</Text>
+              <Text style={[styles.pickupSourceText, pickupFrom === 'home' && styles.pickupSourceTextActive]}>HOME</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Pickup & Drop Locations */}
           <LocationSearch
             label="Pickup Location"
             value={pickup.label}
             onChange={(label, lat, lng) => {
               setPickup({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
-              setRouteInfo(null);
             }}
-            placeholder="Where from?"
+            placeholder={pickupFrom === 'college' ? `${user?.college || 'College'} Campus` : 'Enter Home / Pickup Location'}
           />
 
           <LocationSearch
@@ -193,57 +271,68 @@ export default function CreateRideScreen({ navigation }) {
             value={drop.label}
             onChange={(label, lat, lng) => {
               setDrop({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
-              setRouteInfo(null);
             }}
-            placeholder="Where to?"
+            placeholder="Where are you going?"
           />
 
-          {/* What's My Route Button */}
-          {pickup.lat && drop.lat && (
-            <TouchableOpacity
-              style={styles.routeBtn}
-              onPress={calculateRoute}
-              disabled={routeLoading}
-              activeOpacity={0.8}
-            >
-              {routeLoading ? (
-                <ActivityIndicator color={colors.accent} size="small" />
-              ) : (
-                <Text style={styles.routeBtnText}>🗺️ What's my route & estimated time?</Text>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {/* Route Details Card */}
-          {routeInfo && (
-            <View style={styles.routeCard}>
-              <View style={styles.routeCardHeader}>
-                <Text style={styles.routeCardTitle}>📍 Optimal Route Calculated</Text>
-                <Text style={styles.routeTimePill}>⏱ ~{routeInfo.durationMin} mins</Text>
-              </View>
-              <View style={styles.routeCardStats}>
-                <Text style={styles.routeStatText}>📏 Total Distance: <Text style={{ color: colors.text, fontWeight: '700' }}>{routeInfo.distanceKm} km</Text></Text>
-                <Text style={styles.routeStatText}>⚡ Estimated Travel: <Text style={{ color: colors.accent, fontWeight: '700' }}>{routeInfo.durationMin} minutes</Text></Text>
-              </View>
-            </View>
-          )}
-
-          {/* Schedule */}
-          <Text style={styles.fieldLabel}>When?</Text>
+          {/* ── WHEN / SCHEDULE ── */}
+          <Text style={styles.fieldLabel}>WHEN?</Text>
           <TogglePill
-            options={[{ value: 'now', label: 'Now', icon: '⚡' }, { value: 'later', label: 'Schedule', icon: '🗓' }]}
+            options={[{ value: 'now', label: '⚡ Ride Now' }, { value: 'later', label: '🗓 Schedule' }]}
             value={schedMode}
             onChange={setSchedMode}
           />
+
           {schedMode === 'later' && (
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.md }}>
-              <Input label="Date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" containerStyle={{ flex: 1 }} />
-              <Input label="Time" value={time} onChangeText={setTime} placeholder="HH:MM" containerStyle={{ flex: 1 }} />
+            <View style={{ marginTop: spacing.sm, marginBottom: spacing.md }}>
+              <Text style={[styles.fieldLabel, { marginTop: 8 }]}>SELECT DATE & TIME</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                <TouchableOpacity
+                  style={[styles.timeChip, date === new Date().toISOString().split('T')[0] && styles.timeChipActive]}
+                  onPress={() => setDate(new Date().toISOString().split('T')[0])}
+                >
+                  <Text style={[styles.timeChipText, date === new Date().toISOString().split('T')[0] && styles.timeChipTextActive]}>Today</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.timeChip, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.timeChipActive]}
+                  onPress={() => setDate(new Date(Date.now() + 86400000).toISOString().split('T')[0])}
+                >
+                  <Text style={[styles.timeChipText, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.timeChipTextActive]}>Tomorrow</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Input
+                  label="Date (YYYY-MM-DD)"
+                  value={date}
+                  onChangeText={setDate}
+                  placeholder="YYYY-MM-DD"
+                  containerStyle={{ flex: 1 }}
+                />
+                <Input
+                  label="Time (HH:MM)"
+                  value={time}
+                  onChangeText={setTime}
+                  placeholder="e.g. 15:30"
+                  containerStyle={{ flex: 1 }}
+                />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                {['+15 min', '+30 min', '+1 hr', '+2 hr'].map((offset, idx) => {
+                  const mins = [15, 30, 60, 120][idx];
+                  return (
+                    <TouchableOpacity key={offset} onPress={() => setPresetTime(mins)} style={styles.quickTimeBtn}>
+                      <Text style={styles.quickTimeText}>{offset}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
           )}
 
-          {/* Vehicle Selection */}
-          <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>Vehicle Type</Text>
+          {/* ── VEHICLE TYPE ── */}
+          <Text style={[styles.fieldLabel, { marginTop: spacing.md }]}>VEHICLE TYPE</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: spacing.md, flexWrap: 'wrap' }}>
             {VEHICLES.map(v => (
               <TouchableOpacity
@@ -256,17 +345,64 @@ export default function CreateRideScreen({ navigation }) {
             ))}
           </View>
 
-          {/* Women-only toggle — Only visible to female accounts */}
+          {/* ── VEHICLE DETAILS & MULTI-VEHICLE SELECTOR ── */}
+          <View style={styles.vehicleSection}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={styles.sectionHeading}>VEHICLE DETAILS</Text>
+              <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.manageVehicleBtn}>
+                <Text style={styles.manageVehicleText}>+ Add / Change</Text>
+              </TouchableOpacity>
+            </View>
+
+            {userVehicles.length > 1 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {userVehicles.map((v, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[styles.vSelectChip, selectedVIdx === i && styles.vSelectChipActive]}
+                      onPress={() => handleSelectVehicle(v, i)}
+                    >
+                      <Text style={[styles.vSelectText, selectedVIdx === i && styles.vSelectTextActive]}>
+                        🚗 {v.vehicleName || 'Vehicle'} ({v.vehicleNumber})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Input
+                label="Vehicle Number"
+                value={vehicleNumber}
+                onChangeText={t => setVehicleNumber(t.toUpperCase())}
+                placeholder="e.g. KA02KA1333"
+                containerStyle={{ flex: 1 }}
+                autoCapitalize="characters"
+              />
+              <Input
+                label="Model / Name"
+                value={vehicleName}
+                onChangeText={setVehicleName}
+                placeholder="e.g. Jupiter, Swift"
+                containerStyle={{ flex: 1 }}
+                autoCapitalize="words"
+              />
+            </View>
+          </View>
+
+          {/* Women-only toggle */}
           {isFemale && (
             <TouchableOpacity
               onPress={() => setWomenOnly(w => !w)}
               style={[styles.womenToggle, womenOnly && styles.womenToggleActive]}
               activeOpacity={0.8}
             >
-              <Text style={{ fontSize: 16 }}>♀</Text>
+              <Text style={{ fontSize: 18 }}>♀</Text>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.womenToggleTitle, womenOnly && { color: colors.pink }]}>Women-only ride</Text>
-                <Text style={{ color: colors.text2, fontSize: 12 }}>Only female seekers from your college can book</Text>
+                <Text style={{ color: colors.text2, fontSize: 12 }}>Only female students from your campus can request seats</Text>
               </View>
               <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
             </TouchableOpacity>
@@ -275,6 +411,38 @@ export default function CreateRideScreen({ navigation }) {
           <Btn label="🚗 Post Ride on HOGO" onPress={submit} loading={loading} style={{ marginTop: spacing.md }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Modal: Add Missing Vehicle Details */}
+      <Modal visible={showVehicleModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🚗 Add Vehicle Details</Text>
+            <Text style={styles.modalSub}>Enter your vehicle info so campus riders can identify your vehicle.</Text>
+
+            <Input
+              label="Vehicle Registration Number"
+              icon="🔢"
+              value={modalVNum}
+              onChangeText={t => setModalVNum(t.toUpperCase())}
+              placeholder="KA02KA1333"
+              autoCapitalize="characters"
+            />
+            <Input
+              label="Vehicle Model / Name"
+              icon="🚗"
+              value={modalVName}
+              onChangeText={setModalVName}
+              placeholder="e.g. Jupiter, Swift Dezire"
+              autoCapitalize="words"
+            />
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <Btn label="Save Vehicle" onPress={handleSaveModalVehicle} loading={modalSaving} style={{ flex: 1 }} />
+              <Btn label="Cancel" onPress={() => setShowVehicleModal(false)} variant="outline" style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -282,32 +450,119 @@ export default function CreateRideScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe:        { flex: 1, backgroundColor: colors.bg },
   scroll:      { padding: spacing.md, paddingBottom: 48 },
+  sectionHeading: {
+    color: colors.text2,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
   fieldLabel:  { color: colors.text2, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  locRow:      { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  geoBtn:      { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 12, marginBottom: spacing.md },
-  routeBtn: {
-    backgroundColor: colors.accentDim, borderWidth: 1, borderColor: colors.accent + '55',
-    borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 14,
-    alignItems: 'center', marginBottom: 14,
+
+  pickupSourceRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: spacing.md,
   },
-  routeBtnText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
-  routeCard: {
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: spacing.md,
+  pickupSourceBtn: {
+    flex: 1,
+    backgroundColor: colors.surface2,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  routeCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  routeCardTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  routeTimePill: { backgroundColor: colors.accentDim, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full, color: colors.accent, fontSize: 11, fontWeight: '800' },
-  routeCardStats: { gap: 4 },
-  routeStatText: { color: colors.text2, fontSize: 12 },
+  pickupSourceBtnActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  pickupSourceText: {
+    color: colors.text2,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  pickupSourceTextActive: {
+    color: colors.accent,
+  },
+
+  timeChip: {
+    backgroundColor: colors.surface2,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  timeChipActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  timeChipText: { color: colors.text2, fontSize: 12, fontWeight: '600' },
+  timeChipTextActive: { color: colors.accent, fontWeight: '700' },
+
+  quickTimeBtn: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quickTimeText: { color: colors.text3, fontSize: 11, fontWeight: '600' },
+
   vehicleChip: { borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 10 },
   vehicleChipActive:     { borderColor: colors.accent, backgroundColor: colors.accentDim },
   vehicleChipText:       { color: colors.text2, fontSize: 14, fontWeight: '600' },
   vehicleChipTextActive: { color: colors.accent },
-  fareCard:    { backgroundColor: colors.surface2, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md, alignItems: 'center' },
+
+  vehicleSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  manageVehicleBtn: {
+    backgroundColor: colors.accentDim,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+  },
+  manageVehicleText: { color: colors.accent, fontSize: 11, fontWeight: '700' },
+
+  vSelectChip: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  vSelectChipActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  vSelectText: { color: colors.text2, fontSize: 12 },
+  vSelectTextActive: { color: colors.accent, fontWeight: '700' },
+
   womenToggle: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: spacing.md },
   womenToggleActive: { borderColor: colors.pink, backgroundColor: 'rgba(233,30,140,0.08)' },
   womenToggleTitle: { color: colors.text, fontSize: 14, fontWeight: '600', marginBottom: 2 },
   toggleDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.border },
   toggleDotActive: { backgroundColor: colors.pink },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+  },
+  modalTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  modalSub: { color: colors.text2, fontSize: 13, marginBottom: spacing.md },
 });

@@ -392,10 +392,20 @@ const CHECKS = [
   { key: 'sosKnown',      label: 'I know how to use SOS if needed' },
 ];
 
-export function PreRideChecklistScreen({ navigation }) {
+export function PreRideChecklistScreen({ route, navigation }) {
+  const rideId = route?.params?.rideId;
   const [checks, setChecks] = useState(Object.fromEntries(CHECKS.map(c => [c.key, false])));
   const done    = Object.values(checks).filter(Boolean).length;
   const allDone = done === CHECKS.length;
+
+  const handleProceed = () => {
+    if (!allDone) return;
+    if (rideId) {
+      navigation.replace('LiveTracking', { rideId });
+    } else {
+      navigation.goBack();
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -403,8 +413,8 @@ export function PreRideChecklistScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
           <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🛡️ Safety Checklist</Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Tick all before you ride</Text>
+        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🛡️ Pre-Ride Safety Checklist</Text>
+        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Confirm all safety checks to start and track your campus ride</Text>
 
         {/* Progress bar */}
         <View style={styles.progressBg}>
@@ -426,8 +436,8 @@ export function PreRideChecklistScreen({ navigation }) {
         ))}
 
         <Btn
-          label={allDone ? "✅ I'm ready to ride!" : `${done}/${CHECKS.length} checked — keep going`}
-          onPress={() => { if (allDone) navigation.goBack(); }}
+          label={allDone ? (rideId ? "🚀 Start & Track Ride Map →" : "✅ I'm ready to ride!") : `${done}/${CHECKS.length} checked — please verify all`}
+          onPress={handleProceed}
           disabled={!allDone}
           style={{ marginTop: spacing.md }}
         />

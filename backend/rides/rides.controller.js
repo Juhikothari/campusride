@@ -4,10 +4,37 @@ const Booking = require('../bookings/bookings.model');
 const User = require('../users/users.model');
 const Notification = require('../notifications/notifications.model');
 
+// ================= 3-HOUR AUTO-CANCEL HELPER =================
+const autoCancelStaleRides = async () => {
+  try {
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const staleRides = await Ride.find({
+      status: 'active',
+      createdAt: { $lt: threeHoursAgo }
+    });
+    for (const sr of staleRides) {
+      sr.status = 'cancelled';
+      sr.cancelReason = 'Auto-cancelled after 3 hours of inactivity';
+      sr.cancelledAt = new Date();
+      await sr.save();
+      await Booking.updateMany(
+        { rideId: sr._id, status: { $in: ['pending', 'accepted'] } },
+        { status: 'cancelled', cancelReason: 'Ride auto-cancelled after 3 hours' }
+      );
+    }
+  } catch (e) {
+    console.error('Auto-cancel stale rides error:', e.message);
+  }
+};
+exports.autoCancelStaleRides = autoCancelStaleRides;
+
 // ================= CREATE RIDE =================
 exports.createRide = async (req, res) => {
   try {
-    const { pickup, drop, date, time, seatsAvailable, costPerSeat } = req.body;
+    const { pickup, drop, date, time, seatsAvailable, costPerSeat, vehicleName, vehicleNumber } = req.body;
+
+    // Run auto-cancel on stale rides
+    autoCancelStaleRides().catch(() => {});
 
     // Validate coordinates
     if (!Array.isArray(pickup?.coordinates) || pickup.coordinates.length !== 2 ||
@@ -24,69 +51,72 @@ exports.createRide = async (req, res) => {
     const user = await User.findById(userId);
 
     if (!user || (user.role !== 'provider' && user.role !== 'both')) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ message: 'Access denied. Provider role required.' });
     }
 
-    if (user.kycStatus !== 'approved') {
-      return res.status(403).json({ message: 'KYC not approved' });
+    // ── Prevent simultaneous offering & seeking ──────────────────────
+    const activeSeekerBooking = await Booking.findOne({
+      seekerId: userId,
+      status: { $in: ['pending', 'accepted'] }
+    }).populate('rideId');
+
+    if (activeSeekerBooking && activeSeekerBooking.rideId && activeSeekerBooking.rideId.status === 'active') {
+      return res.status(400).json({
+        message: 'You currently have an active ride request as a seeker. Complete or cancel it before offering a ride.'
+      });
     }
 
-    //const pickupAddress = pickup?.address || pickup?.label || 'Unknown Location';
-    //const dropAddress = drop?.address || drop?.label || 'Unknown Location';
-    const extractAddress = (location, fallback = 'Location') => {
+    // If user provided vehicle details on the fly, save them to profile
+    const effectiveVehicleNum = vehicleNumber ? vehicleNumber.toUpperCase().trim() : (user.kycDocuments?.vehicleNumber || '');
+    const effectiveVehicleName = vehicleName ? vehicleName.trim() : (user.kycDocuments?.vehicleName || 'Vehicle');
 
-  if (!location) return fallback;
+    if (vehicleNumber || vehicleName) {
+      user.kycDocuments = {
+        ...(user.kycDocuments || {}),
+        vehicleNumber: effectiveVehicleNum,
+        vehicleName: effectiveVehicleName,
+      };
+      if (!user.vehicles) user.vehicles = [];
+      const vIdx = user.vehicles.findIndex(v => v.vehicleNumber === effectiveVehicleNum);
+      if (vIdx >= 0) {
+        user.vehicles[vIdx].vehicleName = effectiveVehicleName;
+      } else if (effectiveVehicleNum) {
+        user.vehicles.push({
+          vehicleNumber: effectiveVehicleNum,
+          vehicleName: effectiveVehicleName,
+          vehicleType: req.body.vehicleType || 'car',
+          isDefault: true,
+        });
+      }
+      await user.save();
+    }
 
-  // Full address first
-  if (
-    typeof location.address === 'string' &&
-    location.address.trim() &&
-    location.address !== 'Unknown Location'
-  ) {
-    return location.address.trim();
-  }
+    const extractAddress = (location, fallback = 'Campus Area') => {
+      if (!location) return fallback;
+      const clean = (str) => {
+        if (!str || typeof str !== 'string') return '';
+        const trimmed = str.trim();
+        // Ignore raw coordinate strings
+        if (/^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(trimmed)) return '';
+        if (trimmed === 'Unknown Location') return '';
+        return trimmed;
+      };
 
-  // Display name next
-  if (
-    typeof location.display_name === 'string' &&
-    location.display_name.trim() &&
-    location.display_name !== 'Unknown Location'
-  ) {
-    return location.display_name.trim();
-  }
+      return clean(location.address) ||
+             clean(location.display_name) ||
+             clean(location.label) ||
+             clean(location.formatted) ||
+             fallback;
+    };
 
-  // Label next
-  if (
-    typeof location.label === 'string' &&
-    location.label.trim() &&
-    location.label !== 'Unknown Location'
-  ) {
-    return location.label.trim();
-  }
-
-  // Geoapify formatted fallback
-  if (
-    typeof location.formatted === 'string' &&
-    location.formatted.trim()
-  ) {
-    return location.formatted.trim();
-  }
-
-  return fallback;
-};
-
-const pickupAddress =
-  extractAddress(pickup, 'Pickup Location');
-
-const dropAddress =
-  extractAddress(drop, 'Drop Location');
+    const pickupAddress = extractAddress(pickup, 'Pickup Spot');
+    const dropAddress   = extractAddress(drop, 'Drop-off Spot');
 
     // Women-only ride: only female accounts can set this
     const womenOnly = req.body.womenOnly === true && user.gender === 'female';
 
     const ride = new Ride({
       providerId: userId,
-
       pickup: {
         type: 'Point',
         coordinates: Array.isArray(pickup?.coordinates) ? pickup.coordinates : [],
@@ -97,54 +127,53 @@ const dropAddress =
         coordinates: Array.isArray(drop?.coordinates) ? drop.coordinates : [],
         address: dropAddress
       },
-
       date,
       time,
       seatsAvailable,
       costPerSeat,
       womenOnly,
-      vehicleType: req.body.vehicleType || '',
-      vehicleName: user.kycDocuments?.vehicleName || req.body.vehicleName || '',
+      vehicleType: req.body.vehicleType || 'car',
+      vehicleName: effectiveVehicleName || 'Car',
       college: require('../config/collegeDomains').normalizeCollege(user.college || ''),
     });
 
     await ride.save();
     const Alert = require('../alerts/alerts.model');
 
-const alerts = await Alert.find({ isActive: true });
+    const alerts = await Alert.find({ isActive: true });
 
-for (const alert of alerts) {
-  try {
-    const pickupDistance = calculateDistance(
-      ride.pickup.coordinates[1],
-      ride.pickup.coordinates[0],
-      alert.pickup.coordinates[1],
-      alert.pickup.coordinates[0]
-    );
+    for (const alert of alerts) {
+      try {
+        const pickupDistance = calculateDistance(
+          ride.pickup.coordinates[1],
+          ride.pickup.coordinates[0],
+          alert.pickup.coordinates[1],
+          alert.pickup.coordinates[0]
+        );
 
-    if (pickupDistance > alert.pickupRadius) continue;
+        if (pickupDistance > alert.pickupRadius) continue;
 
-    const dropDistance = calculateDistance(
-      ride.drop.coordinates[1],
-      ride.drop.coordinates[0],
-      alert.drop.coordinates[1],
-      alert.drop.coordinates[0]
-    );
+        const dropDistance = calculateDistance(
+          ride.drop.coordinates[1],
+          ride.drop.coordinates[0],
+          alert.drop.coordinates[1],
+          alert.drop.coordinates[0]
+        );
 
-    if (dropDistance > alert.dropRadius) continue;
+        if (dropDistance > alert.dropRadius) continue;
 
-    await Notification.create({
-      userId: alert.userId,
-      type: 'alert_match',
-      title: '🚗 New Ride Available!',
-      message: `New ride from ${ride.pickup.address} → ${ride.drop.address}`,
-      data: { rideId: ride._id }
-    });
+        await Notification.create({
+          userId: alert.userId,
+          type: 'alert_match',
+          title: '🚗 New Ride Available!',
+          message: `New ride from ${ride.pickup.address} → ${ride.drop.address}`,
+          data: { rideId: ride._id }
+        });
 
-  } catch (err) {
-    console.error('Alert match error:', err);
-  }
-}
+      } catch (err) {
+        console.error('Alert match error:', err);
+      }
+    }
 
     res.status(201).json({
       message: 'Ride created successfully',

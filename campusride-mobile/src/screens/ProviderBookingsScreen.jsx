@@ -167,13 +167,18 @@ export default function ProviderBookingsScreen({ navigation }) {
             {selectedRide.status === 'active' && (
               <View style={styles.statusRow}>
                 <Btn label="▶ Start Ride & Track" onPress={() => updateRideStatus(selectedRide._id, 'in-progress')} style={{ flex: 1 }} />
-                <Btn label="✕ Cancel" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" style={{ flex: 1 }} />
+                <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" style={{ flex: 1 }} />
               </View>
             )}
             {selectedRide.status === 'in-progress' && (
               <View style={{ gap: 8, marginBottom: spacing.md }}>
                 <Btn label="📍 Open Live Route & Tracking" onPress={() => navigation.navigate('LiveTracking', { rideId: selectedRide._id })} />
                 <Btn label="🏁 Complete Ride" onPress={() => updateRideStatus(selectedRide._id, 'completed')} variant="outline" />
+              </View>
+            )}
+            {selectedRide.status === 'cancelled' && (
+              <View style={{ marginBottom: spacing.md }}>
+                <Alert message={`🔴 Ride Cancelled${selectedRide.cancelReason ? `: ${selectedRide.cancelReason}` : ''}`} />
               </View>
             )}
 
@@ -209,10 +214,11 @@ export default function ProviderBookingsScreen({ navigation }) {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
                         <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
-                        {seeker?.usn   && <Text style={styles.seekerMeta}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{seeker.usn}</Text></Text>}
-                        {seeker?.phone && <Text style={styles.seekerMeta}>📞 {seeker.phone}</Text>}
-                        {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>{seeker.college}</Text>}
-                        <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11 }]}>
+                        {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
+                        <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 2 }]}>
+                          🔒 Phone & USN revealed after accepting
+                        </Text>
+                        <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 10, marginTop: 2 }]}>
                           {new Date(b.createdAt).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
                         </Text>
                       </View>
@@ -235,23 +241,29 @@ export default function ProviderBookingsScreen({ navigation }) {
             {/* Resolved */}
             {resolved.length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>RESOLVED ({resolved.length})</Text>
+                <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>CONFIRMED / RESOLVED ({resolved.length})</Text>
                 {resolved.map(b => {
                   const seeker = b.seekerId;
+                  const isAccepted = b.status === 'accepted';
                   return (
-                    <View key={b._id} style={[styles.bookingCard, { opacity: 0.7 }]}>
+                    <View key={b._id} style={[styles.bookingCard, !isAccepted && { opacity: 0.7 }]}>
                       <View style={styles.seekerRow}>
-                        <View style={[styles.avatar, { opacity: 0.6 }]}>
-                          <Text style={styles.avatarText}>{seeker?.name?.charAt(0) || 'S'}</Text>
+                        <View style={[styles.avatar, isAccepted && { borderColor: colors.green, backgroundColor: colors.green + '22' }]}>
+                          <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>{seeker?.name?.charAt(0) || 'S'}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
-                          {seeker?.usn && <Text style={styles.seekerMeta}>🪪 {seeker.usn}</Text>}
-                          {seeker?.phone && <Text style={styles.seekerMeta}>📞 {seeker.phone}</Text>}
+                          {isAccepted && seeker?.usn ? (
+                            <Text style={styles.seekerMeta}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{seeker.usn}</Text></Text>
+                          ) : null}
+                          {isAccepted && seeker?.phone ? (
+                            <Text style={styles.seekerMeta}>📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text></Text>
+                          ) : null}
+                          {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
                         </View>
                         <Text style={[styles.statusBadge, {
-                          color: b.status === 'accepted' ? colors.green : colors.red,
-                          borderColor: b.status === 'accepted' ? colors.green : colors.red,
+                          color: isAccepted ? colors.green : colors.red,
+                          borderColor: isAccepted ? colors.green : colors.red,
                         }]}>{b.status}</Text>
                       </View>
                     </View>

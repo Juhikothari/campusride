@@ -42,6 +42,17 @@ exports.requestBooking = async (req, res) => {
       return res.status(400).json({ message: 'You already requested this ride' });
     }
 
+    // ── Block seeker if they are currently offering an active ride ────────────
+    const activeProviderRide = await Ride.findOne({
+      providerId: seekerId,
+      status: 'active'
+    });
+    if (activeProviderRide) {
+      return res.status(400).json({
+        message: 'You have an active ride posted as a provider. You cannot request a ride at the same time.'
+      });
+    }
+
     // ── Block seeker if they already have an accepted booking ────────────
     // A seeker can only have 1 active ride at a time
     const activeBooking = await Booking.findOne({
@@ -380,7 +391,7 @@ exports.getMyBookings = async (req, res) => {
     const bookings = await Booking.find({ seekerId: req.user.userId })
       .populate({
         path: 'rideId',
-        select: 'pickup drop date time costPerSeat status vehicleType college womenOnly',
+        select: 'pickup drop date time costPerSeat status vehicleType vehicleName college womenOnly cancelReason',
         populate: {
           path: 'providerId',
           select: 'name phone usn gender kycDocuments rating',
@@ -406,13 +417,23 @@ exports.getRideRequests = async (req, res) => {
     // Get all accepted+pending bookings for these rides
     const bookings = await Booking.find({ 
       rideId: { $in: rideIds },
-      status: { $in: ['pending', 'accepted'] }
+      status: { $in: ['pending', 'accepted', 'cancelled'] }
     })
-    .populate('rideId', 'pickup drop date time vehicleType college')
+    .populate('rideId', 'pickup drop date time vehicleType vehicleName college status cancelReason')
     .populate('seekerId', 'name phone rating usn gender college')
     .sort({ createdAt: -1 });
 
-    res.json(bookings);
+    // Privacy masking: Only reveal phone and USN after booking is accepted
+    const sanitized = bookings.map(b => {
+      const bObj = b.toObject();
+      if (b.status === 'pending' && bObj.seekerId) {
+        bObj.seekerId.phone = null;
+        bObj.seekerId.usn = null;
+      }
+      return bObj;
+    });
+
+    res.json(sanitized);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -437,7 +458,17 @@ exports.getBookingsForRide = async (req, res) => {
       .populate('seekerId', 'name phone rating college usn gender')
       .sort({ createdAt: -1 });
 
-    res.json(bookings);
+    // Privacy masking: Only reveal phone and USN after booking is accepted
+    const sanitized = bookings.map(b => {
+      const bObj = b.toObject();
+      if (b.status === 'pending' && bObj.seekerId) {
+        bObj.seekerId.phone = null;
+        bObj.seekerId.usn = null;
+      }
+      return bObj;
+    });
+
+    res.json(sanitized);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

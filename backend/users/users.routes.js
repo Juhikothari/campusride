@@ -61,9 +61,8 @@ router.put('/profile/phone', auth, async (req, res) => {
   }
 });
 
-// ── PUT /api/users/profile/vehicle  — save vehicle details ────────
-// Called by VehicleDetailsGate in CreateRide when provider skipped
-// vehicle info at registration. Safe to call multiple times.
+// ── PUT /api/users/profile/vehicle  — save/add vehicle details ────────
+// Supports single vehicle update and adds to multi-vehicle list
 router.put('/profile/vehicle', auth, async (req, res) => {
   try {
     const { vehicleNumber, vehicleName, vehicleType } = req.body;
@@ -75,33 +74,61 @@ router.put('/profile/vehicle', auth, async (req, res) => {
       return res.status(400).json({ message: 'Vehicle name / model is required' });
     }
 
-    const vnRegex = /^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/;
     const vn = vehicleNumber.trim().toUpperCase();
-    if (!vnRegex.test(vn)) {
-      return res.status(400).json({
-        message: 'Invalid vehicle number format. Use KA01AB1234 (State + District + Series + Number).'
-      });
-    }
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // Merge into existing kycDocuments — don't wipe other KYC fields
+    // Merge into existing kycDocuments
     user.kycDocuments = {
       ...(user.kycDocuments || {}),
       vehicleNumber: vn,
       vehicleName:   vehicleName.trim(),
     };
 
-    // Also store vehicleType at the top level if model supports it
-    if (vehicleType) user.vehicleType = vehicleType;
+    if (!user.vehicles) user.vehicles = [];
+    const existingIndex = user.vehicles.findIndex(v => v.vehicleNumber === vn);
+    if (existingIndex >= 0) {
+      user.vehicles[existingIndex].vehicleName = vehicleName.trim();
+      if (vehicleType) user.vehicles[existingIndex].vehicleType = vehicleType;
+    } else {
+      user.vehicles.push({
+        vehicleNumber: vn,
+        vehicleName: vehicleName.trim(),
+        vehicleType: vehicleType || 'car',
+        isDefault: user.vehicles.length === 0,
+      });
+    }
 
     await user.save();
     res.json({
       message: 'Vehicle details saved successfully.',
       vehicleNumber: vn,
       vehicleName: vehicleName.trim(),
+      vehicles: user.vehicles,
     });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/users/profile/vehicles — get user's registered vehicles ──
+router.get('/profile/vehicles', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId).select('vehicles kycDocuments');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    let list = user.vehicles || [];
+    if (list.length === 0 && user.kycDocuments?.vehicleNumber) {
+      list = [{
+        vehicleNumber: user.kycDocuments.vehicleNumber,
+        vehicleName: user.kycDocuments.vehicleName || 'My Vehicle',
+        vehicleType: 'car',
+        isDefault: true,
+      }];
+    }
+
+    res.json(list);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

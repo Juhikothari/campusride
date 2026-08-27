@@ -51,6 +51,13 @@ const userSchema = new mongoose.Schema({
     vehicleNumber: String,
     vehicleName: String,
   },
+  // Multi-vehicle support
+  vehicles: [{
+    vehicleNumber: { type: String, uppercase: true, trim: true },
+    vehicleName:   { type: String, trim: true },
+    vehicleType:   { type: String, default: 'car' },
+    isDefault:     { type: Boolean, default: false }
+  }],
   kycSubmittedAt: { type: Date },
   kycVerifiedAt: { type: Date },
   kycRemarks: { type: String },

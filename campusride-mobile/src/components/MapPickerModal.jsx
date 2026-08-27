@@ -58,13 +58,13 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
 
       try {
         const res = await api.reverseGeocode(lat, lng);
-        const name = res?.label || res?.display_name || res?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        const name = res?.label || res?.display_name || res?.address || 'Current Campus Location';
         setAddressLabel(name);
       } catch {
-        setAddressLabel(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        setAddressLabel('Current Campus Location');
       }
     } catch {
-      setAddressLabel('Current Campus Location');
+      setAddressLabel('Campus Main Gate');
       setCoords({ lat: 12.9716, lng: 77.5946 });
     } finally {
       setLocating(false);

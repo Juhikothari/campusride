@@ -53,8 +53,9 @@ export default function RegisterScreen({ navigation }) {
   const [role,     setRole]     = useState('both');
   const [emergency,setEmergency]= useState('');
   const [adminKey, setAdminKey] = useState('');
-  const [vehicleNumber, setVehicleNum]  = useState('');
-  const [vehicleName,   setVehicleName] = useState('');
+  const [vehicles, setVehicles] = useState([
+    { vehicleNumber: '', vehicleName: '', vehicleType: 'car' }
+  ]);
 
   const [docs,     setDocs]     = useState({ aadhar: null, license: null, collegeId: null });
   const [uploading, setUploading] = useState(false);
@@ -63,6 +64,23 @@ export default function RegisterScreen({ navigation }) {
   const [loading,   setLoading]   = useState(false);
 
   const isProvider = role === 'provider' || role === 'both';
+
+  const addVehicleRow = () => {
+    setVehicles(prev => [...prev, { vehicleNumber: '', vehicleName: '', vehicleType: 'car' }]);
+  };
+
+  const removeVehicleRow = (idx) => {
+    if (vehicles.length <= 1) return;
+    setVehicles(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateVehicleField = (idx, field, value) => {
+    setVehicles(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: value };
+      return next;
+    });
+  };
 
   const pickImage = async (docType) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -124,6 +142,17 @@ export default function RegisterScreen({ navigation }) {
         if (kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinary(kycDocs.collegeId);
         setUploading(false);
       }
+
+      const validVehicles = vehicles
+        .filter(v => v.vehicleNumber && v.vehicleNumber.trim())
+        .map(v => ({
+          vehicleNumber: v.vehicleNumber.trim().toUpperCase(),
+          vehicleName:   v.vehicleName.trim() || 'Vehicle',
+          vehicleType:   v.vehicleType || 'car',
+        }));
+
+      const primaryVehicle = validVehicles[0] || {};
+
       await registerUser({
         name: name.trim(), email: email.trim().toLowerCase(),
         phone: phone.trim(), college: college.trim(),
@@ -131,8 +160,9 @@ export default function RegisterScreen({ navigation }) {
         emergencyContact: emergency.trim(),
         ...(role === 'admin' && { adminKey }),
         ...(isProvider && {
-          vehicleNumber:  vehicleNumber.toUpperCase(),
-          vehicleName:    vehicleName.trim(),
+          vehicleNumber:  primaryVehicle.vehicleNumber || null,
+          vehicleName:    primaryVehicle.vehicleName || null,
+          vehicles:       validVehicles,
           aadhar:         uploadedDocs.aadhar || null,
           drivingLicense: uploadedDocs.drivingLicense || null,
           collegeIdCard:  uploadedDocs.collegeIdCard || null,
@@ -147,6 +177,7 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const handleSubmitWithDocs = () => submit(docs);
+  const handleSkipDocs = () => submit({});
 
   // ── Step 1: Basic Info ────────────────────────────────────────
   if (step === 1) return (
@@ -207,7 +238,7 @@ export default function RegisterScreen({ navigation }) {
           <Input label="Confirm Password" icon="🔒" value={confirm} onChangeText={setConfirm} placeholder="Repeat password" secureTextEntry />
 
           <Btn
-            label={isProvider ? 'Next: Upload Documents →' : 'Create HOGO Account'}
+            label={isProvider ? 'Next: Add Vehicle & Documents →' : 'Create HOGO Account'}
             onPress={handleNext}
             loading={loading}
             style={{ marginTop: 8 }}
@@ -224,7 +255,7 @@ export default function RegisterScreen({ navigation }) {
     </SafeAreaView>
   );
 
-  // ── Step 2: Provider KYC Docs ─────────────────────────────────
+  // ── Step 2: Provider Vehicles & KYC Docs ──────────────────────
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -233,25 +264,67 @@ export default function RegisterScreen({ navigation }) {
             <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Upload Documents</Text>
-          <Text style={styles.subtitle}>As a provider on HOGO, we need to verify your credentials</Text>
+          <Text style={styles.title}>Vehicle & Documents</Text>
+          <Text style={styles.subtitle}>Add your vehicle(s) and documents. You can also add or update them later while offering a ride.</Text>
 
           <Alert message={error} />
 
+          {/* Verification documents */}
+          <Text style={styles.sectionLabel}>Verification Documents (Optional)</Text>
           <DocUploadRow label="Aadhar Card" icon="🪪" onUpload={() => showDocPicker('aadhar')}   uri={docs.aadhar}   />
           <DocUploadRow label="Driving License" icon="🚘" onUpload={() => showDocPicker('license')}  uri={docs.license}  />
           <DocUploadRow label="College ID Card" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
 
-          <Input label="Vehicle Number (e.g. KA01AB1234)" icon="🔢" value={vehicleNumber} onChangeText={setVehicleNum} placeholder="KA01AB1234" autoCapitalize="characters" />
-          <Input label="Vehicle Name (e.g. Honda City)"  icon="🚗" value={vehicleName}   onChangeText={setVehicleName} placeholder="e.g. Swift Dezire, Activa" autoCapitalize="words" />
+          {/* Multi-vehicle section */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 8 }}>
+            <Text style={styles.sectionLabel}>VEHICLE DETAILS ({vehicles.length})</Text>
+            <TouchableOpacity onPress={addVehicleRow} style={styles.addVehicleBtn}>
+              <Text style={styles.addVehicleText}>+ Add Vehicle</Text>
+            </TouchableOpacity>
+          </View>
+
+          {vehicles.map((v, i) => (
+            <View key={i} style={styles.vehicleCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>🚗 VEHICLE #{i + 1}</Text>
+                {vehicles.length > 1 && (
+                  <TouchableOpacity onPress={() => removeVehicleRow(i)}>
+                    <Text style={{ color: colors.red, fontSize: 12, fontWeight: '600' }}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Input
+                label="Vehicle Number (e.g. KA01AB1234)"
+                icon="🔢"
+                value={v.vehicleNumber}
+                onChangeText={t => updateVehicleField(i, 'vehicleNumber', t.toUpperCase())}
+                placeholder="KA01AB1234"
+                autoCapitalize="characters"
+              />
+              <Input
+                label="Vehicle Name (e.g. Jupiter, Swift Dezire)"
+                icon="🚗"
+                value={v.vehicleName}
+                onChangeText={t => updateVehicleField(i, 'vehicleName', t)}
+                placeholder="e.g. Jupiter, Swift Dezire, Activa"
+                autoCapitalize="words"
+              />
+            </View>
+          ))}
 
           <Btn
-            label={uploading ? 'Uploading…' : 'Complete HOGO Registration'}
+            label={uploading ? 'Uploading…' : 'Complete Registration'}
             onPress={handleSubmitWithDocs}
             loading={loading || uploading}
             style={{ marginTop: 8 }}
           />
-          <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 10 }}>
+
+          <TouchableOpacity onPress={handleSkipDocs} style={styles.skipBtn} disabled={loading || uploading}>
+            <Text style={styles.skipBtnText}>Skip for now & Add while offering ride →</Text>
+          </TouchableOpacity>
+
+          <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 14 }}>
             Documents are verified by college administrators within 24 hours
           </Text>
         </ScrollView>
@@ -307,4 +380,33 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   docRowDone: { borderColor: colors.green + '55', backgroundColor: colors.greenDim },
+  addVehicleBtn: {
+    backgroundColor: colors.accentDim,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  addVehicleText: { color: colors.accent, fontSize: 12, fontWeight: '700' },
+  vehicleCard: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 12,
+  },
+  skipBtn: {
+    marginTop: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipBtnText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
 });

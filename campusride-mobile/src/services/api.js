@@ -75,14 +75,19 @@ export const getMe             = ()     => request('/auth/me');
 export const forgotPassword    = (email) => request('/auth/send-otp', { method:'POST', body: JSON.stringify({ email }) });
 export const sendOtp           = (email) => request('/auth/send-otp', { method:'POST', body: JSON.stringify({ email }) });
 export const verifyOtp         = (email, otp) => request('/auth/verify-otp', { method:'POST', body: JSON.stringify({ email, otp }) });
-export const resetPassword     = (payload) => request('/auth/reset-password-otp', { method:'POST', body: JSON.stringify(typeof payload === 'object' ? payload : { resetToken: arguments[0], password: arguments[1] }) });
+export const resetPassword     = (payload) => {
+  const body = typeof payload === 'object' ? payload : { resetToken: payload };
+  return request('/auth/reset-password-otp', { method:'POST', body: JSON.stringify(body) });
+};
 
 // ── AI Chatbot ────────────────────────────────────────
 export const sendChatbotMessage = (messages) => request('/chatbot/message', { method:'POST', body: JSON.stringify({ messages }) });
 
 // ── Users ─────────────────────────────────────────────
 export const getProfile        = ()     => request('/users/profile');
-export const updatePhoneNumber = (phone) => request('/users/update-phone', { method:'PUT', body: JSON.stringify({ phone }) });
+export const updatePhoneNumber = (phone) => request('/users/profile/phone', { method:'PUT', body: JSON.stringify({ phone }) });
+export const saveVehicle       = (data) => request('/users/profile/vehicle', { method:'PUT', body: JSON.stringify(data) });
+export const getUserVehicles   = ()     => request('/users/profile/vehicles');
 
 // ── Location & Routing ────────────────────────────────
 export const searchLocation    = (q)   => request(`/location/search?q=${encodeURIComponent(q)}`);

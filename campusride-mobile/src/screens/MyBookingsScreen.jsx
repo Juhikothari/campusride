@@ -151,26 +151,46 @@ export default function MyBookingsScreen({ navigation }) {
                 {/* Provider details — only after accepted */}
                 {b.status === 'accepted' && provider && (
                   <View style={styles.providerCard}>
-                    <Text style={styles.providerLabel}>PROVIDER DETAILS</Text>
-                    {provider.name          && <Text style={styles.providerRow}>👤 {provider.name}</Text>}
-                    {provider.phone         && <Text style={styles.providerRow}>📞 {provider.phone}</Text>}
-                    {provider.usn           && <Text style={styles.providerRow}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{provider.usn}</Text></Text>}
-                    {ride?.vehicleName      && <Text style={[styles.providerRow, { color: colors.accent }]}>🚘 {ride.vehicleName}</Text>}
-                    {provider.kycDocuments?.vehicleNumber && (
-                      <View style={styles.plateBox}>
-                        <Text style={styles.plateLabel}>VEHICLE NUMBER</Text>
-                        <Text style={styles.plateNumber}>{provider.kycDocuments.vehicleNumber}</Text>
+                    <Text style={styles.providerLabel}>CONFIRMED PROVIDER & VEHICLE</Text>
+                    <View style={styles.providerHeaderRow}>
+                      <View style={styles.avatarMini}>
+                        <Text style={styles.avatarMiniText}>{provider.name?.charAt(0) || 'P'}</Text>
                       </View>
-                    )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.providerNameText}>{provider.name || 'Provider'}</Text>
+                        <Text style={styles.vehicleNameBadge}>
+                          🚘 {ride?.vehicleName || provider.kycDocuments?.vehicleName || 'Vehicle'} • {(ride?.vehicleType || 'CAR').toUpperCase()}
+                        </Text>
+                      </View>
+                      {(provider.kycDocuments?.vehicleNumber || ride?.vehicleNumber) && (
+                        <View style={styles.plateBadge}>
+                          <Text style={styles.plateBadgeText}>
+                            {provider.kycDocuments?.vehicleNumber || ride?.vehicleNumber}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.providerMetaGrid}>
+                      {provider.usn ? (
+                        <Text style={styles.providerMetaText}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{provider.usn}</Text></Text>
+                      ) : null}
+                      {provider.phone ? (
+                        <Text style={styles.providerMetaText}>📞 Phone: <Text style={{ color: colors.text, fontWeight: '700' }}>{provider.phone}</Text></Text>
+                      ) : null}
+                    </View>
                   </View>
                 )}
 
                 {/* Actions */}
                 <View style={{ gap: 8, marginTop: 12 }}>
                   {canTrack && rideIdStr && (
-                    <Btn label="📍 Track Ride & View Route" onPress={() => navigation.navigate('LiveTracking', { rideId: rideIdStr })} />
+                    <Btn
+                      label="🛡️ Safety Checklist & Track Ride →"
+                      onPress={() => navigation.navigate('PreRideChecklist', { rideId: rideIdStr })}
+                    />
                   )}
-                  {rideIdStr && (
+                  {rideIdStr && !isCancelled && (
                     <Btn label="View Ride Details" onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })} variant="outline" />
                   )}
                   {canCancel && (
@@ -226,9 +246,50 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(245,166,35,0.07)', borderRadius: radius.lg,
     borderWidth: 1, borderColor: 'rgba(245,166,35,0.2)', padding: 12, marginTop: 4,
   },
-  providerLabel: { color: colors.text3, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 8 },
-  providerRow: { color: colors.text2, fontSize: 13, marginBottom: 4 },
-  plateBox: { backgroundColor: 'rgba(245,166,35,0.12)', borderRadius: radius.md, padding: 10, marginTop: 8 },
-  plateLabel: { color: colors.text3, fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 },
-  plateNumber: { color: colors.accent, fontSize: 22, fontWeight: '900', letterSpacing: 3 },
+  providerLabel: { color: colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 },
+  providerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  avatarMini: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  avatarMiniText: { color: colors.accent, fontSize: 14, fontWeight: '800' },
+  providerNameText: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  vehicleNameBadge: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 1 },
+  plateBadge: {
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  plateBadgeText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  providerMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 6,
+  },
+  providerMetaText: {
+    color: colors.text2,
+    fontSize: 12,
+  },
 });

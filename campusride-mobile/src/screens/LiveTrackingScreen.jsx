@@ -265,17 +265,55 @@ export default function LiveTrackingScreen({ navigation, route }) {
               </View>
               <View style={styles.telemetryDivider} />
               <View style={styles.telemetryItem}>
-                <Text style={styles.telemetryLabel}>VEHICLE</Text>
-                <Text style={styles.telemetryVal}>{rideInfo?.vehicleType ? rideInfo.vehicleType.toUpperCase() : 'CAR'}</Text>
+                <Text style={styles.telemetryLabel}>STATUS</Text>
+                <Text style={[styles.telemetryVal, { color: colors.green }]}>{rideInfo?.status?.toUpperCase() || 'ACTIVE'}</Text>
               </View>
             </View>
           </View>
 
-          {/* Current Live Coordinates Card */}
-          {userLat && userLng && (
-            <View style={styles.coordCard}>
-              <Text style={styles.coordTitle}>📍 Device Live Coordinates</Text>
-              <Text style={styles.coordText}>Lat: {userLat.toFixed(5)}  |  Lng: {userLng.toFixed(5)}</Text>
+          {/* ── DRIVER & VEHICLE DETAILS CARD ── */}
+          {rideInfo && (
+            <View style={styles.driverCard}>
+              <Text style={styles.driverSectionTitle}>🚗 ASSIGNED VEHICLE & RIDER</Text>
+              <View style={styles.driverRow}>
+                <View style={styles.driverAvatar}>
+                  <Text style={styles.driverAvatarText}>{rideInfo?.providerId?.name?.charAt(0) || 'P'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.driverName}>{rideInfo?.providerId?.name || 'Campus Provider'}</Text>
+                  <Text style={styles.driverVehicleName}>
+                    🚘 {rideInfo?.vehicleName || rideInfo?.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(rideInfo?.vehicleType || 'Car').toUpperCase()}
+                  </Text>
+                </View>
+                {(rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber) && (
+                  <View style={styles.plateContainer}>
+                    <Text style={styles.plateText}>
+                      {rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.driverDetailsGrid}>
+                {rideInfo?.providerId?.usn && (
+                  <View style={styles.driverGridItem}>
+                    <Text style={styles.driverGridLabel}>USN</Text>
+                    <Text style={styles.driverGridVal}>{rideInfo.providerId.usn}</Text>
+                  </View>
+                )}
+                {rideInfo?.providerId?.phone && (
+                  <View style={styles.driverGridItem}>
+                    <Text style={styles.driverGridLabel}>PHONE</Text>
+                    <Text style={[styles.driverGridVal, { color: colors.accent }]}>{rideInfo.providerId.phone}</Text>
+                  </View>
+                )}
+                {rideInfo?.college && (
+                  <View style={styles.driverGridItem}>
+                    <Text style={styles.driverGridLabel}>CAMPUS</Text>
+                    <Text style={styles.driverGridVal}>{rideInfo.college}</Text>
+                  </View>
+                )}
+              </View>
             </View>
           )}
 
@@ -520,6 +558,72 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   detailsBtnText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  driverCard: {
+    backgroundColor: 'rgba(245,166,35,0.07)',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.25)',
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  driverSectionTitle: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  driverRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  driverAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+  },
+  driverAvatarText: { color: colors.accent, fontSize: 16, fontWeight: '800' },
+  driverName: { color: colors.text, fontSize: 15, fontWeight: '800' },
+  driverVehicleName: { color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  plateContainer: {
+    backgroundColor: '#000',
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  plateText: { color: colors.accent, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  driverDetailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 10,
+  },
+  driverGridItem: {
+    minWidth: 100,
+  },
+  driverGridLabel: {
+    color: colors.text3,
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  driverGridVal: {
     color: colors.text,
     fontSize: 13,
     fontWeight: '700',

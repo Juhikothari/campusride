@@ -291,11 +291,21 @@ app.use((err, req, res, next) => {
 });
 
 // ==========================================
-// 8. START SERVER
+// 8. START SERVER & BACKGROUND CLEANUP JOBS
 // ==========================================
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📡 Socket.IO ready`);
   console.log(`🌐 DNS: IPv4-first (OTP emails will work)`);
+
+  // Periodic 3-hour stale ride auto-cancel job (every 10 minutes)
+  try {
+    const { autoCancelStaleRides } = require('./rides/rides.controller');
+    autoCancelStaleRides();
+    setInterval(autoCancelStaleRides, 10 * 60 * 1000);
+    console.log('⏰ 3-Hour Ride Auto-Cancel Background Job started (10m interval)');
+  } catch (jobErr) {
+    console.error('Failed to start auto-cancel job:', jobErr.message);
+  }
 });
