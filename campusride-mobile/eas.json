@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 12.0.0"
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -10,8 +11,10 @@
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk",
-        "image": "latest"
+        "buildType": "apk"
+      },
+      "env": {
+        "EAS_SKIP_AUTO_FINGERPRINT": "1"
       }
     },
     "production": {}
