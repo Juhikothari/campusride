@@ -176,9 +176,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.selectedAddress}>{addressLabel || 'Locating...'}</Text>
-                {coords && (
-                  <Text style={styles.coordSub}>GPS: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</Text>
-                )}
+                <Text style={styles.verifiedCampusTag}>✓ Verified Campus Location</Text>
               </View>
             </View>
           </View>
@@ -317,9 +315,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  coordSub: {
-    color: colors.text3,
+  verifiedCampusTag: {
+    color: colors.green,
     fontSize: 11,
+    fontWeight: '700',
     marginTop: 2,
   },
 

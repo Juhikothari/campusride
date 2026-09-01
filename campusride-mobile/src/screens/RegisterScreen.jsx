@@ -264,13 +264,13 @@ export default function RegisterScreen({ navigation }) {
             <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Vehicle & Documents</Text>
-          <Text style={styles.subtitle}>Add your vehicle(s) and documents. You can also add or update them later while offering a ride.</Text>
+          <Text style={styles.title}>Upload Documents</Text>
+          <Text style={styles.subtitle}>As a provider on HOGO, upload your verification documents and vehicle details.</Text>
 
           <Alert message={error} />
 
           {/* Verification documents */}
-          <Text style={styles.sectionLabel}>Verification Documents (Optional)</Text>
+          <Text style={styles.sectionLabel}>Verification Documents</Text>
           <DocUploadRow label="Aadhar Card" icon="🪪" onUpload={() => showDocPicker('aadhar')}   uri={docs.aadhar}   />
           <DocUploadRow label="Driving License" icon="🚘" onUpload={() => showDocPicker('license')}  uri={docs.license}  />
           <DocUploadRow label="College ID Card" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
@@ -317,12 +317,8 @@ export default function RegisterScreen({ navigation }) {
             label={uploading ? 'Uploading…' : 'Complete Registration'}
             onPress={handleSubmitWithDocs}
             loading={loading || uploading}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 12 }}
           />
-
-          <TouchableOpacity onPress={handleSkipDocs} style={styles.skipBtn} disabled={loading || uploading}>
-            <Text style={styles.skipBtnText}>Skip for now & Add while offering ride →</Text>
-          </TouchableOpacity>
 
           <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 14 }}>
             Documents are verified by college administrators within 24 hours

@@ -16,7 +16,6 @@ const SECONDARY_ACTIONS = [
   { key: 'ProviderBookings', icon: '📬', title: 'Ride Requests', role: 'provider' },
   { key: 'RouteAlerts',      icon: '🔔', title: 'Route Alerts',  role: 'all'      },
   { key: 'LiveTracking',     icon: '📍', title: 'Live Tracking', role: 'all'      },
-  { key: 'WalkTogether',     icon: '🚶', title: 'Walk Together', role: 'all'      },
   { key: 'IncidentReport',   icon: '⚠️', title: 'Report Incident', role: 'all'   },
 ];
 
