@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,3 +47,14 @@ jobs:
         with:
           name: campusride-hogo-app
           path: campusride-mobile/android/app/build/outputs/apk/release/*.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: always()
+        with:
+          tag_name: latest-build
+          name: HOGO App APK (Latest Build)
+          body: "Download the latest HOGO CampusRide APK directly below."
+          files: campusride-mobile/android/app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
