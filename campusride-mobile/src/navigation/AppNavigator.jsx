@@ -59,14 +59,14 @@ function TabIcon({ emoji, focused }) {
   );
 }
 
-// ── Main Tabs Navigator (The 4 Clean Tabs) ────────────────────
+// ── Main Tabs Navigator (The 5 Classic Tabs) ──────────────────
 function MainTabs() {
   const { user } = useAuth();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
   return (
     <Tab.Navigator
-      initialRouteName="SearchMatch"
+      initialRouteName="FindRide"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
@@ -83,10 +83,10 @@ function MainTabs() {
       }}
     >
       <Tab.Screen
-        name="SearchMatch"
+        name="FindRide"
         component={SearchRidesScreen}
         options={{
-          tabBarLabel: 'Search Match',
+          tabBarLabel: 'Find Ride',
           tabBarIcon: ({ focused }) => <TabIcon emoji="🔍" focused={focused} />
         }}
       />
@@ -101,11 +101,11 @@ function MainTabs() {
       />
 
       <Tab.Screen
-        name="ChatBot"
-        component={ChatBotScreen}
+        name="TrackRide"
+        component={LiveTrackingScreen}
         options={{
-          tabBarLabel: 'HOGO AI',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🤖" focused={focused} />
+          tabBarLabel: 'Track Ride',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="📍" focused={focused} />
         }}
       />
 
@@ -115,6 +115,15 @@ function MainTabs() {
         options={{
           tabBarLabel: 'Community',
           tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />
+        }}
+      />
+
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />
         }}
       />
     </Tab.Navigator>
