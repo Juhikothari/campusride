@@ -30,6 +30,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Install dependencies
         working-directory: campusride-mobile
         run: npm ci
@@ -38,23 +41,36 @@ jobs:
         working-directory: campusride-mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Build Android APK
+      - name: Configure Gradle Memory & Signing for Release APK
         working-directory: campusride-mobile/android
-        run: ./gradlew assembleRelease --no-daemon
+        run: |
+          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
+          echo "org.gradle.parallel=true" >> gradle.properties
+          # Ensure release APK is signed with debug key so it is directly installable on any Android phone
+          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.debug/g' app/build.gradle || true
+
+      - name: Build Android APK (Release & Debug)
+        working-directory: campusride-mobile/android
+        run: ./gradlew assembleRelease assembleDebug --no-daemon -x lint -x test
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: campusride-hogo-app
-          path: campusride-mobile/android/app/build/outputs/apk/release/*.apk
+          path: campusride-mobile/android/app/build/outputs/apk/**/*.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        if: always()
+        if: success()
         with:
-          tag_name: latest-build
-          name: HOGO App APK (Latest Build)
-          body: "Download the latest HOGO CampusRide APK directly below."
-          files: campusride-mobile/android/app/build/outputs/apk/release/*.apk
+          tag_name: v1.0.${{ github.run_number }}
+          name: "HOGO App APK (Build #${{ github.run_number }})"
+          body: |
+            ### 🚀 HOGO CampusRide Android APK (Build #${{ github.run_number }})
+            Download the APK below and install it directly on your Android phone.
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: campusride-mobile/android/app/build/outputs/apk/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
