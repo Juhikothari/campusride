@@ -1,13 +1,15 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, StyleSheet, Alert as RNAlert,
+  KeyboardAvoidingView, Platform, StyleSheet, Modal, TextInput, FlatList,
+  Alert as RNAlert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { Input, Btn, Alert, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
+import { INDIAN_COLLEGES } from '../data/colleges';
 
 const CLOUD_NAME    = 'dhkui5t39';
 const UPLOAD_PRESET = 'kyc_upload';
@@ -19,10 +21,10 @@ const ROLES = [
 ];
 
 const GENDERS = [
-  { value: 'male',             label: 'Male' },
-  { value: 'female',           label: 'Female' },
-  { value: 'other',            label: 'Other' },
-  { value: 'prefer_not_to_say',label: 'Prefer not to say' },
+  { value: 'male',              label: 'Male',              symbol: '♂' },
+  { value: 'female',            label: 'Female',            symbol: '♀' },
+  { value: 'other',             label: 'Other',             symbol: '⚧' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say', symbol: '—' },
 ];
 
 async function uploadToCloudinary(uri, type = 'image') {
@@ -40,7 +42,7 @@ async function uploadToCloudinary(uri, type = 'image') {
 
 export default function RegisterScreen({ navigation }) {
   const { registerUser } = useAuth();
-  const [step, setStep] = useState(1); // 1 = basic info, 2 = provider docs
+  const [step, setStep] = useState(1); // 1 = basic info, 2 = provider docs & vehicles
 
   const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
@@ -53,17 +55,34 @@ export default function RegisterScreen({ navigation }) {
   const [role,     setRole]     = useState('both');
   const [emergency,setEmergency]= useState('');
   const [adminKey, setAdminKey] = useState('');
+
+  // College Dropdown Modal state
+  const [showCollegeModal, setShowCollegeModal] = useState(false);
+  const [collegeSearch,    setCollegeSearch]    = useState('');
+
   const [vehicles, setVehicles] = useState([
     { vehicleNumber: '', vehicleName: '', vehicleType: 'car' }
   ]);
 
-  const [docs,     setDocs]     = useState({ aadhar: null, license: null, collegeId: null });
+  const [docs,      setDocs]      = useState({ aadhar: null, license: null, collegeId: null });
   const [uploading, setUploading] = useState(false);
   const [showPass,  setShowPass]  = useState(false);
+  const [showConf,  setShowConf]  = useState(false);
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
 
   const isProvider = role === 'provider' || role === 'both';
+
+  // Filtered colleges
+  const filteredColleges = useMemo(() => {
+    if (!collegeSearch.trim()) return INDIAN_COLLEGES;
+    const q = collegeSearch.toLowerCase();
+    return INDIAN_COLLEGES.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.short.toLowerCase().includes(q) ||
+      c.city.toLowerCase().includes(q)
+    );
+  }, [collegeSearch]);
 
   const addVehicleRow = () => {
     setVehicles(prev => [...prev, { vehicleNumber: '', vehicleName: '', vehicleType: 'car' }]);
@@ -109,14 +128,13 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const validateStep1 = () => {
-    if (!name.trim())     return 'Name is required';
-    if (!email.trim())    return 'Email is required';
-    if (!/\S+@\S+\.\S+/.test(email)) return 'Enter a valid email';
-    if (!college.trim() && role !== 'admin') return 'College name is required';
+    if (!name.trim())     return 'Full name is required';
+    if (!phone.trim())    return 'Phone number is required';
+    if (!email.trim())    return 'College email is required';
+    if (!/\S+@\S+\.\S+/.test(email)) return 'Enter a valid college email';
+    if (!college.trim() && role !== 'admin') return 'College / University is required';
     if (password.length < 6) return 'Password must be at least 6 characters';
     if (password !== confirm) return 'Passwords do not match';
-    if (!phone.trim())    return 'Phone number is required';
-    if (!usn.trim())      return 'USN is required';
     if (!gender)          return 'Please select your gender';
     if (role === 'admin' && adminKey !== 'freewheel') return 'Invalid admin key';
     return null;
@@ -156,7 +174,7 @@ export default function RegisterScreen({ navigation }) {
       await registerUser({
         name: name.trim(), email: email.trim().toLowerCase(),
         phone: phone.trim(), college: college.trim(),
-        password, role, usn: usn.trim(), gender,
+        password, role, usn: usn.trim() || 'STUDENT', gender,
         emergencyContact: emergency.trim(),
         ...(role === 'admin' && { adminKey }),
         ...(isProvider && {
@@ -179,72 +197,163 @@ export default function RegisterScreen({ navigation }) {
   const handleSubmitWithDocs = () => submit(docs);
   const handleSkipDocs = () => submit({});
 
-  // ── Step 1: Basic Info ────────────────────────────────────────
+  // ── Step 1: Basic Info (Pixel-perfect matching Image 1) ──────
   if (step === 1) return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 14 }}>
             <Text style={{ color: colors.text2, fontSize: 14 }}>← Back to Login</Text>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Join HOGO</Text>
-          <Text style={styles.subtitle}>Find Your Match — Verified Student Commutes</Text>
+          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.subtitle}>Join thousands of campus commuters</Text>
 
           <Alert message={error} />
 
-          {/* Role */}
-          <Text style={styles.sectionLabel}>I want to…</Text>
-          <TogglePill options={ROLES} value={role} onChange={setRole} />
-
-          {role === 'admin' && (
-            <Input label="Admin Key" value={adminKey} onChangeText={setAdminKey} placeholder="freewheel" secureTextEntry containerStyle={{ marginTop: 16 }} />
-          )}
-
-          <View style={{ height: spacing.lg }} />
-
-          <Input label="Full Name"     icon="👤" value={name}    onChangeText={setName}    placeholder="Your full name" autoCapitalize="words" />
-          <Input label="College Email" icon="✉"  value={email}   onChangeText={setEmail}   placeholder="you@college.edu.in" keyboardType="email-address" />
-          {role !== 'admin' && (
-            <Input label="College Name" icon="🏫" value={college} onChangeText={setCollege} placeholder="e.g. RNS Institute of Technology" autoCapitalize="words" />
-          )}
-          <Input label="USN (University Seat Number)" icon="🎓" value={usn} onChangeText={setUsn} placeholder="e.g. 1RN21CS001" autoCapitalize="characters" />
-          <Input label="Phone Number" icon="📱" value={phone} onChangeText={t => setPhone(t.replace(/\D/g, ''))} placeholder="10-digit number" keyboardType="phone-pad" maxLength={10} />
-          <Input label="Emergency Contact" icon="🆘" value={emergency} onChangeText={setEmergency} placeholder="Emergency phone number" keyboardType="phone-pad" />
-
-          {/* Gender */}
-          <Text style={styles.sectionLabel}>Gender</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: spacing.md }}>
-            {GENDERS.map(g => (
-              <TouchableOpacity
-                key={g.value}
-                onPress={() => setGender(g.value)}
-                style={[styles.genderChip, gender === g.value && styles.genderChipActive]}
-              >
-                <Text style={[styles.genderChipText, gender === g.value && styles.genderChipTextActive]}>{g.label}</Text>
-              </TouchableOpacity>
-            ))}
+          {/* Row 1: Full Name & Phone */}
+          <View style={styles.twoColRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>FULL NAME *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={name}
+                onChangeText={setName}
+                placeholder="Arjun Sharma"
+                placeholderTextColor={colors.text3}
+                autoCapitalize="words"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>PHONE *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={phone}
+                onChangeText={t => setPhone(t.replace(/\D/g, ''))}
+                placeholder="+91 9876543210"
+                placeholderTextColor={colors.text3}
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+            </View>
           </View>
 
-          <Input
-            label="Password" icon="🔒" value={password} onChangeText={setPassword}
-            placeholder="Min. 6 characters" secureTextEntry={!showPass}
-            rightIcon={
+          {/* Row 2: College Email */}
+          <View style={styles.fieldBlock}>
+            <Text style={styles.label}>COLLEGE EMAIL *</Text>
+            <TextInput
+              style={styles.textInput}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@college.edu"
+              placeholderTextColor={colors.text3}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* Row 3: College / University Dropdown & Emergency Contact */}
+          <View style={styles.twoColRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>COLLEGE / UNIVERSITY *</Text>
+              <TouchableOpacity
+                style={[styles.textInput, styles.dropdownInput]}
+                onPress={() => setShowCollegeModal(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={college ? styles.dropdownTextActive : styles.dropdownTextPlaceholder} numberOfLines={1}>
+                  {college || 'Search your college or ...'}
+                </Text>
+                <Text style={{ color: colors.text3, fontSize: 12 }}>▼</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>EMERGENCY CONTACT</Text>
+              <TextInput
+                style={styles.textInput}
+                value={emergency}
+                onChangeText={t => setEmergency(t.replace(/\D/g, ''))}
+                placeholder="+91 9876543211"
+                placeholderTextColor={colors.text3}
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
+
+          {/* Row 4: Gender Selection Grid */}
+          <View style={styles.fieldBlock}>
+            <Text style={styles.label}>GENDER <Text style={{ color: colors.accent, fontSize: 10 }}>(USED FOR SAFETY MATCHING)</Text></Text>
+            <View style={styles.genderGrid}>
+              {GENDERS.map(g => (
+                <TouchableOpacity
+                  key={g.value}
+                  onPress={() => setGender(g.value)}
+                  style={[styles.genderBox, gender === g.value && styles.genderBoxActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.genderSymbol, gender === g.value && styles.genderSymbolActive]}>{g.symbol}</Text>
+                  <Text style={[styles.genderLabel, gender === g.value && styles.genderLabelActive]} numberOfLines={1}>{g.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Row 5: Password */}
+          <View style={styles.fieldBlock}>
+            <Text style={styles.label}>PASSWORD *</Text>
+            <View style={styles.passInputWrapper}>
+              <Text style={{ fontSize: 14, marginRight: 8 }}>🔒</Text>
+              <TextInput
+                style={styles.passInput}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Min. 6 characters"
+                placeholderTextColor={colors.text3}
+                secureTextEntry={!showPass}
+              />
               <TouchableOpacity onPress={() => setShowPass(s => !s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={{ fontSize: 16 }}>{showPass ? '🙈' : '👁️'}</Text>
               </TouchableOpacity>
-            }
-          />
-          <Input label="Confirm Password" icon="🔒" value={confirm} onChangeText={setConfirm} placeholder="Repeat password" secureTextEntry />
+            </View>
+          </View>
+
+          {/* Row 6: Confirm Password */}
+          <View style={styles.fieldBlock}>
+            <Text style={styles.label}>CONFIRM PASSWORD *</Text>
+            <View style={styles.passInputWrapper}>
+              <Text style={{ fontSize: 14, marginRight: 8 }}>🔒</Text>
+              <TextInput
+                style={styles.passInput}
+                value={confirm}
+                onChangeText={setConfirm}
+                placeholder="Re-enter password"
+                placeholderTextColor={colors.text3}
+                secureTextEntry={!showConf}
+              />
+              <TouchableOpacity onPress={() => setShowConf(s => !s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={{ fontSize: 16 }}>{showConf ? '🙈' : '👁️'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Optional Role selection */}
+          <View style={[styles.fieldBlock, { marginTop: 4 }]}>
+            <Text style={styles.label}>I WANT TO…</Text>
+            <TogglePill options={ROLES} value={role} onChange={setRole} />
+          </View>
+
+          {role === 'admin' && (
+            <Input label="Admin Key" value={adminKey} onChangeText={setAdminKey} placeholder="freewheel" secureTextEntry containerStyle={{ marginTop: 12 }} />
+          )}
 
           <Btn
-            label={isProvider ? 'Next: Add Vehicle & Documents →' : 'Create HOGO Account'}
+            label={isProvider ? 'Next: Add Vehicle & Documents →' : 'Create account'}
             onPress={handleNext}
             loading={loading}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: spacing.md }}
           />
 
-          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.md }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: spacing.md, marginBottom: 20 }}>
             <Text style={{ color: colors.text2, fontSize: 14 }}>Already have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
               <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '700' }}>Sign In →</Text>
@@ -252,6 +361,64 @@ export default function RegisterScreen({ navigation }) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* College Dropdown Search Modal */}
+      <Modal visible={showCollegeModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.collegeModalBox}>
+            <View style={styles.collegeModalHeader}>
+              <Text style={styles.collegeModalTitle}>🏫 Select Your College</Text>
+              <TouchableOpacity onPress={() => setShowCollegeModal(false)}>
+                <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '700' }}>✕ Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.collegeSearchInput}
+              value={collegeSearch}
+              onChangeText={setCollegeSearch}
+              placeholder="🔍 Search college name, short code or city..."
+              placeholderTextColor={colors.text3}
+              autoFocus
+            />
+
+            <FlatList
+              data={filteredColleges}
+              keyExtractor={(item, index) => item.name + index}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.collegeItem, college === item.name && styles.collegeItemActive]}
+                  onPress={() => {
+                    setCollege(item.name);
+                    setShowCollegeModal(false);
+                    setCollegeSearch('');
+                  }}
+                >
+                  <Text style={[styles.collegeItemName, college === item.name && { color: colors.accent }]}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.collegeItemCity}>📍 {item.city} ({item.short})</Text>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={{ padding: 16, alignItems: 'center' }}>
+                  <Text style={{ color: colors.text2, fontSize: 13, marginBottom: 8 }}>College not in list?</Text>
+                  <TouchableOpacity
+                    style={styles.customCollegeBtn}
+                    onPress={() => {
+                      setCollege(collegeSearch.trim());
+                      setShowCollegeModal(false);
+                    }}
+                  >
+                    <Text style={styles.customCollegeText}>Use "{collegeSearch.trim()}"</Text>
+                  </TouchableOpacity>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 
@@ -264,20 +431,20 @@ export default function RegisterScreen({ navigation }) {
             <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
           </TouchableOpacity>
 
-          <Text style={styles.title}>Upload Documents</Text>
-          <Text style={styles.subtitle}>As a provider on HOGO, upload your verification documents and vehicle details.</Text>
+          <Text style={styles.title}>Vehicle & Documents</Text>
+          <Text style={styles.subtitle}>Add your vehicle(s) and documents. You can also add or update them later while offering a ride.</Text>
 
           <Alert message={error} />
 
           {/* Verification documents */}
-          <Text style={styles.sectionLabel}>Verification Documents</Text>
+          <Text style={styles.label}>VERIFICATION DOCUMENTS (OPTIONAL)</Text>
           <DocUploadRow label="Aadhar Card" icon="🪪" onUpload={() => showDocPicker('aadhar')}   uri={docs.aadhar}   />
           <DocUploadRow label="Driving License" icon="🚘" onUpload={() => showDocPicker('license')}  uri={docs.license}  />
           <DocUploadRow label="College ID Card" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
 
           {/* Multi-vehicle section */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 8 }}>
-            <Text style={styles.sectionLabel}>VEHICLE DETAILS ({vehicles.length})</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 8 }}>
+            <Text style={styles.label}>VEHICLE DETAILS ({vehicles.length})</Text>
             <TouchableOpacity onPress={addVehicleRow} style={styles.addVehicleBtn}>
               <Text style={styles.addVehicleText}>+ Add Vehicle</Text>
             </TouchableOpacity>
@@ -317,8 +484,12 @@ export default function RegisterScreen({ navigation }) {
             label={uploading ? 'Uploading…' : 'Complete Registration'}
             onPress={handleSubmitWithDocs}
             loading={loading || uploading}
-            style={{ marginTop: 12 }}
+            style={{ marginTop: 8 }}
           />
+
+          <TouchableOpacity onPress={handleSkipDocs} style={styles.skipBtn} disabled={loading || uploading}>
+            <Text style={styles.skipBtnText}>Skip for now & Add while offering ride →</Text>
+          </TouchableOpacity>
 
           <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 14 }}>
             Documents are verified by college administrators within 24 hours
@@ -347,23 +518,138 @@ function DocUploadRow({ label, icon, onUpload, uri }) {
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.bg },
   scroll: { flexGrow: 1, padding: spacing.lg, paddingBottom: 48 },
-  title:    { color: colors.text,  fontSize: 26, fontWeight: '800', marginBottom: 6 },
+  title:    { color: colors.text,  fontSize: 28, fontWeight: '900', marginBottom: 4 },
   subtitle: { color: colors.text2, fontSize: 14, marginBottom: spacing.lg },
-  sectionLabel: {
-    color: colors.text2, fontSize: 12, fontWeight: '600',
-    textTransform: 'uppercase', letterSpacing: 0.5,
-    marginBottom: 8, marginTop: 4,
+
+  label: {
+    color: colors.text2,
+    fontSize: 10.5,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 6,
   },
-  genderChip: {
-    borderRadius: radius.full,
+
+  twoColRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+
+  fieldBlock: {
+    marginBottom: 12,
+  },
+
+  textInput: {
+    backgroundColor: '#161b24',
     borderWidth: 1.5,
-    borderColor: colors.border,
+    borderColor: '#262d3d',
+    borderRadius: radius.lg,
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 12,
+    color: colors.text,
+    fontSize: 14,
   },
-  genderChipActive:     { borderColor: colors.accent, backgroundColor: colors.accentDim },
-  genderChipText:       { color: colors.text2, fontSize: 13 },
-  genderChipTextActive: { color: colors.accent, fontWeight: '700' },
+
+  dropdownInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownTextPlaceholder: { color: colors.text3, fontSize: 13, flex: 1 },
+  dropdownTextActive: { color: colors.text, fontSize: 13, fontWeight: '600', flex: 1 },
+
+  genderGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  genderBox: {
+    flex: 1,
+    backgroundColor: '#161b24',
+    borderWidth: 1.5,
+    borderColor: '#262d3d',
+    borderRadius: radius.lg,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  genderBoxActive: {
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(245,166,35,0.08)',
+  },
+  genderSymbol: { fontSize: 16, color: colors.text2, marginBottom: 4 },
+  genderSymbolActive: { color: colors.accent },
+  genderLabel: { color: colors.text2, fontSize: 11, fontWeight: '600' },
+  genderLabelActive: { color: colors.accent, fontWeight: '800' },
+
+  passInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161b24',
+    borderWidth: 1.5,
+    borderColor: '#262d3d',
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  passInput: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'flex-end',
+  },
+  collegeModalBox: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    padding: spacing.lg,
+    maxHeight: '80%',
+  },
+  collegeModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  collegeModalTitle: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  collegeSearchInput: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: colors.text,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  collegeItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  collegeItemActive: {
+    backgroundColor: colors.accentDim,
+    borderRadius: radius.md,
+    paddingHorizontal: 8,
+  },
+  collegeItemName: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  collegeItemCity: { color: colors.text3, fontSize: 12, marginTop: 2 },
+  customCollegeBtn: {
+    backgroundColor: colors.accentDim,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  customCollegeText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+
   docRow: {
     flexDirection: 'row',
     alignItems: 'center',

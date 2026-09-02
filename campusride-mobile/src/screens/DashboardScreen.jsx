@@ -1,103 +1,239 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+﻿import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import TopHeader from '../components/TopHeader';
 import { colors, spacing, radius } from '../theme';
+import * as api from '../services/api';
 
-const QUICK_ACTIONS = [
-  { key: 'SearchRides',      icon: '🔍', title: 'Find a Ride',   sub: 'Match with commuters on your route',         role: 'seeker'   },
-  { key: 'CreateRide',       icon: '🚗', title: 'Offer a Ride',  sub: 'Post your route and split the cost',         role: 'provider' },
-  { key: 'Community',        icon: '💬', title: 'Community',     sub: 'Posts, chat and campus alerts',              role: 'all'      },
-  { key: 'WalkTogether',     icon: '🚶', title: 'Walk Together', sub: 'Find someone walking the same campus route', role: 'all'      },
-];
-
-const SECONDARY_ACTIONS = [
-  { key: 'MyBookings',       icon: '📋', title: 'My Bookings',   role: 'seeker'   },
-  { key: 'ProviderBookings', icon: '📬', title: 'Ride Requests', role: 'provider' },
-  { key: 'RouteAlerts',      icon: '🔔', title: 'Route Alerts',  role: 'all'      },
-  { key: 'LiveTracking',     icon: '📍', title: 'Live Tracking', role: 'all'      },
-  { key: 'IncidentReport',   icon: '⚠️', title: 'Report Incident', role: 'all'   },
+const MAIN_SERVICES = [
+  {
+    key: 'SearchRides',
+    icon: '🔍',
+    title: 'Find a Ride',
+    sub: 'Match with commuters on your route',
+    iconBg: '#1a2233',
+  },
+  {
+    key: 'CreateRide',
+    icon: '🚗',
+    title: 'Offer a Ride',
+    sub: 'Post your route and split the cost',
+    iconBg: '#1c2630',
+  },
+  {
+    key: 'Community',
+    icon: '💬',
+    title: 'Community',
+    sub: 'Posts, chat and campus alerts',
+    iconBg: '#1e2430',
+  },
+  {
+    key: 'WalkTogether',
+    icon: '🚶',
+    title: 'Walk Together',
+    sub: 'Find someone walking the same campus route',
+    iconBg: '#222328',
+  },
 ];
 
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [tripRole,   setTripRole]   = useState('driver'); // 'driver' | 'rider'
+  const [loading,    setLoading]    = useState(false);
 
-  const isProvider = user?.role === 'provider' || user?.role === 'both';
-  const isSeeker   = user?.role === 'seeker'   || user?.role === 'both';
-  const isAdmin    = user?.role === 'admin';
+  const firstName = user?.name ? user.name.split(' ')[0] : 'Juhi';
+  const collegeName = user?.college || 'Rnsit';
 
-  const canShow = (role) => {
-    if (role === 'all') return true;
-    if (role === 'seeker'   && isSeeker)   return true;
-    if (role === 'provider' && isProvider) return true;
-    return false;
+  // Load active trip status
+  useEffect(() => {
+    let mounted = true;
+    const fetchActiveTrip = async () => {
+      try {
+        const [ridesRes, bookingsRes] = await Promise.allSettled([
+          api.getMyRides().catch(() => []),
+          api.getMyBookings().catch(() => []),
+        ]);
+        if (!mounted) return;
+
+        const rides = ridesRes.status === 'fulfilled' ? (Array.isArray(ridesRes.value) ? ridesRes.value : ridesRes.value?.rides || []) : [];
+        const bookings = bookingsRes.status === 'fulfilled' ? (Array.isArray(bookingsRes.value) ? bookingsRes.value : bookingsRes.value?.bookings || []) : [];
+
+        // Check if user is provider of an active/in-progress ride
+        const activeDriverRide = rides.find(r => r.status === 'in-progress' || r.status === 'active');
+        if (activeDriverRide) {
+          setActiveTrip(activeDriverRide);
+          setTripRole('driver');
+          return;
+        }
+
+        // Check if user is passenger with an accepted/in-progress booking
+        const activeSeekerBooking = bookings.find(b =>
+          b.status === 'accepted' && (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
+        );
+        if (activeSeekerBooking?.rideId) {
+          setActiveTrip(activeSeekerBooking.rideId);
+          setTripRole('rider');
+          return;
+        }
+
+        setActiveTrip(null);
+      } catch (err) {
+        console.log('Error loading active trip:', err);
+      }
+    };
+
+    fetchActiveTrip();
+    const interval = setInterval(fetchActiveTrip, 15000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, []);
+
+  const getAddress = (loc) => {
+    if (!loc) return 'Campus';
+    if (typeof loc === 'string') return loc;
+    return loc.address || loc.label || 'Campus Route';
   };
-
-  const firstName = user?.name?.split(' ')[0] || 'Welcome';
-  const college   = user?.college
-    ? user.college.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-    : '';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      {/* Top Header matching Images 2 & 3 */}
+      <TopHeader title="HOGO" subtitle="Find Your Match" />
 
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={styles.heroBg} />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Hey Greeting Hero Card */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroGlowCircle} />
           <Text style={styles.heroGreeting}>Hey, {firstName} 👋</Text>
-          {college ? <Text style={styles.heroCollege}>{college}</Text> : null}
-          {isAdmin && <View style={styles.adminBadge}><Text style={styles.adminBadgeText}>Admin</Text></View>}
+          <View style={styles.collegeRow}>
+            <Text style={{ fontSize: 13, marginRight: 4 }}>🏫</Text>
+            <Text style={styles.heroCollege}>{collegeName}</Text>
+          </View>
         </View>
 
-        {/* Admin shortcut */}
-        {isAdmin && (
-          <TouchableOpacity style={styles.adminCard} onPress={() => navigation.navigate('AdminDashboard')}>
-            <Text style={{ fontSize: 20 }}>🛡️</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.accent, fontSize: 15, fontWeight: '700' }}>Admin Dashboard</Text>
-              <Text style={{ color: colors.text2, fontSize: 12 }}>Manage users, KYC, rides</Text>
-            </View>
-            <Text style={{ color: colors.accent, fontSize: 18 }}>→</Text>
-          </TouchableOpacity>
-        )}
+        {/* WHAT DO YOU NEED? section */}
+        <Text style={styles.sectionLabel}>WHAT DO YOU NEED?</Text>
 
-        {/* Primary actions */}
-        <Text style={styles.sectionLabel}>What do you need?</Text>
-        {QUICK_ACTIONS.filter(a => canShow(a.role)).map(action => (
-          <TouchableOpacity
-            key={action.key}
-            style={styles.actionCard}
-            onPress={() => navigation.navigate(action.key)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.actionIcon}>{action.icon}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.actionTitle}>{action.title}</Text>
-              <Text style={styles.actionSub}>{action.sub}</Text>
-            </View>
-            <Text style={styles.actionArrow}>→</Text>
-          </TouchableOpacity>
-        ))}
-
-        {/* Secondary grid */}
-        <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>Quick Access</Text>
-        <View style={styles.grid}>
-          {SECONDARY_ACTIONS.filter(a => canShow(a.role)).map(action => (
+        <View style={styles.servicesContainer}>
+          {MAIN_SERVICES.map(item => (
             <TouchableOpacity
-              key={action.key + action.title}
-              style={styles.gridItem}
-              onPress={() => navigation.navigate(action.key)}
+              key={item.key}
+              style={styles.serviceCard}
+              onPress={() => navigation.navigate(item.key)}
               activeOpacity={0.8}
             >
-              <Text style={{ fontSize: 24, marginBottom: 6 }}>{action.icon}</Text>
-              <Text style={styles.gridItemText}>{action.title}</Text>
+              <View style={[styles.serviceIconWrap, { backgroundColor: item.iconBg }]}>
+                <Text style={styles.serviceIcon}>{item.icon}</Text>
+              </View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={styles.serviceTitle}>{item.title}</Text>
+                <Text style={styles.serviceSub}>{item.sub}</Text>
+              </View>
+              <Text style={styles.serviceArrow}>→</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Footer tagline */}
-        <Text style={styles.tagline}>The OS for daily commuting in Indian cities</Text>
+        {/* ACTIVE TRIP STATUS (Matching Image 3) */}
+        {activeTrip && (
+          <View style={styles.activeTripSection}>
+            <Text style={styles.sectionLabel}>ACTIVE TRIP STATUS</Text>
+            <View style={styles.activeTripCard}>
+              {/* Trip Header */}
+              <View style={styles.tripHeaderRow}>
+                <View style={styles.tripStatusIndicator}>
+                  <View style={styles.liveGreenDot} />
+                  <Text style={styles.tripHeaderText}>
+                    🚀 {tripRole === 'driver' ? 'YOU ARE DRIVING (LIVE TRIP)' : 'YOU ARE RIDING (LIVE TRIP)'}
+                  </Text>
+                </View>
+                <View style={styles.liveBadge}>
+                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                </View>
+              </View>
+
+              {activeTrip.date && (
+                <Text style={styles.tripDateSub}>
+                  {activeTrip.date} {activeTrip.time ? `• ${activeTrip.time}` : ''}
+                </Text>
+              )}
+
+              {/* Driver & Vehicle Box */}
+              <View style={styles.driverBox}>
+                <View style={styles.driverIconCircle}>
+                  <Text style={{ fontSize: 18 }}>🚗</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.driverTitle}>
+                    {tripRole === 'driver' ? 'You (Driver)' : (activeTrip.providerId?.name || 'Assigned Driver')}
+                  </Text>
+                  <Text style={styles.driverVehicle}>
+                    {activeTrip.vehicleName || activeTrip.providerId?.kycDocuments?.vehicleName || 'Vehicle'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Route Points */}
+              <View style={styles.routeBox}>
+                <View style={styles.routePointRow}>
+                  <View style={[styles.routeDot, { backgroundColor: colors.green }]} />
+                  <Text style={styles.routeAddressText} numberOfLines={1}>
+                    {getAddress(activeTrip.pickup)}
+                  </Text>
+                </View>
+                <View style={styles.routeConnectingLine} />
+                <View style={styles.routePointRow}>
+                  <View style={[styles.routeDot, { backgroundColor: colors.red }]} />
+                  <Text style={styles.routeAddressText} numberOfLines={1}>
+                    {getAddress(activeTrip.drop)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Seats & Cost */}
+              <View style={styles.tripMetaRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 14 }}>👥</Text>
+                  <Text style={styles.tripMetaText}>{activeTrip.seatsAvailable || 2} seats</Text>
+                </View>
+                <Text style={styles.tripCostText}>₹{activeTrip.costPerSeat || 49} / seat</Text>
+              </View>
+
+              {/* Open Live GPS CTA */}
+              <TouchableOpacity
+                style={styles.openGpsBtn}
+                onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.openGpsBtnText}>📍 Open Live GPS & Tracking →</Text>
+              </TouchableOpacity>
+
+              {/* Secondary Buttons Row */}
+              <View style={styles.secondaryBtnRow}>
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={() => navigation.navigate('RideDetail', { rideId: activeTrip._id || activeTrip.id })}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryBtnText}>Ride Details</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryBtn}
+                  onPress={() => navigation.navigate(tripRole === 'driver' ? 'ProviderBookings' : 'MyBookings')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.secondaryBtnText}>
+                    {tripRole === 'driver' ? 'Manage Requests' : 'My Bookings'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Footer Tagline */}
+        <Text style={styles.tagline}>The operating system for daily commuting in Indian cities</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -105,87 +241,274 @@ export default function DashboardScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.bg },
-  scroll: { padding: spacing.md, paddingBottom: 32 },
+  scroll: { padding: spacing.md, paddingBottom: 36 },
 
-  hero: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
+  heroCard: {
+    backgroundColor: '#0e1218',
+    borderRadius: radius.xxl,
     borderWidth: 1,
-    borderColor: colors.border,
-    padding: 24,
+    borderColor: '#1e2430',
+    padding: 22,
     marginBottom: spacing.md,
-    overflow: 'hidden',
     position: 'relative',
+    overflow: 'hidden',
   },
-  heroBg: {
+  heroGlowCircle: {
     position: 'absolute',
-    right: -20,
-    top: -20,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: colors.accentGlow,
+    right: -25,
+    top: -25,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(245,166,35,0.06)',
   },
-  heroGreeting: { color: colors.text, fontSize: 28, fontWeight: '800', marginBottom: 4 },
-  heroCollege:  { color: colors.text2, fontSize: 13 },
-  adminBadge:   { marginTop: 8, backgroundColor: colors.accentDim, borderRadius: radius.full, paddingHorizontal: 12, paddingVertical: 4, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.accent + '44' },
-  adminBadgeText: { color: colors.accent, fontSize: 11, fontWeight: '700' },
-
-  adminCard: {
+  heroGreeting: {
+    color: colors.text,
+    fontSize: 26,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  collegeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.accentDim,
-    borderWidth: 1,
-    borderColor: colors.accent + '44',
-    borderRadius: radius.lg,
-    padding: 14,
-    marginBottom: spacing.md,
+  },
+  heroCollege: {
+    color: colors.text2,
+    fontSize: 14,
+    fontWeight: '600',
   },
 
   sectionLabel: {
     color: colors.text2,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10.5,
+    fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 10,
+    marginBottom: 12,
+    marginTop: 4,
   },
 
-  actionCard: {
+  servicesContainer: {
+    gap: 10,
+    marginBottom: spacing.md,
+  },
+  serviceCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    backgroundColor: colors.surface,
+    backgroundColor: '#0e1218',
     borderWidth: 1.5,
-    borderColor: 'rgba(245,166,35,0.20)',
-    borderRadius: radius.xl,
+    borderColor: '#1e2533',
+    borderRadius: radius.xxl,
+    padding: 16,
+  },
+  serviceIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  serviceIcon: {
+    fontSize: 20,
+  },
+  serviceTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 3,
+  },
+  serviceSub: {
+    color: colors.text2,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  serviceArrow: {
+    color: colors.accent,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+
+  activeTripSection: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  activeTripCard: {
+    backgroundColor: '#0c1017',
+    borderRadius: radius.xxl,
+    borderWidth: 2,
+    borderColor: colors.accent,
     padding: 18,
+    shadowColor: colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  tripHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  tripStatusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  liveGreenDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: colors.green,
+  },
+  tripHeaderText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  liveBadge: {
+    backgroundColor: 'rgba(0,230,118,0.15)',
+    borderWidth: 1,
+    borderColor: colors.green,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  liveBadgeText: {
+    color: colors.green,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  tripDateSub: {
+    color: colors.text3,
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 17,
+    marginBottom: 12,
+  },
+
+  driverBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#131822',
+    borderRadius: radius.lg,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#1e2636',
+  },
+  driverIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(245,166,35,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  driverTitle: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  driverVehicle: {
+    color: colors.text2,
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  routeBox: {
+    marginBottom: 14,
+    paddingHorizontal: 4,
+  },
+  routePointRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  routeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  routeConnectingLine: {
+    width: 2,
+    height: 16,
+    backgroundColor: '#262f40',
+    marginLeft: 3,
+    marginVertical: 2,
+  },
+  routeAddressText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+  },
+
+  tripMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#1e2636',
+    paddingTop: 12,
+    marginBottom: 14,
+  },
+  tripMetaText: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tripCostText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  openGpsBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 10,
   },
-  actionIcon:  { fontSize: 26 },
-  actionTitle: { color: colors.text, fontSize: 15, fontWeight: '700', marginBottom: 3 },
-  actionSub:   { color: colors.text2, fontSize: 12, lineHeight: 17 },
-  actionArrow: { color: colors.text3, fontSize: 18 },
-
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: spacing.md },
-  gridItem: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    padding: 14,
-    alignItems: 'center',
-    width: '47%',
+  openGpsBtnText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '900',
   },
-  gridItemText: { color: colors.text, fontSize: 12, fontWeight: '600', textAlign: 'center' },
+
+  secondaryBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  secondaryBtn: {
+    flex: 1,
+    backgroundColor: '#131822',
+    borderWidth: 1,
+    borderColor: '#1e2636',
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryBtnText: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
 
   tagline: {
     color: colors.text3,
     fontSize: 11,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 12,
+    marginBottom: 16,
   },
 });

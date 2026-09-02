@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
+import LiveMapView from '../components/LiveMapView';
 import { Btn, Alert, EmptyState } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -21,21 +22,22 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const { rideId: paramRideId } = route?.params || {};
   const { user } = useAuth();
 
-  const [activeRideId, setActiveRideId] = useState(paramRideId || null);
-  const [tracking,     setTracking]     = useState(true);
-  const [sosSent,      setSosSent]      = useState(false);
-  const [sosLoading,   setSosLoading]   = useState(false);
-  const [elapsed,      setElapsed]      = useState(0);
-  const [userLat,      setUserLat]      = useState(null);
-  const [userLng,      setUserLng]      = useState(null);
-  const [pickupCoords, setPickupCoords] = useState(null);
-  const [dropCoords,   setDropCoords]   = useState(null);
-  const [routeDistance, setRouteDistance] = useState('');
-  const [routeDuration, setRouteDuration] = useState('');
-  const [rideInfo,     setRideInfo]     = useState(null);
-  const [error,        setError]        = useState('');
-  const [loading,      setLoading]      = useState(true);
-  const [lookingUp,    setLookingUp]    = useState(!paramRideId);
+  const [activeRideId,     setActiveRideId]     = useState(paramRideId || null);
+  const [tracking,         setTracking]         = useState(true);
+  const [sosSent,          setSosSent]          = useState(false);
+  const [sosLoading,       setSosLoading]       = useState(false);
+  const [elapsed,          setElapsed]          = useState(0);
+  const [userLat,          setUserLat]          = useState(null);
+  const [userLng,          setUserLng]          = useState(null);
+  const [pickupCoords,     setPickupCoords]     = useState(null);
+  const [dropCoords,       setDropCoords]       = useState(null);
+  const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [routeDistance,    setRouteDistance]    = useState('');
+  const [routeDuration,    setRouteDuration]    = useState('');
+  const [rideInfo,         setRideInfo]         = useState(null);
+  const [error,            setError]            = useState('');
+  const [loading,          setLoading]          = useState(true);
+  const [lookingUp,        setLookingUp]        = useState(!paramRideId);
 
   const timerRef = useRef(null);
 
@@ -112,6 +114,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
             if (isMounted && routeData) {
               setRouteDistance(routeData.distanceKm ? `${routeData.distanceKm} km` : '');
               setRouteDuration(routeData.durationMin ? `${routeData.durationMin} mins` : '');
+              if (routeData.coordinates && routeData.coordinates.length > 0) {
+                setRouteCoordinates(routeData.coordinates);
+              }
             }
           } catch (e) {
             console.log('Route calc note:', e.message);
@@ -211,7 +216,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Live GPS Radar & Route Visualizer */}
+          {/* Live GPS Radar & Interactive Map */}
           <View style={styles.radarCard}>
             <View style={styles.radarHeader}>
               <View style={styles.livePulseDot} />
@@ -221,11 +226,21 @@ export default function LiveTrackingScreen({ navigation, route }) {
               </View>
             </View>
 
+            {/* Interactive OpenStreetMap Live Map */}
+            <LiveMapView
+              pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
+              drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
+              driverLocation={userLat && userLng ? { lat: userLat, lng: userLng } : null}
+              coordinates={routeCoordinates}
+              height={260}
+              style={{ marginBottom: 12 }}
+            />
+
             {/* Visual Route Path */}
             <View style={styles.routeDiagram}>
               <View style={styles.routeNode}>
                 <View style={[styles.nodeIcon, { backgroundColor: colors.green + '22', borderColor: colors.green }]}>
-                  <Text style={{ fontSize: 16 }}>📍</Text>
+                  <Text style={{ fontSize: 16 }}>🟢</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.nodeLabel}>PICKUP POINT</Text>
@@ -246,6 +261,11 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   <Text style={{ fontSize: 16 }}>🏁</Text>
                 </View>
                 <View style={{ flex: 1 }}>
+                  <Text style={styles.nodeLabel}>DROP-OFF DESTINATION</Text>
+                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
+                </View>
+              </View>
+            </View>
                   <Text style={styles.nodeLabel}>DROP-OFF DESTINATION</Text>
                   <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
                 </View>

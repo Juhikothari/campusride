@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal,
   TextInput, ActivityIndicator, Platform, ScrollView,
 } from 'react-native';
 import * as Location from 'expo-location';
+import LiveMapView from './LiveMapView';
 import { colors, radius, spacing } from '../theme';
 import * as api from '../services/api';
 
@@ -68,6 +69,17 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
       setCoords({ lat: 12.9716, lng: 77.5946 });
     } finally {
       setLocating(false);
+    }
+  };
+
+  const handleMapClick = async ({ lat, lng }) => {
+    setCoords({ lat, lng });
+    try {
+      const res = await api.reverseGeocode(lat, lng);
+      const name = res?.label || res?.display_name || res?.address || 'Selected Location';
+      setAddressLabel(name);
+    } catch {
+      setAddressLabel('Selected Location');
     }
   };
 
@@ -167,6 +179,17 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
             </View>
           )}
 
+          {/* Interactive Visual Map with Droppable Pin */}
+          <View style={{ marginVertical: 10 }}>
+            <LiveMapView
+              pinLocation={coords}
+              onMapClick={handleMapClick}
+              height={230}
+              interactive={true}
+            />
+            <Text style={styles.mapHintText}>👆 Tap anywhere on the map or drag pin to adjust location</Text>
+          </View>
+
           {/* Selected Location Banner */}
           <View style={styles.selectedCard}>
             <Text style={styles.cardHeader}>SELECTED LOCATION</Text>
@@ -176,7 +199,9 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.selectedAddress}>{addressLabel || 'Locating...'}</Text>
-                <Text style={styles.verifiedCampusTag}>✓ Verified Campus Location</Text>
+                {coords && (
+                  <Text style={styles.coordSub}>GPS: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</Text>
+                )}
               </View>
             </View>
           </View>
@@ -256,19 +281,20 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   input: {
     flex: 1,
     color: colors.text,
     fontSize: 14,
   },
+
   resultsBox: {
-    backgroundColor: colors.surface2,
-    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 14,
+    marginBottom: 10,
     overflow: 'hidden',
   },
   resultItem: {
@@ -276,22 +302,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 11,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  resultText: { color: colors.text, fontSize: 13, flex: 1 },
+  resultText: {
+    color: colors.text,
+    fontSize: 13,
+    flex: 1,
+  },
+
+  mapHintText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 6,
+  },
 
   selectedCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.xl,
-    padding: spacing.md,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginVertical: 8,
   },
   cardHeader: {
-    color: colors.accent,
+    color: colors.text3,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.8,
@@ -315,10 +353,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  verifiedCampusTag: {
-    color: colors.green,
+  coordSub: {
+    color: colors.text3,
     fontSize: 11,
-    fontWeight: '700',
     marginTop: 2,
   },
 
@@ -327,27 +364,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.8,
-    marginBottom: 10,
+    marginTop: 10,
+    marginBottom: 8,
   },
   spotsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    marginBottom: spacing.md,
   },
   spotChip: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surface2,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: radius.full,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: radius.lg,
+    paddingVertical: 7,
   },
   spotChipActive: {
-    backgroundColor: colors.accentDim,
     borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
   },
   spotText: {
-    color: colors.text,
+    color: colors.text2,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -361,11 +400,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    padding: spacing.md,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    padding: spacing.md,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
   },
   confirmBtn: {
     backgroundColor: colors.accent,
