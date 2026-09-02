@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   KeyboardAvoidingView, Platform, StyleSheet, Modal, TextInput, FlatList,
@@ -144,8 +144,7 @@ export default function RegisterScreen({ navigation }) {
     const err = validateStep1();
     if (err) { setError(err); return; }
     setError('');
-    if (isProvider) { setStep(2); }
-    else { submit({}); }
+    submit({});
   };
 
   const submit = async (kycDocs = {}) => {
@@ -336,18 +335,8 @@ export default function RegisterScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Optional Role selection */}
-          <View style={[styles.fieldBlock, { marginTop: 4 }]}>
-            <Text style={styles.label}>I WANT TO…</Text>
-            <TogglePill options={ROLES} value={role} onChange={setRole} />
-          </View>
-
-          {role === 'admin' && (
-            <Input label="Admin Key" value={adminKey} onChangeText={setAdminKey} placeholder="freewheel" secureTextEntry containerStyle={{ marginTop: 12 }} />
-          )}
-
           <Btn
-            label={isProvider ? 'Next: Add Vehicle & Documents →' : 'Create account'}
+            label="Create account"
             onPress={handleNext}
             loading={loading}
             style={{ marginTop: spacing.md }}

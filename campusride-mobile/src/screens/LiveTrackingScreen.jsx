@@ -195,6 +195,112 @@ export default function LiveTrackingScreen({ navigation, route }) {
     );
   }, [activeRideId, userLat, userLng]);
 
+  const isDriver = Boolean(
+    user?._id === (rideInfo?.providerId?._id || rideInfo?.providerId) ||
+    user?.id === (rideInfo?.providerId?._id || rideInfo?.providerId) ||
+    (user?.email && rideInfo?.providerId?.email && user.email === rideInfo.providerId.email)
+  );
+
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const handleStartRide = async () => {
+    setActionLoading(true);
+    try {
+      await api.startRide(activeRideId);
+      setRideInfo(prev => ({ ...prev, status: 'in-progress' }));
+      RNAlert.alert('🚀 Trip Started', 'Your ride is now LIVE. Passengers can track your route in real-time.');
+    } catch (err) {
+      RNAlert.alert('Error', err.message || 'Failed to start ride');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCompleteRide = () => {
+    RNAlert.alert(
+      '🏁 Finish & Complete Ride',
+      'Are you sure you want to end this ride? All passengers will be marked as reached destination.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete Ride',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await api.completeRide(activeRideId);
+              setRideInfo(prev => ({ ...prev, status: 'completed' }));
+              RNAlert.alert('🎉 Ride Completed', 'The trip has been marked as finished successfully!', [
+                { text: 'Back to Home', onPress: () => navigation.navigate('Home') }
+              ]);
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to complete ride');
+            } finally {
+              setActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCancelRide = () => {
+    RNAlert.alert(
+      'Cancel Ride',
+      'Are you sure you want to cancel this ride? All passenger bookings will be cancelled.',
+      [
+        { text: 'Keep Ride', style: 'cancel' },
+        {
+          text: 'Cancel Ride',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              await api.cancelRide(activeRideId, 'Cancelled by provider');
+              RNAlert.alert('Ride Cancelled', 'The ride has been cancelled.', [
+                { text: 'OK', onPress: () => navigation.navigate('Home') }
+              ]);
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to cancel ride');
+            } finally {
+              setActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCancelBooking = async () => {
+    RNAlert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel your seat in this ride?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              const myBookings = await api.getMyBookings().catch(() => []);
+              const currentBooking = myBookings.find(b => (b.rideId?._id || b.rideId) === activeRideId && b.status !== 'cancelled');
+              if (currentBooking) {
+                await api.cancelBooking(currentBooking._id);
+              }
+              RNAlert.alert('Booking Cancelled', 'Your booking has been cancelled.', [
+                { text: 'OK', onPress: () => navigation.navigate('Home') }
+              ]);
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to cancel booking');
+            } finally {
+              setActionLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopHeader title="HOGO Track" subtitle="Live Route & Navigation" />
@@ -333,6 +439,74 @@ export default function LiveTrackingScreen({ navigation, route }) {
           )}
 
           <Alert message={error} />
+
+          {/* ── DRIVER TRIP CONTROLS CARD ── */}
+          {isDriver && (
+            <View style={styles.driverControlCard}>
+              <Text style={styles.driverControlTitle}>⚡ DRIVER TRIP CONTROLS</Text>
+              
+              {rideInfo?.status === 'in-progress' || rideInfo?.status === 'active' ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.completeRideBtn}
+                    onPress={handleCompleteRide}
+                    disabled={actionLoading}
+                    activeOpacity={0.85}
+                  >
+                    {actionLoading ? (
+                      <ActivityIndicator color="#000" size="small" />
+                    ) : (
+                      <Text style={styles.completeRideBtnText}>🏁 Complete & Finish Ride</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                    <TouchableOpacity
+                      style={styles.driverSubBtn}
+                      onPress={() => navigation.navigate('ProviderBookings')}
+                    >
+                      <Text style={styles.driverSubBtnText}>👥 Passengers</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.driverSubBtn, { borderColor: colors.red + '55' }]}
+                      onPress={handleCancelRide}
+                    >
+                      <Text style={[styles.driverSubBtnText, { color: colors.red }]}>Cancel Ride</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.completeRideBtn, { flex: 1, backgroundColor: colors.accent }]}
+                    onPress={handleStartRide}
+                    disabled={actionLoading}
+                  >
+                    <Text style={styles.completeRideBtnText}>🚀 Start Ride</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.driverSubBtn, { borderColor: colors.red + '55', paddingHorizontal: 16 }]}
+                    onPress={handleCancelRide}
+                  >
+                    <Text style={[styles.driverSubBtnText, { color: colors.red }]}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Passenger Cancel Booking Option */}
+          {!isDriver && rideInfo?.status !== 'completed' && rideInfo?.status !== 'cancelled' && (
+            <TouchableOpacity
+              style={styles.passengerCancelBtn}
+              onPress={handleCancelBooking}
+              disabled={actionLoading}
+            >
+              <Text style={styles.passengerCancelText}>Cancel My Booking</Text>
+            </TouchableOpacity>
+          )}
 
           {sosSent && (
             <View style={styles.sosSentBanner}>
@@ -640,6 +814,63 @@ const styles = StyleSheet.create({
   },
   driverGridVal: {
     color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  driverControlCard: {
+    backgroundColor: '#0c1017',
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: radius.xl,
+    padding: 16,
+    marginBottom: 14,
+  },
+  driverControlTitle: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  completeRideBtn: {
+    backgroundColor: colors.green,
+    borderRadius: radius.lg,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completeRideBtnText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  driverSubBtn: {
+    flex: 1,
+    backgroundColor: '#131822',
+    borderWidth: 1,
+    borderColor: '#1e2636',
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  driverSubBtnText: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  passengerCancelBtn: {
+    backgroundColor: '#141824',
+    borderWidth: 1,
+    borderColor: colors.red + '55',
+    borderRadius: radius.lg,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  passengerCancelText: {
+    color: colors.red,
     fontSize: 13,
     fontWeight: '700',
   },

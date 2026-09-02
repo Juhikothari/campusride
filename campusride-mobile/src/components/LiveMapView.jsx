@@ -1,4 +1,4 @@
-﻿import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { colors, radius } from '../theme';
@@ -73,9 +73,10 @@ export default function LiveMapView({
             touchZoom: ${interactive ? 'true' : 'false'},
           }).setView([${defaultLat}, ${defaultLng}], 14);
 
-          // Dark CartoDB street tiles
-          L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19
+          // OpenStreetMap free street tiles (no API key required)
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: ''
           }).addTo(map);
 
           const markers = [];

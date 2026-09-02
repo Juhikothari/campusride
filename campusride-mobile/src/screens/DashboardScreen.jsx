@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert as RNAlert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
@@ -88,6 +88,29 @@ export default function DashboardScreen({ navigation }) {
     const interval = setInterval(fetchActiveTrip, 15000);
     return () => { mounted = false; clearInterval(interval); };
   }, []);
+
+  const handleFinishTrip = () => {
+    if (!activeTrip) return;
+    RNAlert.alert(
+      '🏁 Finish & Complete Ride',
+      'Are you sure you want to end this ride? All passengers will be marked as reached destination.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Complete Ride',
+          onPress: async () => {
+            try {
+              await api.completeRide(activeTrip._id || activeTrip.id);
+              setActiveTrip(null);
+              RNAlert.alert('🎉 Ride Completed', 'The trip has been completed successfully!');
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to complete ride');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const getAddress = (loc) => {
     if (!loc) return 'Campus';
@@ -208,14 +231,24 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={styles.openGpsBtnText}>📍 Open Live GPS & Tracking →</Text>
               </TouchableOpacity>
 
-              {/* Secondary Buttons Row */}
+              {/* Secondary Buttons Row with Finish Ride */}
               <View style={styles.secondaryBtnRow}>
+                {tripRole === 'driver' && (
+                  <TouchableOpacity
+                    style={[styles.secondaryBtn, { backgroundColor: 'rgba(0,230,118,0.15)', borderColor: colors.green }]}
+                    onPress={handleFinishTrip}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.secondaryBtnText, { color: colors.green, fontWeight: '900' }]}>🏁 Finish Ride</Text>
+                  </TouchableOpacity>
+                )}
+
                 <TouchableOpacity
                   style={styles.secondaryBtn}
                   onPress={() => navigation.navigate('RideDetail', { rideId: activeTrip._id || activeTrip.id })}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.secondaryBtnText}>Ride Details</Text>
+                  <Text style={styles.secondaryBtnText}>Details</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -224,7 +257,7 @@ export default function DashboardScreen({ navigation }) {
                   activeOpacity={0.8}
                 >
                   <Text style={styles.secondaryBtnText}>
-                    {tripRole === 'driver' ? 'Manage Requests' : 'My Bookings'}
+                    {tripRole === 'driver' ? 'Requests' : 'Bookings'}
                   </Text>
                 </TouchableOpacity>
               </View>

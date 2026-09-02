@@ -207,62 +207,8 @@ export default function SearchRidesScreen({ navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Quick Campus Features */}
-        <View style={styles.quickFeaturesSection}>
-          <Text style={styles.sectionTitle}>CAMPUS SERVICES</Text>
-          <View style={styles.quickGrid}>
-            <TouchableOpacity
-              style={styles.quickCard}
-              onPress={() => navigation.navigate('WalkTogether')}
-              activeOpacity={0.75}
-            >
-              <View style={[styles.quickIconWrap, { backgroundColor: 'rgba(45,212,160,0.15)' }]}>
-                <Text style={{ fontSize: 20 }}>🚶</Text>
-              </View>
-              <Text style={styles.quickCardTitle}>Walk Together</Text>
-              <Text style={styles.quickCardSub}>Find companions</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickCard}
-              onPress={() => navigation.navigate('ChatBot')}
-              activeOpacity={0.75}
-            >
-              <View style={[styles.quickIconWrap, { backgroundColor: 'rgba(245,166,35,0.15)' }]}>
-                <Text style={{ fontSize: 20 }}>🤖</Text>
-              </View>
-              <Text style={styles.quickCardTitle}>AI Assistant</Text>
-              <Text style={styles.quickCardSub}>Ask RideBot</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickCard}
-              onPress={() => navigation.navigate('Community')}
-              activeOpacity={0.75}
-            >
-              <View style={[styles.quickIconWrap, { backgroundColor: 'rgba(80,140,255,0.15)' }]}>
-                <Text style={{ fontSize: 20 }}>💬</Text>
-              </View>
-              <Text style={styles.quickCardTitle}>Community</Text>
-              <Text style={styles.quickCardSub}>Campus chat</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickCard}
-              onPress={() => navigation.navigate('MyBookings')}
-              activeOpacity={0.75}
-            >
-              <View style={[styles.quickIconWrap, { backgroundColor: 'rgba(233,30,140,0.15)' }]}>
-                <Text style={{ fontSize: 20 }}>📋</Text>
-              </View>
-              <Text style={styles.quickCardTitle}>My Bookings</Text>
-              <Text style={styles.quickCardSub}>Ride history</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Section divider */}
-        <Text style={[styles.sectionTitle, { marginTop: spacing.md }]}>SEARCH & MATCH RIDES</Text>
+        <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH & MATCH RIDES</Text>
 
         {/* Pickup */}
         <LocationSearch
