@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ActivityIndicator, View, Text } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import * as api from '../services/api';
 import { colors } from '../theme';
 
@@ -53,9 +54,17 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Validate stored token and load user on mount (with guaranteed timeout)
+  // Validate stored token and load user on mount (with guaranteed fast timeout)
   useEffect(() => {
     let isMounted = true;
+
+    // Safety fallback timer — maximum 1.2s on launch
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        setInitDone(true);
+        SplashScreen.hideAsync().catch(() => {});
+      }
+    }, 1200);
 
     (async () => {
       try {
@@ -77,8 +86,6 @@ export function AuthProvider({ children }) {
             }
           } catch (e) {
             console.log('Session verification error:', e.message);
-            // Only force logout if the token is explicitly rejected (401/403),
-            // but keep cached session if it was just a temporary network timeout.
             if (e.status === 401 || e.status === 403) {
               if (isMounted) await logout();
             }
@@ -87,14 +94,17 @@ export function AuthProvider({ children }) {
       } catch (err) {
         console.log('Auth initialization error:', err);
       } finally {
+        clearTimeout(safetyTimer);
         if (isMounted) {
           setInitDone(true);
+          SplashScreen.hideAsync().catch(() => {});
         }
       }
     })();
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimer);
     };
   }, [logout]);
 
