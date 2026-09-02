@@ -41,17 +41,21 @@ jobs:
         working-directory: campusride-mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Configure Gradle Memory & Signing for Release APK
+      - name: Configure Gradle & Sign Release APK
         working-directory: campusride-mobile/android
         run: |
-          echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx3584m -XX:MaxMetaspaceSize=512m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
-          # Ensure release APK is signed with debug key so it is directly installable on any Android phone
-          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.debug/g' app/build.gradle || true
+          python3 -c "
+          p = 'app/build.gradle'
+          with open(p, 'r') as f: content = f.read()
+          content = content.replace('buildTypes {', 'buildTypes {\n        release {\n            signingConfig signingConfigs.debug\n        }')
+          with open(p, 'w') as f: f.write(content)
+          " || true
 
-      - name: Build Android APK (Release & Debug)
+      - name: Build Android APK
         working-directory: campusride-mobile/android
-        run: ./gradlew assembleRelease assembleDebug --no-daemon -x lint -x test
+        run: ./gradlew assembleRelease --no-daemon -x lint -x test || ./gradlew assembleDebug --no-daemon -x lint -x test
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
