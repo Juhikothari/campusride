@@ -266,11 +266,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 </View>
               </View>
             </View>
-                  <Text style={styles.nodeLabel}>DROP-OFF DESTINATION</Text>
-                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
-                </View>
-              </View>
-            </View>
 
             {/* GPS Telemetry Bar */}
             <View style={styles.telemetryBar}>
