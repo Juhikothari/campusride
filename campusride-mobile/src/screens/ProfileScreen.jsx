@@ -35,17 +35,28 @@ export default function ProfileScreen({ navigation }) {
 
   // Vehicle registration modal state
   const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [userVehicles,     setUserVehicles]     = useState([]);
   const [vNum,             setVNum]             = useState('');
   const [vName,            setVName]            = useState('');
   const [vType,            setVType]            = useState('car');
   const [vSaving,          setVSaving]          = useState(false);
   const [vErr,             setVErr]             = useState('');
 
-  useEffect(() => {
+  const fetchProfileAndVehicles = () => {
     api.getProfile()
       .then(p => { setProfile(p); setNewPhone(p.phone || ''); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
+
+    api.getUserVehicles()
+      .then(list => {
+        if (Array.isArray(list)) setUserVehicles(list);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchProfileAndVehicles();
   }, []);
 
   const handleSaveVehicle = async () => {
@@ -56,11 +67,21 @@ export default function ProfileScreen({ navigation }) {
     try {
       const cleanNum = vNum.trim().toUpperCase();
       const cleanName = vName.trim();
-      await api.saveVehicle({
+      const res = await api.saveVehicle({
         vehicleNumber: cleanNum,
         vehicleName: cleanName,
         vehicleType: vType,
       });
+
+      if (res.vehicles && Array.isArray(res.vehicles)) {
+        setUserVehicles(res.vehicles);
+      } else {
+        setUserVehicles(prev => [
+          ...prev.filter(v => v.vehicleNumber !== cleanNum),
+          { vehicleNumber: cleanNum, vehicleName: cleanName, vehicleType: vType, status: 'pending' }
+        ]);
+      }
+
       setProfile(prev => ({
         ...prev,
         kycDocuments: {
@@ -71,10 +92,15 @@ export default function ProfileScreen({ navigation }) {
           vehicleStatus: 'pending',
         }
       }));
+
+      setVNum('');
+      setVName('');
+      setShowVehicleModal(false);
+
       RNAlert.alert(
         '✅ Vehicle Submitted',
         'Your vehicle details have been submitted for admin verification. Verification will be completed within 24 hours.',
-        [{ text: 'OK', onPress: () => setShowVehicleModal(false) }]
+        [{ text: 'OK' }]
       );
     } catch (e) {
       setVErr(e.message || 'Failed to submit vehicle details');
@@ -197,68 +223,104 @@ export default function ProfileScreen({ navigation }) {
 
         {/* ── VEHICLE DETAILS & 24-HR ADMIN REVIEW ── */}
         <View style={styles.card}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <Text style={styles.sectionTitle}>Vehicle Details</Text>
-            {!p?.kycDocuments?.vehicleNumber && (
-              <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.addVehicleBadgeBtn}>
-                <Text style={styles.addVehicleBadgeText}>+ Add Vehicle</Text>
-              </TouchableOpacity>
-            )}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <Text style={styles.sectionTitle}>
+              Vehicle Details {(() => {
+                const count = userVehicles.length > 0 ? userVehicles.length : (p?.kycDocuments?.vehicleNumber ? 1 : 0);
+                return count > 0 ? `(${count})` : '';
+              })()}
+            </Text>
+            <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.addVehicleBadgeBtn}>
+              <Text style={styles.addVehicleBadgeText}>
+                {(userVehicles.length > 0 || p?.kycDocuments?.vehicleNumber) ? '+ Add Another' : '+ Add Vehicle'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {p?.kycDocuments?.vehicleNumber ? (
-            <View style={styles.registeredVehicleCard}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <View style={styles.vehicleIconCircle}>
-                  <Text style={{ fontSize: 22 }}>🚗</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.vehicleNameHead}>
-                    {p.kycDocuments.vehicleName || 'Registered Vehicle'} • {(p.kycDocuments.vehicleType || 'Car').toUpperCase()}
-                  </Text>
-                  <Text style={styles.vehiclePlateHead}>{p.kycDocuments.vehicleNumber}</Text>
-                </View>
-                <View style={[
-                  styles.vehicleStatusBadge,
-                  p?.kycDocuments?.vehicleStatus === 'pending'
-                    ? { backgroundColor: colors.accent + '22', borderColor: colors.accent }
-                    : { backgroundColor: colors.green + '22', borderColor: colors.green }
-                ]}>
-                  <Text style={[
-                    styles.vehicleStatusBadgeText,
-                    p?.kycDocuments?.vehicleStatus === 'pending' ? { color: colors.accent } : { color: colors.green }
-                  ]}>
-                    {p?.kycDocuments?.vehicleStatus === 'pending' ? '⏳ Reviewing' : '✓ Verified'}
-                  </Text>
-                </View>
-              </View>
+          {(() => {
+            const list = [...userVehicles];
+            if (list.length === 0 && p?.kycDocuments?.vehicleNumber) {
+              list.push({
+                vehicleNumber: p.kycDocuments.vehicleNumber,
+                vehicleName: p.kycDocuments.vehicleName || 'Vehicle',
+                vehicleType: p.kycDocuments.vehicleType || 'car',
+                status: p.kycDocuments.vehicleStatus || 'pending',
+              });
+            }
 
-              {p?.kycDocuments?.vehicleStatus === 'pending' ? (
-                <View style={styles.pendingReviewNotice}>
-                  <Text style={styles.pendingReviewNoticeText}>
-                    ⏳ Vehicle submitted for admin verification. Verification will be done in 24 hrs.
+            if (list.length === 0) {
+              return (
+                <View style={styles.emptyVehicleBlock}>
+                  <Text style={{ fontSize: 24, marginBottom: 4 }}>🚗</Text>
+                  <Text style={styles.emptyVehicleTitle}>No Vehicle Added</Text>
+                  <Text style={styles.emptyVehicleSub}>
+                    Add your vehicle details to offer rides to fellow students. It will be verified by admin within 24 hours.
                   </Text>
+                  <Btn
+                    label="🚗 + Add Vehicle Details"
+                    onPress={() => setShowVehicleModal(true)}
+                    style={{ marginTop: 10 }}
+                  />
                 </View>
-              ) : (
+              );
+            }
+
+            return (
+              <View>
+                {list.map((veh, idx) => {
+                  const isPending = veh.status === 'pending' || p?.kycDocuments?.vehicleStatus === 'pending';
+                  return (
+                    <View key={idx} style={[styles.registeredVehicleCard, idx > 0 && { marginTop: 10 }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <View style={styles.vehicleIconCircle}>
+                          <Text style={{ fontSize: 22 }}>{veh.vehicleType === 'motorcycle' ? '🏍️' : '🚗'}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.vehicleNameHead}>
+                            {veh.vehicleName || 'Vehicle'} • {(veh.vehicleType || 'Car').toUpperCase()}
+                          </Text>
+                          <Text style={styles.vehiclePlateHead}>{veh.vehicleNumber}</Text>
+                        </View>
+                        <View style={[
+                          styles.vehicleStatusBadge,
+                          isPending
+                            ? { backgroundColor: colors.accent + '22', borderColor: colors.accent }
+                            : { backgroundColor: colors.green + '22', borderColor: colors.green }
+                        ]}>
+                          <Text style={[
+                            styles.vehicleStatusBadgeText,
+                            isPending ? { color: colors.accent } : { color: colors.green }
+                          ]}>
+                            {isPending ? '⏳ In Review' : '✓ Verified'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {isPending ? (
+                        <View style={styles.pendingReviewNotice}>
+                          <Text style={styles.pendingReviewNoticeText}>
+                            ⏳ Vehicle submitted for admin verification. Verification will be done in 24 hrs.
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+
+                <TouchableOpacity
+                  onPress={() => setShowVehicleModal(true)}
+                  style={styles.addAnotherVehicleBtn}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.addAnotherVehicleText}>🚗 + Add Another Vehicle (Car / Bike / XUV)</Text>
+                </TouchableOpacity>
+
                 <Text style={styles.vehicleLockNote}>
-                  🔒 Vehicle details are locked for campus security. To update, contact support with your new RC.
+                  🔒 Registered vehicle details are locked for campus safety. If you need to update an existing vehicle, contact support with your new RC.
                 </Text>
-              )}
-            </View>
-          ) : (
-            <View style={styles.emptyVehicleBlock}>
-              <Text style={{ fontSize: 24, marginBottom: 4 }}>🚗</Text>
-              <Text style={styles.emptyVehicleTitle}>No Vehicle Added</Text>
-              <Text style={styles.emptyVehicleSub}>
-                Add your vehicle details to offer rides to fellow students. It will be verified by admin within 24 hours.
-              </Text>
-              <Btn
-                label="🚗 + Add Vehicle"
-                onPress={() => setShowVehicleModal(true)}
-                style={{ marginTop: 10 }}
-              />
-            </View>
-          )}
+              </View>
+            );
+          })()}
         </View>
 
         {/* Member since */}
@@ -435,6 +497,20 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     lineHeight: 16,
     fontWeight: '600',
+  },
+  addAnotherVehicleBtn: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  addAnotherVehicleText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '800',
   },
   vehicleLockNote: {
     color: colors.text3,

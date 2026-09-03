@@ -129,7 +129,8 @@ router.get('/profile/vehicles', auth, async (req, res) => {
       list = [{
         vehicleNumber: user.kycDocuments.vehicleNumber,
         vehicleName: user.kycDocuments.vehicleName || 'My Vehicle',
-        vehicleType: 'car',
+        vehicleType: user.kycDocuments.vehicleType || 'car',
+        status: user.kycDocuments.vehicleStatus || 'pending',
         isDefault: true,
       }];
     }

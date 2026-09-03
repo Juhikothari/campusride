@@ -52,24 +52,33 @@ export default function DashboardScreen({ navigation }) {
     let mounted = true;
     const fetchActiveTrip = async () => {
       try {
-        const [ridesRes, bookingsRes] = await Promise.allSettled([
-          api.getMyRides().catch(() => []),
-          api.getMyBookings().catch(() => []),
+        const [bookingsRes, ridesRes, requestsRes] = await Promise.allSettled([
+          api.getMyBookings(),
+          api.getMyRides(),
+          api.getRideRequests(),
         ]);
         if (!mounted) return;
 
         const rides = ridesRes.status === 'fulfilled' ? (Array.isArray(ridesRes.value) ? ridesRes.value : ridesRes.value?.rides || []) : [];
         const bookings = bookingsRes.status === 'fulfilled' ? (Array.isArray(bookingsRes.value) ? bookingsRes.value : bookingsRes.value?.bookings || []) : [];
+        const requests = requestsRes.status === 'fulfilled' ? (Array.isArray(requestsRes.value) ? requestsRes.value : requestsRes.value?.requests || []) : [];
 
-        // Check if user is provider of an active/in-progress ride
-        const activeDriverRide = rides.find(r => r.status === 'in-progress' || r.status === 'active');
+        // Check if user is provider of an in-progress ride, OR an active ride that has at least one accepted passenger!
+        const activeDriverRide = rides.find(r => {
+          if (r.status === 'in-progress') return true;
+          if (r.status === 'active') {
+            return requests.some(b => (b.rideId === r._id || b.rideId?._id === r._id) && b.status === 'accepted');
+          }
+          return false;
+        });
+
         if (activeDriverRide) {
           setActiveTrip(activeDriverRide);
           setTripRole('driver');
           return;
         }
 
-        // Check if user is passenger with an accepted/in-progress booking
+        // Check if user is passenger with an accepted booking
         const activeSeekerBooking = bookings.find(b =>
           b.status === 'accepted' && (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
         );

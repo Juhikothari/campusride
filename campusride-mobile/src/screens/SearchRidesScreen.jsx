@@ -192,27 +192,6 @@ export default function SearchRidesScreen({ navigation }) {
       <TopHeader title="Search Your Match" subtitle="Find verified campus commuters" />
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {/* Active Ride Banner (Only visible when a ride is confirmed and ongoing) */}
-        {activeRide && (
-          <TouchableOpacity
-            style={styles.activeRideBanner}
-            onPress={() => {
-              const rId = activeRide._id || activeRide.id;
-              navigation.navigate('PreRideChecklist', { rideId: rId });
-            }}
-            activeOpacity={0.85}
-          >
-            <View style={styles.activeDot} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activeRideTitle}>🚨 Confirmed Campus Ride</Text>
-              <Text style={styles.activeRideSub}>Tap to complete safety checklist & open live GPS</Text>
-            </View>
-            <View style={styles.trackBtnPill}>
-              <Text style={styles.trackBtnText}>Checklist & Track →</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-
         {/* Section divider */}
         <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH & MATCH RIDES</Text>
 

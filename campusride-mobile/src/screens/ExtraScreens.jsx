@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Btn, Alert, Card } from '../components/UI';
 import FloatingChatBot from '../components/FloatingChatBot';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -409,6 +410,19 @@ export function PreRideChecklistScreen({ route, navigation }) {
     rideDetails.providerName === user?.name
   );
 
+  const [isChecklistSaved, setIsChecklistSaved] = useState(false);
+
+  useEffect(() => {
+    if (!rideId) return;
+    const storageKey = `@checklist_done_${rideId}_${user?._id || 'user'}`;
+    AsyncStorage.getItem(storageKey).then(val => {
+      if (val === 'true') {
+        setChecks(Object.fromEntries(CHECKS.map(c => [c.key, true])));
+        setIsChecklistSaved(true);
+      }
+    }).catch(() => {});
+  }, [rideId, user?._id]);
+
   useEffect(() => {
     if (rideId) {
       api.getRideById(rideId).then(r => setRideDetails(r)).catch(() => {});
@@ -418,6 +432,10 @@ export function PreRideChecklistScreen({ route, navigation }) {
   const handleProceed = async () => {
     if (!allDone) return;
     if (!rideId) { navigation.goBack(); return; }
+
+    const storageKey = `@checklist_done_${rideId}_${user?._id || 'user'}`;
+    await AsyncStorage.setItem(storageKey, 'true').catch(() => {});
+    setIsChecklistSaved(true);
 
     if (isDriver) {
       // Provider starts the ride
@@ -449,7 +467,9 @@ export function PreRideChecklistScreen({ route, navigation }) {
     if (!allDone) return `${done}/${CHECKS.length} checked — please verify all`;
     if (isDriver) return '🚀 Everything Checked — Start Ride Now →';
     if (rideDetails?.status === 'in-progress') return '📍 Driver Started Ride — Open Live Map →';
-    return '✅ Checklist Verified • Waiting for Driver to Start';
+    return isChecklistSaved
+      ? '✅ Checklist Already Verified • Waiting for Driver'
+      : '✅ Checklist Verified • Waiting for Driver to Start';
   };
 
   return (
