@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, KeyboardAvoidingView, Platform, Modal,
+  ActivityIndicator, Alert as RNAlert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -67,7 +68,12 @@ export default function CreateRideScreen({ navigation }) {
   const [loading,     setLoading]     = useState(false);
   const [success,     setSuccess]     = useState(null);
   const [error,       setError]       = useState('');
-  const [distKm,      setDistKm]      = useState(0);
+  const [distKm,          setDistKm]          = useState(0);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [inlineVNum,      setInlineVNum]      = useState('');
+  const [inlineVName,     setInlineVName]     = useState('');
+  const [inlineVType,     setInlineVType]     = useState('car');
+  const [savingInlineV,   setSavingInlineV]   = useState(false);
 
   // Load user vehicles
   useEffect(() => {
@@ -77,12 +83,14 @@ export default function CreateRideScreen({ navigation }) {
       AsyncStorage.getItem('@user_registered_vehicles_list').catch(() => null),
       api.getUserVehicles(),
       api.getProfile(),
-    ]).then(([localRes, vRes, pRes]) => {
+      api.getKycStatus(),
+    ]).then(([localRes, vRes, pRes, kycRes]) => {
       if (!mounted) return;
       const localListStr = localRes.status === 'fulfilled' && localRes.value ? localRes.value : null;
       const localList = localListStr ? JSON.parse(localListStr) : [];
       const vList = vRes.status === 'fulfilled' && Array.isArray(vRes.value) ? vRes.value : [];
       const pData = pRes.status === 'fulfilled' ? pRes.value : null;
+      const kData = kycRes.status === 'fulfilled' ? kycRes.value : null;
 
       const combined = [...localList];
       vList.forEach(v => {
@@ -104,6 +112,13 @@ export default function CreateRideScreen({ navigation }) {
           vehicleType: pData.kycDocuments.vehicleType || 'car',
         });
       }
+      if (kData?.documents?.vehicleNumber && !combined.some(c => c.vehicleNumber === kData.documents.vehicleNumber)) {
+        combined.push({
+          vehicleNumber: kData.documents.vehicleNumber,
+          vehicleName: kData.documents.vehicleName || 'Registered Vehicle',
+          vehicleType: kData.documents.vehicleType || 'car',
+        });
+      }
       if (user?.kycDocuments?.vehicleNumber && !combined.some(c => c.vehicleNumber === user.kycDocuments.vehicleNumber)) {
         combined.push({
           vehicleNumber: user.kycDocuments.vehicleNumber,
@@ -119,7 +134,8 @@ export default function CreateRideScreen({ navigation }) {
         setVehicleNumber(combined[0].vehicleNumber || '');
         if (combined[0].vehicleType) setVehicleType(combined[0].vehicleType);
       }
-    }).catch(() => {});
+    }).catch(() => {})
+      .finally(() => { if (mounted) setLoadingVehicles(false); });
 
     return () => { mounted = false; };
   }, [isProvider, user]);
@@ -377,7 +393,12 @@ export default function CreateRideScreen({ navigation }) {
           )}
 
           {/* ── REGISTERED VEHICLE DETAILS & SELECTION ── */}
-          {hasRegisteredVehicle ? (
+          {loadingVehicles ? (
+            <View style={{ padding: 24, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.accent} />
+              <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Verifying registered vehicles…</Text>
+            </View>
+          ) : hasRegisteredVehicle ? (
             <View style={styles.vehicleSection}>
               {userVehicles.length > 1 && (
                 <View style={{ marginBottom: 12 }}>
@@ -432,15 +453,104 @@ export default function CreateRideScreen({ navigation }) {
               <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 6 }}>🚗</Text>
               <Text style={styles.unregisteredTitle}>Vehicle Registration Required</Text>
               <Text style={styles.unregisteredSub}>
-                You haven't registered a vehicle yet. Please go to your Profile page to add your vehicle details. Once verified by campus admin within 24 hours, you can offer rides!
+                You did not add a vehicle while creating your account. Enter your vehicle details below to offer this ride:
               </Text>
-              <TouchableOpacity
-                style={styles.goToProfileBtn}
-                onPress={() => navigation.navigate('Profile')}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.goToProfileBtnText}>👤 Go to Profile to Register Vehicle →</Text>
-              </TouchableOpacity>
+
+              {/* Quick inline registration for commuters who did not add a vehicle while creating account */}
+              <View style={{ width: '100%', marginTop: 12 }}>
+                <Input
+                  label="Vehicle Registration Number"
+                  placeholder="e.g. KA02KA1383"
+                  value={inlineVNum}
+                  onChangeText={setInlineVNum}
+                  autoCapitalize="characters"
+                />
+                <Input
+                  label="Vehicle Model / Name"
+                  placeholder="e.g. Splendor, Activa, Swift"
+                  value={inlineVName}
+                  onChangeText={setInlineVName}
+                  autoCapitalize="words"
+                />
+                <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 4, marginBottom: 8 }}>
+                  VEHICLE TYPE
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                  {[
+                    { type: 'motorcycle', label: '🏍️ Bike' },
+                    { type: 'car',        label: '🚗 Car' },
+                    { type: 'suv',        label: '🚙 SUV' },
+                    { type: 'xuv',        label: '🛻 XUV' },
+                  ].map(v => (
+                    <TouchableOpacity
+                      key={v.type}
+                      onPress={() => setInlineVType(v.type)}
+                      style={[
+                        styles.vTypeChip,
+                        inlineVType === v.type && styles.vTypeChipActive,
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[
+                        styles.vTypeChipText,
+                        inlineVType === v.type && styles.vTypeChipTextActive,
+                      ]}>
+                        {v.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.goToProfileBtn, { backgroundColor: colors.accent, marginBottom: 10 }]}
+                  disabled={savingInlineV}
+                  onPress={async () => {
+                    if (!inlineVNum.trim() || !inlineVName.trim()) {
+                      RNAlert.alert('Required', 'Please enter both your vehicle number and vehicle model name.');
+                      return;
+                    }
+                    setSavingInlineV(true);
+                    try {
+                      const cleanNum = inlineVNum.trim().toUpperCase();
+                      const cleanName = inlineVName.trim();
+                      const cleanType = inlineVType || 'car';
+                      const newEntry = {
+                        vehicleNumber: cleanNum,
+                        vehicleName: cleanName,
+                        vehicleType: cleanType,
+                        status: 'pending',
+                      };
+                      await api.saveVehicle(newEntry).catch(() => {});
+                      const list = [...userVehicles, newEntry];
+                      setUserVehicles(list);
+                      setSelectedVIdx(list.length - 1);
+                      setVehicleNumber(cleanNum);
+                      setVehicleName(cleanName);
+                      setVehicleType(cleanType);
+                      await AsyncStorage.setItem('@user_registered_vehicles_list', JSON.stringify(list)).catch(() => {});
+                      RNAlert.alert('✅ Vehicle Saved', `Vehicle ${cleanNum} (${cleanName}) registered successfully!`);
+                    } catch (e) {
+                      RNAlert.alert('Error', e.message || 'Failed to save vehicle details');
+                    } finally {
+                      setSavingInlineV(false);
+                    }
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.goToProfileBtnText, { color: '#000', fontWeight: '800' }]}>
+                    {savingInlineV ? 'Saving Vehicle…' : '✓ Save Vehicle & Continue'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{ alignItems: 'center', paddingVertical: 6 }}
+                  onPress={() => navigation.navigate('Profile')}
+                >
+                  <Text style={{ color: colors.text3, fontSize: 12, textDecorationLine: 'underline' }}>
+                    Or manage all vehicles in Profile →
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -708,6 +818,27 @@ const styles = StyleSheet.create({
   goToProfileBtnText: {
     color: '#000',
     fontSize: 13.5,
+    fontWeight: '800',
+  },
+  vTypeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface2,
+  },
+  vTypeChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  vTypeChipText: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  vTypeChipTextActive: {
+    color: colors.accent,
     fontWeight: '800',
   },
 });

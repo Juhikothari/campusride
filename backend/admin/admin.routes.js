@@ -22,6 +22,8 @@ router.delete('/rides/:id', controller.deleteRide);
 // KYC management
 router.get('/kyc', controller.getPendingKYC);
 router.put('/kyc/:userId', controller.reviewKYC);
+router.put('/kyc/:userId/approve', (req, res, next) => { req.body = { status: 'approved' }; controller.reviewKYC(req, res, next); });
+router.put('/kyc/:userId/reject', (req, res, next) => { req.body = { status: 'rejected', remarks: req.body?.remarks || 'Documents unclear' }; controller.reviewKYC(req, res, next); });
 
 // Incident management
 router.get('/incidents', controller.getAllIncidents);

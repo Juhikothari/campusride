@@ -150,18 +150,35 @@ exports.getPendingKYC = async (req, res) => {
 // ── PUT /api/admin/kyc/:userId ────────────────────────────────────
 exports.reviewKYC = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, remarks } = req.body;
     if (!['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ message: 'Status must be approved or rejected' });
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.params.userId,
-      { kycStatus: status },
-      { new: true }
-    ).select('-password');
-
+    const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.kycStatus = status;
+    user.kycRemarks = remarks || (status === 'approved' ? 'Verified by campus admin' : 'Documents rejected');
+
+    if (status === 'approved') {
+      user.kycVerifiedAt = new Date();
+      if (user.kycDocuments) {
+        user.kycDocuments.vehicleStatus = 'approved';
+      }
+      if (user.vehicles && Array.isArray(user.vehicles)) {
+        user.vehicles.forEach(v => { v.status = 'approved'; });
+      }
+    } else {
+      if (user.kycDocuments) {
+        user.kycDocuments.vehicleStatus = 'rejected';
+      }
+      if (user.vehicles && Array.isArray(user.vehicles)) {
+        user.vehicles.forEach(v => { v.status = 'rejected'; });
+      }
+    }
+
+    await user.save();
     res.json({ message: `KYC ${status}`, user });
   } catch (err) {
     res.status(500).json({ message: err.message });

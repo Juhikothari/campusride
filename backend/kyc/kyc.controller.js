@@ -69,15 +69,39 @@ exports.submitKyc = async (req, res) => {
     const uploadedSelfie = selfieUrl ? await uploadToCloudinary(selfieUrl) : null;*/
 
 
-    // Save documents (NOW URLs INSTEAD OF BASE64)
+    const vNum = isProvider && vehicleNumber ? vehicleNumber.toUpperCase().trim() : null;
+    const vName = isProvider && req.body.vehicleName ? req.body.vehicleName.trim() : 'Vehicle';
+    const vType = isProvider && req.body.vehicleType ? req.body.vehicleType : 'car';
+
     user.kycDocuments = {
-  aadhar: aadharUrl,
-  drivingLicense: isProvider ? drivingLicenseUrl : null,
-  collegeIdCard: collegeIdCardUrl,
-  selfie: selfieUrl || null,
-  vehiclePhoto: null,
-  vehicleNumber: isProvider ? vehicleNumber.toUpperCase() : null,
-};
+      aadhar: aadharUrl,
+      drivingLicense: isProvider ? drivingLicenseUrl : null,
+      collegeIdCard: collegeIdCardUrl,
+      selfie: selfieUrl || null,
+      vehiclePhoto: null,
+      vehicleNumber: vNum,
+      vehicleName: vName,
+      vehicleType: vType,
+      vehicleStatus: 'pending',
+      vehicleSubmittedAt: new Date(),
+    };
+
+    if (vNum) {
+      if (!user.vehicles) user.vehicles = [];
+      const vIdx = user.vehicles.findIndex(v => v.vehicleNumber === vNum);
+      if (vIdx >= 0) {
+        user.vehicles[vIdx].vehicleName = vName;
+        user.vehicles[vIdx].vehicleType = vType;
+      } else {
+        user.vehicles.push({
+          vehicleNumber: vNum,
+          vehicleName: vName,
+          vehicleType: vType,
+          status: 'pending',
+          isDefault: user.vehicles.length === 0,
+        });
+      }
+    }
 
     user.kycStatus = 'pending';
     user.kycSubmittedAt = new Date();

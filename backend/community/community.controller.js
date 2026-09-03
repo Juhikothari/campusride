@@ -32,11 +32,15 @@ exports.createPost = async (req, res) => {
     const user = await User.findById(req.user.userId).select('college');
     if (!user?.college) return res.status(400).json({ message: 'College not found for user' });
 
+    let cleanType = type || 'tip';
+    const allowed = ['tip', 'landmark', 'alert', 'walk', 'general', 'question'];
+    if (!allowed.includes(cleanType)) cleanType = 'tip';
+
     const post = new Post({
       author:      req.user.userId,
       college:     user.college.trim().toLowerCase(), // FIX: always stored
       content:     content.trim(),
-      type:        type || 'tip',
+      type:        cleanType,
       anonymous:   !!anonymous,
       attachments: attachments || [],
     });

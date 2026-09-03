@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Input, Btn, Alert } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -43,6 +44,7 @@ export default function KYCScreen({ navigation }) {
   const [docs,        setDocs]        = useState({ aadhar: null, collegeId: null, license: null });
   const [vehicleNum,  setVehicleNum]  = useState('');
   const [vehicleName, setVehicleName] = useState('');
+  const [vehicleType, setVehicleType] = useState('car');
 
   useEffect(() => {
     api.getKycStatus()
@@ -85,13 +87,28 @@ export default function KYCScreen({ navigation }) {
       uploadedDocs.aadhar       = await uploadToCloudinary(docs.aadhar);
       uploadedDocs.collegeIdCard = await uploadToCloudinary(docs.collegeId);
       if (docs.license) uploadedDocs.drivingLicense = await uploadToCloudinary(docs.license);
+      const vCleanNum = vehicleNum.trim() ? vehicleNum.trim().toUpperCase() : null;
+      const vCleanName = vehicleName.trim() || null;
       await api.submitKyc({
         aadharUrl:         uploadedDocs.aadhar,
         collegeIdCardUrl:  uploadedDocs.collegeIdCard,
         drivingLicenseUrl: uploadedDocs.drivingLicense || null,
-        vehicleNumber:     vehicleNum.trim() ? vehicleNum.trim().toUpperCase() : null,
-        vehicleName:       vehicleName.trim() || null,
+        vehicleNumber:     vCleanNum,
+        vehicleName:       vCleanName,
+        vehicleType:       vehicleType || 'car',
       });
+      if (vCleanNum) {
+        const vItem = {
+          vehicleNumber: vCleanNum,
+          vehicleName: vCleanName || 'Vehicle',
+          vehicleType: vehicleType || 'car',
+          status: 'pending',
+        };
+        const existingListStr = await AsyncStorage.getItem('@user_registered_vehicles_list').catch(() => null);
+        const list = existingListStr ? JSON.parse(existingListStr) : [];
+        const updated = [vItem, ...list.filter(x => x.vehicleNumber !== vItem.vehicleNumber)];
+        await AsyncStorage.setItem('@user_registered_vehicles_list', JSON.stringify(updated)).catch(() => {});
+      }
       setSubmitted(true);
       setKycStatus({ kycStatus: 'pending' });
     } catch (e) {
@@ -182,6 +199,35 @@ export default function KYCScreen({ navigation }) {
             <Text style={styles.sectionLabel}>VEHICLE DETAILS (PROVIDER)</Text>
             <Input label="Vehicle Number" value={vehicleNum} onChangeText={setVehicleNum} placeholder="e.g. KA01AB1234" autoCapitalize="characters" />
             <Input label="Vehicle Name"   value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa" autoCapitalize="words" />
+
+            <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 8, marginBottom: 8 }}>
+              VEHICLE TYPE
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { type: 'motorcycle', label: '🏍️ Bike' },
+                { type: 'car',        label: '🚗 Car' },
+                { type: 'suv',        label: '🚙 SUV' },
+                { type: 'xuv',        label: '🛻 XUV' },
+              ].map(v => (
+                <TouchableOpacity
+                  key={v.type}
+                  onPress={() => setVehicleType(v.type)}
+                  style={[
+                    styles.vTypeChip,
+                    vehicleType === v.type && styles.vTypeChipActive,
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[
+                    styles.vTypeChipText,
+                    vehicleType === v.type && styles.vTypeChipTextActive,
+                  ]}>
+                    {v.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 
@@ -239,4 +285,25 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10,
   },
   docRowDone: { borderColor: colors.green + '55', backgroundColor: colors.greenDim },
+  vTypeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface2,
+  },
+  vTypeChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  vTypeChipText: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  vTypeChipTextActive: {
+    color: colors.accent,
+    fontWeight: '800',
+  },
 });

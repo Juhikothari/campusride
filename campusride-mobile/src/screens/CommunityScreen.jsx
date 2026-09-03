@@ -54,8 +54,10 @@ function PostsTab({ user }) {
     setPosting(true);
     setError('');
     try {
-      const post = await createCommunityPost({ content, type: postType, anonymous });
-      setPosts(prev => [post, ...prev]);
+      // Backend enum compatibility fallback: map 'general' and 'question' to 'tip'
+      const safeType = (postType === 'general' || postType === 'question') ? 'tip' : (postType || 'tip');
+      const post = await createCommunityPost({ content, type: safeType, anonymous });
+      setPosts(prev => [{ ...post, displayType: postType }, ...prev]);
       setContent('');
     } catch (e) {
       setError(e.message || 'Failed to post');

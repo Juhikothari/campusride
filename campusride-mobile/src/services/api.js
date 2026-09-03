@@ -173,5 +173,5 @@ export const getAllUsers        = ()     => request('/admin/users');
 export const blockUser         = (id, reason) => request(`/admin/users/${id}/block`, { method:'PUT', body: JSON.stringify({ reason }) });
 export const unblockUser       = (id)   => request(`/admin/users/${id}/unblock`, { method:'PUT' });
 export const getKycRequests    = ()     => request('/admin/kyc');
-export const approveKyc        = (id)   => request(`/admin/kyc/${id}/approve`, { method:'PUT' });
-export const rejectKyc         = (id, remarks) => request(`/admin/kyc/${id}/reject`, { method:'PUT', body: JSON.stringify({ remarks }) });
+export const approveKyc        = (id)   => request(`/admin/kyc/${id}`, { method:'PUT', body: JSON.stringify({ status: 'approved' }) }).catch(() => request(`/admin/kyc/${id}/approve`, { method:'PUT' }));
+export const rejectKyc         = (id, remarks) => request(`/admin/kyc/${id}`, { method:'PUT', body: JSON.stringify({ status: 'rejected', remarks: remarks || 'Documents unclear' }) }).catch(() => request(`/admin/kyc/${id}/reject`, { method:'PUT', body: JSON.stringify({ remarks }) }));
