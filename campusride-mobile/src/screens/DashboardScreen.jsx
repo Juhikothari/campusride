@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
+import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -10,7 +11,7 @@ const MAIN_SERVICES = [
   {
     key: 'SearchRides',
     icon: '🔍',
-    title: 'Find a Ride',
+    title: 'Search Your Match',
     sub: 'Match with commuters on your route',
     iconBg: '#1a2233',
   },
@@ -196,18 +197,18 @@ export default function DashboardScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Route Points */}
+              {/* Route Points — Full address display */}
               <View style={styles.routeBox}>
                 <View style={styles.routePointRow}>
                   <View style={[styles.routeDot, { backgroundColor: colors.green }]} />
-                  <Text style={styles.routeAddressText} numberOfLines={1}>
+                  <Text style={styles.routeAddressText} numberOfLines={2}>
                     {getAddress(activeTrip.pickup)}
                   </Text>
                 </View>
                 <View style={styles.routeConnectingLine} />
                 <View style={styles.routePointRow}>
                   <View style={[styles.routeDot, { backgroundColor: colors.red }]} />
-                  <Text style={styles.routeAddressText} numberOfLines={1}>
+                  <Text style={styles.routeAddressText} numberOfLines={2}>
                     {getAddress(activeTrip.drop)}
                   </Text>
                 </View>
@@ -222,13 +223,22 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={styles.tripCostText}>₹{activeTrip.costPerSeat || 49} / seat</Text>
               </View>
 
-              {/* Open Live GPS CTA */}
+              {/* Open Live GPS CTA — Seeker completes checklist first, Provider tracks directly */}
               <TouchableOpacity
                 style={styles.openGpsBtn}
-                onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
+                onPress={() => {
+                  const rId = activeTrip._id || activeTrip.id;
+                  if (tripRole === 'rider') {
+                    navigation.navigate('PreRideChecklist', { rideId: rId });
+                  } else {
+                    navigation.navigate('LiveTracking', { rideId: rId });
+                  }
+                }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.openGpsBtnText}>📍 Open Live GPS & Tracking →</Text>
+                <Text style={styles.openGpsBtnText}>
+                  {tripRole === 'rider' ? '🛡️ Safety Checklist & Track Ride →' : '📍 Open Live GPS & Tracking →'}
+                </Text>
               </TouchableOpacity>
 
               {/* Secondary Buttons Row with Finish Ride */}
@@ -268,6 +278,9 @@ export default function DashboardScreen({ navigation }) {
         {/* Footer Tagline */}
         <Text style={styles.tagline}>The operating system for daily commuting in Indian cities</Text>
       </ScrollView>
+
+      {/* Floating HOGO AI Assistant Button */}
+      <FloatingChatBot />
     </SafeAreaView>
   );
 }

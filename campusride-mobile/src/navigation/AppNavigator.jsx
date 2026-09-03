@@ -1,7 +1,5 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { colors } from '../theme';
 
@@ -40,7 +38,6 @@ import {
 } from '../screens/ExtraScreens';
 
 const Stack = createStackNavigator();
-const Tab   = createBottomTabNavigator();
 
 // ── Shared header config ──────────────────────────────────────
 const screenOptions = {
@@ -50,86 +47,6 @@ const screenOptions = {
   headerBackTitle:  '',
   cardStyle:        { backgroundColor: colors.bg },
 };
-
-// ── Tab icon ──────────────────────────────────────────────────
-function TabIcon({ emoji, focused }) {
-  return (
-    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>{emoji}</Text>
-    </View>
-  );
-}
-
-// ── Main Tabs Navigator (Home, Find Ride, Offer Ride, AI, Community) ──
-function MainTabs() {
-  const { user } = useAuth();
-  const isProvider = user?.role === 'provider' || user?.role === 'both';
-
-  return (
-    <Tab.Navigator
-      initialRouteName="Home"
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor:  colors.border,
-          borderTopWidth:  1,
-          paddingBottom: 6,
-          paddingTop: 6,
-          height: 62,
-        },
-        tabBarLabelStyle:        { fontSize: 10.5, fontWeight: '700' },
-        tabBarActiveTintColor:   colors.accent,
-        tabBarInactiveTintColor: colors.text3,
-      }}
-    >
-      <Tab.Screen
-        name="Home"
-        component={DashboardScreen}
-        options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="⚡" focused={focused} />
-        }}
-      />
-
-      <Tab.Screen
-        name="SearchMatch"
-        component={SearchRidesScreen}
-        options={{
-          tabBarLabel: 'Find Ride',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🔍" focused={focused} />
-        }}
-      />
-
-      <Tab.Screen
-        name="OfferRide"
-        component={CreateRideScreen}
-        options={{
-          tabBarLabel: 'Offer Ride',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🚗" focused={focused} />
-        }}
-      />
-
-      <Tab.Screen
-        name="ChatBot"
-        component={ChatBotScreen}
-        options={{
-          tabBarLabel: 'HOGO AI',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🤖" focused={focused} />
-        }}
-      />
-
-      <Tab.Screen
-        name="Community"
-        component={CommunityScreen}
-        options={{
-          tabBarLabel: 'Community',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} />
-        }}
-      />
-    </Tab.Navigator>
-  );
-}
 
 // ── Auth stack ────────────────────────────────────────────────
 function AuthStack() {
@@ -145,16 +62,19 @@ function AuthStack() {
   );
 }
 
-// ── Main app stack ────────────────────────────────────────────
+// ── Main app stack (No bottom tabs — single unified stack with floating HOGO AI) ──
 function AppStack() {
   return (
-    <Stack.Navigator screenOptions={screenOptions}>
-      {/* Root tabs */}
-      <Stack.Screen name="Tabs"              component={MainTabs}               options={{ headerShown: false }} />
+    <Stack.Navigator initialRouteName="Home" screenOptions={screenOptions}>
+      {/* Root Dashboard */}
+      <Stack.Screen name="Home"              component={DashboardScreen}        options={{ headerShown: false }} />
+      <Stack.Screen name="Tabs"              component={DashboardScreen}        options={{ headerShown: false }} />
 
-      {/* Rides */}
-      <Stack.Screen name="SearchRides"       component={SearchRidesScreen}      options={{ title: 'Find a Ride' }} />
+      {/* Rides & Search */}
+      <Stack.Screen name="SearchRides"       component={SearchRidesScreen}      options={{ title: 'Search Your Match' }} />
+      <Stack.Screen name="SearchMatch"       component={SearchRidesScreen}      options={{ title: 'Search Your Match' }} />
       <Stack.Screen name="CreateRide"        component={CreateRideScreen}       options={{ title: 'Offer a Ride' }} />
+      <Stack.Screen name="OfferRide"         component={CreateRideScreen}       options={{ title: 'Offer a Ride' }} />
       <Stack.Screen name="RideDetail"        component={RideDetailScreen}       options={{ title: 'Ride Details' }} />
       <Stack.Screen name="LiveTracking"      component={LiveTrackingScreen}     options={{ headerShown: false }} />
 
@@ -162,7 +82,9 @@ function AppStack() {
       <Stack.Screen name="MyBookings"        component={MyBookingsScreen}       options={{ title: 'My Bookings' }} />
       <Stack.Screen name="ProviderBookings"  component={ProviderBookingsScreen} options={{ title: 'Ride Requests' }} />
 
-      {/* Community & Safety */}
+      {/* AI Assistant & Community */}
+      <Stack.Screen name="ChatBot"           component={ChatBotScreen}          options={{ title: 'HOGO AI Assistant' }} />
+      <Stack.Screen name="Community"         component={CommunityScreen}        options={{ title: 'Campus Community' }} />
       <Stack.Screen name="WalkTogether"      component={WalkTogetherScreen}     options={{ title: 'Walk Together' }} />
       <Stack.Screen name="IncidentReport"    component={IncidentReportScreen}   options={{ title: 'Report Incident' }} />
 

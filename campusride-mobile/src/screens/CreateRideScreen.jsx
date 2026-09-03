@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
 import LocationSearch from '../components/LocationSearch';
+import FloatingChatBot from '../components/FloatingChatBot';
 import { Input, Btn, Alert, EmptyState, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -85,6 +86,12 @@ export default function CreateRideScreen({ navigation }) {
       })
       .catch(() => {});
   }, [isProvider]);
+
+  const hasRegisteredVehicle = Boolean(
+    (userVehicles.length > 0 && userVehicles[0].vehicleNumber) ||
+    user?.kycDocuments?.vehicleNumber ||
+    user?.vehicleNumber
+  );
 
   // Set default college pickup when "college" is chosen
   useEffect(() => {
@@ -318,6 +325,10 @@ export default function CreateRideScreen({ navigation }) {
                 />
               </View>
 
+              <Text style={styles.formatHintText}>
+                📌 Format: <Text style={{ color: colors.accent, fontWeight: '700' }}>YYYY-MM-DD</Text> (e.g. {new Date().toISOString().split('T')[0]}) • <Text style={{ color: colors.accent, fontWeight: '700' }}>HH:MM</Text> (e.g. 09:30 or 15:30)
+              </Text>
+
               <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
                 {['+15 min', '+30 min', '+1 hr', '+2 hr'].map((offset, idx) => {
                   const mins = [15, 30, 60, 120][idx];
@@ -345,51 +356,64 @@ export default function CreateRideScreen({ navigation }) {
             ))}
           </View>
 
-          {/* ── VEHICLE DETAILS & MULTI-VEHICLE SELECTOR ── */}
+          {/* ── VEHICLE DETAILS & LOCK POLICY ── */}
           <View style={styles.vehicleSection}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={styles.sectionHeading}>VEHICLE DETAILS</Text>
-              <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.manageVehicleBtn}>
-                <Text style={styles.manageVehicleText}>+ Add / Change</Text>
-              </TouchableOpacity>
+              {!hasRegisteredVehicle && (
+                <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.manageVehicleBtn}>
+                  <Text style={styles.manageVehicleText}>+ Add Vehicle Details</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
-            {userVehicles.length > 1 && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {userVehicles.map((v, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={[styles.vSelectChip, selectedVIdx === i && styles.vSelectChipActive]}
-                      onPress={() => handleSelectVehicle(v, i)}
-                    >
-                      <Text style={[styles.vSelectText, selectedVIdx === i && styles.vSelectTextActive]}>
-                        🚗 {v.vehicleName || 'Vehicle'} ({v.vehicleNumber})
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+            {hasRegisteredVehicle ? (
+              <View style={styles.lockedVehicleCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={styles.lockedVehicleIcon}>
+                    <Text style={{ fontSize: 22 }}>🚗</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.lockedVehicleName}>
+                      {vehicleName || user?.kycDocuments?.vehicleName || 'Registered Vehicle'} • {(vehicleType || 'Car').toUpperCase()}
+                    </Text>
+                    <Text style={styles.lockedPlate}>
+                      {vehicleNumber || user?.kycDocuments?.vehicleNumber}
+                    </Text>
+                  </View>
+                  <View style={styles.lockedBadge}>
+                    <Text style={styles.lockedBadgeText}>✓ VERIFIED</Text>
+                  </View>
                 </View>
-              </ScrollView>
+                <Text style={styles.lockedPolicyNote}>
+                  🔒 Vehicle details registered with your account cannot be changed directly. If you have changed your vehicle, please contact Campus Support with updated documents.
+                </Text>
+              </View>
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <Input
+                    label="Vehicle Number"
+                    value={vehicleNumber}
+                    onChangeText={t => setVehicleNumber(t.toUpperCase())}
+                    placeholder="e.g. KA02KA1333"
+                    containerStyle={{ flex: 1 }}
+                    autoCapitalize="characters"
+                  />
+                  <Input
+                    label="Model / Name"
+                    value={vehicleName}
+                    onChangeText={setVehicleName}
+                    placeholder="e.g. Jupiter, Swift"
+                    containerStyle={{ flex: 1 }}
+                    autoCapitalize="words"
+                  />
+                </View>
+                <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>
+                  💡 Add your vehicle info so campus riders can identify your ride.
+                </Text>
+              </>
             )}
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Input
-                label="Vehicle Number"
-                value={vehicleNumber}
-                onChangeText={t => setVehicleNumber(t.toUpperCase())}
-                placeholder="e.g. KA02KA1333"
-                containerStyle={{ flex: 1 }}
-                autoCapitalize="characters"
-              />
-              <Input
-                label="Model / Name"
-                value={vehicleName}
-                onChangeText={setVehicleName}
-                placeholder="e.g. Jupiter, Swift"
-                containerStyle={{ flex: 1 }}
-                autoCapitalize="words"
-              />
-            </View>
           </View>
 
           {/* Women-only toggle */}
@@ -443,6 +467,9 @@ export default function CreateRideScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Floating HOGO AI Assistant Button */}
+      <FloatingChatBot />
     </SafeAreaView>
   );
 }
@@ -565,4 +592,61 @@ const styles = StyleSheet.create({
   },
   modalTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginBottom: 4 },
   modalSub: { color: colors.text2, fontSize: 13, marginBottom: spacing.md },
+  formatHintText: {
+    color: colors.text3,
+    fontSize: 11,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  lockedVehicleCard: {
+    backgroundColor: '#0c1017',
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: radius.lg,
+    padding: 14,
+    marginBottom: 6,
+  },
+  lockedVehicleIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.accentDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedVehicleName: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  lockedPlate: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  lockedBadge: {
+    backgroundColor: colors.green + '22',
+    borderWidth: 1,
+    borderColor: colors.green,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  lockedBadgeText: {
+    color: colors.green,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  lockedPolicyNote: {
+    color: colors.text3,
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 8,
+  },
 });

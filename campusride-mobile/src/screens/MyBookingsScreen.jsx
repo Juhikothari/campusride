@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
+import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -123,17 +124,17 @@ export default function MyBookingsScreen({ navigation }) {
                   </View>
                 </View>
 
-                {/* Route */}
+                {/* Route — Full complete address */}
                 {ride && (
                   <View style={styles.route}>
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.green }]} />
-                      <Text style={styles.routeText} numberOfLines={1}>{getAddr(ride.pickup)}</Text>
+                      <Text style={styles.routeText} numberOfLines={2}>{getAddr(ride.pickup)}</Text>
                     </View>
                     <View style={styles.routeLineDot} />
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.red }]} />
-                      <Text style={styles.routeText} numberOfLines={1}>{getAddr(ride.drop)}</Text>
+                      <Text style={styles.routeText} numberOfLines={2}>{getAddr(ride.drop)}</Text>
                     </View>
                   </View>
                 )}
@@ -184,6 +185,9 @@ export default function MyBookingsScreen({ navigation }) {
 
                 {/* Actions */}
                 <View style={{ gap: 8, marginTop: 12 }}>
+                  {b.status === 'pending' && (
+                    <Alert message="⏳ Booking request submitted. Ride starts once provider accepts." />
+                  )}
                   {canTrack && rideIdStr && (
                     <Btn
                       label="🛡️ Safety Checklist & Track Ride →"
@@ -208,6 +212,9 @@ export default function MyBookingsScreen({ navigation }) {
           })
         )}
       </ScrollView>
+
+      {/* Floating HOGO AI Assistant Button */}
+      <FloatingChatBot />
     </SafeAreaView>
   );
 }

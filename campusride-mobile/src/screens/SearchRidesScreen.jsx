@@ -10,7 +10,8 @@ import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
 import LocationSearch from '../components/LocationSearch';
 import RideCard from '../components/RideCard';
-import { Btn, Alert, TogglePill, EmptyState } from '../components/UI';
+import FloatingChatBot from '../components/FloatingChatBot';
+import { Btn, Alert, TogglePill, EmptyState, Input } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -31,6 +32,7 @@ export default function SearchRidesScreen({ navigation }) {
   const [drop,       setDrop]       = useState({ label: '', lat: '', lng: '' });
   const [schedMode,  setSchedMode]  = useState('now');
   const [date,       setDate]       = useState('');
+  const [time,       setTime]       = useState('');
   const [womenOnly,  setWomenOnly]  = useState(false);
   const [vehicle,    setVehicle]    = useState('');
   const [rides,      setRides]      = useState([]);
@@ -84,7 +86,7 @@ export default function SearchRidesScreen({ navigation }) {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude: lat, longitude: lng } = loc.coords;
       const res = await api.reverseGeocode(lat, lng).catch(() => null);
-      const label = res?.label || res?.display_name?.split(',').slice(0, 2).join(', ') || 'Current Location';
+      const label = res?.display_name || res?.label || 'Current Location';
       if (field === 'pickup') setPickup({ label, lat: lat.toString(), lng: lng.toString() });
       else                    setDrop  ({ label, lat: lat.toString(), lng: lng.toString() });
     } catch {
@@ -162,6 +164,7 @@ export default function SearchRidesScreen({ navigation }) {
         lat: pickup.lat, lng: pickup.lng, maxDistance: 10000,
         ...(drop.lat && { dropLat: drop.lat, dropLng: drop.lng }),
         ...(schedMode === 'later' && date && { date }),
+        ...(schedMode === 'later' && time && { time }),
         ...(womenOnly && { womenOnly: true }),
       };
       let results = await api.searchRides(params);
@@ -186,23 +189,26 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="HOGO" subtitle="Find Your Match" />
+      <TopHeader title="Search Your Match" subtitle="Find verified campus commuters" />
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {/* Active Ride Banner (Only visible when a ride is ongoing) */}
+        {/* Active Ride Banner (Only visible when a ride is confirmed and ongoing) */}
         {activeRide && (
           <TouchableOpacity
             style={styles.activeRideBanner}
-            onPress={() => navigation.navigate('LiveTracking', { rideId: activeRide._id || activeRide.id })}
+            onPress={() => {
+              const rId = activeRide._id || activeRide.id;
+              navigation.navigate('PreRideChecklist', { rideId: rId });
+            }}
             activeOpacity={0.85}
           >
             <View style={styles.activeDot} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.activeRideTitle}>🚨 Live Ride In Progress</Text>
-              <Text style={styles.activeRideSub}>Tap here to track real-time live map & SOS</Text>
+              <Text style={styles.activeRideTitle}>🚨 Confirmed Campus Ride</Text>
+              <Text style={styles.activeRideSub}>Tap to complete safety checklist & open live GPS</Text>
             </View>
             <View style={styles.trackBtnPill}>
-              <Text style={styles.trackBtnText}>Track Ride →</Text>
+              <Text style={styles.trackBtnText}>Checklist & Track →</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -263,19 +269,55 @@ export default function SearchRidesScreen({ navigation }) {
         />
 
         {schedMode === 'later' && (
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: spacing.sm, marginBottom: spacing.md }}>
-            <TouchableOpacity
-              style={[styles.dateChip, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipActive]}
-              onPress={() => setDate(new Date().toISOString().split('T')[0])}
-            >
-              <Text style={[styles.dateChipText, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipTextActive]}>Today</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.dateChip, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipActive]}
-              onPress={() => setDate(new Date(Date.now() + 86400000).toISOString().split('T')[0])}
-            >
-              <Text style={[styles.dateChipText, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipTextActive]}>Tomorrow</Text>
-            </TouchableOpacity>
+          <View style={styles.scheduleBox}>
+            <Text style={styles.scheduleTitle}>🗓 SELECT DATE & TIME</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+              <TouchableOpacity
+                style={[styles.dateChip, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipActive]}
+                onPress={() => setDate(new Date().toISOString().split('T')[0])}
+              >
+                <Text style={[styles.dateChipText, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipTextActive]}>Today</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dateChip, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipActive]}
+                onPress={() => setDate(new Date(Date.now() + 86400000).toISOString().split('T')[0])}
+              >
+                <Text style={[styles.dateChipText, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipTextActive]}>Tomorrow</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Input
+                label="Date (YYYY-MM-DD)"
+                value={date}
+                onChangeText={setDate}
+                placeholder="YYYY-MM-DD"
+                containerStyle={{ flex: 1 }}
+              />
+              <Input
+                label="Time (HH:MM)"
+                value={time}
+                onChangeText={setTime}
+                placeholder="e.g. 09:30 AM"
+                containerStyle={{ flex: 1 }}
+              />
+            </View>
+
+            <Text style={styles.formatHint}>
+              📌 Format: <Text style={{ color: colors.accent, fontWeight: '700' }}>YYYY-MM-DD</Text> (e.g. {new Date().toISOString().split('T')[0]}) • <Text style={{ color: colors.accent, fontWeight: '700' }}>HH:MM</Text> (e.g. 09:30 AM or 17:00)
+            </Text>
+
+            <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              {['08:30 AM', '01:00 PM', '05:30 PM', '08:00 PM'].map(tStr => (
+                <TouchableOpacity
+                  key={tStr}
+                  onPress={() => setTime(tStr)}
+                  style={[styles.quickTimePill, time === tStr && styles.quickTimePillActive]}
+                >
+                  <Text style={[styles.quickTimePillText, time === tStr && styles.quickTimePillTextActive]}>{tStr}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         )}
 
@@ -350,6 +392,9 @@ export default function SearchRidesScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Floating HOGO AI Assistant Button */}
+      <FloatingChatBot />
     </SafeAreaView>
   );
 }
@@ -357,6 +402,49 @@ export default function SearchRidesScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: colors.bg },
   scroll:    { padding: spacing.md, paddingBottom: 48 },
+  scheduleBox: {
+    backgroundColor: colors.surface,
+    padding: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  scheduleTitle: {
+    color: colors.accent,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+  },
+  formatHint: {
+    color: colors.text3,
+    fontSize: 11,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  quickTimePill: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  quickTimePillActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  quickTimePillText: {
+    color: colors.text2,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  quickTimePillTextActive: {
+    color: colors.accent,
+    fontWeight: '700',
+  },
   filterLabel: { color: colors.text2, fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   locRow:    { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   historySection: {

@@ -70,12 +70,12 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
       <View style={styles.route}>
         <View style={styles.routePoint}>
           <View style={[styles.dot, { backgroundColor: colors.green }]} />
-          <Text style={styles.routeText} numberOfLines={1}>{pickup}</Text>
+          <Text style={styles.routeText} numberOfLines={2}>{pickup}</Text>
         </View>
         <View style={styles.routeLine} />
         <View style={styles.routePoint}>
           <View style={[styles.dot, { backgroundColor: colors.red }]} />
-          <Text style={styles.routeText} numberOfLines={1}>{drop}</Text>
+          <Text style={styles.routeText} numberOfLines={2}>{drop}</Text>
         </View>
       </View>
 

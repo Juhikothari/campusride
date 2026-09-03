@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator,
@@ -7,6 +7,15 @@ import * as Location from 'expo-location';
 import { colors, radius, spacing } from '../theme';
 import * as api from '../services/api';
 import MapPickerModal from './MapPickerModal';
+
+function getCompleteAddress(item) {
+  if (!item) return '';
+  if (typeof item === 'string') return item;
+  const full = item.display_name || item.formatted || item.label || item.name || '';
+  const parts = full.split(',').map(s => s.trim()).filter(Boolean);
+  const filtered = parts.filter(p => !/^\d{5,6}$/.test(p) && p.toLowerCase() !== 'india');
+  return filtered.length > 0 ? filtered.join(', ') : full;
+}
 
 export default function LocationSearch({ value, onChange, placeholder, label }) {
   const [query,       setQuery]       = useState(value || '');
@@ -40,7 +49,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
   }, []);
 
   const select = (item) => {
-    const lbl = item.label || item.display_name?.split(',').slice(0, 2).join(', ').trim() || item.name || '';
+    const lbl = getCompleteAddress(item);
     const lat = item.lat || item.latitude || '';
     const lng = item.lon || item.longitude || item.lng || '';
     setQuery(lbl);
@@ -60,7 +69,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude: lat, longitude: lng } = loc.coords;
       const res = await api.reverseGeocode(lat, lng).catch(() => null);
-      const lbl = res?.label || res?.display_name?.split(',').slice(0, 2).join(', ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+      const lbl = getCompleteAddress(res) || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
       setQuery(lbl);
       setResults([]);
       setShowResults(false);
@@ -142,11 +151,11 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
       {showResults && results.length > 0 && (
         <View style={styles.dropdown}>
           {results.map((item, idx) => {
-            const displayName = item.label || item.display_name?.split(',').slice(0, 3).join(', ') || item.name || '';
+            const displayName = getCompleteAddress(item);
             return (
               <TouchableOpacity key={idx} style={[styles.resultItem, idx < results.length - 1 && styles.resultBorder]} onPress={() => select(item)}>
                 <Text style={styles.resultIcon}>📍</Text>
-                <Text style={styles.resultText} numberOfLines={2}>{displayName}</Text>
+                <Text style={styles.resultText} numberOfLines={3}>{displayName}</Text>
               </TouchableOpacity>
             );
           })}

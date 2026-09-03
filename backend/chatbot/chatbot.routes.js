@@ -87,6 +87,7 @@ CampusRide key features:
 - Pre-ride safety checklist for providers
 - Live tracking during rides
 - Notifications for booking status changes
+- Vehicle Policy: Registered vehicle details (number and model) are locked for campus safety and verification reasons. Users cannot edit vehicle details directly in the app. If a user changes their vehicle, they must contact Campus Support from the app menu with their new vehicle RC and college ID to request an update.
 
 Navigation pages: dashboard, search-rides, create-ride, my-bookings, provider-bookings, kyc, ratings, live-tracking, community, route-alerts, notifications, incident-report. Admins also have: admin, admin-settings.
 

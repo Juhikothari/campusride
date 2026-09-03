@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Btn, Alert, Card } from '../components/UI';
+import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -385,18 +386,26 @@ export function ResetPasswordScreen({ navigation }) {
 //  PRE-RIDE CHECKLIST SCREEN
 // ════════════════════════════════════════════════════════════════
 const CHECKS = [
-  { key: 'vehicleNumber', label: 'I have noted the vehicle number' },
-  { key: 'routeKnown',    label: 'I know the pickup & drop location' },
-  { key: 'toldSomeone',   label: 'I have informed someone about this ride' },
-  { key: 'phoneFull',     label: 'My phone is sufficiently charged' },
-  { key: 'sosKnown',      label: 'I know how to use SOS if needed' },
+  { key: 'matchDriver',   label: 'I verified the provider name & college identity' },
+  { key: 'vehicleNumber', label: 'I matched the vehicle registration plate & model' },
+  { key: 'gearSafety',    label: 'I am wearing helmet (bike) or seatbelt (car)' },
+  { key: 'routeKnown',    label: 'I confirmed my exact pickup & drop destination' },
+  { key: 'toldSomeone',   label: 'I have shared my ride status with an emergency contact' },
+  { key: 'sosKnown',      label: 'I know how to use the in-app SOS emergency button' },
 ];
 
 export function PreRideChecklistScreen({ route, navigation }) {
   const rideId = route?.params?.rideId;
   const [checks, setChecks] = useState(Object.fromEntries(CHECKS.map(c => [c.key, false])));
+  const [rideDetails, setRideDetails] = useState(null);
   const done    = Object.values(checks).filter(Boolean).length;
   const allDone = done === CHECKS.length;
+
+  useEffect(() => {
+    if (rideId) {
+      api.getRideById(rideId).then(r => setRideDetails(r)).catch(() => {});
+    }
+  }, [rideId]);
 
   const handleProceed = () => {
     if (!allDone) return;
@@ -414,7 +423,22 @@ export function PreRideChecklistScreen({ route, navigation }) {
           <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🛡️ Pre-Ride Safety Checklist</Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Confirm all safety checks to start and track your campus ride</Text>
+        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>
+          Verify your assigned ride details and safety checks before starting live tracking.
+        </Text>
+
+        {/* Assigned Ride & Driver Info Card */}
+        {rideDetails && (
+          <View style={{ backgroundColor: '#10141e', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.lg, padding: 14, marginBottom: 16 }}>
+            <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 }}>ASSIGNED RIDE DETAILS</Text>
+            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>
+              👤 {rideDetails.providerId?.name || rideDetails.providerName || 'Campus Commuter'} • 🏫 {rideDetails.college || 'Campus'}
+            </Text>
+            <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', marginTop: 4 }}>
+              🚘 {rideDetails.vehicleName || 'Vehicle'} ({rideDetails.vehicleNumber || 'Plate Number'})
+            </Text>
+          </View>
+        )}
 
         {/* Progress bar */}
         <View style={styles.progressBg}>
@@ -442,6 +466,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
           style={{ marginTop: spacing.md }}
         />
       </ScrollView>
+      <FloatingChatBot />
     </SafeAreaView>
   );
 }

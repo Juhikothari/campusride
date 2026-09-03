@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   ScrollView, KeyboardAvoidingView, Platform, StyleSheet,
@@ -11,7 +11,7 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
 const SUGGESTIONS = [
-  '🚗 How do I offer a ride?',
+  '🚗 How do I change my vehicle?',
   '🔍 How does ride matching work?',
   '🛡️ How does KYC verification work?',
   '👩 How do women-only rides work?',
@@ -21,6 +21,9 @@ const SUGGESTIONS = [
 
 function getLocalAnswer(query, user) {
   const q = query.toLowerCase();
+  if (q.includes('vehicle') || q.includes('change vehicle') || q.includes('edit vehicle') || q.includes('update vehicle') || q.includes('new vehicle') || q.includes('rc')) {
+    return "🚗 Vehicle Policy & Changing Vehicle:\n• For campus safety and verification integrity, registered vehicle details (number and model) cannot be edited directly by users.\n• If you have changed your vehicle or acquired a new one, you cannot edit it directly in the app.\n• Please tap 'Contact Support' from the app menu or email campus support with your new vehicle RC and college ID. Our admin team will verify and update it for you!";
+  }
   if (q.includes('offer') || q.includes('create ride') || q.includes('post ride')) {
     return "To offer a ride:\n1. Switch to the Offer Ride tab.\n2. Enter your pickup & drop locations.\n3. Choose your vehicle and departure time.\n4. If you are female, you can optionally toggle Women Only.\n5. Tap Post Ride! Students from your college can then view and request seats.";
   }

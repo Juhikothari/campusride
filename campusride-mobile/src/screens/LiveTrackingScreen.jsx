@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
 import LiveMapView from '../components/LiveMapView';
+import FloatingChatBot from '../components/FloatingChatBot';
 import { Btn, Alert, EmptyState } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -539,6 +540,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
           </View>
         </ScrollView>
       )}
+
+      {/* Floating HOGO AI Assistant Button */}
+      <FloatingChatBot />
     </SafeAreaView>
   );
 }
