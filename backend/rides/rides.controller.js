@@ -238,16 +238,27 @@ exports.searchRides = async (req, res) => {
       console.log('Ride Now - showing rides from start of today:', startOfToday);
     }
 
-    // Helper: check if a ride's scheduled date+time is still in the future
-    // The `time` field is stored as "HH:MM" string; `date` is stored as midnight UTC
+    // Helper: check if a ride's scheduled date+time is still relevant
     const now = new Date();
     const isRideUpcoming = (ride) => {
-      if (!ride.time) return true; // no time set, don't filter out
-      const [hours, minutes] = ride.time.split(':').map(Number);
-      if (isNaN(hours) || isNaN(minutes)) return true;
+      if (!ride.time) return true;
+      let hours = 0;
+      let minutes = 0;
+      const timeStr = String(ride.time).trim();
+      const match = timeStr.match(/^(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?$/);
+      if (match) {
+        hours = parseInt(match[1], 10);
+        minutes = parseInt(match[2], 10);
+        const ampm = match[3]?.toUpperCase();
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      } else {
+        const parts = timeStr.split(':').map(Number);
+        if (isNaN(parts[0])) return true;
+        hours = parts[0];
+        minutes = parts[1] || 0;
+      }
 
-      // Reconstruct the ride's full scheduled datetime using the date's
-      // year/month/day in local time, combined with the stored HH:MM time
       const rideDate = new Date(ride.date);
       const scheduled = new Date(
         rideDate.getFullYear(),
@@ -258,7 +269,9 @@ exports.searchRides = async (req, res) => {
         0,
         0
       );
-      return scheduled > now;
+      // Give 3-hour buffer so newly posted rides for "now" remain discoverable
+      const expiration = new Date(scheduled.getTime() + 3 * 60 * 60 * 1000);
+      return expiration > now;
     };
 
     // If coordinates provided, use geo-proximity search
@@ -324,6 +337,15 @@ exports.searchRides = async (req, res) => {
       // Filter out rides whose scheduled time has already passed
       rides = rides.filter(isRideUpcoming);
       console.log(`Found ${rides.length} rides (no geo filter, after time filter)`);
+    }
+
+    // Fallback: If strict geo proximity returned 0 rides, return all active rides on campus
+    if (rides.length === 0 && (lat || dropLat)) {
+      rides = await Ride.find(query)
+        .populate('providerId', 'name rating gender')
+        .sort({ date: 1, time: 1 });
+      rides = rides.filter(isRideUpcoming);
+      console.log(`Campus fallback found ${rides.length} rides`);
     }
 
     res.json(rides);

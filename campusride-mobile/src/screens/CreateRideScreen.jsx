@@ -10,6 +10,7 @@ import LocationSearch from '../components/LocationSearch';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { Input, Btn, Alert, EmptyState, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as api from '../services/api';
 
 const VEHICLES = [
@@ -73,17 +74,25 @@ export default function CreateRideScreen({ navigation }) {
     if (!isProvider) return;
     let mounted = true;
     Promise.allSettled([
+      AsyncStorage.getItem('@user_registered_vehicles_list').catch(() => null),
       api.getUserVehicles(),
       api.getProfile(),
-    ]).then(([vRes, pRes]) => {
+    ]).then(([localRes, vRes, pRes]) => {
       if (!mounted) return;
+      const localListStr = localRes.status === 'fulfilled' && localRes.value ? localRes.value : null;
+      const localList = localListStr ? JSON.parse(localListStr) : [];
       const vList = vRes.status === 'fulfilled' && Array.isArray(vRes.value) ? vRes.value : [];
       const pData = pRes.status === 'fulfilled' ? pRes.value : null;
 
-      const combined = [...vList];
+      const combined = [...localList];
+      vList.forEach(v => {
+        if (v?.vehicleNumber && !combined.some(c => c.vehicleNumber === v.vehicleNumber)) {
+          combined.push(v);
+        }
+      });
       if (pData?.vehicles && Array.isArray(pData.vehicles)) {
         pData.vehicles.forEach(v => {
-          if (v.vehicleNumber && !combined.some(c => c.vehicleNumber === v.vehicleNumber)) {
+          if (v?.vehicleNumber && !combined.some(c => c.vehicleNumber === v.vehicleNumber)) {
             combined.push(v);
           }
         });
@@ -339,24 +348,20 @@ export default function CreateRideScreen({ navigation }) {
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Input
-                  label="Date (YYYY-MM-DD)"
+                  label="Date"
                   value={date}
                   onChangeText={setDate}
                   placeholder="YYYY-MM-DD"
                   containerStyle={{ flex: 1 }}
                 />
                 <Input
-                  label="Time (HH:MM)"
+                  label="Time"
                   value={time}
                   onChangeText={setTime}
                   placeholder="e.g. 15:30"
                   containerStyle={{ flex: 1 }}
                 />
               </View>
-
-              <Text style={styles.formatHintText}>
-                📌 Format: <Text style={{ color: colors.accent, fontWeight: '700' }}>YYYY-MM-DD</Text> (e.g. {new Date().toISOString().split('T')[0]}) • <Text style={{ color: colors.accent, fontWeight: '700' }}>HH:MM</Text> (e.g. 09:30 or 15:30)
-              </Text>
 
               <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
                 {['+15 min', '+30 min', '+1 hr', '+2 hr'].map((offset, idx) => {

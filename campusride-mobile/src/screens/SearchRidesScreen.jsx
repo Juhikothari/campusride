@@ -267,24 +267,20 @@ export default function SearchRidesScreen({ navigation }) {
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Input
-                label="Date (YYYY-MM-DD)"
+                label="Date"
                 value={date}
                 onChangeText={setDate}
                 placeholder="YYYY-MM-DD"
                 containerStyle={{ flex: 1 }}
               />
               <Input
-                label="Time (HH:MM)"
+                label="Time"
                 value={time}
                 onChangeText={setTime}
                 placeholder="e.g. 09:30 AM"
                 containerStyle={{ flex: 1 }}
               />
             </View>
-
-            <Text style={styles.formatHint}>
-              📌 Format: <Text style={{ color: colors.accent, fontWeight: '700' }}>YYYY-MM-DD</Text> (e.g. {new Date().toISOString().split('T')[0]}) • <Text style={{ color: colors.accent, fontWeight: '700' }}>HH:MM</Text> (e.g. 09:30 AM or 17:00)
-            </Text>
 
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
               {['08:30 AM', '01:00 PM', '05:30 PM', '08:00 PM'].map(tStr => (

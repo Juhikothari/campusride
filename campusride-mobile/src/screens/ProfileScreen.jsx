@@ -42,17 +42,64 @@ export default function ProfileScreen({ navigation }) {
   const [vSaving,          setVSaving]          = useState(false);
   const [vErr,             setVErr]             = useState('');
 
-  const fetchProfileAndVehicles = () => {
-    api.getProfile()
-      .then(p => { setProfile(p); setNewPhone(p.phone || ''); })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
+  const VEHICLES_STORAGE_KEY = '@user_registered_vehicles_list';
 
-    api.getUserVehicles()
-      .then(list => {
-        if (Array.isArray(list)) setUserVehicles(list);
-      })
-      .catch(() => {});
+  const fetchProfileAndVehicles = async () => {
+    try {
+      const cachedVehiclesStr = await AsyncStorage.getItem(VEHICLES_STORAGE_KEY).catch(() => null);
+      const cachedVehicles = cachedVehiclesStr ? JSON.parse(cachedVehiclesStr) : [];
+
+      const [pRes, vRes] = await Promise.allSettled([
+        api.getProfile(),
+        api.getUserVehicles(),
+      ]);
+
+      const p = pRes.status === 'fulfilled' ? pRes.value : null;
+      if (p) {
+        setProfile(p);
+        setNewPhone(p.phone || '');
+      }
+
+      const remoteVehicles = vRes.status === 'fulfilled' && Array.isArray(vRes.value) ? vRes.value : [];
+      const profileVehicles = (p?.vehicles && Array.isArray(p.vehicles)) ? p.vehicles : [];
+
+      // Merge all sources by unique vehicleNumber without overwriting!
+      const map = new Map();
+
+      cachedVehicles.forEach(v => {
+        if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), v);
+      });
+
+      profileVehicles.forEach(v => {
+        if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), { ...map.get(v.vehicleNumber.toUpperCase()), ...v });
+      });
+
+      remoteVehicles.forEach(v => {
+        if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), { ...map.get(v.vehicleNumber.toUpperCase()), ...v });
+      });
+
+      if (p?.kycDocuments?.vehicleNumber) {
+        const kycVn = p.kycDocuments.vehicleNumber.toUpperCase();
+        if (!map.has(kycVn)) {
+          map.set(kycVn, {
+            vehicleNumber: kycVn,
+            vehicleName: p.kycDocuments.vehicleName || 'Vehicle',
+            vehicleType: p.kycDocuments.vehicleType || 'car',
+            status: p.kycDocuments.vehicleStatus || 'pending',
+          });
+        }
+      }
+
+      const merged = Array.from(map.values());
+      setUserVehicles(merged);
+      if (merged.length > 0) {
+        AsyncStorage.setItem(VEHICLES_STORAGE_KEY, JSON.stringify(merged)).catch(() => {});
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -67,31 +114,30 @@ export default function ProfileScreen({ navigation }) {
     try {
       const cleanNum = vNum.trim().toUpperCase();
       const cleanName = vName.trim();
-      const res = await api.saveVehicle({
+
+      const newEntry = {
         vehicleNumber: cleanNum,
         vehicleName: cleanName,
         vehicleType: vType,
-      });
+        status: 'pending',
+      };
 
-      if (res.vehicles && Array.isArray(res.vehicles)) {
-        setUserVehicles(res.vehicles);
+      // Merge with existing list so previous vehicles are NEVER replaced!
+      const currentList = [...userVehicles];
+      const existsIdx = currentList.findIndex(v => v.vehicleNumber === cleanNum);
+      let updatedList = [];
+      if (existsIdx >= 0) {
+        currentList[existsIdx] = { ...currentList[existsIdx], ...newEntry };
+        updatedList = currentList;
       } else {
-        setUserVehicles(prev => [
-          ...prev.filter(v => v.vehicleNumber !== cleanNum),
-          { vehicleNumber: cleanNum, vehicleName: cleanName, vehicleType: vType, status: 'pending' }
-        ]);
+        updatedList = [...currentList, newEntry];
       }
 
-      setProfile(prev => ({
-        ...prev,
-        kycDocuments: {
-          ...(prev?.kycDocuments || {}),
-          vehicleNumber: cleanNum,
-          vehicleName: cleanName,
-          vehicleType: vType,
-          vehicleStatus: 'pending',
-        }
-      }));
+      setUserVehicles(updatedList);
+      await AsyncStorage.setItem(VEHICLES_STORAGE_KEY, JSON.stringify(updatedList)).catch(() => {});
+
+      // Sync with server
+      await api.saveVehicle(newEntry).catch(() => {});
 
       setVNum('');
       setVName('');
@@ -99,7 +145,7 @@ export default function ProfileScreen({ navigation }) {
 
       RNAlert.alert(
         '✅ Vehicle Submitted',
-        'Your vehicle details have been submitted for admin verification. Verification will be completed within 24 hours.',
+        `Vehicle ${cleanNum} (${cleanName}) submitted for admin verification. Verification will be completed within 24 hours.`,
         [{ text: 'OK' }]
       );
     } catch (e) {
