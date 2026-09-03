@@ -147,11 +147,11 @@ export const submitKyc         = (body) => request('/kyc/submit', { method:'POST
 export const getKycStatus      = ()     => request('/kyc/status');
 
 // ── Community ─────────────────────────────────────────
-export const getCommunityPosts   = ()             => request('/community').catch(() => request('/community/posts'));
-export const createCommunityPost = (body)        => request('/community', { method:'POST', body: JSON.stringify(body) }).catch(() => request('/community/posts', { method:'POST', body: JSON.stringify(body) }));
-export const toggleCommunityLike = (id)          => request(`/community/${id}/like`, { method:'POST' }).catch(() => request(`/community/posts/${id}/like`, { method:'POST' }));
-export const addCommunityReply   = (id, content) => request(`/community/${id}/reply`, { method:'POST', body: JSON.stringify({ content }) }).catch(() => request(`/community/posts/${id}/reply`, { method:'POST', body: JSON.stringify({ content }) }));
-export const deleteCommunityPost = (id)          => request(`/community/${id}`, { method:'DELETE' }).catch(() => request(`/community/posts/${id}`, { method:'DELETE' }));
+export const getCommunityPosts   = ()             => request('/community');
+export const createCommunityPost = (body)        => request('/community', { method:'POST', body: JSON.stringify(body) });
+export const toggleCommunityLike = (id)          => request(`/community/${id}/like`, { method:'POST' });
+export const addCommunityReply   = (id, content) => request(`/community/${id}/reply`, { method:'POST', body: JSON.stringify({ content }) });
+export const deleteCommunityPost = (id)          => request(`/community/${id}`, { method:'DELETE' });
 export const getChatMessages     = (college)     => request(`/community/chat/${encodeURIComponent(college)}`);
 export const deleteChatMessage   = (id)          => request(`/community/chat/${id}`, { method:'DELETE' });
 

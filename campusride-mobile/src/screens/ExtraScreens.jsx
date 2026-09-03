@@ -472,6 +472,36 @@ export function PreRideChecklistScreen({ route, navigation }) {
       : '✅ Checklist Verified • Waiting for Driver to Start';
   };
 
+  const handleCancel = () => {
+    if (!rideId) { navigation.goBack(); return; }
+    RNAlert.alert(
+      isDriver ? '❌ Cancel Ride' : '❌ Cancel Booking',
+      isDriver
+        ? 'Are you sure you want to cancel this ride? All matched passengers will be notified.'
+        : 'Are you sure you want to cancel your booking for this ride?',
+      [
+        { text: 'Keep Ride', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (isDriver) {
+                await api.cancelRide(rideId, 'Cancelled by driver');
+              } else {
+                await api.cancelRide(rideId, 'Cancelled by passenger');
+              }
+              navigation.navigate('Home');
+              RNAlert.alert('Cancelled', isDriver ? 'Ride has been cancelled.' : 'Booking has been cancelled.');
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to cancel');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -529,6 +559,24 @@ export function PreRideChecklistScreen({ route, navigation }) {
           loading={starting}
           style={{ marginTop: spacing.md }}
         />
+
+        <TouchableOpacity
+          onPress={handleCancel}
+          style={{
+            marginTop: 12,
+            paddingVertical: 12,
+            alignItems: 'center',
+            borderRadius: radius.md,
+            borderWidth: 1,
+            borderColor: colors.red + '55',
+            backgroundColor: 'rgba(255,82,82,0.08)'
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: colors.red, fontSize: 13, fontWeight: '700' }}>
+            {isDriver ? '❌ Cancel Ride Before Departure' : '❌ Cancel My Booking'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
       <FloatingChatBot />
     </SafeAreaView>

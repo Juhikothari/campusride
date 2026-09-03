@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { Input, Btn, Alert, Card } from '../components/UI';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as api from '../services/api';
 
 const ROLE_LABEL  = { provider: 'Provider', seeker: 'Seeker', both: 'Provider & Seeker', admin: 'Admin' };
@@ -88,6 +89,24 @@ export default function ProfileScreen({ navigation }) {
             status: p.kycDocuments.vehicleStatus || 'pending',
           });
         }
+      }
+
+      if (user?.kycDocuments?.vehicleNumber) {
+        const uKycVn = user.kycDocuments.vehicleNumber.toUpperCase();
+        if (!map.has(uKycVn)) {
+          map.set(uKycVn, {
+            vehicleNumber: uKycVn,
+            vehicleName: user.kycDocuments.vehicleName || 'Vehicle',
+            vehicleType: user.kycDocuments.vehicleType || 'car',
+            status: user.kycDocuments.vehicleStatus || 'pending',
+          });
+        }
+      }
+
+      if (user?.vehicles && Array.isArray(user.vehicles)) {
+        user.vehicles.forEach(v => {
+          if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), { ...map.get(v.vehicleNumber.toUpperCase()), ...v });
+        });
       }
 
       const merged = Array.from(map.values());

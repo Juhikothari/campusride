@@ -39,6 +39,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [error,            setError]            = useState('');
   const [loading,          setLoading]          = useState(true);
   const [lookingUp,        setLookingUp]        = useState(!paramRideId);
+  const [isMapExpanded,    setIsMapExpanded]    = useState(false);
 
   const timerRef = useRef(null);
 
@@ -350,13 +351,28 @@ export default function LiveTrackingScreen({ navigation, route }) {
               )}
             </View>
 
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 4 }}>
+              <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
+                {isMapExpanded ? '🗺️ ENLARGED FULL ROUTE MAP' : '🗺️ INTERACTIVE ROUTE MAP'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsMapExpanded(e => !e)}
+                style={styles.expandMapBtn}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.expandMapBtnText}>
+                  {isMapExpanded ? '↙ Standard View' : '⛶ Enlarge Map'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Interactive OpenStreetMap Live Map */}
             <LiveMapView
               pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
               drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
               driverLocation={userLat && userLng ? { lat: userLat, lng: userLng } : null}
               coordinates={routeCoordinates}
-              height={260}
+              height={isMapExpanded ? 460 : 320}
               style={{ marginBottom: 12 }}
             />
 
@@ -632,6 +648,19 @@ const styles = StyleSheet.create({
   timerText: {
     color: colors.text,
     fontSize: 12,
+    fontWeight: '700',
+  },
+  expandMapBtn: {
+    backgroundColor: colors.accentDim,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  expandMapBtnText: {
+    color: colors.accent,
+    fontSize: 10.5,
     fontWeight: '800',
   },
 

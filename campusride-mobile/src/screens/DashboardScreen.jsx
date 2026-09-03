@@ -84,11 +84,13 @@ export default function DashboardScreen({ navigation }) {
         );
         if (activeSeekerBooking?.rideId) {
           setActiveTrip(activeSeekerBooking.rideId);
+          setActiveBookingId(activeSeekerBooking._id || activeSeekerBooking.id);
           setTripRole('rider');
           return;
         }
 
         setActiveTrip(null);
+        setActiveBookingId(null);
       } catch (err) {
         console.log('Error loading active trip:', err);
       }
@@ -98,6 +100,44 @@ export default function DashboardScreen({ navigation }) {
     const interval = setInterval(fetchActiveTrip, 15000);
     return () => { mounted = false; clearInterval(interval); };
   }, []);
+
+  const [activeBookingId, setActiveBookingId] = useState(null);
+
+  const handleCancelTrip = () => {
+    if (!activeTrip) return;
+    const isDriver = tripRole === 'driver';
+    RNAlert.alert(
+      isDriver ? '❌ Cancel Ride' : '❌ Cancel Booking',
+      isDriver
+        ? 'Are you sure you want to cancel this ride? All matched passengers will be notified.'
+        : 'Are you sure you want to cancel your seat on this ride?',
+      [
+        { text: 'Keep Ride', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const rId = activeTrip._id || activeTrip.id;
+              if (isDriver) {
+                await api.cancelRide(rId, 'Cancelled by driver');
+              } else {
+                if (activeBookingId) {
+                  await api.cancelBooking(activeBookingId);
+                } else {
+                  await api.cancelRide(rId, 'Cancelled by seeker');
+                }
+              }
+              setActiveTrip(null);
+              RNAlert.alert('Cancelled', isDriver ? 'Ride cancelled successfully.' : 'Booking cancelled successfully.');
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to cancel');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const handleFinishTrip = () => {
     if (!activeTrip) return;
@@ -301,6 +341,16 @@ export default function DashboardScreen({ navigation }) {
                 >
                   <Text style={styles.secondaryBtnText}>
                     {tripRole === 'driver' ? 'Requests' : 'Bookings'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.secondaryBtn, { borderColor: colors.red + '66' }]}
+                  onPress={handleCancelTrip}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.secondaryBtnText, { color: colors.red, fontWeight: '700' }]}>
+                    {tripRole === 'driver' ? '❌ Cancel Ride' : '❌ Cancel'}
                   </Text>
                 </TouchableOpacity>
               </View>
