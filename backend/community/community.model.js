@@ -16,7 +16,7 @@ const postSchema = new mongoose.Schema({
   // CRITICAL: Store college so posts can be retrieved without losing them on refresh
   college:     { type: String, required: true, index: true },
   content:     { type: String, required: true, maxlength: 500 },
-  type:        { type: String, enum: ['tip', 'landmark', 'alert', 'walk'], default: 'tip' },
+  type:        { type: String, enum: ['general', 'tip', 'question', 'landmark', 'alert', 'walk'], default: 'general' },
   anonymous:   { type: Boolean, default: false },
   likes:       { type: Number, default: 0 },
   attachments: [{

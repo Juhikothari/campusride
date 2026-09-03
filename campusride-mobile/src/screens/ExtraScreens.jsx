@@ -396,10 +396,18 @@ const CHECKS = [
 
 export function PreRideChecklistScreen({ route, navigation }) {
   const rideId = route?.params?.rideId;
+  const { user } = useAuth();
   const [checks, setChecks] = useState(Object.fromEntries(CHECKS.map(c => [c.key, false])));
   const [rideDetails, setRideDetails] = useState(null);
+  const [starting, setStarting] = useState(false);
   const done    = Object.values(checks).filter(Boolean).length;
   const allDone = done === CHECKS.length;
+
+  const isDriver = rideDetails && (
+    (rideDetails.providerId?._id && rideDetails.providerId._id === user?._id) ||
+    rideDetails.providerId === user?._id ||
+    rideDetails.providerName === user?.name
+  );
 
   useEffect(() => {
     if (rideId) {
@@ -407,13 +415,41 @@ export function PreRideChecklistScreen({ route, navigation }) {
     }
   }, [rideId]);
 
-  const handleProceed = () => {
+  const handleProceed = async () => {
     if (!allDone) return;
-    if (rideId) {
-      navigation.replace('LiveTracking', { rideId });
+    if (!rideId) { navigation.goBack(); return; }
+
+    if (isDriver) {
+      // Provider starts the ride
+      setStarting(true);
+      try {
+        await api.startRide(rideId);
+        navigation.replace('LiveTracking', { rideId });
+      } catch (err) {
+        // If already in-progress, proceed
+        navigation.replace('LiveTracking', { rideId });
+      } finally {
+        setStarting(false);
+      }
     } else {
-      navigation.goBack();
+      // Seeker
+      if (rideDetails?.status === 'in-progress') {
+        navigation.replace('LiveTracking', { rideId });
+      } else {
+        RNAlert.alert(
+          '✅ Safety Checklist Verified',
+          'All pre-ride checks verified! Live GPS tracking will activate as soon as the driver starts the ride.',
+          [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
+        );
+      }
     }
+  };
+
+  const getButtonLabel = () => {
+    if (!allDone) return `${done}/${CHECKS.length} checked — please verify all`;
+    if (isDriver) return '🚀 Everything Checked — Start Ride Now →';
+    if (rideDetails?.status === 'in-progress') return '📍 Driver Started Ride — Open Live Map →';
+    return '✅ Checklist Verified • Waiting for Driver to Start';
   };
 
   return (
@@ -424,7 +460,9 @@ export function PreRideChecklistScreen({ route, navigation }) {
         </TouchableOpacity>
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🛡️ Pre-Ride Safety Checklist</Text>
         <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>
-          Verify your assigned ride details and safety checks before starting live tracking.
+          {isDriver
+            ? 'Confirm safety checks before giving the option to start the ride for your passengers.'
+            : 'Verify your assigned ride details and safety checks before departure.'}
         </Text>
 
         {/* Assigned Ride & Driver Info Card */}
@@ -436,6 +474,11 @@ export function PreRideChecklistScreen({ route, navigation }) {
             </Text>
             <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', marginTop: 4 }}>
               🚘 {rideDetails.vehicleName || 'Vehicle'} ({rideDetails.vehicleNumber || 'Plate Number'})
+            </Text>
+            <Text style={{ color: colors.text3, fontSize: 12, marginTop: 4 }}>
+              Status: <Text style={{ color: rideDetails.status === 'in-progress' ? colors.green : colors.accent, fontWeight: '700' }}>
+                {rideDetails.status === 'in-progress' ? '🟢 In Progress (Live)' : '⏳ Pre-Departure (Not Started)'}
+              </Text>
             </Text>
           </View>
         )}
@@ -460,9 +503,10 @@ export function PreRideChecklistScreen({ route, navigation }) {
         ))}
 
         <Btn
-          label={allDone ? (rideId ? "🚀 Start & Track Ride Map →" : "✅ I'm ready to ride!") : `${done}/${CHECKS.length} checked — please verify all`}
+          label={getButtonLabel()}
           onPress={handleProceed}
-          disabled={!allDone}
+          disabled={!allDone || starting}
+          loading={starting}
           style={{ marginTop: spacing.md }}
         />
       </ScrollView>

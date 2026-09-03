@@ -166,13 +166,17 @@ export default function DashboardScreen({ navigation }) {
               {/* Trip Header */}
               <View style={styles.tripHeaderRow}>
                 <View style={styles.tripStatusIndicator}>
-                  <View style={styles.liveGreenDot} />
+                  <View style={[styles.liveGreenDot, activeTrip.status !== 'in-progress' && { backgroundColor: colors.accent }]} />
                   <Text style={styles.tripHeaderText}>
-                    🚀 {tripRole === 'driver' ? 'YOU ARE DRIVING (LIVE TRIP)' : 'YOU ARE RIDING (LIVE TRIP)'}
+                    {activeTrip.status === 'in-progress'
+                      ? (tripRole === 'driver' ? '🚀 YOU ARE DRIVING (LIVE TRIP)' : '🚗 YOU ARE RIDING (LIVE TRIP)')
+                      : (tripRole === 'driver' ? '🚗 UPCOMING TRIP (READY TO START)' : '🚗 MATCHED TRIP (WAITING TO START)')}
                   </Text>
                 </View>
-                <View style={styles.liveBadge}>
-                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                <View style={[styles.liveBadge, activeTrip.status !== 'in-progress' && { backgroundColor: colors.accentDim, borderColor: colors.accent }]}>
+                  <Text style={[styles.liveBadgeText, activeTrip.status !== 'in-progress' && { color: colors.accent }]}>
+                    {activeTrip.status === 'in-progress' ? 'LIVE' : 'CONFIRMED'}
+                  </Text>
                 </View>
               </View>
 
@@ -223,23 +227,43 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={styles.tripCostText}>₹{activeTrip.costPerSeat || 49} / seat</Text>
               </View>
 
-              {/* Open Live GPS CTA — Seeker completes checklist first, Provider tracks directly */}
-              <TouchableOpacity
-                style={styles.openGpsBtn}
-                onPress={() => {
-                  const rId = activeTrip._id || activeTrip.id;
-                  if (tripRole === 'rider') {
-                    navigation.navigate('PreRideChecklist', { rideId: rId });
-                  } else {
+              {/* Action Buttons based on in-progress vs pre-start */}
+              {activeTrip.status === 'in-progress' ? (
+                <TouchableOpacity
+                  style={styles.openGpsBtn}
+                  onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.openGpsBtnText}>📍 Open Live GPS & Tracking →</Text>
+                </TouchableOpacity>
+              ) : tripRole === 'driver' ? (
+                <TouchableOpacity
+                  style={[styles.openGpsBtn, { backgroundColor: colors.green }]}
+                  onPress={async () => {
+                    const rId = activeTrip._id || activeTrip.id;
+                    try {
+                      await api.startRide(rId);
+                    } catch {}
                     navigation.navigate('LiveTracking', { rideId: rId });
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.openGpsBtnText}>
-                  {tripRole === 'rider' ? '🛡️ Safety Checklist & Track Ride →' : '📍 Open Live GPS & Tracking →'}
-                </Text>
-              </TouchableOpacity>
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.openGpsBtnText, { color: '#000' }]}>🚀 Start Ride Now →</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ gap: 6 }}>
+                  <TouchableOpacity
+                    style={styles.openGpsBtn}
+                    onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeTrip._id || activeTrip.id })}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.openGpsBtnText}>🛡️ View Safety Checklist & Details →</Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: colors.accent, fontSize: 11.5, textAlign: 'center', fontWeight: '600', marginTop: 2 }}>
+                    ⏳ Pre-ride matched. Live tracking will activate once driver taps Start Ride.
+                  </Text>
+                </View>
+              )}
 
               {/* Secondary Buttons Row with Finish Ride */}
               <View style={styles.secondaryBtnRow}>

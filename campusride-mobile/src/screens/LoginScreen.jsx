@@ -69,12 +69,7 @@ export default function LoginScreen({ navigation }) {
               value={password}
               onChangeText={setPassword}
               placeholder="Your password"
-              secureTextEntry={!showPass}
-              rightIcon={
-                <TouchableOpacity onPress={() => setShowPass(s => !s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={{ fontSize: 16 }}>{showPass ? '🙈' : '👁️'}</Text>
-                </TouchableOpacity>
-              }
+              isPassword
             />
 
             <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={{ alignSelf: 'flex-end', marginTop: -8, marginBottom: spacing.md }}>

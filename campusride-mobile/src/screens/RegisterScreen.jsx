@@ -309,9 +309,17 @@ export default function RegisterScreen({ navigation }) {
                 placeholder="Min. 6 characters"
                 placeholderTextColor={colors.text3}
                 secureTextEntry={!showPass}
+                autoCorrect={false}
+                autoCapitalize="none"
               />
-              <TouchableOpacity onPress={() => setShowPass(s => !s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 16 }}>{showPass ? '🙈' : '👁️'}</Text>
+              <TouchableOpacity
+                onPress={() => setShowPass(s => !s)}
+                style={styles.passToggleBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={{ fontSize: 13 }}>{showPass ? '🙈' : '👁️'}</Text>
+                <Text style={styles.passToggleBtnText}>{showPass ? 'HIDE' : 'SHOW'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -328,9 +336,17 @@ export default function RegisterScreen({ navigation }) {
                 placeholder="Re-enter password"
                 placeholderTextColor={colors.text3}
                 secureTextEntry={!showConf}
+                autoCorrect={false}
+                autoCapitalize="none"
               />
-              <TouchableOpacity onPress={() => setShowConf(s => !s)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Text style={{ fontSize: 16 }}>{showConf ? '🙈' : '👁️'}</Text>
+              <TouchableOpacity
+                onPress={() => setShowConf(s => !s)}
+                style={styles.passToggleBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={{ fontSize: 13 }}>{showConf ? '🙈' : '👁️'}</Text>
+                <Text style={styles.passToggleBtnText}>{showConf ? 'HIDE' : 'SHOW'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -585,6 +601,24 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.text,
     fontSize: 14,
+  },
+  passToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 6,
+  },
+  passToggleBtnText: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 
   modalOverlay: {

@@ -84,6 +84,9 @@ router.put('/profile/vehicle', auth, async (req, res) => {
       ...(user.kycDocuments || {}),
       vehicleNumber: vn,
       vehicleName:   vehicleName.trim(),
+      vehicleType:   vehicleType || 'car',
+      vehicleStatus: 'pending',
+      vehicleSubmittedAt: new Date(),
     };
 
     if (!user.vehicles) user.vehicles = [];
@@ -91,20 +94,23 @@ router.put('/profile/vehicle', auth, async (req, res) => {
     if (existingIndex >= 0) {
       user.vehicles[existingIndex].vehicleName = vehicleName.trim();
       if (vehicleType) user.vehicles[existingIndex].vehicleType = vehicleType;
+      user.vehicles[existingIndex].status = 'pending';
     } else {
       user.vehicles.push({
         vehicleNumber: vn,
         vehicleName: vehicleName.trim(),
         vehicleType: vehicleType || 'car',
+        status: 'pending',
         isDefault: user.vehicles.length === 0,
       });
     }
 
     await user.save();
     res.json({
-      message: 'Vehicle details saved successfully.',
+      message: 'Vehicle submitted for admin review. Verification will be done in 24 hrs.',
       vehicleNumber: vn,
       vehicleName: vehicleName.trim(),
+      vehicleStatus: 'pending',
       vehicles: user.vehicles,
     });
   } catch (err) {

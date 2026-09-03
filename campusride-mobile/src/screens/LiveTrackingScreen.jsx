@@ -323,14 +323,31 @@ export default function LiveTrackingScreen({ navigation, route }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Pre-Departure Notice if ride not started yet */}
+          {rideInfo?.status !== 'in-progress' && (
+            <View style={styles.preDepartureNoticeBox}>
+              <Text style={{ fontSize: 22, textAlign: 'center', marginBottom: 4 }}>⏳</Text>
+              <Text style={styles.preDepartureTitle}>Ride Not Started Yet</Text>
+              <Text style={styles.preDepartureSub}>
+                {isDriver
+                  ? 'All pre-ride checks verified. Tap "🚀 Start Ride" below when you are ready to begin the commute.'
+                  : 'Your booking is accepted and checklist confirmed! Live GPS tracking will activate as soon as the driver taps "Start Ride".'}
+              </Text>
+            </View>
+          )}
+
           {/* Live GPS Radar & Interactive Map */}
           <View style={styles.radarCard}>
             <View style={styles.radarHeader}>
-              <View style={styles.livePulseDot} />
-              <Text style={styles.radarTitle}>🛰️ LIVE GPS TRACKING ACTIVE</Text>
-              <View style={styles.timerBadge}>
-                <Text style={styles.timerText}>{fmt(elapsed)}</Text>
-              </View>
+              <View style={[styles.livePulseDot, rideInfo?.status !== 'in-progress' && { backgroundColor: colors.accent }]} />
+              <Text style={styles.radarTitle}>
+                {rideInfo?.status === 'in-progress' ? '🛰️ LIVE GPS TRACKING ACTIVE' : '🚗 ROUTE PREVIEW (READY TO START)'}
+              </Text>
+              {rideInfo?.status === 'in-progress' && (
+                <View style={styles.timerBadge}>
+                  <Text style={styles.timerText}>{fmt(elapsed)}</Text>
+                </View>
+              )}
             </View>
 
             {/* Interactive OpenStreetMap Live Map */}
@@ -553,6 +570,28 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: 'center' },
   loadingText: { color: colors.text2, marginTop: 14, fontSize: 14, fontWeight: '600' },
   scroll: { padding: spacing.md, paddingBottom: 40 },
+
+  preDepartureNoticeBox: {
+    backgroundColor: '#121722',
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: radius.lg,
+    padding: 14,
+    marginBottom: spacing.md,
+  },
+  preDepartureTitle: {
+    color: colors.text,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  preDepartureSub: {
+    color: colors.text2,
+    fontSize: 12.5,
+    lineHeight: 17,
+    textAlign: 'center',
+  },
 
   radarCard: {
     backgroundColor: colors.surface,

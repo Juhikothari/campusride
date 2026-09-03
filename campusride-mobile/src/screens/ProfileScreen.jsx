@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert as RNAlert,
+  StyleSheet, ActivityIndicator, Alert as RNAlert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Input, Btn, Alert, Card } from '../components/UI';
+import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -32,12 +33,55 @@ export default function ProfileScreen({ navigation }) {
   const [phoneMsg,     setPhoneMsg]     = useState('');
   const [phoneError,   setPhoneError]   = useState('');
 
+  // Vehicle registration modal state
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [vNum,             setVNum]             = useState('');
+  const [vName,            setVName]            = useState('');
+  const [vType,            setVType]            = useState('car');
+  const [vSaving,          setVSaving]          = useState(false);
+  const [vErr,             setVErr]             = useState('');
+
   useEffect(() => {
     api.getProfile()
       .then(p => { setProfile(p); setNewPhone(p.phone || ''); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  const handleSaveVehicle = async () => {
+    setVErr('');
+    if (!vNum.trim()) { setVErr('Enter vehicle registration number'); return; }
+    if (!vName.trim()) { setVErr('Enter vehicle model / name'); return; }
+    setVSaving(true);
+    try {
+      const cleanNum = vNum.trim().toUpperCase();
+      const cleanName = vName.trim();
+      await api.saveVehicle({
+        vehicleNumber: cleanNum,
+        vehicleName: cleanName,
+        vehicleType: vType,
+      });
+      setProfile(prev => ({
+        ...prev,
+        kycDocuments: {
+          ...(prev?.kycDocuments || {}),
+          vehicleNumber: cleanNum,
+          vehicleName: cleanName,
+          vehicleType: vType,
+          vehicleStatus: 'pending',
+        }
+      }));
+      RNAlert.alert(
+        '✅ Vehicle Submitted',
+        'Your vehicle details have been submitted for admin verification. Verification will be completed within 24 hours.',
+        [{ text: 'OK', onPress: () => setShowVehicleModal(false) }]
+      );
+    } catch (e) {
+      setVErr(e.message || 'Failed to submit vehicle details');
+    } finally {
+      setVSaving(false);
+    }
+  };
 
   const handlePhoneSave = async () => {
     setPhoneError('');
@@ -149,8 +193,72 @@ export default function ProfileScreen({ navigation }) {
               {p?.kycStatus === 'approved' ? '✓ Verified' : p?.kycStatus === 'pending' ? '⏳ Under Review' : '⚠ Not Verified'}
             </Text>
           </View>
-          {p?.kycDocuments?.vehicleNumber && <ProfileRow label="Vehicle No." value={p.kycDocuments.vehicleNumber} accent />}
-          {p?.kycDocuments?.vehicleName   && <ProfileRow label="Vehicle"     value={p.kycDocuments.vehicleName} />}
+        </View>
+
+        {/* ── VEHICLE DETAILS & 24-HR ADMIN REVIEW ── */}
+        <View style={styles.card}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={styles.sectionTitle}>Vehicle Details</Text>
+            {!p?.kycDocuments?.vehicleNumber && (
+              <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.addVehicleBadgeBtn}>
+                <Text style={styles.addVehicleBadgeText}>+ Add Vehicle</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {p?.kycDocuments?.vehicleNumber ? (
+            <View style={styles.registeredVehicleCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={styles.vehicleIconCircle}>
+                  <Text style={{ fontSize: 22 }}>🚗</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.vehicleNameHead}>
+                    {p.kycDocuments.vehicleName || 'Registered Vehicle'} • {(p.kycDocuments.vehicleType || 'Car').toUpperCase()}
+                  </Text>
+                  <Text style={styles.vehiclePlateHead}>{p.kycDocuments.vehicleNumber}</Text>
+                </View>
+                <View style={[
+                  styles.vehicleStatusBadge,
+                  p?.kycDocuments?.vehicleStatus === 'pending'
+                    ? { backgroundColor: colors.accent + '22', borderColor: colors.accent }
+                    : { backgroundColor: colors.green + '22', borderColor: colors.green }
+                ]}>
+                  <Text style={[
+                    styles.vehicleStatusBadgeText,
+                    p?.kycDocuments?.vehicleStatus === 'pending' ? { color: colors.accent } : { color: colors.green }
+                  ]}>
+                    {p?.kycDocuments?.vehicleStatus === 'pending' ? '⏳ Reviewing' : '✓ Verified'}
+                  </Text>
+                </View>
+              </View>
+
+              {p?.kycDocuments?.vehicleStatus === 'pending' ? (
+                <View style={styles.pendingReviewNotice}>
+                  <Text style={styles.pendingReviewNoticeText}>
+                    ⏳ Vehicle submitted for admin verification. Verification will be done in 24 hrs.
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.vehicleLockNote}>
+                  🔒 Vehicle details are locked for campus security. To update, contact support with your new RC.
+                </Text>
+              )}
+            </View>
+          ) : (
+            <View style={styles.emptyVehicleBlock}>
+              <Text style={{ fontSize: 24, marginBottom: 4 }}>🚗</Text>
+              <Text style={styles.emptyVehicleTitle}>No Vehicle Added</Text>
+              <Text style={styles.emptyVehicleSub}>
+                Add your vehicle details to offer rides to fellow students. It will be verified by admin within 24 hours.
+              </Text>
+              <Btn
+                label="🚗 + Add Vehicle"
+                onPress={() => setShowVehicleModal(true)}
+                style={{ marginTop: 10 }}
+              />
+            </View>
+          )}
         </View>
 
         {/* Member since */}
@@ -166,6 +274,71 @@ export default function ProfileScreen({ navigation }) {
         <Btn label="📞 Contact Support" onPress={() => navigation.navigate('ContactSupport')} variant="ghost" style={{ marginBottom: 10 }} />
         <Btn label="Sign Out" onPress={handleLogout} variant="danger" style={{ marginTop: 8, marginBottom: 32 }} />
       </ScrollView>
+
+      {/* Floating HOGO AI Assistant Button */}
+      <FloatingChatBot />
+
+      {/* Modal: Add Vehicle with 24-hr Admin Review Notice */}
+      <Modal visible={showVehicleModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>🚗 Add Vehicle</Text>
+            <Text style={styles.modalSub}>
+              Enter your vehicle details. Campus admin will verify your vehicle within 24 hours.
+            </Text>
+
+            {vErr ? <Alert message={vErr} /> : null}
+
+            <Input
+              label="Vehicle Registration Number *"
+              icon="🔢"
+              value={vNum}
+              onChangeText={t => setVNum(t.toUpperCase())}
+              placeholder="e.g. KA02AB1234"
+              autoCapitalize="characters"
+            />
+
+            <Input
+              label="Vehicle Model / Name *"
+              icon="🚗"
+              value={vName}
+              onChangeText={setVName}
+              placeholder="e.g. Honda Activa, Swift"
+              autoCapitalize="words"
+            />
+
+            <Text style={styles.typeLabel}>VEHICLE TYPE</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {[
+                { val: 'motorcycle', label: '🏍 Bike' },
+                { val: 'car', label: '🚗 Car' },
+                { val: 'suv', label: '🚙 SUV' },
+              ].map(t => (
+                <TouchableOpacity
+                  key={t.val}
+                  onPress={() => setVType(t.val)}
+                  style={[styles.typeChip, vType === t.val && styles.typeChipActive]}
+                >
+                  <Text style={[styles.typeChipText, vType === t.val && styles.typeChipTextActive]}>
+                    {t.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.noticeBox24h}>
+              <Text style={styles.noticeText24h}>
+                ⏱️ Verification will be done by admin in 24 hrs. Once approved, you can offer rides on campus.
+              </Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <Btn label="Submit Vehicle" onPress={handleSaveVehicle} loading={vSaving} style={{ flex: 1 }} />
+              <Btn label="Cancel" onPress={() => setShowVehicleModal(false)} variant="outline" style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -196,4 +369,165 @@ const styles = StyleSheet.create({
   kycBadge: { borderRadius: radius.md, borderWidth: 1, padding: 10, alignItems: 'center', marginVertical: 8 },
   kycBadgeText: { fontSize: 14, fontWeight: '700' },
   memberSince: { color: colors.text3, fontSize: 12, textAlign: 'center', marginBottom: spacing.md },
+
+  addVehicleBadgeBtn: {
+    backgroundColor: colors.accentDim,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  addVehicleBadgeText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  registeredVehicleCard: {
+    backgroundColor: '#0c1017',
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: 14,
+    marginTop: 6,
+  },
+  vehicleIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vehicleNameHead: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  vehiclePlateHead: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginTop: 2,
+  },
+  vehicleStatusBadge: {
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  vehicleStatusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  pendingReviewNotice: {
+    backgroundColor: 'rgba(255,183,77,0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent,
+    borderRadius: 4,
+    padding: 10,
+    marginTop: 10,
+  },
+  pendingReviewNoticeText: {
+    color: colors.accent,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
+  vehicleLockNote: {
+    color: colors.text3,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 8,
+  },
+  emptyVehicleBlock: {
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  emptyVehicleTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  emptyVehicleSub: {
+    color: colors.text3,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+  },
+  modalTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  modalSub: {
+    color: colors.text2,
+    fontSize: 12.5,
+    lineHeight: 17,
+    marginBottom: spacing.md,
+  },
+  typeLabel: {
+    color: colors.text2,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  typeChip: {
+    flex: 1,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  typeChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  typeChipText: {
+    color: colors.text2,
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+  typeChipTextActive: {
+    color: colors.accent,
+    fontWeight: '800',
+  },
+  noticeBox24h: {
+    backgroundColor: 'rgba(255, 183, 77, 0.1)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 183, 77, 0.3)',
+    padding: 10,
+    marginBottom: 8,
+  },
+  noticeText24h: {
+    color: colors.accent,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: '600',
+  },
 });

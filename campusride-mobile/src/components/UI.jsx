@@ -50,21 +50,43 @@ export function Btn({ label, onPress, variant = 'primary', loading = false, disa
 }
 
 // ── Input ─────────────────────────────────────────────
-export function Input({ label, error, icon, rightIcon, style, containerStyle, ...props }) {
+export function Input({ label, error, icon, rightIcon, isPassword, style, containerStyle, secureTextEntry, ...props }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const isSecure = isPassword ? !showPassword : secureTextEntry;
+
   return (
     <View style={[{ marginBottom: spacing.md }, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
       <View style={[styles.inputWrap, error && { borderColor: colors.red }]}>
         {icon && <Text style={styles.inputIcon}>{icon}</Text>}
         <TextInput
-          style={[styles.input, icon && { paddingLeft: 40 }, rightIcon && { paddingRight: 40 }, style]}
+          style={[
+            styles.input,
+            icon && { paddingLeft: 40 },
+            (rightIcon || isPassword) && { paddingRight: isPassword ? 72 : 44 },
+            style
+          ]}
           placeholderTextColor={colors.text3}
           autoCapitalize="none"
+          autoCorrect={false}
+          secureTextEntry={isSecure}
           {...props}
         />
-        {rightIcon && (
+        {isPassword ? (
+          <TouchableOpacity
+            style={styles.rightIcon}
+            onPress={() => setShowPassword(s => !s)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <View style={styles.passToggleBadge}>
+              <Text style={{ fontSize: 13 }}>{showPassword ? '🙈' : '👁️'}</Text>
+              <Text style={styles.passToggleText}>{showPassword ? 'HIDE' : 'SHOW'}</Text>
+            </View>
+          </TouchableOpacity>
+        ) : rightIcon ? (
           <View style={styles.rightIcon}>{rightIcon}</View>
-        )}
+        ) : null}
       </View>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
@@ -205,7 +227,30 @@ const styles = StyleSheet.create({
   },
   rightIcon: {
     position: 'absolute',
-    right: 12,
+    right: 8,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 99,
+    elevation: 10,
+  },
+  passToggleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  passToggleText: {
+    color: colors.accent,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   input: {
     flex: 1,

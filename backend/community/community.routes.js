@@ -7,10 +7,16 @@ const {
 } = require('./community.controller');
 
 router.get('/',               auth, getPosts);
+router.get('/posts',          auth, getPosts);
 router.post('/',              auth, createPost);
+router.post('/posts',         auth, createPost);
 router.patch('/:id/like',     auth, toggleLike);
+router.post('/:id/like',      auth, toggleLike);
+router.post('/posts/:id/like',auth, toggleLike);
 router.post('/:id/reply',     auth, addReply);
-router.delete('/:id',         auth, deletePost);   // ← NEW: delete own post
+router.post('/posts/:id/reply', auth, addReply);
+router.delete('/:id',         auth, deletePost);
+router.delete('/posts/:id',   auth, deletePost);
 
 // ── Chat messages (college-scoped) ────────────────────────────────
 router.get('/chat/messages', auth, async (req, res) => {
