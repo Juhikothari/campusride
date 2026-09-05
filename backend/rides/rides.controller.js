@@ -7,19 +7,20 @@ const Notification = require('../notifications/notifications.model');
 // ================= 3-HOUR AUTO-CANCEL HELPER =================
 const autoCancelStaleRides = async () => {
   try {
-    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const staleRides = await Ride.find({
       status: 'active',
-      createdAt: { $lt: threeHoursAgo }
+      date: { $lt: oneDayAgo },
+      createdAt: { $lt: oneDayAgo }
     });
     for (const sr of staleRides) {
       sr.status = 'cancelled';
-      sr.cancelReason = 'Auto-cancelled after 3 hours of inactivity';
+      sr.cancelReason = 'Auto-cancelled after 24 hours of inactivity';
       sr.cancelledAt = new Date();
       await sr.save();
       await Booking.updateMany(
         { rideId: sr._id, status: { $in: ['pending', 'accepted'] } },
-        { status: 'cancelled', cancelReason: 'Ride auto-cancelled after 3 hours' }
+        { status: 'cancelled', cancelReason: 'Ride auto-cancelled after 24 hours' }
       );
     }
   } catch (e) {
@@ -115,6 +116,12 @@ exports.createRide = async (req, res) => {
     // Women-only ride: only female accounts can set this
     const womenOnly = req.body.womenOnly === true && user.gender === 'female';
 
+    const now = new Date();
+    const effectiveDate = date ? new Date(date) : now;
+    const effectiveTime = time || `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    const userCollege = user.college || req.body.college || '';
+    const normalizedCollege = userCollege ? require('../config/collegeDomains').normalizeCollege(userCollege) : '';
+
     const ride = new Ride({
       providerId: userId,
       pickup: {
@@ -127,14 +134,14 @@ exports.createRide = async (req, res) => {
         coordinates: Array.isArray(drop?.coordinates) ? drop.coordinates : [],
         address: dropAddress
       },
-      date,
-      time,
+      date: effectiveDate,
+      time: effectiveTime,
       seatsAvailable,
       costPerSeat,
       womenOnly,
       vehicleType: req.body.vehicleType || 'car',
       vehicleName: effectiveVehicleName || 'Car',
-      college: require('../config/collegeDomains').normalizeCollege(user.college || ''),
+      college: normalizedCollege,
     });
 
     await ride.save();
@@ -188,23 +195,30 @@ exports.createRide = async (req, res) => {
 // ================= SEARCH RIDES =================
 exports.searchRides = async (req, res) => {
   try {
-    const { lat, lng, maxDistance = 5000, date, dropLat, dropLng } = req.query;
+    const { lat, lng, maxDistance = 25000, date, dropLat, dropLng } = req.query;
     
     console.log('Search params:', { lat, lng, maxDistance, date, dropLat, dropLng });
 
-    // Build base query - only active rides with available seats
+    // Build base query — only active rides with available seats
     const query = { 
       status: 'active',
       seatsAvailable: { $gt: 0 }
     };
 
-    // College filter — only show rides from same college as the seeker
+    // College filter — soft matching: show rides from same college, or unassigned college
     const seekerId = req.user?.userId || req.user?.id;
     const seeker = await User.findById(seekerId).select('college gender');
     if (seeker?.college) {
       const { normalizeCollege } = require('../config/collegeDomains');
       const normalizedSeekerCollege = normalizeCollege(seeker.college);
-      query.college = normalizedSeekerCollege;
+      query.$or = [
+        { college: normalizedSeekerCollege },
+        { college: seeker.college },
+        { college: { $regex: new RegExp(normalizedSeekerCollege.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } },
+        { college: '' },
+        { college: null },
+        { college: { $exists: false } }
+      ];
     }
 
     // Women-only filter — hide women-only rides from male accounts
@@ -230,15 +244,13 @@ exports.searchRides = async (req, res) => {
       };
       console.log('Date filter:', searchDate, 'to', nextDay);
     } else {
-      // No date provided ("Ride Now") - show rides from start of today and future
-      // Rides past their scheduled time are filtered in JS below (date+time combined check)
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-      query.date = { $gte: startOfToday };
-      console.log('Ride Now - showing rides from start of today:', startOfToday);
+      // No date provided ("Ride Now") — show rides from last 24 hours up to future
+      const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      query.date = { $gte: past24h };
+      console.log('Ride Now — showing rides from:', past24h);
     }
 
-    // Helper: check if a ride's scheduled date+time is still relevant
+    // Helper: check if a ride's scheduled date+time is still relevant (24-hour buffer)
     const now = new Date();
     const isRideUpcoming = (ride) => {
       if (!ride.time) return true;
@@ -269,47 +281,51 @@ exports.searchRides = async (req, res) => {
         0,
         0
       );
-      // Give 3-hour buffer so newly posted rides for "now" remain discoverable
-      const expiration = new Date(scheduled.getTime() + 3 * 60 * 60 * 1000);
+      // Give 24-hour buffer so newly posted rides for today remain discoverable
+      const expiration = new Date(scheduled.getTime() + 24 * 60 * 60 * 1000);
       return expiration > now;
     };
 
-    // If coordinates provided, use geo-proximity search
     let rides = [];
-    
+    const distanceInMeters = parseInt(maxDistance) || 25000;
+
+    // If coordinates provided, try geo-proximity search
     if (lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))) {
       const latitude = parseFloat(lat);
       const longitude = parseFloat(lng);
-      const distanceInMeters = parseInt(maxDistance) || 5000;
       
       console.log('Geo search:', { latitude, longitude, distanceInMeters });
 
-      rides = await Ride.find({
-        ...query,
-        pickup: {
-          $near: {
-            $geometry: {
-              type: 'Point',
-              coordinates: [longitude, latitude] // [lng, lat] for MongoDB
-            },
-            $maxDistance: distanceInMeters
+      try {
+        rides = await Ride.find({
+          ...query,
+          pickup: {
+            $near: {
+              $geometry: {
+                type: 'Point',
+                coordinates: [longitude, latitude] // [lng, lat] for MongoDB
+              },
+              $maxDistance: distanceInMeters
+            }
           }
-        }
-      }).populate('providerId', 'name rating gender');
-      
+        }).populate('providerId', 'name rating gender college phone');
+      } catch (geoErr) {
+        console.warn('Geo search near error (index missing?):', geoErr.message);
+        rides = await Ride.find(query)
+          .populate('providerId', 'name rating gender college phone')
+          .sort({ createdAt: -1 });
+      }
+
       console.log(`Found ${rides.length} rides within ${distanceInMeters}m (before time filter)`);
-
-      // Filter out rides whose scheduled time has already passed
       rides = rides.filter(isRideUpcoming);
-      console.log(`Found ${rides.length} rides after past-time filter`);
 
-      // If drop location provided, also filter by drop distance
+      // If drop location provided, filter by drop distance (soft filter: only if matches exist)
       if (dropLat && dropLng && !isNaN(parseFloat(dropLat)) && !isNaN(parseFloat(dropLng))) {
         const dropLatitude = parseFloat(dropLat);
         const dropLongitude = parseFloat(dropLng);
         
-        rides = rides.filter(ride => {
-          if (!ride.drop?.coordinates || ride.drop.coordinates.length !== 2) return false;
+        const dropMatches = rides.filter(ride => {
+          if (!ride.drop?.coordinates || ride.drop.coordinates.length !== 2) return true;
           
           const R = 6371e3;
           const φ1 = dropLatitude * Math.PI / 180;
@@ -323,29 +339,45 @@ exports.searchRides = async (req, res) => {
           const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
           const distance = R * c;
           
-          return distance <= distanceInMeters;
+          return distance <= (distanceInMeters * 1.5);
         });
         
+        if (dropMatches.length > 0) {
+          rides = dropMatches;
+        }
         console.log(`After drop filter: ${rides.length} rides`);
       }
     } else {
-      // No coordinates - return all rides matching date filter
+      // No coordinates — return all active rides matching query
       rides = await Ride.find(query)
-        .populate('providerId', 'name rating gender')
-        .sort({ date: 1, time: 1 });
-
-      // Filter out rides whose scheduled time has already passed
+        .populate('providerId', 'name rating gender college phone')
+        .sort({ createdAt: -1 });
       rides = rides.filter(isRideUpcoming);
-      console.log(`Found ${rides.length} rides (no geo filter, after time filter)`);
+      console.log(`Found ${rides.length} rides (no geo filter)`);
     }
 
-    // Fallback: If strict geo proximity returned 0 rides, return all active rides on campus
-    if (rides.length === 0 && (lat || dropLat)) {
+    // Fallback 1: If strict geo returned 0, fetch all active rides matching college query
+    if (rides.length === 0) {
       rides = await Ride.find(query)
-        .populate('providerId', 'name rating gender')
-        .sort({ date: 1, time: 1 });
+        .populate('providerId', 'name rating gender college phone')
+        .sort({ createdAt: -1 });
       rides = rides.filter(isRideUpcoming);
-      console.log(`Campus fallback found ${rides.length} rides`);
+      console.log(`Fallback 1 returned ${rides.length} rides`);
+    }
+
+    // Fallback 2 (Ultimate Safety): If still 0, return all active rides on platform
+    if (rides.length === 0) {
+      const globalQuery = {
+        status: 'active',
+        seatsAvailable: { $gt: 0 },
+        ...(seeker?.gender === 'male' ? { womenOnly: { $ne: true } } : {}),
+        ...(req.query.womenOnly === 'true' ? { womenOnly: true } : {})
+      };
+      rides = await Ride.find(globalQuery)
+        .populate('providerId', 'name rating gender college phone')
+        .sort({ createdAt: -1 })
+        .limit(20);
+      console.log(`Ultimate fallback returned ${rides.length} rides`);
     }
 
     res.json(rides);

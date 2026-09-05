@@ -148,6 +148,25 @@ export default function SearchRidesScreen({ navigation }) {
     } catch {}
   };
 
+  const fetchAllCampusRides = useCallback(async () => {
+    setLoading(true);
+    try {
+      let results = await api.searchRides({});
+      if (Array.isArray(results)) {
+        if (vehicle) results = results.filter(r => !vehicle || r.vehicleType === vehicle);
+        setRides(results);
+      }
+    } catch {}
+    finally {
+      setLoading(false);
+    }
+  }, [vehicle]);
+
+  // Automatically load available campus rides on screen mount
+  useEffect(() => {
+    fetchAllCampusRides();
+  }, [fetchAllCampusRides]);
+
   const applyHistorySearch = (item) => {
     if (item.pickup) setPickup(item.pickup);
     if (item.drop) setDrop(item.drop);
@@ -155,13 +174,14 @@ export default function SearchRidesScreen({ navigation }) {
 
   const doSearch = useCallback(async () => {
     setError('');
-    if (!pickup.lat || !pickup.lng) { setError('Enter or detect your pickup location'); return; }
     setLoading(true);
     setSearched(true);
-    saveSearchHistoryItem(pickup, drop);
+    if (pickup.lat && drop.lat) {
+      saveSearchHistoryItem(pickup, drop);
+    }
     try {
       const params = {
-        lat: pickup.lat, lng: pickup.lng, maxDistance: 10000,
+        ...(pickup.lat && { lat: pickup.lat, lng: pickup.lng, maxDistance: 25000 }),
         ...(drop.lat && { dropLat: drop.lat, dropLng: drop.lng }),
         ...(schedMode === 'later' && date && { date }),
         ...(schedMode === 'later' && time && { time }),
@@ -169,13 +189,21 @@ export default function SearchRidesScreen({ navigation }) {
       };
       let results = await api.searchRides(params);
       if (vehicle) results = results.filter(r => r.vehicleType === vehicle);
+
+      // If zero matches found for strict coordinates, also fetch all active rides so seeker is never stuck
+      if (!results || results.length === 0) {
+        const allRides = await api.searchRides({}).catch(() => []);
+        if (Array.isArray(allRides) && allRides.length > 0) {
+          results = vehicle ? allRides.filter(r => r.vehicleType === vehicle) : allRides;
+        }
+      }
       setRides(results || []);
     } catch (e) {
       setError(e.message || 'Search failed');
     } finally {
       setLoading(false);
     }
-  }, [pickup, drop, schedMode, date, womenOnly, vehicle]);
+  }, [pickup, drop, schedMode, date, time, womenOnly, vehicle]);
 
   const book = async (rideId) => {
     setBookingMap(m => ({ ...m, [rideId]: { loading: true } }));
@@ -334,38 +362,64 @@ export default function SearchRidesScreen({ navigation }) {
         <Btn label="🔍 Search Your Match" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
 
         {/* Results */}
-        {searched && (
-          <View style={{ marginTop: spacing.lg }}>
+        <View style={{ marginTop: spacing.lg }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <Text style={styles.resultsHeader}>
-              {rides.length} match{rides.length !== 1 ? 'es' : ''} found
+              {searched ? `${rides.length} match${rides.length !== 1 ? 'es' : ''} found` : `Available Campus Rides (${rides.length})`}
             </Text>
-
-            {rides.length === 0 ? (
-              <View style={styles.noRidesCard}>
-                <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🚗</Text>
-                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No matching rides found</Text>
-                <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>Try searching for a different destination or check the community tab.</Text>
-                <Btn label="Check Community" onPress={() => navigation.navigate('Community')} variant="outline" />
-              </View>
-            ) : (
-              rides.map(ride => {
-                const bm = bookingMap[ride._id];
-                return (
-                  <View key={ride._id}>
-                    <RideCard
-                      ride={ride}
-                      onView={id => navigation.navigate('RideDetail', { rideId: id })}
-                      onBook={bm?.status ? null : book}
-                      bookingStatus={bm?.status}
-                    />
-                    {bm?.error  && <Alert message={bm.error} />}
-                    {bm?.status === 'pending' && <Alert message="Booking request sent! Waiting for provider to accept." type="success" />}
-                  </View>
-                );
-              })
-            )}
+            <TouchableOpacity
+              onPress={fetchAllCampusRides}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                backgroundColor: colors.surface2,
+                borderRadius: radius.full,
+                borderWidth: 1,
+                borderColor: colors.border
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={{ fontSize: 12 }}>↻</Text>
+              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Show All</Text>
+            </TouchableOpacity>
           </View>
-        )}
+
+          {loading ? (
+            <View style={{ padding: 30, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.accent} />
+              <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Finding available rides…</Text>
+            </View>
+          ) : rides.length === 0 ? (
+            <View style={styles.noRidesCard}>
+              <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🚗</Text>
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No matching rides found</Text>
+              <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>No rides currently offered for this specific query. Tap below to see all active rides or check community posts.</Text>
+              <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+                <Btn label="↻ Load All Campus Rides" onPress={fetchAllCampusRides} variant="outline" style={{ flex: 1 }} />
+                <Btn label="Community" onPress={() => navigation.navigate('Community')} variant="outline" style={{ flex: 1 }} />
+              </View>
+            </View>
+          ) : (
+            rides.map(ride => {
+              const bm = bookingMap[ride._id];
+              return (
+                <View key={ride._id}>
+                  <RideCard
+                    ride={ride}
+                    onView={id => navigation.navigate('RideDetail', { rideId: id })}
+                    onBook={bm?.status ? null : book}
+                    bookingStatus={bm?.status}
+                  />
+                  {bm?.error  && <Alert message={bm.error} />}
+                  {bm?.status === 'pending' && <Alert message="Booking request sent! Waiting for provider to accept." type="success" />}
+                </View>
+              );
+            })
+          )}
+        </View>
       </ScrollView>
 
       {/* Floating HOGO AI Assistant Button */}

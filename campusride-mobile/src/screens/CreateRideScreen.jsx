@@ -60,9 +60,13 @@ export default function CreateRideScreen({ navigation }) {
   const [modalVNum,        setModalVNum]        = useState('');
   const [modalSaving,      setModalSaving]      = useState(false);
 
+  const nowInit = new Date();
+  const initDate = nowInit.toISOString().split('T')[0];
+  const initTime = `${String(nowInit.getHours()).padStart(2, '0')}:${String(nowInit.getMinutes()).padStart(2, '0')}`;
+
   const [cost,        setCost]        = useState('0');
-  const [date,        setDate]        = useState('');
-  const [time,        setTime]        = useState('');
+  const [date,        setDate]        = useState(initDate);
+  const [time,        setTime]        = useState(initTime);
   const [womenOnly,   setWomenOnly]   = useState(false);
   const [schedMode,   setSchedMode]   = useState('now');
   const [loading,     setLoading]     = useState(false);
@@ -240,7 +244,12 @@ export default function CreateRideScreen({ navigation }) {
 
     if (!pickup.lat) { setError('Enter or select pickup location'); return; }
     if (!drop.lat)   { setError('Enter drop location');   return; }
-    if (!date || !time) { setError('Select a valid date and time'); return; }
+
+    const nowSubmit = new Date();
+    const defaultDate = nowSubmit.toISOString().split('T')[0];
+    const defaultTime = `${String(nowSubmit.getHours()).padStart(2, '0')}:${String(nowSubmit.getMinutes()).padStart(2, '0')}`;
+    const rideDate = (schedMode === 'now' || !date?.trim()) ? defaultDate : date.trim();
+    const rideTime = (schedMode === 'now' || !time?.trim()) ? defaultTime : time.trim();
 
     const selectedCap = VEHICLES.find(v => v.value === vehicleType)?.capacity || 1;
     const computedCost = calcCost(distKm, vehicleType) || 0;
@@ -258,7 +267,8 @@ export default function CreateRideScreen({ navigation }) {
           coordinates: [parseFloat(drop.lng), parseFloat(drop.lat)],
           address: drop.label,
         },
-        date, time,
+        date:           rideDate,
+        time:           rideTime,
         seatsAvailable: selectedCap,
         costPerSeat:    computedCost,
         vehicleType,
