@@ -24,7 +24,8 @@ function ProfileRow({ label, value, accent }) {
 }
 
 export default function ProfileScreen({ navigation }) {
-  const { user: authUser, logout } = useAuth();
+  const { user, logout } = useAuth();
+  const authUser = user;
   const [profile,      setProfile]      = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
@@ -289,12 +290,7 @@ export default function ProfileScreen({ navigation }) {
         {/* ── VEHICLE DETAILS & 24-HR ADMIN REVIEW ── */}
         <View style={styles.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={styles.sectionTitle}>
-              Vehicle Details {(() => {
-                const count = userVehicles.length > 0 ? userVehicles.length : (p?.kycDocuments?.vehicleNumber ? 1 : 0);
-                return count > 0 ? `(${count})` : '';
-              })()}
-            </Text>
+            <Text style={styles.sectionTitle}>Vehicle Details</Text>
             <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.addVehicleBadgeBtn}>
               <Text style={styles.addVehicleBadgeText}>
                 {(userVehicles.length > 0 || p?.kycDocuments?.vehicleNumber) ? '+ Add Another' : '+ Add Vehicle'}
@@ -372,15 +368,7 @@ export default function ProfileScreen({ navigation }) {
                   );
                 })}
 
-                <TouchableOpacity
-                  onPress={() => setShowVehicleModal(true)}
-                  style={styles.addAnotherVehicleBtn}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.addAnotherVehicleText}>🚗 + Add Another Vehicle (Car / Bike / XUV)</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.vehicleLockNote}>
+                <Text style={[styles.vehicleLockNote, { marginTop: 10 }]}>
                   🔒 Registered vehicle details are locked for campus safety. If you need to update an existing vehicle, contact support with your new RC.
                 </Text>
               </View>

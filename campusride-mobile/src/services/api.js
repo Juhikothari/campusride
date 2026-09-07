@@ -122,6 +122,7 @@ export const getMyRides        = ()     => request('/ride/my');
 export const startRide         = (id)   => request(`/ride/${id}/start`, { method:'POST' });
 export const completeRide      = (id)   => request(`/ride/${id}/complete`, { method:'POST' });
 export const cancelRide        = (id, reason) => request(`/ride/${id}/cancel`, { method:'POST', body: JSON.stringify({ reason }) });
+export const submitChecklist   = (rideId, body = {}) => request(`/ride/${rideId}/checklist`, { method:'POST', body: JSON.stringify(body) });
 export const updateRideStatus  = (id, status) => {
   if (status === 'in-progress') return startRide(id);
   if (status === 'completed')   return completeRide(id);

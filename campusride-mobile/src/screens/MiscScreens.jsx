@@ -160,10 +160,22 @@ export function NotificationsScreen({ navigation }) {
   const isSeeker   = user?.role === 'seeker'   || user?.role === 'both';
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
+  const [serverNotifs, setServerNotifs] = useState([]);
+
   useEffect(() => {
     const promises = [];
-    if (isSeeker)   promises.push(api.getMyBookings().then(setBookings));
-    if (isProvider) promises.push(api.getMyRides().then(setMyRides));
+    if (isSeeker)   promises.push(api.getMyBookings().then(setBookings).catch(() => {}));
+    if (isProvider) promises.push(api.getMyRides().then(setMyRides).catch(() => {}));
+    promises.push(
+      api.getNotifications()
+        .then(res => {
+          const list = Array.isArray(res) ? res : res?.notifications || [];
+          setServerNotifs(list);
+          // Mark all notifications as read when opening notifications screen
+          api.markNotificationsRead().catch(() => {});
+        })
+        .catch(() => {})
+    );
     Promise.all(promises).finally(() => setLoading(false));
   }, []);
 
@@ -175,6 +187,20 @@ export function NotificationsScreen({ navigation }) {
     'in-progress':{ icon:'🛣️', color: colors.blue,  label: 'Ride In Progress' },
     completed:   { icon: '🏁', color: colors.green, label: 'Completed' },
   };
+
+  const directNotifs = serverNotifs.map(n => ({
+    id: n._id || n.id,
+    icon: n.type?.includes('PICKUP') ? '🚗' : n.type?.includes('DROP') ? '📍' : '🔔',
+    color: colors.accent,
+    label: n.type?.replace(/_/g, ' ') || 'Notification',
+    title: n.title || 'Notification',
+    body:  n.body || n.message || '',
+    time:  n.createdAt,
+    onPress: () => {
+      if (n.data?.rideId) navigation.navigate('LiveTracking', { rideId: n.data.rideId });
+      else navigation.navigate('Home');
+    }
+  }));
 
   const seekerNotifs = bookings.map(b => ({
     id: b._id,
@@ -199,7 +225,7 @@ export function NotificationsScreen({ navigation }) {
     }))
   );
 
-  const allNotifs = [...seekerNotifs, ...providerNotifs]
+  const allNotifs = [...directNotifs, ...seekerNotifs, ...providerNotifs]
     .sort((a, b) => new Date(b.time) - new Date(a.time));
 
   function timeAgo(d) {

@@ -315,6 +315,9 @@ export default function RegisterScreen({ navigation }) {
                 secureTextEntry={!showPass}
                 autoCorrect={false}
                 autoCapitalize="none"
+                spellCheck={false}
+                textContentType="none"
+                autoComplete="off"
               />
               <TouchableOpacity
                 onPress={() => setShowPass(s => !s)}
@@ -322,8 +325,7 @@ export default function RegisterScreen({ navigation }) {
                 activeOpacity={0.7}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Text style={{ fontSize: 13 }}>{showPass ? '🙈' : '👁️'}</Text>
-                <Text style={styles.passToggleBtnText}>{showPass ? 'HIDE' : 'SHOW'}</Text>
+                <Text style={{ fontSize: 16 }}>{showPass ? '🙈' : '👁️'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -342,6 +344,9 @@ export default function RegisterScreen({ navigation }) {
                 secureTextEntry={!showConf}
                 autoCorrect={false}
                 autoCapitalize="none"
+                spellCheck={false}
+                textContentType="none"
+                autoComplete="off"
               />
               <TouchableOpacity
                 onPress={() => setShowConf(s => !s)}
@@ -349,8 +354,7 @@ export default function RegisterScreen({ navigation }) {
                 activeOpacity={0.7}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Text style={{ fontSize: 13 }}>{showConf ? '🙈' : '👁️'}</Text>
-                <Text style={styles.passToggleBtnText}>{showConf ? 'HIDE' : 'SHOW'}</Text>
+                <Text style={{ fontSize: 16 }}>{showConf ? '🙈' : '👁️'}</Text>
               </TouchableOpacity>
             </View>
           </View>

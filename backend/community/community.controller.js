@@ -95,11 +95,15 @@ exports.deletePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Post not found' });
-    if (post.author.toString() !== req.user.userId) {
+    const currentUserId = req.user?.userId || req.user?.id;
+    const isOwner = post.author?.toString() === currentUserId?.toString() ||
+                    post.authorId?.toString() === currentUserId?.toString();
+    const isAdmin = req.user?.role === 'admin';
+    if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: 'You can only delete your own posts' });
     }
     await post.deleteOne();
-    res.json({ message: 'Post deleted' });
+    res.json({ message: 'Post deleted successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

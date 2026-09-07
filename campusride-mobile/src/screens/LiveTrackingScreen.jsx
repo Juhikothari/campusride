@@ -101,22 +101,43 @@ export default function LiveTrackingScreen({ navigation, route }) {
         if (!isMounted) return;
         setRideInfo(data);
 
-        const pLat = data?.pickup?.coordinates?.[1];
-        const pLng = data?.pickup?.coordinates?.[0];
-        const dLat = data?.drop?.coordinates?.[1];
-        const dLng = data?.drop?.coordinates?.[0];
+        const parseCoord = (loc) => {
+          if (!loc) return null;
+          if (loc.lat && loc.lng) return { lat: parseFloat(loc.lat), lng: parseFloat(loc.lng) };
+          if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
+            const c0 = parseFloat(loc.coordinates[0]);
+            const c1 = parseFloat(loc.coordinates[1]);
+            // India coordinates: Longitude > 50, Latitude < 40
+            if (c0 > 50) return { lat: c1, lng: c0 };
+            return { lat: c0, lng: c1 };
+          }
+          return null;
+        };
 
-        if (pLat && pLng) setPickupCoords({ latitude: pLat, longitude: pLng });
-        if (dLat && dLng) setDropCoords({ latitude: dLat, longitude: dLng });
+        const pickupPt = parseCoord(data?.pickup);
+        const dropPt   = parseCoord(data?.drop);
 
-        // Calculate route distance & duration
-        if (pLat && pLng && dLat && dLng) {
+        if (pickupPt?.lat && pickupPt?.lng) {
+          setPickupCoords({ latitude: pickupPt.lat, longitude: pickupPt.lng });
+        }
+        if (dropPt?.lat && dropPt?.lng) {
+          setDropCoords({ latitude: dropPt.lat, longitude: dropPt.lng });
+        }
+
+        // Immediately set direct route line between pickup and drop so map shows route line right away
+        if (pickupPt?.lat && pickupPt?.lng && dropPt?.lat && dropPt?.lng) {
+          setRouteCoordinates([
+            { latitude: pickupPt.lat, longitude: pickupPt.lng },
+            { latitude: (pickupPt.lat + dropPt.lat) / 2, longitude: (pickupPt.lng + dropPt.lng) / 2 },
+            { latitude: dropPt.lat, longitude: dropPt.lng }
+          ]);
+
           try {
-            const routeData = await api.getOptimalRoute(pLat, pLng, dLat, dLng);
+            const routeData = await api.getOptimalRoute(pickupPt.lat, pickupPt.lng, dropPt.lat, dropPt.lng);
             if (isMounted && routeData) {
               setRouteDistance(routeData.distanceKm ? `${routeData.distanceKm} km` : '');
               setRouteDuration(routeData.durationMin ? `${routeData.durationMin} mins` : '');
-              if (routeData.coordinates && routeData.coordinates.length > 0) {
+              if (Array.isArray(routeData.coordinates) && routeData.coordinates.length > 0) {
                 setRouteCoordinates(routeData.coordinates);
               }
             }

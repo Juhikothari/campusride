@@ -151,18 +151,19 @@ export default function SearchRidesScreen({ navigation }) {
   const fetchAllCampusRides = useCallback(async () => {
     setLoading(true);
     try {
-      let results = await api.searchRides({});
+      let results = await api.searchRides(womenOnly ? { womenOnly: 'true' } : {});
       if (Array.isArray(results)) {
         if (vehicle) results = results.filter(r => !vehicle || r.vehicleType === vehicle);
+        if (womenOnly) results = results.filter(r => r.womenOnly === true);
         setRides(results);
       }
     } catch {}
     finally {
       setLoading(false);
     }
-  }, [vehicle]);
+  }, [vehicle, womenOnly]);
 
-  // Automatically load available campus rides on screen mount
+  // Automatically load available campus rides on screen mount or filter change
   useEffect(() => {
     fetchAllCampusRides();
   }, [fetchAllCampusRides]);
@@ -189,14 +190,18 @@ export default function SearchRidesScreen({ navigation }) {
       };
       let results = await api.searchRides(params);
       if (vehicle) results = results.filter(r => r.vehicleType === vehicle);
+      if (womenOnly) results = results.filter(r => r.womenOnly === true);
 
       // If zero matches found for strict coordinates, also fetch all active rides so seeker is never stuck
       if (!results || results.length === 0) {
-        const allRides = await api.searchRides({}).catch(() => []);
+        const allRides = await api.searchRides(womenOnly ? { womenOnly: 'true' } : {}).catch(() => []);
         if (Array.isArray(allRides) && allRides.length > 0) {
-          results = vehicle ? allRides.filter(r => r.vehicleType === vehicle) : allRides;
+          let fallbackMatches = vehicle ? allRides.filter(r => r.vehicleType === vehicle) : allRides;
+          if (womenOnly) fallbackMatches = fallbackMatches.filter(r => r.womenOnly === true);
+          results = fallbackMatches;
         }
       }
+      if (womenOnly) results = (results || []).filter(r => r.womenOnly === true);
       setRides(results || []);
     } catch (e) {
       setError(e.message || 'Search failed');
@@ -295,17 +300,21 @@ export default function SearchRidesScreen({ navigation }) {
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Input
-                label="Date"
+                label="Date (YYYY-MM-DD)"
                 value={date}
-                onChangeText={setDate}
+                onChangeText={(val) => setDate(val.replace(/[^0-9-]/g, ''))}
                 placeholder="YYYY-MM-DD"
+                keyboardType="numeric"
+                maxLength={10}
                 containerStyle={{ flex: 1 }}
               />
               <Input
                 label="Time"
                 value={time}
-                onChangeText={setTime}
+                onChangeText={(val) => setTime(val.replace(/[^0-9:APMapm\s]/g, ''))}
                 placeholder="e.g. 09:30 AM"
+                keyboardType="numeric"
+                maxLength={8}
                 containerStyle={{ flex: 1 }}
               />
             </View>

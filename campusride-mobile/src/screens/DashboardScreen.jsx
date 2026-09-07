@@ -73,7 +73,18 @@ export default function DashboardScreen({ navigation }) {
         });
 
         if (activeDriverRide) {
-          setActiveTrip(activeDriverRide);
+          const matchedBookings = requests.filter(b => (b.rideId === activeDriverRide._id || b.rideId?._id === activeDriverRide._id) && b.status === 'accepted');
+          const passengerNames = matchedBookings.map(b => b.seekerId?.name || 'Passenger').filter(Boolean);
+          const passengerColleges = matchedBookings.map(b => b.seekerId?.college).filter(Boolean);
+          const isChecklistDone = activeDriverRide.seekerChecklistCompleted || matchedBookings.some(b => b.checklistCompleted);
+
+          setActiveTrip({
+            ...activeDriverRide,
+            matchedPassengerName: passengerNames[0] || (passengerNames.length > 0 ? passengerNames.join(', ') : 'Passenger'),
+            matchedPassengerCollege: passengerColleges[0] || activeDriverRide.college || 'Campus Commuter',
+            hasAcceptedBookings: matchedBookings.length > 0,
+            seekerChecklistCompleted: isChecklistDone,
+          });
           setTripRole('driver');
           return;
         }
@@ -83,7 +94,10 @@ export default function DashboardScreen({ navigation }) {
           b.status === 'accepted' && (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
         );
         if (activeSeekerBooking?.rideId) {
-          setActiveTrip(activeSeekerBooking.rideId);
+          setActiveTrip({
+            ...activeSeekerBooking.rideId,
+            seekerChecklistCompleted: activeSeekerBooking.checklistCompleted || activeSeekerBooking.rideId.seekerChecklistCompleted,
+          });
           setActiveBookingId(activeSeekerBooking._id || activeSeekerBooking.id);
           setTripRole('rider');
           return;
@@ -235,17 +249,21 @@ export default function DashboardScreen({ navigation }) {
                 </Text>
               )}
 
-              {/* Driver & Vehicle Box */}
+              {/* Driver & Vehicle Box / Passenger Box */}
               <View style={styles.driverBox}>
-                <View style={styles.driverIconCircle}>
-                  <Text style={{ fontSize: 18 }}>🚗</Text>
+                <View style={[styles.driverIconCircle, tripRole === 'driver' && { backgroundColor: 'rgba(33,150,243,0.15)', borderColor: colors.blue }]}>
+                  <Text style={{ fontSize: 18 }}>{tripRole === 'driver' ? '👤' : '🚗'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.driverTitle}>
-                    {tripRole === 'driver' ? 'You (Driver)' : (activeTrip.providerId?.name || 'Assigned Driver')}
+                    {tripRole === 'driver'
+                      ? `Passenger: ${activeTrip.matchedPassengerName || 'Matched Passenger'}`
+                      : (activeTrip.providerId?.name || 'Assigned Driver')}
                   </Text>
                   <Text style={styles.driverVehicle}>
-                    {activeTrip.vehicleName || activeTrip.providerId?.kycDocuments?.vehicleName || 'Vehicle'}
+                    {tripRole === 'driver'
+                      ? `🎓 ${activeTrip.matchedPassengerCollege || 'Campus Commuter'}`
+                      : `${activeTrip.vehicleName || 'Vehicle'} • ${activeTrip.vehicleNumber || 'Plate Number'}`}
                   </Text>
                 </View>
               </View>
@@ -286,19 +304,40 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={styles.openGpsBtnText}>📍 Open Live GPS & Tracking →</Text>
                 </TouchableOpacity>
               ) : tripRole === 'driver' ? (
-                <TouchableOpacity
-                  style={[styles.openGpsBtn, { backgroundColor: colors.green }]}
-                  onPress={async () => {
-                    const rId = activeTrip._id || activeTrip.id;
-                    try {
-                      await api.startRide(rId);
-                    } catch {}
-                    navigation.navigate('LiveTracking', { rideId: rId });
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[styles.openGpsBtnText, { color: '#000' }]}>🚀 Start Ride Now →</Text>
-                </TouchableOpacity>
+                <View style={{ gap: 6 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.openGpsBtn,
+                      { backgroundColor: activeTrip.seekerChecklistCompleted ? colors.green : '#2a2214', borderWidth: 1, borderColor: activeTrip.seekerChecklistCompleted ? colors.green : colors.accent }
+                    ]}
+                    onPress={async () => {
+                      if (!activeTrip.seekerChecklistCompleted) {
+                        RNAlert.alert(
+                          '⏳ Passenger Checklist Pending',
+                          'For campus safety, the passenger must verify their pre-ride safety checklist before departure. The ride can be started once the passenger completes the checklist.'
+                        );
+                        return;
+                      }
+                      const rId = activeTrip._id || activeTrip.id;
+                      try {
+                        await api.startRide(rId);
+                        navigation.navigate('LiveTracking', { rideId: rId });
+                      } catch (err) {
+                        RNAlert.alert('Cannot Start Ride', err.message || 'Wait for passenger to complete safety checklist.');
+                      }
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.openGpsBtnText, { color: activeTrip.seekerChecklistCompleted ? '#000' : colors.accent }]}>
+                      {activeTrip.seekerChecklistCompleted ? '🚀 Start Ride Now →' : '⏳ Waiting for Passenger Checklist…'}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text style={{ color: activeTrip.seekerChecklistCompleted ? colors.green : colors.text3, fontSize: 11.5, textAlign: 'center', fontWeight: '600' }}>
+                    {activeTrip.seekerChecklistCompleted
+                      ? '✓ Passenger verified safety checklist! Ready to depart.'
+                      : '🔒 Passenger is completing pre-ride checklist before ride can start.'}
+                  </Text>
+                </View>
               ) : (
                 <View style={{ gap: 6 }}>
                   <TouchableOpacity
@@ -314,7 +353,7 @@ export default function DashboardScreen({ navigation }) {
                 </View>
               )}
 
-              {/* Secondary Buttons Row with Finish Ride */}
+              {/* Secondary Buttons Row — Details button removed per request */}
               <View style={styles.secondaryBtnRow}>
                 {tripRole === 'driver' && (
                   <TouchableOpacity
@@ -325,14 +364,6 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={[styles.secondaryBtnText, { color: colors.green, fontWeight: '900' }]}>🏁 Finish Ride</Text>
                   </TouchableOpacity>
                 )}
-
-                <TouchableOpacity
-                  style={styles.secondaryBtn}
-                  onPress={() => navigation.navigate('RideDetail', { rideId: activeTrip._id || activeTrip.id })}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.secondaryBtnText}>Details</Text>
-                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.secondaryBtn}

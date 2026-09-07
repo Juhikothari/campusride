@@ -117,17 +117,27 @@ export default function LiveMapView({
 
           // Polyline route
           ${coordsArray ? `
-            const routePoints = [${coordsArray}];
-            const polyline = L.polyline(routePoints, {
-              color: '#f5a623',
-              weight: 5,
-              opacity: 0.9,
-              lineJoin: 'round'
-            }).addTo(map);
-            map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+            try {
+              const routePoints = [${coordsArray}];
+              if (routePoints.length > 0) {
+                const polyline = L.polyline(routePoints, {
+                  color: '#f5a623',
+                  weight: 5,
+                  opacity: 0.9,
+                  lineJoin: 'round'
+                }).addTo(map);
+                if (polyline.getBounds && polyline.getBounds().isValid()) {
+                  map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+                }
+              }
+            } catch(polyErr) {
+              console.error('Polyline render error:', polyErr);
+            }
           ` : `
             if (markers.length > 1) {
-              map.fitBounds(L.latLngBounds(markers), { padding: [40, 40] });
+              try {
+                map.fitBounds(L.latLngBounds(markers), { padding: [40, 40] });
+              } catch(e) {}
             } else if (markers.length === 1) {
               map.setView(markers[0], 15);
             }

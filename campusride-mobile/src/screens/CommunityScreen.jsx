@@ -84,12 +84,29 @@ function PostsTab({ user }) {
     } catch {}
   };
 
-  const handleDelete = async (postId) => {
-    try {
-      await deleteCommunityPost(postId);
-      setPosts(prev => prev.filter(p => p._id !== postId));
-    } catch {}
+  const handleDelete = (postId) => {
+    RNAlert.alert(
+      '🗑️ Delete Post',
+      'Are you sure you want to delete this community post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCommunityPost(postId);
+              setPosts(prev => prev.filter(p => p._id !== postId));
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to delete post');
+            }
+          }
+        }
+      ]
+    );
   };
+
+  const currentUserId = user?._id || user?.id || user?.userId;
 
   return (
     <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
@@ -132,23 +149,42 @@ function PostsTab({ user }) {
       {/* Posts */}
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 32 }} />
-      ) : posts.map(post => (
-        <View key={post._id} style={styles.postCard}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-            <View>
-              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                {POST_TYPES.find(t => t.value === post.type)?.label || '💬'}
-              </Text>
-              <Text style={{ color: colors.text2, fontSize: 11, marginTop: 1 }}>
-                {post.anonymous ? 'Anonymous' : post.authorName} · {timeAgo(post.createdAt)}
-              </Text>
+      ) : posts.map(post => {
+        const isOwner = Boolean(
+          (post.author?._id && String(post.author._id) === String(currentUserId)) ||
+          (post.author && String(post.author) === String(currentUserId)) ||
+          (post.authorId && String(post.authorId) === String(currentUserId)) ||
+          user?.role === 'admin'
+        );
+
+        return (
+          <View key={post._id} style={styles.postCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                  {POST_TYPES.find(t => t.value === post.type)?.label || '💬'}
+                </Text>
+                <Text style={{ color: colors.text2, fontSize: 11, marginTop: 1 }}>
+                  {post.anonymous ? 'Anonymous' : (post.author?.name || post.authorName || 'Campus Commuter')} · {timeAgo(post.createdAt)}
+                </Text>
+              </View>
+              {isOwner && (
+                <TouchableOpacity
+                  onPress={() => handleDelete(post._id)}
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    backgroundColor: 'rgba(255,82,82,0.1)',
+                    borderRadius: radius.sm,
+                    borderWidth: 1,
+                    borderColor: colors.red + '44'
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: colors.red, fontSize: 11, fontWeight: '700' }}>🗑️ Delete</Text>
+                </TouchableOpacity>
+              )}
             </View>
-            {post.authorId === user?._id && (
-              <TouchableOpacity onPress={() => handleDelete(post._id)}>
-                <Text style={{ color: colors.red, fontSize: 12 }}>Delete</Text>
-              </TouchableOpacity>
-            )}
-          </View>
           <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, marginBottom: 10 }}>{post.content}</Text>
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity onPress={() => handleLike(post._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -181,7 +217,8 @@ function PostsTab({ user }) {
             </View>
           ))}
         </View>
-      ))}
+      );
+    })}
     </ScrollView>
   );
 }

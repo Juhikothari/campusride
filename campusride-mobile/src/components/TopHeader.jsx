@@ -19,15 +19,25 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Match'
 
   useEffect(() => {
     let mounted = true;
-    api.getNotifications()
-      .then(res => {
-        if (!mounted) return;
-        const list = Array.isArray(res) ? res : res?.notifications || [];
-        const unread = list.filter(n => !n.read && !n.isRead).length;
-        setUnreadCount(unread);
-      })
-      .catch(() => {});
-    return () => { mounted = false; };
+    const fetchUnread = () => {
+      api.getNotifications()
+        .then(res => {
+          if (!mounted) return;
+          let unread = 0;
+          if (typeof res?.unreadCount === 'number') {
+            unread = res.unreadCount;
+          } else {
+            const list = Array.isArray(res) ? res : res?.notifications || [];
+            unread = list.filter(n => !n.readAt && !n.read && !n.isRead).length;
+          }
+          setUnreadCount(unread);
+        })
+        .catch(() => {});
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => { mounted = false; clearInterval(interval); };
   }, [modalVisible]);
 
   const handleLogout = () => {

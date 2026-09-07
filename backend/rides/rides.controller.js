@@ -92,6 +92,16 @@ exports.createRide = async (req, res) => {
       await user.save();
     }
 
+    // Check if the vehicle is currently under admin review
+    const matchingVeh = (user.vehicles || []).find(v => v.vehicleNumber === effectiveVehicleNum);
+    const isVehPending = (matchingVeh && (matchingVeh.status === 'pending' || matchingVeh.status === 'in_review')) ||
+                         (!matchingVeh && user.kycDocuments?.vehicleStatus === 'pending');
+    if (isVehPending) {
+      return res.status(400).json({
+        message: 'This vehicle is currently under admin verification (within 24 hrs). You cannot offer rides with this vehicle until verified.'
+      });
+    }
+
     const extractAddress = (location, fallback = 'Campus Area') => {
       if (!location) return fallback;
       const clean = (str) => {
@@ -450,17 +460,44 @@ exports.getMyRides = async (req, res) => {
 // ================= SUBMIT CHECKLIST =================
 exports.submitChecklist = async (req, res) => {
   try {
-    const ride = await Ride.findOne({
-      _id: req.params.rideId,
-      providerId: req.user.userId
-    });
+    const { rideId } = req.params;
+    const currentUserId = req.user?.userId || req.user?.id;
+    const ride = await Ride.findById(rideId);
 
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
 
-    ride.preRideChecklist = { ...req.body, completedAt: new Date() };
+    const isProvider = ride.providerId?.toString() === currentUserId?.toString();
+    const booking = await Booking.findOne({
+      rideId,
+      seekerId: currentUserId,
+      status: 'accepted'
+    });
+
+    if (!isProvider && !booking) {
+      return res.status(403).json({ message: 'You are not an active participant of this ride.' });
+    }
+
+    if (isProvider) {
+      ride.providerChecklistCompleted = true;
+      ride.providerChecklistCompletedAt = new Date();
+      ride.preRideChecklist = { ...req.body, completedAt: new Date() };
+    } else {
+      ride.seekerChecklistCompleted = true;
+      ride.seekerChecklistCompletedAt = new Date();
+      if (booking) {
+        booking.checklistCompleted = true;
+        booking.checklistCompletedAt = new Date();
+        await booking.save();
+      }
+    }
     await ride.save();
 
-    res.json({ message: 'Checklist saved', ride });
+    res.json({
+      message: 'Safety checklist verified successfully',
+      ride,
+      seekerChecklistCompleted: ride.seekerChecklistCompleted,
+      providerChecklistCompleted: ride.providerChecklistCompleted
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -610,12 +647,24 @@ exports.dropPassenger = async (req, res) => {
 exports.startRide = async (req, res) => {
   try {
     const { rideId } = req.params;
-    const ride = await Ride.findOne({ _id: rideId, providerId: req.user.userId });
+    const currentUserId = req.user?.userId || req.user?.id;
+    const ride = await Ride.findOne({ _id: rideId, providerId: currentUserId });
 
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
     
     if (ride.status !== 'active') {
       return res.status(400).json({ message: 'Ride cannot be started' });
+    }
+
+    // Enforce that matched passenger has completed their safety checklist before driver can start the ride
+    const acceptedBookings = await Booking.find({ rideId, status: 'accepted' });
+    if (acceptedBookings.length > 0 && !ride.seekerChecklistCompleted) {
+      const anyCompleted = acceptedBookings.some(b => b.checklistCompleted);
+      if (!anyCompleted) {
+        return res.status(400).json({
+          message: 'Passenger has not completed their pre-ride safety checklist yet. For campus safety, wait for the passenger to complete the checklist before starting the ride.'
+        });
+      }
     }
 
     ride.status = 'in-progress';

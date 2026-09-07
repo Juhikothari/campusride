@@ -677,19 +677,26 @@ export function PreRideChecklistScreen({ route, navigation }) {
         await api.startRide(rideId);
         navigation.replace('LiveTracking', { rideId });
       } catch (err) {
-        // If already in-progress, proceed
-        navigation.replace('LiveTracking', { rideId });
+        RNAlert.alert('Cannot Start Ride', err.message || 'Wait for passenger to complete safety checklist before starting.');
       } finally {
         setStarting(false);
       }
     } else {
-      // Seeker
+      // Seeker completes checklist
+      setStarting(true);
+      try {
+        await api.submitChecklist(rideId, { seekerCompleted: true });
+      } catch {}
+      finally {
+        setStarting(false);
+      }
+
       if (rideDetails?.status === 'in-progress') {
         navigation.replace('LiveTracking', { rideId });
       } else {
         RNAlert.alert(
           '✅ Safety Checklist Verified',
-          'All pre-ride checks verified! Live GPS tracking will activate as soon as the driver starts the ride.',
+          'All pre-ride checks verified! The driver can now start the ride, and live GPS tracking will activate automatically.',
           [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
         );
       }

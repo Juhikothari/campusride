@@ -63,12 +63,15 @@ export function Input({ label, error, icon, rightIcon, isPassword, style, contai
           style={[
             styles.input,
             icon && { paddingLeft: 40 },
-            (rightIcon || isPassword) && { paddingRight: isPassword ? 72 : 44 },
+            (rightIcon || isPassword) && { paddingRight: isPassword ? 48 : 44 },
             style
           ]}
           placeholderTextColor={colors.text3}
           autoCapitalize="none"
           autoCorrect={false}
+          spellCheck={false}
+          textContentType={isPassword ? 'none' : (props.textContentType || 'none')}
+          autoComplete={isPassword ? 'off' : (props.autoComplete || 'off')}
           secureTextEntry={isSecure}
           {...props}
         />
@@ -80,8 +83,7 @@ export function Input({ label, error, icon, rightIcon, isPassword, style, contai
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <View style={styles.passToggleBadge}>
-              <Text style={{ fontSize: 13 }}>{showPassword ? '🙈' : '👁️'}</Text>
-              <Text style={styles.passToggleText}>{showPassword ? 'HIDE' : 'SHOW'}</Text>
+              <Text style={{ fontSize: 16 }}>{showPassword ? '🙈' : '👁️'}</Text>
             </View>
           </TouchableOpacity>
         ) : rightIcon ? (

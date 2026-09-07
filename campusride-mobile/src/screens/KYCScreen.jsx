@@ -194,11 +194,10 @@ export default function KYCScreen({ navigation }) {
           <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>* Required fields</Text>
         </View>
 
-        {isProvider && (
-          <View style={styles.card}>
-            <Text style={styles.sectionLabel}>VEHICLE DETAILS (PROVIDER)</Text>
-            <Input label="Vehicle Number" value={vehicleNum} onChangeText={setVehicleNum} placeholder="e.g. KA01AB1234" autoCapitalize="characters" />
-            <Input label="Vehicle Name"   value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa" autoCapitalize="words" />
+        <View style={styles.card}>
+          <Text style={styles.sectionLabel}>VEHICLE DETAILS & TYPE (OPTIONAL / PROVIDER)</Text>
+          <Input label="Vehicle Number" value={vehicleNum} onChangeText={setVehicleNum} placeholder="e.g. KA01AB1234" autoCapitalize="characters" />
+          <Input label="Vehicle Name"   value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa, Nexon" autoCapitalize="words" />
 
             <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 8, marginBottom: 8 }}>
               VEHICLE TYPE
@@ -229,7 +228,6 @@ export default function KYCScreen({ navigation }) {
               ))}
             </View>
           </View>
-        )}
 
         <Btn
           label={uploading ? 'Uploading & Submitting…' : 'Submit for Verification'}

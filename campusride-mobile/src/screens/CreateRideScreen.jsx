@@ -151,6 +151,12 @@ export default function CreateRideScreen({ navigation }) {
     user?.vehicleNumber
   );
 
+  const selectedVehicleObj = userVehicles[selectedVIdx] || userVehicles[0] || null;
+  const isVehiclePending = Boolean(
+    (selectedVehicleObj && (selectedVehicleObj.status === 'pending' || selectedVehicleObj.status === 'in_review')) ||
+    (!selectedVehicleObj && (user?.kycDocuments?.vehicleStatus === 'pending' || user?.kycStatus === 'pending'))
+  );
+
   // Set default college pickup when "college" is chosen
   useEffect(() => {
     if (pickupFrom === 'college' && user?.college) {
@@ -239,6 +245,11 @@ export default function CreateRideScreen({ navigation }) {
     // Check if vehicle details are missing
     if (!vehicleNumber.trim() && userVehicles.length === 0) {
       setShowVehicleModal(true);
+      return;
+    }
+
+    if (isVehiclePending) {
+      setError(`Vehicle ${vehicleNumber || ''} is currently under admin verification (typically within 24 hrs). You cannot offer rides with this vehicle until approved.`);
       return;
     }
 
@@ -374,17 +385,21 @@ export default function CreateRideScreen({ navigation }) {
 
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Input
-                  label="Date"
+                  label="Date (YYYY-MM-DD)"
                   value={date}
-                  onChangeText={setDate}
+                  onChangeText={(val) => setDate(val.replace(/[^0-9-]/g, ''))}
                   placeholder="YYYY-MM-DD"
+                  keyboardType="numeric"
+                  maxLength={10}
                   containerStyle={{ flex: 1 }}
                 />
                 <Input
-                  label="Time"
+                  label="Time (HH:MM)"
                   value={time}
-                  onChangeText={setTime}
+                  onChangeText={(val) => setTime(val.replace(/[^0-9:]/g, ''))}
                   placeholder="e.g. 15:30"
+                  keyboardType="numeric"
+                  maxLength={5}
                   containerStyle={{ flex: 1 }}
                 />
               </View>
@@ -449,13 +464,26 @@ export default function CreateRideScreen({ navigation }) {
                       {vehicleNumber || user?.kycDocuments?.vehicleNumber}
                     </Text>
                   </View>
-                  <View style={styles.lockedBadge}>
-                    <Text style={styles.lockedBadgeText}>✓ DEFAULT</Text>
+                  <View style={[styles.lockedBadge, isVehiclePending && { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}>
+                    <Text style={[styles.lockedBadgeText, isVehiclePending && { color: colors.accent }]}>
+                      {isVehiclePending ? '⏳ IN REVIEW (24h)' : '✓ VERIFIED'}
+                    </Text>
                   </View>
                 </View>
-                <Text style={styles.lockedPolicyNote}>
-                  🔒 This ride will be posted using your registered vehicle. To add a 2nd vehicle or edit details, please manage your vehicles in your Profile.
-                </Text>
+                {isVehiclePending ? (
+                  <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderRadius: radius.md, padding: 10, marginTop: 10, borderWidth: 1, borderColor: colors.accent }}>
+                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                      ⏳ Vehicle Under Admin Verification (within 24 hrs)
+                    </Text>
+                    <Text style={{ color: colors.text2, fontSize: 11.5, marginTop: 3, lineHeight: 16 }}>
+                      This vehicle was submitted for verification and is awaiting campus admin approval. You cannot post rides until it is approved.
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.lockedPolicyNote}>
+                    🔒 This ride will be posted using your verified vehicle. To add a 2nd vehicle or edit details, please manage your vehicles in your Profile.
+                  </Text>
+                )}
               </View>
             </View>
           ) : (
@@ -581,7 +609,21 @@ export default function CreateRideScreen({ navigation }) {
           )}
 
           {hasRegisteredVehicle ? (
-            <Btn label="🚗 Post Ride on HOGO" onPress={submit} loading={loading} style={{ marginTop: spacing.md }} />
+            isVehiclePending ? (
+              <View style={{ marginTop: spacing.md }}>
+                <Btn
+                  label="⏳ Vehicle Pending Verification (24 hrs)"
+                  onPress={() => RNAlert.alert('Vehicle Under Review', 'Your vehicle was submitted for verification and will be reviewed within 24 hours. You will be able to post rides as soon as admin approves it.')}
+                  style={{ backgroundColor: '#2a2214', borderColor: colors.accent, borderWidth: 1 }}
+                  textStyle={{ color: colors.accent }}
+                />
+                <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
+                  You cannot post rides with an unverified vehicle.
+                </Text>
+              </View>
+            ) : (
+              <Btn label="🚗 Post Ride on HOGO" onPress={submit} loading={loading} style={{ marginTop: spacing.md }} />
+            )
           ) : (
             <Btn
               label="⚠️ Register Vehicle in Profile to Post Ride"
