@@ -95,7 +95,7 @@ const register = async (req, res) => {
     const existing = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
     if (existing) return res.status(400).json({ message: 'User already exists' });
 
-    const hasKycDocs = !!(aadhar || collegeIdCard || drivingLicense);
+    const hasKycDocs = !!(aadhar || collegeIdCard || drivingLicense || vehicleNumber);
     let kycStatus = 'not_required';
     if (['provider', 'both'].includes(role)) {
       kycStatus = hasKycDocs ? 'pending' : 'not_required';
@@ -106,6 +106,10 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     const sessionSeed = crypto.randomBytes(16).toString('hex');
+
+    const vNum = vehicleNumber ? vehicleNumber.toUpperCase().trim() : null;
+    const vName = vehicleName ? vehicleName.trim() : 'Vehicle';
+    const vType = req.body.vehicleType || 'car';
 
     const user = new User({
       name,
@@ -123,9 +127,19 @@ const register = async (req, res) => {
         collegeIdCard:  collegeIdCard  || null,
         selfie:         null,
         vehiclePhoto:   vehiclePhoto   || null,
-        vehicleNumber:  vehicleNumber  ? vehicleNumber.toUpperCase() : null,
-        vehicleName:    vehicleName    || null,
+        vehicleNumber:  vNum,
+        vehicleName:    vNum ? vName : null,
+        vehicleType:    vNum ? vType : null,
+        vehicleStatus:  vNum ? 'pending' : null,
+        vehicleSubmittedAt: vNum ? new Date() : undefined,
       },
+      vehicles: vNum ? [{
+        vehicleNumber: vNum,
+        vehicleName: vName,
+        vehicleType: vType,
+        status: 'pending',
+        isDefault: true,
+      }] : [],
       kycSubmittedAt: hasKycDocs ? new Date() : undefined,
       emergencyContact: emergencyContact || '',
       currentSessionSeed: sessionSeed,

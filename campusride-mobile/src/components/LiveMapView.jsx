@@ -8,6 +8,8 @@ export default function LiveMapView({
   drop,
   driverLocation,
   coordinates = [],
+  leg1Coordinates = [],
+  leg2Coordinates = [],
   pinLocation,
   onMapClick,
   height = 280,
@@ -30,6 +32,12 @@ export default function LiveMapView({
     const pinLat = pinLocation?.lat ? parseFloat(pinLocation.lat) : null;
     const pinLng = pinLocation?.lng ? parseFloat(pinLocation.lng) : null;
 
+    const leg1Array = (leg1Coordinates && leg1Coordinates.length > 0)
+      ? leg1Coordinates.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
+      : '';
+    const leg2Array = (leg2Coordinates && leg2Coordinates.length > 0)
+      ? leg2Coordinates.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
+      : '';
     const coordsArray = (coordinates && coordinates.length > 0)
       ? coordinates.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
       : (pLat && pLng && dLat && dLng) ? `[${pLat}, ${pLng}], [${dLat}, ${dLng}]` : '';
@@ -84,21 +92,21 @@ export default function LiveMapView({
           // Pickup marker
           ${pLat && pLng ? `
             const pIcon = L.divIcon({ className: 'custom-pin', html: '🟢', iconSize: [24, 24], iconAnchor: [12, 12] });
-            const pMarker = L.marker([${pLat}, ${pLng}], { icon: pIcon }).addTo(map).bindPopup('<b>Pickup</b>');
+            const pMarker = L.marker([${pLat}, ${pLng}], { icon: pIcon }).addTo(map).bindPopup('<b>Seeker Pickup Point</b>');
             markers.push([${pLat}, ${pLng}]);
           ` : ''}
 
           // Drop marker
           ${dLat && dLng ? `
             const dIcon = L.divIcon({ className: 'custom-pin', html: '🏁', iconSize: [24, 24], iconAnchor: [12, 12] });
-            const dMarker = L.marker([${dLat}, ${dLng}], { icon: dIcon }).addTo(map).bindPopup('<b>Destination</b>');
+            const dMarker = L.marker([${dLat}, ${dLng}], { icon: dIcon }).addTo(map).bindPopup('<b>Drop-off Destination</b>');
             markers.push([${dLat}, ${dLng}]);
           ` : ''}
 
           // Real-time Driver marker
           ${drLat && drLng ? `
             const drIcon = L.divIcon({ className: 'custom-pin car-icon', html: '🚗', iconSize: [28, 28], iconAnchor: [14, 14] });
-            const drMarker = L.marker([${drLat}, ${drLng}], { icon: drIcon }).addTo(map).bindPopup('<b>Driver Live Location</b>');
+            const drMarker = L.marker([${drLat}, ${drLng}], { icon: drIcon }).addTo(map).bindPopup('<b>Provider Live Location</b>');
             markers.push([${drLat}, ${drLng}]);
           ` : ''}
 
@@ -115,8 +123,57 @@ export default function LiveMapView({
             markers.push([${pinLat}, ${pinLng}]);
           ` : ''}
 
-          // Polyline route
-          ${coordsArray ? `
+          // 2-Leg Route Polylines: Driver -> Seeker Pickup (Leg 1) -> Destination (Leg 2)
+          const allRouteBounds = [];
+
+          ${leg1Array ? `
+            try {
+              const leg1Points = [${leg1Array}];
+              if (leg1Points.length > 0) {
+                const poly1 = L.polyline(leg1Points, {
+                  color: '#00E5FF',
+                  weight: 5,
+                  opacity: 0.95,
+                  dashArray: '8, 8',
+                  lineJoin: 'round'
+                }).addTo(map).bindPopup('<b>Leg 1: Provider approaching Seeker</b>');
+                if (poly1.getBounds && poly1.getBounds().isValid()) {
+                  allRouteBounds.push(poly1.getBounds());
+                }
+              }
+            } catch(e) {}
+          ` : (drLat && drLng && pLat && pLng) ? `
+            try {
+              const directLeg1 = [[${drLat}, ${drLng}], [${pLat}, ${pLng}]];
+              const poly1 = L.polyline(directLeg1, {
+                color: '#00E5FF',
+                weight: 4,
+                opacity: 0.85,
+                dashArray: '6, 6',
+                lineJoin: 'round'
+              }).addTo(map).bindPopup('<b>Leg 1: Provider heading to Seeker</b>');
+              if (poly1.getBounds && poly1.getBounds().isValid()) {
+                allRouteBounds.push(poly1.getBounds());
+              }
+            } catch(e) {}
+          ` : ''}
+
+          ${leg2Array ? `
+            try {
+              const leg2Points = [${leg2Array}];
+              if (leg2Points.length > 0) {
+                const poly2 = L.polyline(leg2Points, {
+                  color: '#f5a623',
+                  weight: 5,
+                  opacity: 0.95,
+                  lineJoin: 'round'
+                }).addTo(map).bindPopup('<b>Leg 2: En route to Destination</b>');
+                if (poly2.getBounds && poly2.getBounds().isValid()) {
+                  allRouteBounds.push(poly2.getBounds());
+                }
+              }
+            } catch(e) {}
+          ` : coordsArray ? `
             try {
               const routePoints = [${coordsArray}];
               if (routePoints.length > 0) {
@@ -127,21 +184,31 @@ export default function LiveMapView({
                   lineJoin: 'round'
                 }).addTo(map);
                 if (polyline.getBounds && polyline.getBounds().isValid()) {
-                  map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+                  allRouteBounds.push(polyline.getBounds());
                 }
               }
             } catch(polyErr) {
               console.error('Polyline render error:', polyErr);
             }
-          ` : `
-            if (markers.length > 1) {
-              try {
-                map.fitBounds(L.latLngBounds(markers), { padding: [40, 40] });
-              } catch(e) {}
-            } else if (markers.length === 1) {
-              map.setView(markers[0], 15);
-            }
-          `}
+          ` : ''}
+
+          if (allRouteBounds.length > 0) {
+            try {
+              let combined = allRouteBounds[0];
+              for (let i = 1; i < allRouteBounds.length; i++) {
+                combined = combined.extend(allRouteBounds[i]);
+              }
+              if (combined && combined.isValid()) {
+                map.fitBounds(combined, { padding: [40, 40] });
+              }
+            } catch(e) {}
+          } else if (markers.length > 1) {
+            try {
+              map.fitBounds(L.latLngBounds(markers), { padding: [40, 40] });
+            } catch(e) {}
+          } else if (markers.length === 1) {
+            map.setView(markers[0], 15);
+          }
 
           // Map click handler
           map.on('click', function(e) {

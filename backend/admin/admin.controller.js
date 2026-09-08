@@ -138,9 +138,15 @@ exports.deleteRide = async (req, res) => {
 // ── GET /api/admin/kyc ────────────────────────────────────────────
 exports.getPendingKYC = async (req, res) => {
   try {
-    const users = await User.find({ kycStatus: 'pending' })
+    const users = await User.find({
+      $or: [
+        { kycStatus: 'pending' },
+        { 'kycDocuments.vehicleStatus': 'pending' },
+        { 'vehicles.status': 'pending' }
+      ]
+    })
       .select('-password')
-      .sort({ createdAt: -1 });
+      .sort({ updatedAt: -1, createdAt: -1 });
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: err.message });

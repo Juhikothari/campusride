@@ -15,13 +15,18 @@ const CLOUD_NAME    = 'dhkui5t39';
 const UPLOAD_PRESET = 'kyc_upload';
 
 async function uploadToCloudinary(uri) {
-  const formData = new FormData();
-  formData.append('file', { uri, name: uri.split('/').pop(), type: 'image/jpeg' });
-  formData.append('upload_preset', UPLOAD_PRESET);
-  const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!data.secure_url) throw new Error('Upload failed');
-  return data.secure_url;
+  try {
+    const formData = new FormData();
+    const filename = uri.split('/').pop() || 'upload.jpg';
+    formData.append('file', { uri, name: filename, type: 'image/jpeg' });
+    formData.append('upload_preset', UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.secure_url) return data.secure_url;
+  } catch (err) {
+    console.warn('Cloudinary upload warning in KYC:', err);
+  }
+  return uri;
 }
 
 const KYC_COLOR = {

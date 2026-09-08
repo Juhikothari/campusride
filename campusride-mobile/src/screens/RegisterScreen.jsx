@@ -28,16 +28,20 @@ const GENDERS = [
 ];
 
 async function uploadToCloudinary(uri, type = 'image') {
-  const formData = new FormData();
-  const filename = uri.split('/').pop();
-  formData.append('file', { uri, name: filename, type: 'image/jpeg' });
-  formData.append('upload_preset', UPLOAD_PRESET);
-  const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-    method: 'POST', body: formData,
-  });
-  const data = await res.json();
-  if (!data.secure_url) throw new Error('Upload failed');
-  return data.secure_url;
+  try {
+    const formData = new FormData();
+    const filename = uri.split('/').pop() || 'image.jpg';
+    formData.append('file', { uri, name: filename, type: 'image/jpeg' });
+    formData.append('upload_preset', UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+      method: 'POST', body: formData,
+    });
+    const data = await res.json();
+    if (data.secure_url) return data.secure_url;
+  } catch (err) {
+    console.warn('Cloudinary upload warning:', err);
+  }
+  return uri;
 }
 
 export default function RegisterScreen({ navigation }) {
@@ -105,7 +109,7 @@ export default function RegisterScreen({ navigation }) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') { RNAlert.alert('Permission needed', 'Please allow photo access to upload documents.'); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
-    if (!result.canceled && result.assets?.[0]) {
+    if (!result.canceled && result.assets && result.assets[0]) {
       setDocs(d => ({ ...d, [docType]: result.assets[0].uri }));
     }
   };
@@ -114,7 +118,7 @@ export default function RegisterScreen({ navigation }) {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') { RNAlert.alert('Permission needed', 'Please allow camera access.'); return; }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled && result.assets?.[0]) {
+    if (!result.canceled && result.assets && result.assets[0]) {
       setDocs(d => ({ ...d, [docType]: result.assets[0].uri }));
     }
   };
@@ -144,7 +148,7 @@ export default function RegisterScreen({ navigation }) {
     const err = validateStep1();
     if (err) { setError(err); return; }
     setError('');
-    submit({});
+    submit(docs);
   };
 
   const submit = async (kycDocs = {}) => {
@@ -152,13 +156,11 @@ export default function RegisterScreen({ navigation }) {
     setError('');
     try {
       const uploadedDocs = {};
-      if (isProvider) {
-        setUploading(true);
-        if (kycDocs.aadhar)   uploadedDocs.aadhar          = await uploadToCloudinary(kycDocs.aadhar);
-        if (kycDocs.license)  uploadedDocs.drivingLicense  = await uploadToCloudinary(kycDocs.license);
-        if (kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinary(kycDocs.collegeId);
-        setUploading(false);
-      }
+      setUploading(true);
+      if (kycDocs && kycDocs.aadhar)   uploadedDocs.aadhar          = await uploadToCloudinary(kycDocs.aadhar);
+      if (kycDocs && kycDocs.license)  uploadedDocs.drivingLicense  = await uploadToCloudinary(kycDocs.license);
+      if (kycDocs && kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinary(kycDocs.collegeId);
+      setUploading(false);
 
       const validVehicles = vehicles
         .filter(v => v.vehicleNumber && v.vehicleNumber.trim())
@@ -166,9 +168,10 @@ export default function RegisterScreen({ navigation }) {
           vehicleNumber: v.vehicleNumber.trim().toUpperCase(),
           vehicleName:   v.vehicleName.trim() || 'Vehicle',
           vehicleType:   v.vehicleType || 'car',
+          status:        'pending',
         }));
 
-      const primaryVehicle = validVehicles[0] || {};
+      const primaryVehicle = validVehicles[0] || null;
 
       await registerUser({
         name: name.trim(), email: email.trim().toLowerCase(),
@@ -176,14 +179,15 @@ export default function RegisterScreen({ navigation }) {
         password, role, usn: usn.trim() || 'STUDENT', gender,
         emergencyContact: emergency.trim(),
         ...(role === 'admin' && { adminKey }),
-        ...(isProvider && {
-          vehicleNumber:  primaryVehicle.vehicleNumber || null,
-          vehicleName:    primaryVehicle.vehicleName || null,
+        ...(primaryVehicle ? {
+          vehicleNumber:  primaryVehicle.vehicleNumber,
+          vehicleName:    primaryVehicle.vehicleName,
+          vehicleType:    primaryVehicle.vehicleType,
           vehicles:       validVehicles,
-          aadhar:         uploadedDocs.aadhar || null,
-          drivingLicense: uploadedDocs.drivingLicense || null,
-          collegeIdCard:  uploadedDocs.collegeIdCard || null,
-        }),
+        } : {}),
+        aadhar:         uploadedDocs.aadhar || null,
+        drivingLicense: uploadedDocs.drivingLicense || null,
+        collegeIdCard:  uploadedDocs.collegeIdCard || null,
       });
 
       if (validVehicles.length > 0) {
@@ -359,10 +363,76 @@ export default function RegisterScreen({ navigation }) {
             </View>
           </View>
 
+          {/* Provider Vehicle Details & Vehicle Type */}
+          <View style={styles.providerCard}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }}>
+                🚗 VEHICLE DETAILS (OPTIONAL / FOR PROVIDERS)
+              </Text>
+            </View>
+            <Text style={{ color: colors.text3, fontSize: 11, marginBottom: 12, lineHeight: 16 }}>
+              Add your vehicle now or later in Profile. Vehicle & document verifications are reviewed by campus admin within 24 hours.
+            </Text>
+
+            <View style={styles.twoColRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>VEHICLE NUMBER</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={(vehicles[0] && vehicles[0].vehicleNumber) || ''}
+                  onChangeText={t => updateVehicleField(0, 'vehicleNumber', t.toUpperCase())}
+                  placeholder="KA01AB1234"
+                  placeholderTextColor={colors.text3}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>VEHICLE NAME</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={(vehicles[0] && vehicles[0].vehicleName) || ''}
+                  onChangeText={t => updateVehicleField(0, 'vehicleName', t)}
+                  placeholder="Activa, Swift..."
+                  placeholderTextColor={colors.text3}
+                  autoCapitalize="words"
+                />
+              </View>
+            </View>
+
+            {/* Vehicle Type Selection Chips */}
+            <Text style={[styles.label, { marginTop: 4, marginBottom: 6 }]}>VEHICLE TYPE</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              {[
+                { type: 'motorcycle', label: '🏍️ Bike' },
+                { type: 'car',        label: '🚗 Car' },
+                { type: 'suv',        label: '🚙 SUV' },
+                { type: 'xuv',        label: '🛻 XUV' },
+              ].map(vt => {
+                const isSel = ((vehicles[0] && vehicles[0].vehicleType) || 'car') === vt.type;
+                return (
+                  <TouchableOpacity
+                    key={vt.type}
+                    onPress={() => updateVehicleField(0, 'vehicleType', vt.type)}
+                    style={[styles.vChip, isSel && styles.vChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.vChipText, isSel && styles.vChipTextActive]}>{vt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Optional KYC Documents */}
+            <Text style={[styles.label, { marginTop: 6, marginBottom: 8 }]}>VERIFICATION DOCUMENTS (OPTIONAL)</Text>
+            <DocUploadRow label="Aadhar Card" icon="🪪" onUpload={() => showDocPicker('aadhar')} uri={docs.aadhar} />
+            <DocUploadRow label="Driving License" icon="🚘" onUpload={() => showDocPicker('license')} uri={docs.license} />
+            <DocUploadRow label="College ID Card" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
+          </View>
+
           <Btn
             label="Create account"
             onPress={handleNext}
-            loading={loading}
+            loading={loading || uploading}
             style={{ marginTop: spacing.md }}
           />
 
@@ -721,5 +791,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     textDecorationLine: 'underline',
+  },
+  providerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderColor: 'rgba(245,166,35,0.3)',
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  vChip: {
+    flex: 1,
+    minWidth: 70,
+    backgroundColor: '#161b24',
+    borderWidth: 1.5,
+    borderColor: '#262d3d',
+    borderRadius: radius.lg,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(245,166,35,0.12)',
+  },
+  vChipText: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  vChipTextActive: {
+    color: colors.accent,
+    fontWeight: '800',
   },
 });

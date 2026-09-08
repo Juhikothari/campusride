@@ -30,9 +30,16 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [elapsed,          setElapsed]          = useState(0);
   const [userLat,          setUserLat]          = useState(null);
   const [userLng,          setUserLng]          = useState(null);
+  const [driverCoords,     setDriverCoords]     = useState(null);
   const [pickupCoords,     setPickupCoords]     = useState(null);
   const [dropCoords,       setDropCoords]       = useState(null);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [leg1Coords,       setLeg1Coords]       = useState([]);
+  const [leg2Coords,       setLeg2Coords]       = useState([]);
+  const [leg1Distance,     setLeg1Distance]     = useState('');
+  const [leg1Duration,     setLeg1Duration]     = useState('');
+  const [leg2Distance,     setLeg2Distance]     = useState('');
+  const [leg2Duration,     setLeg2Duration]     = useState('');
   const [routeDistance,    setRouteDistance]    = useState('');
   const [routeDuration,    setRouteDuration]    = useState('');
   const [rideInfo,         setRideInfo]         = useState(null);
@@ -163,7 +170,17 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => clearInterval(timerRef.current);
   }, [tracking]);
 
-  // 4. GPS tracking & real-time broadcast
+  const isDriver = Boolean(
+    user?._id === (rideInfo?.providerId?._id || rideInfo?.providerId) ||
+    user?.id === (rideInfo?.providerId?._id || rideInfo?.providerId) ||
+    (user?.email && rideInfo?.providerId?.email && user.email === rideInfo.providerId.email)
+  );
+
+  const effectiveDriverCoords = isDriver
+    ? (userLat && userLng ? { latitude: userLat, longitude: userLng } : driverCoords)
+    : (driverCoords || (userLat && userLng ? { latitude: userLat, longitude: userLng } : null));
+
+  // 4. GPS tracking & real-time broadcast (driver broadcasts, seeker can also update own)
   useEffect(() => {
     if (!tracking || !activeRideId) return;
     let sub = null;
@@ -188,6 +205,73 @@ export default function LiveTrackingScreen({ navigation, route }) {
     })();
     return () => { sub?.remove?.(); };
   }, [tracking, activeRideId]);
+
+  // 5. Poll driver's live GPS tracking from server (for seekers)
+  useEffect(() => {
+    if (!activeRideId || !tracking) return;
+    let isMounted = true;
+    const fetchDriverPosition = async () => {
+      try {
+        const trk = await api.getTracking(activeRideId);
+        if (!isMounted) return;
+        if (trk?.currentLocation?.coordinates && Array.isArray(trk.currentLocation.coordinates)) {
+          const [c0, c1] = trk.currentLocation.coordinates;
+          const lat = c0 > 50 ? c1 : c0;
+          const lng = c0 > 50 ? c0 : c1;
+          if (lat && lng) {
+            setDriverCoords({ latitude: parseFloat(lat), longitude: parseFloat(lng) });
+          }
+        }
+      } catch (e) {}
+    };
+
+    fetchDriverPosition();
+    const pollInterval = setInterval(fetchDriverPosition, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(pollInterval);
+    };
+  }, [activeRideId, tracking]);
+
+  // 6. Calculate 2-Leg Route:
+  // Leg 1: Provider -> Seeker Pickup Point
+  useEffect(() => {
+    if (!effectiveDriverCoords?.latitude || !effectiveDriverCoords?.longitude || !pickupCoords?.latitude || !pickupCoords?.longitude) return;
+    let isMounted = true;
+    api.getOptimalRoute(
+      effectiveDriverCoords.latitude, effectiveDriverCoords.longitude,
+      pickupCoords.latitude, pickupCoords.longitude
+    ).then(data => {
+      if (!isMounted || !data) return;
+      setLeg1Distance(data.distanceKm ? `${data.distanceKm} km` : '');
+      setLeg1Duration(data.durationMin ? `${data.durationMin} mins` : '');
+      if (Array.isArray(data.coordinates) && data.coordinates.length > 0) {
+        setLeg1Coords(data.coordinates);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [effectiveDriverCoords?.latitude, effectiveDriverCoords?.longitude, pickupCoords?.latitude, pickupCoords?.longitude]);
+
+  // Leg 2: Seeker Pickup Point -> Drop Destination
+  useEffect(() => {
+    if (!pickupCoords?.latitude || !pickupCoords?.longitude || !dropCoords?.latitude || !dropCoords?.longitude) return;
+    let isMounted = true;
+    api.getOptimalRoute(
+      pickupCoords.latitude, pickupCoords.longitude,
+      dropCoords.latitude, dropCoords.longitude
+    ).then(data => {
+      if (!isMounted || !data) return;
+      setLeg2Distance(data.distanceKm ? `${data.distanceKm} km` : '');
+      setLeg2Duration(data.durationMin ? `${data.durationMin} mins` : '');
+      setRouteDistance(data.distanceKm ? `${data.distanceKm} km` : '');
+      setRouteDuration(data.durationMin ? `${data.durationMin} mins` : '');
+      if (Array.isArray(data.coordinates) && data.coordinates.length > 0) {
+        setLeg2Coords(data.coordinates);
+        setRouteCoordinates(data.coordinates);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, [pickupCoords?.latitude, pickupCoords?.longitude, dropCoords?.latitude, dropCoords?.longitude]);
 
   const triggerSOS = useCallback(() => {
     RNAlert.alert(
@@ -217,12 +301,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
       ]
     );
   }, [activeRideId, userLat, userLng]);
-
-  const isDriver = Boolean(
-    user?._id === (rideInfo?.providerId?._id || rideInfo?.providerId) ||
-    user?.id === (rideInfo?.providerId?._id || rideInfo?.providerId) ||
-    (user?.email && rideInfo?.providerId?.email && user.email === rideInfo.providerId.email)
-  );
 
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -387,42 +465,73 @@ export default function LiveTrackingScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            {/* Interactive OpenStreetMap Live Map */}
+            {/* Interactive OpenStreetMap Live Map with 2-Leg Route */}
             <LiveMapView
               pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
               drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
-              driverLocation={userLat && userLng ? { lat: userLat, lng: userLng } : null}
+              driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
               coordinates={routeCoordinates}
+              leg1Coordinates={leg1Coords}
+              leg2Coordinates={leg2Coords}
               height={isMapExpanded ? 460 : 320}
               style={{ marginBottom: 12 }}
             />
 
-            {/* Visual Route Path */}
+            {/* Visual Route Path: Provider -> Seeker Pickup -> Drop Destination */}
             <View style={styles.routeDiagram}>
+              {/* Node 1: Provider Position */}
+              <View style={styles.routeNode}>
+                <View style={[styles.nodeIcon, { backgroundColor: '#00E5FF22', borderColor: '#00E5FF' }]}>
+                  <Text style={{ fontSize: 16 }}>🚗</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.nodeLabel, { color: '#00E5FF' }]}>1. PROVIDER LOCATION</Text>
+                  <Text style={styles.nodeAddress} numberOfLines={1}>
+                    {isDriver ? 'Your Live GPS Location' : `${rideInfo?.providerId?.name || rideInfo?.providerName || 'Provider'} (En Route)`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Leg 1 connector: Provider to Pickup */}
+              <View style={styles.nodeConnector}>
+                <View style={[styles.connectorLine, { borderColor: '#00E5FF', borderStyle: 'dashed' }]} />
+                <View style={[styles.liveCarBadge, { borderColor: '#00E5FF' }]}>
+                  <Text style={{ fontSize: 11 }}>➡️</Text>
+                  <Text style={[styles.liveCarText, { color: '#00E5FF' }]}>
+                    {leg1Duration ? `To Seeker (${leg1Duration})` : 'Heading to Pickup'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Node 2: Seeker Pickup Point */}
               <View style={styles.routeNode}>
                 <View style={[styles.nodeIcon, { backgroundColor: colors.green + '22', borderColor: colors.green }]}>
                   <Text style={{ fontSize: 16 }}>🟢</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.nodeLabel}>PICKUP POINT</Text>
+                  <Text style={styles.nodeLabel}>2. SEEKER PICKUP POINT</Text>
                   <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.pickup?.address || 'Pickup Location'}</Text>
                 </View>
               </View>
 
+              {/* Leg 2 connector: Pickup to Destination */}
               <View style={styles.nodeConnector}>
                 <View style={styles.connectorLine} />
                 <View style={styles.liveCarBadge}>
-                  <Text style={{ fontSize: 14 }}>🚗</Text>
-                  <Text style={styles.liveCarText}>In Transit</Text>
+                  <Text style={{ fontSize: 11 }}>🏁</Text>
+                  <Text style={styles.liveCarText}>
+                    {leg2Duration ? `To Destination (${leg2Duration})` : 'In Transit'}
+                  </Text>
                 </View>
               </View>
 
+              {/* Node 3: Drop-off Destination */}
               <View style={styles.routeNode}>
                 <View style={[styles.nodeIcon, { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}>
                   <Text style={{ fontSize: 16 }}>🏁</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.nodeLabel}>DROP-OFF DESTINATION</Text>
+                  <Text style={styles.nodeLabel}>3. DROP-OFF DESTINATION</Text>
                   <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
                 </View>
               </View>
@@ -431,13 +540,13 @@ export default function LiveTrackingScreen({ navigation, route }) {
             {/* GPS Telemetry Bar */}
             <View style={styles.telemetryBar}>
               <View style={styles.telemetryItem}>
-                <Text style={styles.telemetryLabel}>EST. DISTANCE</Text>
-                <Text style={styles.telemetryVal}>{routeDistance || 'Calculating...'}</Text>
+                <Text style={styles.telemetryLabel}>TO PICKUP</Text>
+                <Text style={[styles.telemetryVal, { color: '#00E5FF' }]}>{leg1Duration || leg1Distance || 'Tracking…'}</Text>
               </View>
               <View style={styles.telemetryDivider} />
               <View style={styles.telemetryItem}>
-                <Text style={styles.telemetryLabel}>EST. TIME</Text>
-                <Text style={[styles.telemetryVal, { color: colors.accent }]}>{routeDuration || 'Calculating...'}</Text>
+                <Text style={styles.telemetryLabel}>TO DESTINATION</Text>
+                <Text style={[styles.telemetryVal, { color: colors.accent }]}>{leg2Duration || leg2Distance || routeDuration || 'Calculating…'}</Text>
               </View>
               <View style={styles.telemetryDivider} />
               <View style={styles.telemetryItem}>

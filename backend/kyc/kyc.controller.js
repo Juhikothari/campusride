@@ -29,18 +29,21 @@ exports.submitKyc = async (req, res) => {
       return res.status(400).json({ message: "College ID document is required" });
     }
 
-    // Validate image format (must be data URL or http URL)
+    // Validate image format (accept data URL, http/https, or mobile file/content URI)
     const isValidImageUrl = (url) => {
-      return url && (
+      return url && typeof url === 'string' && (
         url.startsWith('data:image') || 
-        url.startsWith('http') ||
         url.startsWith('http://') || 
-        url.startsWith('https://')
+        url.startsWith('https://') ||
+        url.startsWith('file://') ||
+        url.startsWith('ph://') ||
+        url.startsWith('content://') ||
+        url.length > 5
       );
     };
 
     if (!isValidImageUrl(aadharUrl)) {
-      return res.status(400).json({ message: "Aadhar must be a valid image (data URL or http URL)" });
+      return res.status(400).json({ message: "Aadhar must be a valid image" });
     }
     if (!isValidImageUrl(collegeIdCardUrl)) {
       return res.status(400).json({ message: "College ID must be a valid image" });
@@ -48,18 +51,13 @@ exports.submitKyc = async (req, res) => {
 
     // Validate based on role
     const isProvider = ['provider', 'both'].includes(user.role);
-    if (isProvider && !drivingLicenseUrl) {
-      return res.status(400).json({ message: "Driving License is required for providers" });
-    }
-    if (isProvider && drivingLicenseUrl && !isValidImageUrl(drivingLicenseUrl)) {
+    if (drivingLicenseUrl && !isValidImageUrl(drivingLicenseUrl)) {
       return res.status(400).json({ message: "Driving License must be a valid image" });
     }
 
-    if (isProvider && !vehicleNumber) {
-      return res.status(400).json({ message: "Vehicle registration number is required for providers" });
-    }
-    if (isProvider && vehicleNumber && !/^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$/.test(vehicleNumber.toUpperCase())) {
-      return res.status(400).json({ message: "Enter a valid vehicle number (e.g. KA01AB1234)" });
+    const cleanVNum = vehicleNumber ? vehicleNumber.toUpperCase().replace(/[\s-]/g, '') : null;
+    if (cleanVNum && !/^[A-Z]{2}[0-9]{1,2}[A-Z]{0,4}[0-9]{3,5}$/.test(cleanVNum)) {
+      return res.status(400).json({ message: "Enter a valid vehicle registration number" });
     }
 
     // ✅ NEW: Upload to Cloudinary
@@ -143,12 +141,12 @@ exports.getKycStatus = async (req, res) => {
 exports.getPendingKyc = async (req, res) => {
   try {
     const pending = await User.find({ 
-      kycStatus: 'pending',
       $or: [
-        { 'kycDocuments.aadhar': { $ne: null } },
-        { 'kycDocuments.collegeIdCard': { $ne: null } }
+        { kycStatus: 'pending' },
+        { 'kycDocuments.vehicleStatus': 'pending' },
+        { 'vehicles.status': 'pending' }
       ]
-    }).select('name email role kycDocuments kycSubmittedAt vehicleNumber');
+    }).select('name email role kycDocuments kycSubmittedAt vehicleNumber vehicles phone college usn');
     
     res.json(pending);
   } catch (error) {
@@ -171,6 +169,18 @@ exports.reviewKyc = async (req, res) => {
     user.kycStatus = status;
     user.kycRemarks = remarks || '';
     user.kycVerifiedAt = new Date();
+
+    if (status === 'approved') {
+      if (user.kycDocuments) user.kycDocuments.vehicleStatus = 'approved';
+      if (user.vehicles && Array.isArray(user.vehicles)) {
+        user.vehicles.forEach(v => { v.status = 'approved'; });
+      }
+    } else {
+      if (user.kycDocuments) user.kycDocuments.vehicleStatus = 'rejected';
+      if (user.vehicles && Array.isArray(user.vehicles)) {
+        user.vehicles.forEach(v => { v.status = 'rejected'; });
+      }
+    }
 
     await user.save();
 

@@ -417,180 +417,42 @@ export default function CreateRideScreen({ navigation }) {
             </View>
           )}
 
-          {/* ── REGISTERED VEHICLE DETAILS & SELECTION ── */}
+          {/* ── VEHICLE STATUS & PROFILE PROMPT (VEHICLE DETAILS HIDDEN AS REQUESTED) ── */}
           {loadingVehicles ? (
-            <View style={{ padding: 24, alignItems: 'center' }}>
+            <View style={{ padding: 18, alignItems: 'center' }}>
               <ActivityIndicator color={colors.accent} />
-              <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Verifying registered vehicles…</Text>
+              <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Checking vehicle verification…</Text>
             </View>
-          ) : hasRegisteredVehicle ? (
-            <View style={styles.vehicleSection}>
-              {userVehicles.length > 1 && (
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={styles.sectionHeading}>SELECT VEHICLE FOR THIS RIDE</Text>
-                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                    {userVehicles.map((v, i) => (
-                      <TouchableOpacity
-                        key={i}
-                        onPress={() => {
-                          setSelectedVIdx(i);
-                          setVehicleNumber(v.vehicleNumber);
-                          setVehicleName(v.vehicleName);
-                          if (v.vehicleType) setVehicleType(v.vehicleType);
-                        }}
-                        style={[styles.vChoiceChip, selectedVIdx === i && styles.vChoiceChipActive]}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={[styles.vChoiceText, selectedVIdx === i && styles.vChoiceTextActive]}>
-                          {v.vehicleType === 'motorcycle' ? '🏍️' : '🚗'} {v.vehicleName} ({v.vehicleNumber})
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              <Text style={styles.sectionHeading}>REGISTERED VEHICLE DETAILS</Text>
-              <View style={styles.lockedVehicleCard}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={styles.lockedVehicleIcon}>
-                    <Text style={{ fontSize: 22 }}>{vehicleType === 'motorcycle' ? '🏍️' : '🚗'}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.lockedVehicleName}>
-                      {vehicleName || 'Registered Vehicle'} • {(vehicleType || 'Car').toUpperCase()}
-                    </Text>
-                    <Text style={styles.lockedPlate}>
-                      {vehicleNumber || user?.kycDocuments?.vehicleNumber}
-                    </Text>
-                  </View>
-                  <View style={[styles.lockedBadge, isVehiclePending && { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}>
-                    <Text style={[styles.lockedBadgeText, isVehiclePending && { color: colors.accent }]}>
-                      {isVehiclePending ? '⏳ IN REVIEW (24h)' : '✓ VERIFIED'}
-                    </Text>
-                  </View>
-                </View>
-                {isVehiclePending ? (
-                  <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderRadius: radius.md, padding: 10, marginTop: 10, borderWidth: 1, borderColor: colors.accent }}>
-                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                      ⏳ Vehicle Under Admin Verification (within 24 hrs)
-                    </Text>
-                    <Text style={{ color: colors.text2, fontSize: 11.5, marginTop: 3, lineHeight: 16 }}>
-                      This vehicle was submitted for verification and is awaiting campus admin approval. You cannot post rides until it is approved.
-                    </Text>
-                  </View>
-                ) : (
-                  <Text style={styles.lockedPolicyNote}>
-                    🔒 This ride will be posted using your verified vehicle. To add a 2nd vehicle or edit details, please manage your vehicles in your Profile.
-                  </Text>
-                )}
-              </View>
-            </View>
-          ) : (
-            <View style={styles.unregisteredNoticeCard}>
+          ) : !hasRegisteredVehicle ? (
+            /* User did not add vehicle during registration -> prompt to go to profile */
+            <View style={styles.promptProfileCard}>
               <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 6 }}>🚗</Text>
-              <Text style={styles.unregisteredTitle}>Vehicle Registration Required</Text>
-              <Text style={styles.unregisteredSub}>
-                You did not add a vehicle while creating your account. Enter your vehicle details below to offer this ride:
+              <Text style={styles.promptProfileTitle}>Vehicle & License Required</Text>
+              <Text style={styles.promptProfileSub}>
+                You have not registered your vehicle and driving license yet. Please go to your Profile to add your vehicle details and license before offering rides.
               </Text>
-
-              {/* Quick inline registration for commuters who did not add a vehicle while creating account */}
-              <View style={{ width: '100%', marginTop: 12 }}>
-                <Input
-                  label="Vehicle Registration Number"
-                  placeholder="e.g. KA02KA1383"
-                  value={inlineVNum}
-                  onChangeText={setInlineVNum}
-                  autoCapitalize="characters"
-                />
-                <Input
-                  label="Vehicle Model / Name"
-                  placeholder="e.g. Splendor, Activa, Swift"
-                  value={inlineVName}
-                  onChangeText={setInlineVName}
-                  autoCapitalize="words"
-                />
-                <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 4, marginBottom: 8 }}>
-                  VEHICLE TYPE
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                  {[
-                    { type: 'motorcycle', label: '🏍️ Bike' },
-                    { type: 'car',        label: '🚗 Car' },
-                    { type: 'suv',        label: '🚙 SUV' },
-                    { type: 'xuv',        label: '🛻 XUV' },
-                  ].map(v => (
-                    <TouchableOpacity
-                      key={v.type}
-                      onPress={() => setInlineVType(v.type)}
-                      style={[
-                        styles.vTypeChip,
-                        inlineVType === v.type && styles.vTypeChipActive,
-                      ]}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[
-                        styles.vTypeChipText,
-                        inlineVType === v.type && styles.vTypeChipTextActive,
-                      ]}>
-                        {v.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
-                <TouchableOpacity
-                  style={[styles.goToProfileBtn, { backgroundColor: colors.accent, marginBottom: 10 }]}
-                  disabled={savingInlineV}
-                  onPress={async () => {
-                    if (!inlineVNum.trim() || !inlineVName.trim()) {
-                      RNAlert.alert('Required', 'Please enter both your vehicle number and vehicle model name.');
-                      return;
-                    }
-                    setSavingInlineV(true);
-                    try {
-                      const cleanNum = inlineVNum.trim().toUpperCase();
-                      const cleanName = inlineVName.trim();
-                      const cleanType = inlineVType || 'car';
-                      const newEntry = {
-                        vehicleNumber: cleanNum,
-                        vehicleName: cleanName,
-                        vehicleType: cleanType,
-                        status: 'pending',
-                      };
-                      await api.saveVehicle(newEntry).catch(() => {});
-                      const list = [...userVehicles, newEntry];
-                      setUserVehicles(list);
-                      setSelectedVIdx(list.length - 1);
-                      setVehicleNumber(cleanNum);
-                      setVehicleName(cleanName);
-                      setVehicleType(cleanType);
-                      await AsyncStorage.setItem('@user_registered_vehicles_list', JSON.stringify(list)).catch(() => {});
-                      RNAlert.alert('✅ Vehicle Saved', `Vehicle ${cleanNum} (${cleanName}) registered successfully!`);
-                    } catch (e) {
-                      RNAlert.alert('Error', e.message || 'Failed to save vehicle details');
-                    } finally {
-                      setSavingInlineV(false);
-                    }
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[styles.goToProfileBtnText, { color: '#000', fontWeight: '800' }]}>
-                    {savingInlineV ? 'Saving Vehicle…' : '✓ Save Vehicle & Continue'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{ alignItems: 'center', paddingVertical: 6 }}
-                  onPress={() => navigation.navigate('Profile')}
-                >
-                  <Text style={{ color: colors.text3, fontSize: 12, textDecorationLine: 'underline' }}>
-                    Or manage all vehicles in Profile →
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity
+                style={styles.goToProfileBtn}
+                onPress={() => navigation.navigate('Profile')}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.goToProfileBtnText}>Go to Profile to Add Vehicle & License →</Text>
+              </TouchableOpacity>
             </View>
-          )}
+          ) : isVehiclePending ? (
+            /* Vehicle awaiting admin review */
+            <View style={styles.pendingReviewBanner}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <Text style={{ fontSize: 18 }}>⏳</Text>
+                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>
+                  Verification in Progress (within 24 hrs)
+                </Text>
+              </View>
+              <Text style={{ color: colors.text2, fontSize: 12, lineHeight: 18 }}>
+                Your vehicle details and documents have been submitted and are being reviewed by the campus administrator. You will be able to post rides once approved.
+              </Text>
+            </View>
+          ) : null /* When verified: Do NOT show vehicle details to provider while offering */}
 
           {/* Women-only toggle */}
           {isFemale && (
@@ -612,13 +474,13 @@ export default function CreateRideScreen({ navigation }) {
             isVehiclePending ? (
               <View style={{ marginTop: spacing.md }}>
                 <Btn
-                  label="⏳ Vehicle Pending Verification (24 hrs)"
+                  label="⏳ Verification Pending (Within 24h)"
                   onPress={() => RNAlert.alert('Vehicle Under Review', 'Your vehicle was submitted for verification and will be reviewed within 24 hours. You will be able to post rides as soon as admin approves it.')}
                   style={{ backgroundColor: '#2a2214', borderColor: colors.accent, borderWidth: 1 }}
                   textStyle={{ color: colors.accent }}
                 />
                 <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
-                  You cannot post rides with an unverified vehicle.
+                  Rides cannot be offered until admin verification is complete.
                 </Text>
               </View>
             ) : (
@@ -626,7 +488,7 @@ export default function CreateRideScreen({ navigation }) {
             )
           ) : (
             <Btn
-              label="⚠️ Register Vehicle in Profile to Post Ride"
+              label="🚗 Add Vehicle in Profile to Offer Ride"
               onPress={() => navigation.navigate('Profile')}
               style={{ marginTop: spacing.md, backgroundColor: '#2a2214', borderColor: colors.accent, borderWidth: 1 }}
             />
@@ -835,6 +697,37 @@ const styles = StyleSheet.create({
   vChoiceTextActive: {
     color: colors.accent,
     fontWeight: '800',
+  },
+  promptProfileCard: {
+    backgroundColor: '#16130b',
+    borderWidth: 1.5,
+    borderColor: 'rgba(245,166,35,0.4)',
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    alignItems: 'center',
+  },
+  promptProfileTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  promptProfileSub: {
+    color: colors.text2,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  pendingReviewBanner: {
+    backgroundColor: 'rgba(245,166,35,0.1)',
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: radius.xl,
+    padding: 14,
+    marginBottom: spacing.md,
   },
   unregisteredNoticeCard: {
     backgroundColor: '#16130b',

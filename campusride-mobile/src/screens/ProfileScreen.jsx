@@ -428,6 +428,7 @@ export default function ProfileScreen({ navigation }) {
                 { val: 'motorcycle', label: '🏍 Bike' },
                 { val: 'car', label: '🚗 Car' },
                 { val: 'suv', label: '🚙 SUV' },
+                { val: 'xuv', label: '🛻 XUV' },
               ].map(t => (
                 <TouchableOpacity
                   key={t.val}

@@ -88,6 +88,7 @@ router.put('/profile/vehicle', auth, async (req, res) => {
       vehicleStatus: 'pending',
       vehicleSubmittedAt: new Date(),
     };
+    user.kycStatus = 'pending';
 
     if (!user.vehicles) user.vehicles = [];
     const existingIndex = user.vehicles.findIndex(v => v.vehicleNumber === vn);
