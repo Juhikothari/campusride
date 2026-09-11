@@ -50,13 +50,18 @@ const userSchema = new mongoose.Schema({
     vehiclePhoto: String,
     vehicleNumber: String,
     vehicleName: String,
+    vehicleType: { type: String, default: 'car' },
+    vehicleStatus: { type: String, enum: ['pending', 'approved', 'rejected', 'not_submitted'], default: 'not_submitted' },
+    vehicleSubmittedAt: Date,
   },
   // Multi-vehicle support
   vehicles: [{
     vehicleNumber: { type: String, uppercase: true, trim: true },
     vehicleName:   { type: String, trim: true },
     vehicleType:   { type: String, default: 'car' },
-    isDefault:     { type: Boolean, default: false }
+    status:        { type: String, enum: ['pending', 'approved', 'rejected'], default: 'approved' },
+    isDefault:     { type: Boolean, default: false },
+    submittedAt:   { type: Date, default: Date.now }
   }],
   kycSubmittedAt: { type: Date },
   kycVerifiedAt: { type: Date },

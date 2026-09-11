@@ -152,9 +152,16 @@ export default function CreateRideScreen({ navigation }) {
   );
 
   const selectedVehicleObj = userVehicles[selectedVIdx] || userVehicles[0] || null;
+  const isApproved = Boolean(
+    selectedVehicleObj?.status === 'approved' ||
+    user?.kycStatus === 'approved' ||
+    user?.kycDocuments?.vehicleStatus === 'approved'
+  );
   const isVehiclePending = Boolean(
-    (selectedVehicleObj && (selectedVehicleObj.status === 'pending' || selectedVehicleObj.status === 'in_review')) ||
-    (!selectedVehicleObj && (user?.kycDocuments?.vehicleStatus === 'pending' || user?.kycStatus === 'pending'))
+    !isApproved && (
+      (selectedVehicleObj && (selectedVehicleObj.status === 'pending' || selectedVehicleObj.status === 'in_review')) ||
+      (!selectedVehicleObj && (user?.kycDocuments?.vehicleStatus === 'pending' || user?.kycStatus === 'pending'))
+    )
   );
 
   // Set default college pickup when "college" is chosen

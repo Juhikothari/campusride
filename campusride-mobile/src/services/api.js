@@ -85,17 +85,19 @@ export const sendChatbotMessage = (messages) => request('/chatbot/message', { me
 
 // ── Users ─────────────────────────────────────────────
 export const getProfile        = ()     => request('/users/profile');
+export const updateProfile     = (body) => request('/users/profile', { method:'PUT', body: JSON.stringify(body) });
 export const updatePhoneNumber = (phone) => request('/users/profile/phone', { method:'PUT', body: JSON.stringify({ phone }) });
 export const saveVehicle       = (data) => request('/users/profile/vehicle', { method:'PUT', body: JSON.stringify(data) });
 export const getUserVehicles   = ()     => request('/users/profile/vehicles').catch(async () => {
   const profile = await getProfile().catch(() => null);
   if (profile?.vehicles && Array.isArray(profile.vehicles) && profile.vehicles.length > 0) return profile.vehicles;
   if (profile?.kycDocuments?.vehicleNumber) {
+    const isApproved = profile.kycStatus === 'approved' || profile.kycDocuments.vehicleStatus === 'approved';
     return [{
       vehicleNumber: profile.kycDocuments.vehicleNumber,
       vehicleName: profile.kycDocuments.vehicleName || 'Registered Vehicle',
       vehicleType: profile.kycDocuments.vehicleType || 'car',
-      status: profile.kycDocuments.vehicleStatus || 'pending',
+      status: isApproved ? 'approved' : (profile.kycDocuments.vehicleStatus || 'pending'),
     }];
   }
   return [];
@@ -176,3 +178,7 @@ export const unblockUser       = (id)   => request(`/admin/users/${id}/unblock`,
 export const getKycRequests    = ()     => request('/admin/kyc');
 export const approveKyc        = (id)   => request(`/admin/kyc/${id}`, { method:'PUT', body: JSON.stringify({ status: 'approved' }) }).catch(() => request(`/admin/kyc/${id}/approve`, { method:'PUT' }));
 export const rejectKyc         = (id, remarks) => request(`/admin/kyc/${id}`, { method:'PUT', body: JSON.stringify({ status: 'rejected', remarks: remarks || 'Documents unclear' }) }).catch(() => request(`/admin/kyc/${id}/reject`, { method:'PUT', body: JSON.stringify({ remarks }) }));
+export const getAdminRides     = (params = '') => request(`/admin/rides${params ? '?' + params : ''}`);
+export const deleteAdminRide   = (id)   => request(`/admin/rides/${id}`, { method:'DELETE' });
+export const getAdminIncidents = ()     => request('/admin/incidents');
+export const updateIncidentStatus = (id, status) => request(`/admin/incidents/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });

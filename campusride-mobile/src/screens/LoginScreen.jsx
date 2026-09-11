@@ -31,8 +31,17 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
 
           {/* Logo */}
           <View style={styles.logoWrap}>
@@ -100,7 +109,7 @@ export default function LoginScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.bg },
-  scroll: { flexGrow: 1, padding: spacing.lg, justifyContent: 'center' },
+  scroll: { flexGrow: 1, padding: spacing.lg, paddingBottom: 140 },
   logoWrap: { alignItems: 'center', marginBottom: 28 },
   badgeWrap: {
     width: 50, height: 50, borderRadius: 25,

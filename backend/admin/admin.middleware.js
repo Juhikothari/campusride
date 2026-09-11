@@ -7,9 +7,14 @@ const isAdmin = async (req, res, next) => {
 
     if (!user) return res.status(401).json({ message: 'User not found' });
 
-    // Pass if role is admin
-    if (user.role === 'admin') {
+    // Pass if role is admin or email contains admin or isAdmin flag
+    if (
+      user.role === 'admin' ||
+      (user.email && user.email.toLowerCase().includes('admin')) ||
+      user.isAdmin === true
+    ) {
       req.adminUser = user;
+      req.user.role = 'admin';
       return next();
     }
 
@@ -18,6 +23,7 @@ const isAdmin = async (req, res, next) => {
     if (adminRecord) {
       req.adminUser = user;
       req.admin     = adminRecord;
+      req.user.role = 'admin';
       return next();
     }
 

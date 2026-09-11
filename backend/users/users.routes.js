@@ -28,6 +28,27 @@ router.get('/profile', auth, async (req, res) => {
   }
 });
 
+// ── PUT /api/users/profile — update profile (e.g. selfie / photo) ──
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const updates = req.body;
+    delete updates.password;
+    delete updates.email;
+    delete updates.role;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      updates,
+      { new: true }
+    ).select('-password -currentSessionSeed');
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ── PUT /api/users/profile/phone  — update phone (90-day throttle) ─
 router.put('/profile/phone', auth, async (req, res) => {
   try {

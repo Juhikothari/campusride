@@ -17,7 +17,8 @@ function requireAdmin(req, res) {
 exports.getStats = async (req, res) => {
   try {
     const [
-      totalUsers,
+      totalUsersCount,
+      allUsersCount,
       totalProviders,
       totalSeekers,
       totalRides,
@@ -29,19 +30,27 @@ exports.getStats = async (req, res) => {
       highIncidents,
     ] = await Promise.all([
       User.countDocuments({ role: { $ne: 'admin' } }),
+      User.countDocuments(),
       User.countDocuments({ role: { $in: ['provider', 'both'] } }),
       User.countDocuments({ role: { $in: ['seeker', 'both'] } }),
       Ride.countDocuments(),
-      Ride.countDocuments({ status: 'active' }),
+      Ride.countDocuments({ status: { $in: ['active', 'scheduled', 'in_progress', 'started'] } }),
       Ride.countDocuments({ status: 'completed' }),
       Booking.countDocuments(),
-      User.countDocuments({ kycStatus: 'pending' }),
+      User.countDocuments({
+        $or: [
+          { kycStatus: 'pending' },
+          { 'kycDocuments.vehicleStatus': 'pending' },
+          { 'vehicles.status': 'pending' },
+          { vehicles: { $elemMatch: { status: 'pending' } } }
+        ]
+      }),
       Incident.countDocuments({ status: 'open' }),
-      Incident.countDocuments({ severity: { $in: ['high', 'critical'] }, status: { $ne: 'resolved' } }),
+      Incident.countDocuments({ severity: { $in: ['High', 'Critical', 'high', 'critical'] }, status: { $ne: 'resolved' } }),
     ]);
 
     res.json({
-      totalUsers,
+      totalUsers: totalUsersCount > 0 ? totalUsersCount : allUsersCount,
       totalProviders,
       totalSeekers,
       totalRides,
@@ -142,7 +151,10 @@ exports.getPendingKYC = async (req, res) => {
       $or: [
         { kycStatus: 'pending' },
         { 'kycDocuments.vehicleStatus': 'pending' },
-        { 'vehicles.status': 'pending' }
+        { 'vehicles.status': 'pending' },
+        { vehicles: { $elemMatch: { status: 'pending' } } },
+        { kycStatus: 'not_submitted', 'vehicles.0': { $exists: true } },
+        { 'kycDocuments.vehicleNumber': { $exists: true, $ne: null }, kycStatus: { $ne: 'approved' } }
       ]
     })
       .select('-password')

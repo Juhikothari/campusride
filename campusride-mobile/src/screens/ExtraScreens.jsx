@@ -160,24 +160,71 @@ export function RatingsScreen({ navigation }) {
 //  ADMIN DASHBOARD SCREEN
 // ════════════════════════════════════════════════════════════════
 export function AdminDashboardScreen({ navigation }) {
-  const [stats,      setStats]      = useState(null);
-  const [users,      setUsers]      = useState([]);
-  const [kycList,    setKycList]    = useState([]);
-  const [tab,        setTab]        = useState('kyc');
-  const [loading,    setLoading]    = useState(true);
-  const [acting,     setActing]     = useState({});
-  const [search,     setSearch]     = useState('');
-  const [previewDoc, setPreviewDoc] = useState(null);
+  const [stats,        setStats]        = useState(null);
+  const [users,        setUsers]        = useState([]);
+  const [kycList,      setKycList]      = useState([]);
+  const [rides,        setRides]        = useState([]);
+  const [incidents,    setIncidents]    = useState([]);
+  const [tab,          setTab]          = useState('kyc');
+  const [loading,      setLoading]      = useState(true);
+  const [acting,       setActing]       = useState({});
+  const [search,       setSearch]       = useState('');
+  const [roleFilter,   setRoleFilter]   = useState('all');
+  const [previewDoc,   setPreviewDoc]   = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const loadData = () => {
     setLoading(true);
-    Promise.all([
-      api.getAdminStats().then(setStats).catch(() => {}),
-      api.getAllUsers().then(setUsers).catch(() => {}),
-      api.getKycRequests().then(list => {
-        if (Array.isArray(list)) setKycList(list);
-      }).catch(() => {}),
-    ]).finally(() => setLoading(false));
+    setErrorMessage('');
+
+    Promise.allSettled([
+      api.getAdminStats(),
+      api.getAllUsers(),
+      api.getKycRequests(),
+      api.getAdminRides(),
+      api.getAdminIncidents(),
+    ]).then(([sRes, uRes, kRes, rRes, iRes]) => {
+      let loadedUsers = [];
+      let loadedKyc = [];
+
+      if (uRes.status === 'fulfilled' && Array.isArray(uRes.value)) {
+        loadedUsers = uRes.value;
+        setUsers(loadedUsers);
+      } else if (uRes.status === 'rejected') {
+        setErrorMessage(uRes.reason?.message || 'Admin authentication required');
+      }
+
+      if (kRes.status === 'fulfilled' && Array.isArray(kRes.value)) {
+        loadedKyc = kRes.value;
+        setKycList(loadedKyc);
+      }
+
+      if (rRes.status === 'fulfilled') {
+        const rList = Array.isArray(rRes.value?.rides) ? rRes.value.rides : (Array.isArray(rRes.value) ? rRes.value : []);
+        setRides(rList);
+      }
+
+      if (iRes.status === 'fulfilled' && Array.isArray(iRes.value)) {
+        setIncidents(iRes.value);
+      }
+
+      if (sRes.status === 'fulfilled' && sRes.value) {
+        setStats(sRes.value);
+      } else {
+        // Fallback stats computed from live data
+        setStats({
+          totalUsers: loadedUsers.length,
+          totalProviders: loadedUsers.filter(u => u.role === 'provider' || u.role === 'both').length,
+          totalSeekers: loadedUsers.filter(u => u.role === 'seeker' || u.role === 'both').length,
+          totalRides: 0,
+          activeRides: 0,
+          completedRides: 0,
+          totalBookings: 0,
+          pendingKYC: loadedKyc.length,
+          openIncidents: 0,
+        });
+      }
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -209,6 +256,16 @@ export function AdminDashboardScreen({ navigation }) {
         setUsers(u => u.map(x => (x._id || x.id) === id ? { ...x, kycStatus: 'rejected' } : x));
         RNAlert.alert('❌ KYC Rejected', 'Student KYC has been rejected.');
       }
+      if (action === 'cancelRide') {
+        await api.deleteAdminRide(id);
+        setRides(r => r.filter(x => (x._id || x.id) !== id));
+        RNAlert.alert('Ride Cancelled', 'Ride was removed by admin.');
+      }
+      if (action === 'resolveIncident') {
+        await api.updateIncidentStatus(id, 'resolved');
+        setIncidents(inc => inc.map(x => (x._id || x.id) === id ? { ...x, status: 'resolved' } : x));
+        RNAlert.alert('Incident Resolved', 'Incident marked as resolved.');
+      }
     } catch (e) {
       RNAlert.alert('Error', e.message || 'Action failed');
     } finally {
@@ -216,28 +273,49 @@ export function AdminDashboardScreen({ navigation }) {
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    !search ||
-    u.name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.college?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = users.filter(u => {
+    const matchesSearch = !search ||
+      u.name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.college?.toLowerCase().includes(search.toLowerCase()) ||
+      u.usn?.toLowerCase().includes(search.toLowerCase()) ||
+      u.phone?.includes(search);
+
+    if (!matchesSearch) return false;
+    if (roleFilter === 'providers') return u.role === 'provider' || u.role === 'both';
+    if (roleFilter === 'seekers') return u.role === 'seeker' || u.role === 'both';
+    if (roleFilter === 'blocked') return u.blocked || u.isBlocked;
+    return true;
+  });
 
   const TABS = [
-    { key: 'kyc',      label: `🪪 KYC (${kycList.length})` },
-    { key: 'users',    label: `👥 Users (${users.length})` },
-    { key: 'overview', label: '📊 Overview' },
+    { key: 'kyc',       label: `🪪 Verifications (${kycList.length})` },
+    { key: 'users',     label: `👥 Users (${users.length})` },
+    { key: 'rides',     label: `🚗 Rides (${rides.length})` },
+    { key: 'incidents', label: `🚨 Safety (${incidents.length})` },
+    { key: 'overview',  label: '📊 Overview' },
   ];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md }}>
-          <Text style={{ color: colors.accent, fontSize: 22, fontWeight: '800' }}>🛡️ Admin Dashboard</Text>
+          <View>
+            <Text style={{ color: colors.accent, fontSize: 22, fontWeight: '800' }}>🛡️ Admin Portal</Text>
+            <Text style={{ color: colors.text3, fontSize: 12, marginTop: 2 }}>CampusRide Platform Governance</Text>
+          </View>
           <TouchableOpacity onPress={loadData} style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: colors.surface2, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border }}>
             <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700' }}>↻ Refresh</Text>
           </TouchableOpacity>
         </View>
+
+        {errorMessage ? (
+          <View style={{ backgroundColor: 'rgba(255,82,82,0.12)', borderWidth: 1, borderColor: colors.red, borderRadius: radius.md, padding: 12, marginBottom: 12 }}>
+            <Text style={{ color: colors.red, fontSize: 13, fontWeight: '700' }}>⚠️ Notice</Text>
+            <Text style={{ color: colors.text2, fontSize: 12, marginTop: 4 }}>{errorMessage}</Text>
+          </View>
+        ) : null}
 
         {/* Tab bar */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
@@ -258,13 +336,13 @@ export function AdminDashboardScreen({ navigation }) {
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
         ) : (
           <>
-            {/* ── KYC VERIFICATIONS TAB ── */}
+            {/* ── KYC & VEHICLE VERIFICATIONS TAB ── */}
             {tab === 'kyc' && (
               kycList.length === 0 ? (
-                <View style={{ padding: 40, alignItems: 'center' }}>
+                <View style={{ padding: 40, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border }}>
                   <Text style={{ fontSize: 40, marginBottom: 12 }}>✅</Text>
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 4 }}>All Clear</Text>
-                  <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center' }}>No pending student KYC submissions.</Text>
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 4 }}>All Caught Up</Text>
+                  <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center' }}>No pending student KYC or vehicle registration requests awaiting review.</Text>
                 </View>
               ) : (
                 kycList.map(k => {
@@ -278,7 +356,9 @@ export function AdminDashboardScreen({ navigation }) {
                   const docs = k.kycDocuments || k.documents || {};
                   const vehicleNum = docs.vehicleNumber || k.vehicles?.[0]?.vehicleNumber;
                   const vehicleName = docs.vehicleName || k.vehicles?.[0]?.vehicleName;
-                  const vehicleType = docs.vehicleType || k.vehicles?.[0]?.vehicleType || 'Car';
+                  const vehicleType = docs.vehicleType || k.vehicles?.[0]?.vehicleType || 'car';
+
+                  const typeEmoji = vehicleType.toLowerCase() === 'bike' ? '🏍️' : vehicleType.toLowerCase() === 'suv' ? '🚙' : vehicleType.toLowerCase() === 'xuv' ? '🏎️' : '🚗';
 
                   return (
                     <View key={id} style={styles.kycCardNew}>
@@ -298,16 +378,22 @@ export function AdminDashboardScreen({ navigation }) {
                       {/* Vehicle Details */}
                       {vehicleNum && (
                         <View style={{ backgroundColor: '#090d14', borderRadius: radius.md, padding: 10, borderWidth: 1, borderColor: 'rgba(255,160,0,0.3)', marginBottom: 10 }}>
-                          <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>REGISTERED VEHICLE</Text>
-                          <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700', marginTop: 2 }}>
-                            {vehicleType === 'motorcycle' ? '🏍️' : '🚗'} {vehicleName || 'Vehicle'} ({vehicleNum}) • {vehicleType.toUpperCase()}
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                            <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>
+                              {typeEmoji} {vehicleName || 'Registered Vehicle'}
+                            </Text>
+                            <View style={{ backgroundColor: 'rgba(255,160,0,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                              <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800' }}>{vehicleType.toUpperCase()}</Text>
+                            </View>
+                          </View>
+                          <Text style={{ color: '#fff', fontSize: 14, fontWeight: '900', letterSpacing: 1 }}>
+                            {vehicleNum}
                           </Text>
                         </View>
                       )}
 
-                      {/* Uploaded Documents */}
-                      <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 6 }}>UPLOADED DOCUMENTS</Text>
-                      <View style={{ gap: 6, marginBottom: 12 }}>
+                      {/* Document inspection list */}
+                      <View style={{ gap: 8, marginBottom: 14 }}>
                         {docs.aadhar ? (
                           <TouchableOpacity
                             onPress={() => setPreviewDoc({ title: `Aadhar Card — ${name}`, url: docs.aadhar })}
@@ -321,7 +407,7 @@ export function AdminDashboardScreen({ navigation }) {
                         ) : (
                           <View style={[styles.docInspectBtn, { opacity: 0.5 }]}>
                             <Text style={{ fontSize: 15 }}>🪪</Text>
-                            <Text style={styles.docInspectText}>Aadhar Card: Not uploaded</Text>
+                            <Text style={styles.docInspectText}>Aadhar: Not uploaded</Text>
                           </View>
                         )}
 
@@ -361,7 +447,7 @@ export function AdminDashboardScreen({ navigation }) {
                           disabled={acting[id]}
                           onPress={() => {
                             RNAlert.alert(
-                              '✓ Approve KYC',
+                              '✓ Approve Verification',
                               `Approve verification and vehicles for ${name}?`,
                               [
                                 { text: 'Cancel', style: 'cancel' },
@@ -373,7 +459,7 @@ export function AdminDashboardScreen({ navigation }) {
                           activeOpacity={0.8}
                         >
                           <Text style={{ color: colors.green, fontWeight: '800', fontSize: 13, textAlign: 'center' }}>
-                            {acting[id] ? '…' : '✓ Approve KYC'}
+                            {acting[id] ? '…' : '✓ Approve Verification'}
                           </Text>
                         </TouchableOpacity>
 
@@ -410,53 +496,171 @@ export function AdminDashboardScreen({ navigation }) {
                   style={styles.input}
                   value={search}
                   onChangeText={setSearch}
-                  placeholder="Search by name, email, college…"
+                  placeholder="Search by name, email, college, USN…"
                   placeholderTextColor={colors.text3}
                 />
-                {filteredUsers.map(u => (
-                  <View key={u._id} style={styles.userCard}>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>{u.name}</Text>
-                        <View style={{
-                          backgroundColor: u.kycStatus === 'approved' ? 'rgba(0,230,118,0.15)' : 'rgba(255,160,0,0.15)',
-                          paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4
-                        }}>
-                          <Text style={{ color: u.kycStatus === 'approved' ? colors.green : colors.accent, fontSize: 10, fontWeight: '800' }}>
-                            {u.kycStatus === 'approved' ? '✓ Verified' : 'KYC: ' + (u.kycStatus || 'none')}
+
+                {/* Filter chips */}
+                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+                  {[
+                    { key: 'all', label: `All (${users.length})` },
+                    { key: 'providers', label: 'Providers' },
+                    { key: 'seekers', label: 'Seekers' },
+                    { key: 'blocked', label: 'Blocked' },
+                  ].map(f => (
+                    <TouchableOpacity
+                      key={f.key}
+                      onPress={() => setRoleFilter(f.key)}
+                      style={[styles.roleFilterChip, roleFilter === f.key && styles.roleFilterChipActive]}
+                    >
+                      <Text style={[styles.roleFilterChipText, roleFilter === f.key && styles.roleFilterChipTextActive]}>{f.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {filteredUsers.length === 0 ? (
+                  <View style={{ padding: 30, alignItems: 'center' }}>
+                    <Text style={{ color: colors.text3, fontSize: 13 }}>No users matched the criteria.</Text>
+                  </View>
+                ) : (
+                  filteredUsers.map(u => (
+                    <View key={u._id} style={styles.userCard}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>{u.name}</Text>
+                          <View style={{
+                            backgroundColor: u.kycStatus === 'approved' ? 'rgba(0,230,118,0.15)' : 'rgba(255,160,0,0.15)',
+                            paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4
+                          }}>
+                            <Text style={{ color: u.kycStatus === 'approved' ? colors.green : colors.accent, fontSize: 10, fontWeight: '800' }}>
+                              {u.kycStatus === 'approved' ? '✓ Verified' : 'KYC: ' + (u.kycStatus || 'none')}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2 }}>{u.email} • {u.phone || 'No phone'}</Text>
+                        <Text style={{ color: colors.text3, fontSize: 11 }}>{u.college || 'Campus Commuter'} · {u.role?.toUpperCase()}</Text>
+                        {u.usn ? <Text style={{ color: colors.text3, fontSize: 11 }}>USN: {u.usn}</Text> : null}
+                        {u.kycDocuments?.vehicleNumber && (
+                          <Text style={{ color: colors.accent, fontSize: 11, marginTop: 2 }}>
+                            🚗 {u.kycDocuments.vehicleName || 'Vehicle'} ({u.kycDocuments.vehicleNumber}) [{u.kycDocuments.vehicleType || 'car'}]
+                          </Text>
+                        )}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const isBlk = u.isBlocked || u.blocked;
+                          RNAlert.alert(
+                            isBlk ? 'Unblock User' : 'Block User',
+                            `Are you sure you want to ${isBlk ? 'unblock' : 'block'} ${u.name}?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: isBlk ? 'Unblock' : 'Block', style: isBlk ? 'default' : 'destructive', onPress: () => act(u._id, isBlk ? 'unblock' : 'block', 'Admin action') },
+                            ]
+                          );
+                        }}
+                        disabled={acting[u._id]}
+                        style={[styles.userActionBtn, { borderColor: (u.isBlocked || u.blocked) ? colors.green : colors.red }]}
+                      >
+                        <Text style={{ color: (u.isBlocked || u.blocked) ? colors.green : colors.red, fontSize: 11, fontWeight: '700' }}>
+                          {acting[u._id] ? '…' : (u.isBlocked || u.blocked) ? 'Unblock' : 'Block'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+
+            {/* ── MANAGE RIDES TAB ── */}
+            {tab === 'rides' && (
+              rides.length === 0 ? (
+                <View style={{ padding: 40, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 36, marginBottom: 8 }}>🚗</Text>
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>No Active Rides</Text>
+                  <Text style={{ color: colors.text3, fontSize: 12, marginTop: 4 }}>No rides currently offered by campus providers.</Text>
+                </View>
+              ) : (
+                rides.map(r => {
+                  const rId = r._id || r.id;
+                  const providerName = r.providerId?.name || r.providerName || 'Provider';
+                  return (
+                    <View key={rId} style={[styles.userCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '800' }}>{providerName}</Text>
+                          <Text style={{ color: colors.accent, fontSize: 12, marginTop: 2 }}>
+                            {r.pickup?.label || r.pickupLocation || 'Pickup'} ➔ {r.drop?.label || r.dropLocation || 'Destination'}
+                          </Text>
+                          <Text style={{ color: colors.text3, fontSize: 11, marginTop: 2 }}>
+                            📅 {r.date} at {r.time} • ₹{r.pricePerSeat || r.fare || 0}/seat • {r.availableSeats ?? r.seats} seats left
+                          </Text>
+                        </View>
+                        <View style={{ backgroundColor: r.status === 'active' ? 'rgba(0,230,118,0.15)' : colors.surface2, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
+                          <Text style={{ color: r.status === 'active' ? colors.green : colors.text2, fontSize: 10, fontWeight: '800' }}>
+                            {(r.status || 'SCHEDULED').toUpperCase()}
                           </Text>
                         </View>
                       </View>
-                      <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2 }}>{u.email} • {u.phone || 'No phone'}</Text>
-                      <Text style={{ color: colors.text3, fontSize: 11 }}>{u.college} · {u.role}</Text>
-                      {u.kycDocuments?.vehicleNumber && (
-                        <Text style={{ color: colors.accent, fontSize: 11, marginTop: 2 }}>
-                          🚗 {u.kycDocuments.vehicleName || 'Vehicle'} ({u.kycDocuments.vehicleNumber})
-                        </Text>
+
+                      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
+                        <TouchableOpacity
+                          onPress={() => {
+                            RNAlert.alert(
+                              'Cancel Ride',
+                              `Cancel ride by ${providerName}? All seekers will be notified.`,
+                              [
+                                { text: 'Close', style: 'cancel' },
+                                { text: 'Cancel Ride', style: 'destructive', onPress: () => act(rId, 'cancelRide') },
+                              ]
+                            );
+                          }}
+                          style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.red + '55', backgroundColor: 'rgba(255,82,82,0.1)' }}
+                        >
+                          <Text style={{ color: colors.red, fontSize: 11, fontWeight: '700' }}>🗑️ Cancel Ride</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })
+              )
+            )}
+
+            {/* ── SAFETY / INCIDENTS TAB ── */}
+            {tab === 'incidents' && (
+              incidents.length === 0 ? (
+                <View style={{ padding: 40, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 36, marginBottom: 8 }}>🛡️</Text>
+                  <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>Campus Safe & Sound</Text>
+                  <Text style={{ color: colors.text3, fontSize: 12, marginTop: 4 }}>Zero open safety incidents or SOS reports.</Text>
+                </View>
+              ) : (
+                incidents.map(inc => {
+                  const incId = inc._id || inc.id;
+                  const isResolved = inc.status === 'resolved';
+                  return (
+                    <View key={incId} style={[styles.userCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ color: colors.red, fontSize: 13, fontWeight: '800' }}>🚨 {inc.type || 'Incident'}</Text>
+                        <View style={{ backgroundColor: isResolved ? 'rgba(0,230,118,0.15)' : 'rgba(255,82,82,0.15)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4 }}>
+                          <Text style={{ color: isResolved ? colors.green : colors.red, fontSize: 10, fontWeight: '800' }}>
+                            {(inc.status || 'OPEN').toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ color: colors.text, fontSize: 13, marginTop: 6, lineHeight: 18 }}>{inc.description}</Text>
+                      <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>Reported by: {inc.reportedBy?.name || 'Student'}</Text>
+                      {!isResolved && (
+                        <TouchableOpacity
+                          onPress={() => act(incId, 'resolveIncident')}
+                          style={{ alignSelf: 'flex-end', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm, backgroundColor: 'rgba(0,230,118,0.15)', borderWidth: 1, borderColor: colors.green }}
+                        >
+                          <Text style={{ color: colors.green, fontSize: 11, fontWeight: '700' }}>✓ Mark Resolved</Text>
+                        </TouchableOpacity>
                       )}
                     </View>
-                    <TouchableOpacity
-                      onPress={() => {
-                        const isBlk = u.isBlocked || u.blocked;
-                        RNAlert.alert(
-                          isBlk ? 'Unblock User' : 'Block User',
-                          `Are you sure you want to ${isBlk ? 'unblock' : 'block'} ${u.name}?`,
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: isBlk ? 'Unblock' : 'Block', style: isBlk ? 'default' : 'destructive', onPress: () => act(u._id, isBlk ? 'unblock' : 'block', 'Admin action') },
-                          ]
-                        );
-                      }}
-                      disabled={acting[u._id]}
-                      style={[styles.userActionBtn, { borderColor: (u.isBlocked || u.blocked) ? colors.green : colors.red }]}
-                    >
-                      <Text style={{ color: (u.isBlocked || u.blocked) ? colors.green : colors.red, fontSize: 11, fontWeight: '700' }}>
-                        {acting[u._id] ? '…' : (u.isBlocked || u.blocked) ? 'Unblock' : 'Block'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </>
+                  );
+                })
+              )
             )}
 
             {/* ── SYSTEM OVERVIEW TAB ── */}
@@ -464,9 +668,13 @@ export function AdminDashboardScreen({ navigation }) {
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                 {[
                   { label: 'Total Users',     value: stats?.totalUsers    || users.length, color: colors.accent },
-                  { label: 'Total Rides',     value: stats?.totalRides    || 0,            color: colors.blue   },
+                  { label: 'Providers',       value: stats?.totalProviders || users.filter(u => u.role === 'provider' || u.role === 'both').length, color: colors.accent },
+                  { label: 'Seekers',         value: stats?.totalSeekers   || users.filter(u => u.role === 'seeker' || u.role === 'both').length, color: colors.accent },
+                  { label: 'Total Rides',     value: stats?.totalRides    || rides.length, color: colors.blue   },
+                  { label: 'Active Rides',    value: stats?.activeRides   || rides.filter(r => r.status === 'active').length, color: colors.blue },
                   { label: 'Total Bookings',  value: stats?.totalBookings || 0,            color: colors.green  },
-                  { label: 'Pending KYC',     value: kycList.length,                       color: colors.red    },
+                  { label: 'Pending KYC',     value: stats?.pendingKYC    || kycList.length, color: colors.red    },
+                  { label: 'Safety Reports',  value: incidents.length,                     color: colors.red    },
                 ].map(s => (
                   <View key={s.label} style={[styles.statCard, { borderColor: s.color + '44' }]}>
                     <Text style={[styles.statNum, { color: s.color }]}>{s.value}</Text>
@@ -932,6 +1140,11 @@ const styles = StyleSheet.create({
   tabChipActive: { borderColor:colors.accent, backgroundColor:colors.accentDim },
   tabChipText: { color:colors.text2, fontSize:13, fontWeight:'600' },
   tabChipTextActive: { color:colors.accent },
+
+  roleFilterChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.full, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border },
+  roleFilterChipActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  roleFilterChipText: { color: colors.text3, fontSize: 11, fontWeight: '700' },
+  roleFilterChipTextActive: { color: colors.accent },
 
   statCard: { width:'47%', backgroundColor:colors.surface, borderRadius:radius.lg, borderWidth:1, padding:16, alignItems:'center' },
   statNum:  { fontSize:32, fontWeight:'800', marginBottom:4 },

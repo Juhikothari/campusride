@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, Image,
   StyleSheet, ActivityIndicator, Alert as RNAlert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { Input, Btn, Alert, Card } from '../components/UI';
 import FloatingChatBot from '../components/FloatingChatBot';
@@ -34,6 +35,8 @@ export default function ProfileScreen({ navigation }) {
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [phoneMsg,     setPhoneMsg]     = useState('');
   const [phoneError,   setPhoneError]   = useState('');
+  const [photoUri,     setPhotoUri]     = useState(user?.profilePhoto || null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Vehicle registration modal state
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -60,6 +63,7 @@ export default function ProfileScreen({ navigation }) {
       if (p) {
         setProfile(p);
         setNewPhone(p.phone || '');
+        if (p.profilePhoto) setPhotoUri(p.profilePhoto);
       }
 
       const remoteVehicles = vRes.status === 'fulfilled' && Array.isArray(vRes.value) ? vRes.value : [];
@@ -125,6 +129,78 @@ export default function ProfileScreen({ navigation }) {
   useEffect(() => {
     fetchProfileAndVehicles();
   }, []);
+
+  const saveProfilePhoto = async (uri) => {
+    setUploadingPhoto(true);
+    setPhotoUri(uri);
+    try {
+      await api.updateProfile({ profilePhoto: uri });
+      setProfile(prev => prev ? { ...prev, profilePhoto: uri } : prev);
+      const stored = await api.getUser();
+      if (stored) await api.setUser({ ...stored, profilePhoto: uri });
+      RNAlert.alert('✅ Selfie Updated', 'Your profile selfie has been saved successfully!');
+    } catch (err) {
+      console.error('Profile photo update error:', err);
+      RNAlert.alert('Saved Locally', 'Photo updated on device.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleCaptureSelfie = () => {
+    RNAlert.alert(
+      '🤳 Profile Selfie',
+      'Take a front-camera selfie or select a photo from your gallery for your commuter profile:',
+      [
+        {
+          text: '📷 Front-Camera Selfie',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                RNAlert.alert('Permission Denied', 'Camera permission is required to take a selfie.');
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                cameraType: ImagePicker.CameraType.front,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+              });
+              if (!result.canceled && result.assets && result.assets[0] && result.assets[0].uri) {
+                await saveProfilePhoto(result.assets[0].uri);
+              }
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to capture selfie');
+            }
+          },
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                RNAlert.alert('Permission Denied', 'Gallery permission is required.');
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+              });
+              if (!result.canceled && result.assets && result.assets[0] && result.assets[0].uri) {
+                await saveProfilePhoto(result.assets[0].uri);
+              }
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to select photo');
+            }
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  };
 
   const handleSaveVehicle = async () => {
     setVErr('');
@@ -215,9 +291,41 @@ export default function ProfileScreen({ navigation }) {
 
         {/* Avatar hero */}
         <View style={styles.hero}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+          <View style={{ alignItems: 'center', marginBottom: 12 }}>
+            <TouchableOpacity
+              onPress={handleCaptureSelfie}
+              activeOpacity={0.8}
+              style={{ position: 'relative' }}
+              disabled={uploadingPhoto}
+            >
+              {photoUri ? (
+                <Image source={{ uri: photoUri }} style={styles.avatarPhoto} />
+              ) : (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+              )}
+              <View style={styles.cameraIconBadge}>
+                {uploadingPhoto ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={{ fontSize: 13 }}>📷</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleCaptureSelfie}
+              style={styles.captureSelfieBtn}
+              activeOpacity={0.8}
+              disabled={uploadingPhoto}
+            >
+              <Text style={styles.captureSelfieBtnText}>
+                {uploadingPhoto ? 'Saving Photo…' : photoUri ? '📷 Change Selfie' : '🤳 Capture Selfie'}
+              </Text>
+            </TouchableOpacity>
           </View>
+
           <Text style={styles.name}>{p?.name}</Text>
           {p?.college && <Text style={styles.college}>🏫 {p.college}</Text>}
           <View style={styles.roleBadge}>
@@ -467,8 +575,36 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, padding: 28,
     alignItems: 'center', marginBottom: spacing.md,
   },
-  avatar:     { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.accent + '55', marginBottom: 12 },
-  avatarText: { color: colors.accent, fontSize: 26, fontWeight: '800' },
+  avatar:     { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.accent + '55' },
+  avatarText: { color: colors.accent, fontSize: 28, fontWeight: '800' },
+  avatarPhoto: { width: 76, height: 76, borderRadius: 38, borderWidth: 2, borderColor: colors.accent },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface,
+  },
+  captureSelfieBtn: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(255,160,0,0.12)',
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.accent + '55',
+  },
+  captureSelfieBtnText: {
+    color: colors.accent,
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
   name:    { color: colors.text,  fontSize: 22, fontWeight: '800', marginBottom: 4 },
   college: { color: colors.text2, fontSize: 13, marginBottom: 10 },
   roleBadge: { backgroundColor: colors.accentDim, borderRadius: radius.full, paddingHorizontal: 14, paddingVertical: 5, borderWidth: 1, borderColor: colors.accent + '44' },

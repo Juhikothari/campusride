@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, StyleSheet,
-  ActivityIndicator,
+  ActivityIndicator, Alert as RNAlert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
@@ -95,10 +95,11 @@ function PostsTab({ user }) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteCommunityPost(postId);
               setPosts(prev => prev.filter(p => p._id !== postId));
+              await deleteCommunityPost(postId);
             } catch (err) {
-              RNAlert.alert('Error', err.message || 'Failed to delete post');
+              console.error('Delete post error:', err);
+              RNAlert.alert('Notice', err.message || 'Failed to delete post');
             }
           }
         }
