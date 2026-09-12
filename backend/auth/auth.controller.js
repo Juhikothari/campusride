@@ -90,6 +90,10 @@ const register = async (req, res) => {
     if (role !== 'admin') {
       const { valid, message } = validateCollegeEmail(email, college, role);
       if (!valid) return res.status(400).json({ message: message || 'Please use your official college email address' });
+
+      if (!aadhar || !collegeIdCard) {
+        return res.status(400).json({ message: 'Aadhar Card and College ID Card are compulsory for campus registration.' });
+      }
     }
 
     const existing = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });

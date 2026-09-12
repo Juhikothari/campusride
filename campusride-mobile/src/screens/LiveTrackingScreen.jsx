@@ -305,6 +305,13 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [actionLoading, setActionLoading] = useState(false);
 
   const handleStartRide = async () => {
+    if (!rideInfo?.seekerChecklistCompleted) {
+      RNAlert.alert(
+        '⏳ Passenger Checklist Incomplete',
+        'For campus safety, the passenger must complete their pre-ride safety checklist before departure. Once verified, you will be able to start the ride.'
+      );
+      return;
+    }
     setActionLoading(true);
     try {
       await api.startRide(activeRideId);
@@ -609,7 +616,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
             <View style={styles.driverControlCard}>
               <Text style={styles.driverControlTitle}>⚡ DRIVER TRIP CONTROLS</Text>
               
-              {rideInfo?.status === 'in-progress' || rideInfo?.status === 'active' ? (
+              {rideInfo?.status === 'in-progress' ? (
                 <>
                   <TouchableOpacity
                     style={styles.completeRideBtn}
@@ -640,36 +647,89 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     </TouchableOpacity>
                   </View>
                 </>
-              ) : (
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity
-                    style={[styles.completeRideBtn, { flex: 1, backgroundColor: colors.accent }]}
-                    onPress={handleStartRide}
-                    disabled={actionLoading}
-                  >
-                    <Text style={styles.completeRideBtnText}>🚀 Start Ride</Text>
-                  </TouchableOpacity>
+              ) : rideInfo?.status === 'active' ? (
+                <View style={{ gap: 10 }}>
+                  {!rideInfo?.seekerChecklistCompleted ? (
+                    <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Text style={{ fontSize: 22 }}>⏳</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Passenger Checklist</Text>
+                        <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
+                          The passenger must verify their pre-ride safety checklist before you can start this ride.
+                        </Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 16 }}>✅</Text>
+                      <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
+                        Passenger checklist verified! You can now start the ride.
+                      </Text>
+                    </View>
+                  )}
 
-                  <TouchableOpacity
-                    style={[styles.driverSubBtn, { borderColor: colors.red + '55', paddingHorizontal: 16 }]}
-                    onPress={handleCancelRide}
-                  >
-                    <Text style={[styles.driverSubBtnText, { color: colors.red }]}>Cancel</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={[
+                        styles.completeRideBtn,
+                        {
+                          flex: 1,
+                          backgroundColor: rideInfo?.seekerChecklistCompleted ? colors.accent : '#2a2214',
+                          borderWidth: 1,
+                          borderColor: rideInfo?.seekerChecklistCompleted ? colors.accent : colors.accent + '88',
+                          opacity: rideInfo?.seekerChecklistCompleted ? 1 : 0.7
+                        }
+                      ]}
+                      onPress={handleStartRide}
+                      disabled={actionLoading || !rideInfo?.seekerChecklistCompleted}
+                    >
+                      <Text style={[styles.completeRideBtnText, { color: rideInfo?.seekerChecklistCompleted ? '#000' : colors.accent }]}>
+                        {rideInfo?.seekerChecklistCompleted ? '🚀 Start Ride' : '🔒 Checklist Pending'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.driverSubBtn, { borderColor: colors.red + '55', paddingHorizontal: 16 }]}
+                      onPress={handleCancelRide}
+                    >
+                      <Text style={[styles.driverSubBtnText, { color: colors.red }]}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              )}
+              ) : null}
             </View>
           )}
 
-          {/* Passenger Cancel Booking Option */}
-          {!isDriver && rideInfo?.status !== 'completed' && rideInfo?.status !== 'cancelled' && (
-            <TouchableOpacity
-              style={styles.passengerCancelBtn}
-              onPress={handleCancelBooking}
-              disabled={actionLoading}
-            >
-              <Text style={styles.passengerCancelText}>Cancel My Booking</Text>
-            </TouchableOpacity>
+          {/* Passenger Checklist & Cancel Booking Option */}
+          {!isDriver && (rideInfo?.status === 'active' || rideInfo?.status === 'in-progress') && (
+            <View style={{ gap: 10, marginBottom: 12 }}>
+              {rideInfo?.status === 'active' && (
+                !rideInfo?.seekerChecklistCompleted ? (
+                  <TouchableOpacity
+                    style={[styles.completeRideBtn, { backgroundColor: colors.accent }]}
+                    onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeRideId })}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.completeRideBtnText}>🛡️ Complete Safety Checklist to Start →</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 16 }}>✅</Text>
+                    <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
+                      Safety checklist completed. Waiting for provider to start ride.
+                    </Text>
+                  </View>
+                )
+              )}
+
+              <TouchableOpacity
+                style={styles.passengerCancelBtn}
+                onPress={handleCancelBooking}
+                disabled={actionLoading}
+              >
+                <Text style={styles.passengerCancelText}>Cancel My Booking</Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {sosSent && (

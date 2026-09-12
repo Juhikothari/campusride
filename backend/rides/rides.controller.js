@@ -205,15 +205,29 @@ exports.createRide = async (req, res) => {
 // ================= SEARCH RIDES =================
 exports.searchRides = async (req, res) => {
   try {
-    const { lat, lng, maxDistance = 25000, date, dropLat, dropLng } = req.query;
+    const { lat, lng, maxDistance = 25000, date, dropLat, dropLng, vehicleType } = req.query;
     
-    console.log('Search params:', { lat, lng, maxDistance, date, dropLat, dropLng });
+    console.log('Search params:', { lat, lng, maxDistance, date, dropLat, dropLng, vehicleType });
 
     // Build base query — only active rides with available seats
     const query = { 
       status: 'active',
       seatsAvailable: { $gt: 0 }
     };
+
+    // Vehicle type filter if provided
+    if (vehicleType) {
+      const vt = vehicleType.toLowerCase();
+      if (vt === 'bike' || vt === 'motorcycle' || vt === 'scooter') {
+        query.vehicleType = { $in: ['bike', 'motorcycle', 'scooter', 'two-wheeler'] };
+      } else if (vt === 'car') {
+        query.vehicleType = { $in: ['car', 'sedan', 'hatchback'] };
+      } else if (vt === 'suv' || vt === 'xuv') {
+        query.vehicleType = { $in: ['suv', 'xuv'] };
+      } else {
+        query.vehicleType = vt;
+      }
+    }
 
     // College filter — soft matching: show rides from same college, or unassigned college
     const seekerId = req.user?.userId || req.user?.id;
@@ -254,15 +268,16 @@ exports.searchRides = async (req, res) => {
       };
       console.log('Date filter:', searchDate, 'to', nextDay);
     } else {
-      // No date provided ("Ride Now") — show rides from last 24 hours up to future
-      const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      query.date = { $gte: past24h };
-      console.log('Ride Now — showing rides from:', past24h);
+      // No date provided ("Ride Now") — show rides from last 48 hours up to future
+      const past48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      query.date = { $gte: past48h };
+      console.log('Ride Now — showing rides from:', past48h);
     }
 
-    // Helper: check if a ride's scheduled date+time is still relevant (24-hour buffer)
+    // Helper: check if a ride's scheduled date+time is still relevant (48-hour buffer)
     const now = new Date();
     const isRideUpcoming = (ride) => {
+      if (!ride.date) return true;
       if (!ride.time) return true;
       let hours = 0;
       let minutes = 0;
@@ -291,8 +306,8 @@ exports.searchRides = async (req, res) => {
         0,
         0
       );
-      // Give 24-hour buffer so newly posted rides for today remain discoverable
-      const expiration = new Date(scheduled.getTime() + 24 * 60 * 60 * 1000);
+      // Give 48-hour buffer so newly posted rides remain discoverable
+      const expiration = new Date(scheduled.getTime() + 48 * 60 * 60 * 1000);
       return expiration > now;
     };
 
@@ -492,6 +507,15 @@ exports.submitChecklist = async (req, res) => {
     }
     await ride.save();
 
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`ride-${rideId}`).emit('checklistCompleted', {
+        rideId,
+        seekerChecklistCompleted: ride.seekerChecklistCompleted,
+        providerChecklistCompleted: ride.providerChecklistCompleted
+      });
+    }
+
     res.json({
       message: 'Safety checklist verified successfully',
       ride,
@@ -513,15 +537,23 @@ exports.pickupPassenger = async (req, res) => {
 
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
 
-    ride.status = 'in-progress';
-    ride.passengerPickedUpAt = new Date();
-    await ride.save();
-
     // Get accepted bookings to notify passengers
     const acceptedBookings = await Booking.find({ 
       rideId: ride._id, 
       status: 'accepted' 
     }).populate('seekerId', 'name fcmToken');
+
+    if (acceptedBookings.length === 0) {
+      return res.status(400).json({ message: 'No accepted booking found. Wait for a passenger to book and accept before picking up.' });
+    }
+
+    if (!ride.seekerChecklistCompleted && !acceptedBookings.some(b => b.checklistCompleted)) {
+      return res.status(400).json({ message: 'Passenger has not completed their pre-ride safety checklist yet. Ride cannot start until passenger completes checklist.' });
+    }
+
+    ride.status = 'in-progress';
+    ride.passengerPickedUpAt = new Date();
+    await ride.save();
 
     // Send notifications to all accepted passengers
     for (const booking of acceptedBookings) {
@@ -653,18 +685,21 @@ exports.startRide = async (req, res) => {
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
     
     if (ride.status !== 'active') {
-      return res.status(400).json({ message: 'Ride cannot be started' });
+      return res.status(400).json({ message: 'Ride cannot be started. Current status: ' + ride.status });
     }
 
-    // Enforce that matched passenger has completed their safety checklist before driver can start the ride
+    // Enforce that matched passenger exists and has completed their safety checklist before driver can start the ride
     const acceptedBookings = await Booking.find({ rideId, status: 'accepted' });
-    if (acceptedBookings.length > 0 && !ride.seekerChecklistCompleted) {
-      const anyCompleted = acceptedBookings.some(b => b.checklistCompleted);
-      if (!anyCompleted) {
-        return res.status(400).json({
-          message: 'Passenger has not completed their pre-ride safety checklist yet. For campus safety, wait for the passenger to complete the checklist before starting the ride.'
-        });
-      }
+    if (acceptedBookings.length === 0) {
+      return res.status(400).json({
+        message: 'No accepted booking found. A passenger must book and you must accept before starting the ride.'
+      });
+    }
+
+    if (!ride.seekerChecklistCompleted && !acceptedBookings.some(b => b.checklistCompleted)) {
+      return res.status(400).json({
+        message: 'Passenger has not completed their pre-ride safety checklist yet. For campus safety, wait for the passenger to complete the checklist before starting the ride.'
+      });
     }
 
     ride.status = 'in-progress';
@@ -694,7 +729,7 @@ exports.completeRide = async (req, res) => {
 
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
     if (ride.status !== 'in-progress') {
-      return res.status(400).json({ message: 'Ride is not in progress' });
+      return res.status(400).json({ message: 'Ride cannot be completed before it has been started (ride must be in-progress).' });
     }
 
     ride.status = 'completed';

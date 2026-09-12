@@ -328,9 +328,6 @@ export default function ProfileScreen({ navigation }) {
 
           <Text style={styles.name}>{p?.name}</Text>
           {p?.college && <Text style={styles.college}>🏫 {p.college}</Text>}
-          <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>{ROLE_LABEL[p?.role] || p?.role}</Text>
-          </View>
         </View>
 
         {/* Personal info */}

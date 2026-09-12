@@ -16,12 +16,28 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
 const VEHICLE_FILTERS = [
-  { value: '',           label: 'All',  icon: '🚦' },
-  { value: 'motorcycle', label: 'Bike', icon: '🏍️' },
-  { value: 'car',        label: 'Car',  icon: '🚗' },
-  { value: 'suv',        label: 'SUV',  icon: '🚙' },
-  { value: 'xuv',        label: 'XUV',  icon: '🛻' },
+  { value: '',     label: 'All',  icon: '🚦' },
+  { value: 'bike', label: 'Bike', icon: '🏍️' },
+  { value: 'car',  label: 'Car',  icon: '🚗' },
+  { value: 'suv',  label: 'SUV',  icon: '🚙' },
+  { value: 'xuv',  label: 'XUV',  icon: '🛻' },
 ];
+
+const matchesVehicleType = (rideType, selectedFilter) => {
+  if (!selectedFilter) return true;
+  const rt = (rideType || '').toLowerCase();
+  const sf = (selectedFilter || '').toLowerCase();
+  if (sf === 'motorcycle' || sf === 'bike' || sf === 'scooter') {
+    return rt === 'bike' || rt === 'motorcycle' || rt === 'scooter' || rt === 'two-wheeler';
+  }
+  if (sf === 'car' || sf === 'sedan' || sf === 'hatchback') {
+    return rt === 'car' || rt === 'sedan' || rt === 'hatchback';
+  }
+  if (sf === 'suv' || sf === 'xuv') {
+    return rt === 'suv' || rt === 'xuv';
+  }
+  return rt === sf;
+};
 
 export default function SearchRidesScreen({ navigation }) {
   const { user } = useAuth();
@@ -151,9 +167,12 @@ export default function SearchRidesScreen({ navigation }) {
   const fetchAllCampusRides = useCallback(async () => {
     setLoading(true);
     try {
-      let results = await api.searchRides(womenOnly ? { womenOnly: 'true' } : {});
+      let results = await api.searchRides({
+        ...(womenOnly && { womenOnly: 'true' }),
+        ...(vehicle && { vehicleType: vehicle }),
+      });
       if (Array.isArray(results)) {
-        if (vehicle) results = results.filter(r => !vehicle || r.vehicleType === vehicle);
+        if (vehicle) results = results.filter(r => matchesVehicleType(r.vehicleType, vehicle));
         if (womenOnly) results = results.filter(r => r.womenOnly === true);
         setRides(results);
       }
@@ -187,16 +206,17 @@ export default function SearchRidesScreen({ navigation }) {
         ...(schedMode === 'later' && date && { date }),
         ...(schedMode === 'later' && time && { time }),
         ...(womenOnly && { womenOnly: true }),
+        ...(vehicle && { vehicleType: vehicle }),
       };
       let results = await api.searchRides(params);
-      if (vehicle) results = results.filter(r => r.vehicleType === vehicle);
-      if (womenOnly) results = results.filter(r => r.womenOnly === true);
+      if (vehicle) results = (results || []).filter(r => matchesVehicleType(r.vehicleType, vehicle));
+      if (womenOnly) results = (results || []).filter(r => r.womenOnly === true);
 
       // If zero matches found for strict coordinates, also fetch all active rides so seeker is never stuck
       if (!results || results.length === 0) {
         const allRides = await api.searchRides(womenOnly ? { womenOnly: 'true' } : {}).catch(() => []);
         if (Array.isArray(allRides) && allRides.length > 0) {
-          let fallbackMatches = vehicle ? allRides.filter(r => r.vehicleType === vehicle) : allRides;
+          let fallbackMatches = vehicle ? allRides.filter(r => matchesVehicleType(r.vehicleType, vehicle)) : allRides;
           if (womenOnly) fallbackMatches = fallbackMatches.filter(r => r.womenOnly === true);
           results = fallbackMatches;
         }

@@ -147,16 +147,40 @@ exports.deleteRide = async (req, res) => {
 // ── GET /api/admin/kyc ────────────────────────────────────────────
 exports.getPendingKYC = async (req, res) => {
   try {
-    const users = await User.find({
-      $or: [
-        { kycStatus: 'pending' },
-        { 'kycDocuments.vehicleStatus': 'pending' },
-        { 'vehicles.status': 'pending' },
-        { vehicles: { $elemMatch: { status: 'pending' } } },
-        { kycStatus: 'not_submitted', 'vehicles.0': { $exists: true } },
-        { 'kycDocuments.vehicleNumber': { $exists: true, $ne: null }, kycStatus: { $ne: 'approved' } }
-      ]
-    })
+    const { status } = req.query;
+    let query = {};
+    if (status === 'approved') {
+      query = {
+        $or: [
+          { kycStatus: 'approved' },
+          { 'kycDocuments.vehicleStatus': 'approved' },
+          { 'vehicles.status': 'approved' }
+        ]
+      };
+    } else if (status === 'all') {
+      query = {
+        $or: [
+          { kycStatus: { $in: ['pending', 'approved', 'rejected'] } },
+          { 'kycDocuments.aadhar': { $exists: true, $ne: null } },
+          { 'kycDocuments.collegeIdCard': { $exists: true, $ne: null } },
+          { 'kycDocuments.vehicleNumber': { $exists: true, $ne: null } },
+          { 'vehicles.0': { $exists: true } }
+        ]
+      };
+    } else {
+      query = {
+        $or: [
+          { kycStatus: 'pending' },
+          { 'kycDocuments.vehicleStatus': 'pending' },
+          { 'vehicles.status': 'pending' },
+          { vehicles: { $elemMatch: { status: 'pending' } } },
+          { kycStatus: 'not_submitted', 'vehicles.0': { $exists: true } },
+          { 'kycDocuments.vehicleNumber': { $exists: true, $ne: null }, kycStatus: { $ne: 'approved' } }
+        ]
+      };
+    }
+
+    const users = await User.find(query)
       .select('-password')
       .sort({ updatedAt: -1, createdAt: -1 });
     res.json(users);

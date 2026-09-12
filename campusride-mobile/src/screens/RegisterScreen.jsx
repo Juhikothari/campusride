@@ -141,6 +141,10 @@ export default function RegisterScreen({ navigation }) {
     if (password !== confirm) return 'Passwords do not match';
     if (!gender)          return 'Please select your gender';
     if (role === 'admin' && adminKey !== 'freewheel') return 'Invalid admin key';
+    if (role !== 'admin') {
+      if (!docs.aadhar)    return 'Aadhar Card photo is compulsory. Please upload.';
+      if (!docs.collegeId) return 'College ID Card photo is compulsory. Please upload.';
+    }
     return null;
   };
 
@@ -365,14 +369,11 @@ export default function RegisterScreen({ navigation }) {
 
           {/* Provider Vehicle Details & Vehicle Type */}
           <View style={styles.providerCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 }}>
-                🚗 VEHICLE DETAILS (OPTIONAL / FOR PROVIDERS)
+                🚗 VEHICLE DETAILS
               </Text>
             </View>
-            <Text style={{ color: colors.text3, fontSize: 11, marginBottom: 12, lineHeight: 16 }}>
-              Add your vehicle now or later in Profile. Vehicle & document verifications are reviewed by campus admin within 24 hours.
-            </Text>
 
             <View style={styles.twoColRow}>
               <View style={{ flex: 1 }}>
@@ -422,11 +423,11 @@ export default function RegisterScreen({ navigation }) {
               })}
             </View>
 
-            {/* Optional KYC Documents */}
-            <Text style={[styles.label, { marginTop: 6, marginBottom: 8 }]}>VERIFICATION DOCUMENTS (OPTIONAL)</Text>
-            <DocUploadRow label="Aadhar Card" icon="🪪" onUpload={() => showDocPicker('aadhar')} uri={docs.aadhar} />
-            <DocUploadRow label="Driving License" icon="🚘" onUpload={() => showDocPicker('license')} uri={docs.license} />
-            <DocUploadRow label="College ID Card" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
+            {/* Compulsory KYC Documents */}
+            <Text style={[styles.label, { marginTop: 6, marginBottom: 8 }]}>VERIFICATION DOCUMENTS (COMPULSORY)</Text>
+            <DocUploadRow label="Aadhar Card *" icon="🪪" onUpload={() => showDocPicker('aadhar')} uri={docs.aadhar} />
+            <DocUploadRow label="College ID Card *" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
+            <DocUploadRow label="Driving License (Required for Providers)" icon="🚘" onUpload={() => showDocPicker('license')} uri={docs.license} />
           </View>
 
           <Btn

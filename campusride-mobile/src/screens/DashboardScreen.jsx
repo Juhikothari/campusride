@@ -355,7 +355,7 @@ export default function DashboardScreen({ navigation }) {
 
               {/* Secondary Buttons Row — Details button removed per request */}
               <View style={styles.secondaryBtnRow}>
-                {tripRole === 'driver' && (
+                {tripRole === 'driver' && activeTrip.status === 'in-progress' && (
                   <TouchableOpacity
                     style={[styles.secondaryBtn, { backgroundColor: 'rgba(0,230,118,0.15)', borderColor: colors.green }]}
                     onPress={handleFinishTrip}
