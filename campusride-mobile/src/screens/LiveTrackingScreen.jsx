@@ -430,160 +430,142 @@ export default function LiveTrackingScreen({ navigation, route }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Interactive Route Map with Eye-Catching Points — Always Shown in Track Ride */}
+          <View style={styles.radarCard}>
+            <View style={styles.radarHeader}>
+              <View style={[styles.livePulseDot, rideInfo?.status !== 'in-progress' && { backgroundColor: colors.accent }]} />
+              <Text style={styles.radarTitle}>
+                {rideInfo?.status === 'in-progress' ? '🛰️ LIVE GPS TRACKING ACTIVE' : '🗺️ CONFIRMED RIDE ROUTE'}
+              </Text>
+              <View style={[styles.timerBadge, rideInfo?.status !== 'in-progress' && { backgroundColor: 'rgba(245,166,35,0.15)', borderColor: colors.accent }]}>
+                <Text style={[styles.timerText, rideInfo?.status !== 'in-progress' && { color: colors.accent }]}>
+                  {rideInfo?.status === 'in-progress' ? fmt(elapsed) : 'PRE-START'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 4 }}>
+              <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
+                {isMapExpanded ? '🗺️ ENLARGED FULL ROUTE MAP' : '🗺️ INTERACTIVE ROUTE MAP'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsMapExpanded(e => !e)}
+                style={styles.expandMapBtn}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.expandMapBtnText}>
+                  {isMapExpanded ? '↙ Standard View' : '⛶ Enlarge Map'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Interactive OpenStreetMap Live Map with Eye-Catching Markers */}
+            <LiveMapView
+              pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
+              drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
+              driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
+              coordinates={routeCoordinates}
+              leg1Coordinates={leg1Coords}
+              leg2Coordinates={leg2Coords}
+              height={isMapExpanded ? 460 : 320}
+              style={{ marginBottom: 12 }}
+            />
+
+            {/* Visual Route Path: Provider -> Seeker Pickup -> Drop Destination */}
+            <View style={styles.routeDiagram}>
+              {/* Node 1: Provider Position */}
+              <View style={styles.routeNode}>
+                <View style={[styles.nodeIcon, { backgroundColor: '#00E5FF22', borderColor: '#00E5FF' }]}>
+                  <Text style={{ fontSize: 16 }}>🚗</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.nodeLabel, { color: '#00E5FF' }]}>1. PROVIDER LOCATION</Text>
+                  <Text style={styles.nodeAddress} numberOfLines={1}>
+                    {isDriver ? 'Your Live Location' : `${rideInfo?.providerId?.name || rideInfo?.providerName || 'Provider'} (${rideInfo?.status === 'in-progress' ? 'En Route' : 'Assigned'})`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Leg 1 connector: Provider to Pickup */}
+              <View style={styles.nodeConnector}>
+                <View style={[styles.connectorLine, { borderColor: '#00E5FF', borderStyle: 'dashed' }]} />
+                <View style={[styles.liveCarBadge, { borderColor: '#00E5FF' }]}>
+                  <Text style={{ fontSize: 11 }}>➡️</Text>
+                  <Text style={[styles.liveCarText, { color: '#00E5FF' }]}>
+                    {leg1Duration ? `To Seeker (${leg1Duration})` : 'Heading to Pickup'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Node 2: Seeker Pickup Point */}
+              <View style={styles.routeNode}>
+                <View style={[styles.nodeIcon, { backgroundColor: colors.green + '22', borderColor: colors.green }]}>
+                  <Text style={{ fontSize: 16 }}>🟢</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nodeLabel}>2. SEEKER PICKUP POINT</Text>
+                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.pickup?.address || 'Pickup Location'}</Text>
+                </View>
+              </View>
+
+              {/* Leg 2 connector: Pickup to Destination */}
+              <View style={styles.nodeConnector}>
+                <View style={styles.connectorLine} />
+                <View style={styles.liveCarBadge}>
+                  <Text style={{ fontSize: 11 }}>🏁</Text>
+                  <Text style={styles.liveCarText}>
+                    {leg2Duration ? `To Destination (${leg2Duration})` : 'In Transit'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Node 3: Drop-off Destination */}
+              <View style={styles.routeNode}>
+                <View style={[styles.nodeIcon, { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}>
+                  <Text style={{ fontSize: 16 }}>🏁</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nodeLabel}>3. DROP-OFF DESTINATION</Text>
+                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* GPS Telemetry Bar */}
+            <View style={styles.telemetryBar}>
+              <View style={styles.telemetryItem}>
+                <Text style={styles.telemetryLabel}>TO PICKUP</Text>
+                <Text style={[styles.telemetryVal, { color: '#00E5FF' }]}>{leg1Duration || leg1Distance || 'Confirmed'}</Text>
+              </View>
+              <View style={styles.telemetryDivider} />
+              <View style={styles.telemetryItem}>
+                <Text style={styles.telemetryLabel}>TO DESTINATION</Text>
+                <Text style={[styles.telemetryVal, { color: colors.accent }]}>{leg2Duration || leg2Distance || routeDuration || 'Route Ready'}</Text>
+              </View>
+              <View style={styles.telemetryDivider} />
+              <View style={styles.telemetryItem}>
+                <Text style={styles.telemetryLabel}>STATUS</Text>
+                <Text style={[styles.telemetryVal, { color: rideInfo?.status === 'in-progress' ? colors.green : colors.accent }]}>
+                  {rideInfo?.status?.toUpperCase() || 'CONFIRMED'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
           {/* Pre-Departure Info Card if ride not started yet */}
-          {rideInfo?.status !== 'in-progress' ? (
+          {rideInfo?.status !== 'in-progress' && (
             <View style={styles.preDepartureNoticeBox}>
-              <Text style={{ fontSize: 26, textAlign: 'center', marginBottom: 6 }}>⏳</Text>
+              <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 6 }}>⏳</Text>
               <Text style={styles.preDepartureTitle}>Ride Not Started Yet</Text>
               <Text style={styles.preDepartureSub}>
                 {isDriver
                   ? (rideInfo?.seekerChecklistCompleted
-                      ? 'Passenger safety checklist verified! Tap "🚀 Start Ride" below to begin navigation.'
+                      ? 'Passenger safety checklist verified! Tap "🚀 Start Ride" below to begin trip navigation.'
                       : 'Waiting for passenger to complete their safety checklist before departure.')
                   : (rideInfo?.seekerChecklistCompleted
-                      ? 'Your safety checklist is confirmed! Live map tracking will appear immediately once your driver starts the ride.'
+                      ? 'Your safety checklist is confirmed! Waiting for driver to start the ride.'
                       : 'Please complete your pre-ride safety checklist below before departure.')}
               </Text>
-
-              {/* Route Summary Box */}
-              <View style={{ backgroundColor: '#131922', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 14 }}>
-                <Text style={{ color: colors.text3, fontSize: 10.5, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 }}>CONFIRMED ROUTE</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.green }} />
-                  <Text style={{ color: colors.text, fontSize: 13, flex: 1 }} numberOfLines={2}>
-                    {rideInfo?.pickup?.address || 'Pickup Spot'}
-                  </Text>
-                </View>
-                <View style={{ width: 2, height: 14, backgroundColor: colors.border, marginLeft: 4, marginBottom: 8 }} />
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent }} />
-                  <Text style={{ color: colors.text, fontSize: 13, flex: 1 }} numberOfLines={2}>
-                    {rideInfo?.drop?.address || 'Destination'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={{ marginTop: 12, padding: 10, backgroundColor: 'rgba(33,150,243,0.08)', borderRadius: radius.md, borderWidth: 1, borderColor: 'rgba(33,150,243,0.3)' }}>
-                <Text style={{ color: colors.blue, fontSize: 11.5, textAlign: 'center', fontWeight: '600' }}>
-                  🗺️ Live interactive GPS route map will open immediately when the ride is started.
-                </Text>
-              </View>
-            </View>
-          ) : (
-            /* Live GPS Radar & Interactive Map — ONLY SHOWN AFTER STARTING */
-            <View style={styles.radarCard}>
-              <View style={styles.radarHeader}>
-                <View style={styles.livePulseDot} />
-                <Text style={styles.radarTitle}>🛰️ LIVE GPS TRACKING ACTIVE</Text>
-                <View style={styles.timerBadge}>
-                  <Text style={styles.timerText}>{fmt(elapsed)}</Text>
-                </View>
-              </View>
-
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 4 }}>
-                <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
-                  {isMapExpanded ? '🗺️ ENLARGED FULL ROUTE MAP' : '🗺️ INTERACTIVE ROUTE MAP'}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setIsMapExpanded(e => !e)}
-                  style={styles.expandMapBtn}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.expandMapBtnText}>
-                    {isMapExpanded ? '↙ Standard View' : '⛶ Enlarge Map'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Interactive OpenStreetMap Live Map with 2-Leg Route */}
-              <LiveMapView
-                pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
-                drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
-                driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
-                coordinates={routeCoordinates}
-                leg1Coordinates={leg1Coords}
-                leg2Coordinates={leg2Coords}
-                height={isMapExpanded ? 460 : 320}
-                style={{ marginBottom: 12 }}
-              />
-
-              {/* Visual Route Path: Provider -> Seeker Pickup -> Drop Destination */}
-              <View style={styles.routeDiagram}>
-                {/* Node 1: Provider Position */}
-                <View style={styles.routeNode}>
-                  <View style={[styles.nodeIcon, { backgroundColor: '#00E5FF22', borderColor: '#00E5FF' }]}>
-                    <Text style={{ fontSize: 16 }}>🚗</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.nodeLabel, { color: '#00E5FF' }]}>1. PROVIDER LOCATION</Text>
-                    <Text style={styles.nodeAddress} numberOfLines={1}>
-                      {isDriver ? 'Your Live GPS Location' : `${rideInfo?.providerId?.name || rideInfo?.providerName || 'Provider'} (En Route)`}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Leg 1 connector: Provider to Pickup */}
-                <View style={styles.nodeConnector}>
-                  <View style={[styles.connectorLine, { borderColor: '#00E5FF', borderStyle: 'dashed' }]} />
-                  <View style={[styles.liveCarBadge, { borderColor: '#00E5FF' }]}>
-                    <Text style={{ fontSize: 11 }}>➡️</Text>
-                    <Text style={[styles.liveCarText, { color: '#00E5FF' }]}>
-                      {leg1Duration ? `To Seeker (${leg1Duration})` : 'Heading to Pickup'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Node 2: Seeker Pickup Point */}
-                <View style={styles.routeNode}>
-                  <View style={[styles.nodeIcon, { backgroundColor: colors.green + '22', borderColor: colors.green }]}>
-                    <Text style={{ fontSize: 16 }}>🟢</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.nodeLabel}>2. SEEKER PICKUP POINT</Text>
-                    <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.pickup?.address || 'Pickup Location'}</Text>
-                  </View>
-                </View>
-
-                {/* Leg 2 connector: Pickup to Destination */}
-                <View style={styles.nodeConnector}>
-                  <View style={styles.connectorLine} />
-                  <View style={styles.liveCarBadge}>
-                    <Text style={{ fontSize: 11 }}>🏁</Text>
-                    <Text style={styles.liveCarText}>
-                      {leg2Duration ? `To Destination (${leg2Duration})` : 'In Transit'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Node 3: Drop-off Destination */}
-                <View style={styles.routeNode}>
-                  <View style={[styles.nodeIcon, { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}>
-                    <Text style={{ fontSize: 16 }}>🏁</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.nodeLabel}>3. DROP-OFF DESTINATION</Text>
-                    <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* GPS Telemetry Bar */}
-              <View style={styles.telemetryBar}>
-                <View style={styles.telemetryItem}>
-                  <Text style={styles.telemetryLabel}>TO PICKUP</Text>
-                  <Text style={[styles.telemetryVal, { color: '#00E5FF' }]}>{leg1Duration || leg1Distance || 'Tracking…'}</Text>
-                </View>
-                <View style={styles.telemetryDivider} />
-                <View style={styles.telemetryItem}>
-                  <Text style={styles.telemetryLabel}>TO DESTINATION</Text>
-                  <Text style={[styles.telemetryVal, { color: colors.accent }]}>{leg2Duration || leg2Distance || routeDuration || 'Calculating…'}</Text>
-                </View>
-                <View style={styles.telemetryDivider} />
-                <View style={styles.telemetryItem}>
-                  <Text style={styles.telemetryLabel}>STATUS</Text>
-                  <Text style={[styles.telemetryVal, { color: colors.green }]}>{rideInfo?.status?.toUpperCase() || 'LIVE'}</Text>
-                </View>
-              </View>
             </View>
           )}
 

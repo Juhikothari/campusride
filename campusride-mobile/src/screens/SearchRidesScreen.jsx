@@ -171,36 +171,17 @@ export default function SearchRidesScreen({ navigation }) {
     } catch {}
   };
 
-  const fetchAllCampusRides = useCallback(async () => {
-    setLoading(true);
-    try {
-      let results = await api.searchRides({
-        ...(womenOnly && { womenOnly: 'true' }),
-        ...(vehicle && { vehicleType: vehicle }),
-      });
-      if (Array.isArray(results)) {
-        if (vehicle) results = results.filter(r => matchesVehicleType(r.vehicleType, vehicle));
-        if (womenOnly) results = results.filter(r => matchesWomenFilter(r, true));
-        if (!isFemale) results = results.filter(r => !r.womenOnly);
-        setRides(results);
-      }
-    } catch {}
-    finally {
-      setLoading(false);
-    }
-  }, [vehicle, womenOnly, isFemale]);
-
-  // Automatically load available campus rides on screen mount or filter change
-  useEffect(() => {
-    fetchAllCampusRides();
-  }, [fetchAllCampusRides]);
-
   const applyHistorySearch = (item) => {
     if (item.pickup) setPickup(item.pickup);
     if (item.drop) setDrop(item.drop);
   };
 
   const doSearch = useCallback(async () => {
+    if (!pickup.label?.trim() && !drop.label?.trim() && !pickup.lat && !drop.lat) {
+      setError('Please enter your pickup or drop location to find rides along your route within 5km.');
+      return;
+    }
+
     setError('');
     setLoading(true);
     setSearched(true);
@@ -209,7 +190,7 @@ export default function SearchRidesScreen({ navigation }) {
     }
     try {
       const params = {
-        ...(pickup.lat && { lat: pickup.lat, lng: pickup.lng, maxDistance: 25000 }),
+        ...(pickup.lat && { lat: pickup.lat, lng: pickup.lng, maxDistance: 5000 }),
         ...(drop.lat && { dropLat: drop.lat, dropLng: drop.lng }),
         ...(pickup.label && { pickupText: pickup.label }),
         ...(drop.label && { dropText: drop.label }),
@@ -223,19 +204,10 @@ export default function SearchRidesScreen({ navigation }) {
       if (womenOnly) results = (results || []).filter(r => matchesWomenFilter(r, true));
       if (!isFemale) results = (results || []).filter(r => !r.womenOnly);
 
-      // If zero matches found for strict coordinates, also fetch all active rides so seeker is never stuck
-      if (!results || results.length === 0) {
-        const allRides = await api.searchRides(womenOnly ? { womenOnly: 'true' } : {}).catch(() => []);
-        if (Array.isArray(allRides) && allRides.length > 0) {
-          let fallbackMatches = vehicle ? allRides.filter(r => matchesVehicleType(r.vehicleType, vehicle)) : allRides;
-          if (womenOnly) fallbackMatches = fallbackMatches.filter(r => matchesWomenFilter(r, true));
-          if (!isFemale) fallbackMatches = fallbackMatches.filter(r => !r.womenOnly);
-          results = fallbackMatches;
-        }
-      }
       setRides(results || []);
     } catch (e) {
       setError(e.message || 'Search failed');
+      setRides([]);
     } finally {
       setLoading(false);
     }
@@ -403,61 +375,49 @@ export default function SearchRidesScreen({ navigation }) {
 
         {/* Results */}
         <View style={{ marginTop: spacing.lg }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={styles.resultsHeader}>
-              {searched ? `${rides.length} match${rides.length !== 1 ? 'es' : ''} found` : `Available Campus Rides (${rides.length})`}
-            </Text>
-            <TouchableOpacity
-              onPress={fetchAllCampusRides}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 4,
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                backgroundColor: colors.surface2,
-                borderRadius: radius.full,
-                borderWidth: 1,
-                borderColor: colors.border
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 12 }}>↻</Text>
-              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Show All</Text>
-            </TouchableOpacity>
-          </View>
-
           {loading ? (
             <View style={{ padding: 30, alignItems: 'center' }}>
               <ActivityIndicator color={colors.accent} />
-              <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Finding available rides…</Text>
+              <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Searching rides along your route within 5km…</Text>
+            </View>
+          ) : !searched ? (
+            <View style={styles.preSearchCard}>
+              <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>🧭</Text>
+              <Text style={styles.preSearchTitle}>Ready to Find a Match?</Text>
+              <Text style={styles.preSearchSub}>
+                Enter your pickup & drop locations above, then tap "Search Your Match" to find verified rides along your route within 5km.
+              </Text>
             </View>
           ) : rides.length === 0 ? (
             <View style={styles.noRidesCard}>
               <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🚗</Text>
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No matching rides found</Text>
-              <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>No rides currently offered for this specific query. Tap below to see all active rides or check community posts.</Text>
-              <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
-                <Btn label="↻ Load All Campus Rides" onPress={fetchAllCampusRides} variant="outline" style={{ flex: 1 }} />
-                <Btn label="Community" onPress={() => navigation.navigate('Community')} variant="outline" style={{ flex: 1 }} />
-              </View>
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No rides along your route</Text>
+              <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>
+                No providers are currently offering rides within 5km of your route. You can post a ride request in the campus Community or check back shortly.
+              </Text>
+              <Btn label="💬 Post in Community" onPress={() => navigation.navigate('Community')} variant="outline" />
             </View>
           ) : (
-            rides.map(ride => {
-              const bm = bookingMap[ride._id];
-              return (
-                <View key={ride._id}>
-                  <RideCard
-                    ride={ride}
-                    onView={id => navigation.navigate('RideDetail', { rideId: id })}
-                    onBook={bm?.status ? null : book}
-                    bookingStatus={bm?.status}
-                  />
-                  {bm?.error  && <Alert message={bm.error} />}
-                  {bm?.status === 'pending' && <Alert message="Booking request sent! Waiting for provider to accept." type="success" />}
-                </View>
-              );
-            })
+            <View>
+              <Text style={styles.resultsHeader}>
+                {rides.length} match{rides.length !== 1 ? 'es' : ''} found (within 5km of your route)
+              </Text>
+              {rides.map(ride => {
+                const bm = bookingMap[ride._id];
+                return (
+                  <View key={ride._id}>
+                    <RideCard
+                      ride={ride}
+                      onView={id => navigation.navigate('RideDetail', { rideId: id })}
+                      onBook={bm?.status ? null : book}
+                      bookingStatus={bm?.status}
+                    />
+                    {bm?.error  && <Alert message={bm.error} />}
+                    {bm?.status === 'pending' && <Alert message="Booking request sent! Waiting for provider to accept." type="success" />}
+                  </View>
+                );
+              })}
+            </View>
           )}
         </View>
       </ScrollView>
@@ -573,6 +533,29 @@ const styles = StyleSheet.create({
   womenToggleActive:  { borderColor: colors.pink, backgroundColor: 'rgba(233,30,140,0.1)' },
   womenToggleText:    { color: colors.text2, fontSize: 13, fontWeight: '600', flex: 1 },
   resultsHeader:      { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: spacing.md },
+  preSearchCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xl,
+    alignItems: 'center',
+    marginVertical: spacing.sm,
+  },
+  preSearchTitle: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  preSearchSub: {
+    color: colors.text2,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 300,
+  },
   noRidesCard: {
     backgroundColor: colors.surface2, borderRadius: radius.lg,
     borderWidth: 1, borderColor: colors.border, padding: spacing.lg,

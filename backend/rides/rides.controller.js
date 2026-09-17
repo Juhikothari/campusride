@@ -202,12 +202,47 @@ exports.createRide = async (req, res) => {
   }
 };
 
+// Helper: Haversine distance in meters
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  if (lat1 === undefined || lon1 === undefined || lat2 === undefined || lon2 === undefined) return Infinity;
+  const R = 6371e3; // Earth radius in meters
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Helper: Distance from a point to a route segment (in meters)
+const distanceToSegment = (pLat, pLng, r1Lat, r1Lng, r2Lat, r2Lng) => {
+  const d1 = calculateDistance(pLat, pLng, r1Lat, r1Lng);
+  const d2 = calculateDistance(pLat, pLng, r2Lat, r2Lng);
+  const lineLenSq = (r2Lat - r1Lat) ** 2 + (r2Lng - r1Lng) ** 2;
+  if (lineLenSq === 0) return d1;
+  const t = ((pLat - r1Lat) * (r2Lat - r1Lat) + (pLng - r1Lng) * (r2Lng - r1Lng)) / lineLenSq;
+  if (t <= 0) return d1;
+  if (t >= 1) return d2;
+  const projLat = r1Lat + t * (r2Lat - r1Lat);
+  const projLng = r1Lng + t * (r2Lng - r1Lng);
+  return calculateDistance(pLat, pLng, projLat, projLng);
+};
+
 // ================= SEARCH RIDES =================
 exports.searchRides = async (req, res) => {
   try {
-    const { lat, lng, maxDistance = 25000, date, dropLat, dropLng, vehicleType, pickupText, dropText } = req.query;
+    const { lat, lng, maxDistance = 5000, date, dropLat, dropLng, vehicleType, pickupText, dropText } = req.query;
     
-    console.log('Search params:', { lat, lng, maxDistance, date, dropLat, dropLng, vehicleType, pickupText, dropText });
+    // If no search parameters are provided, return empty array (do NOT show all offered rides before search)
+    if (!lat && !lng && !dropLat && !dropLng && !pickupText && !dropText) {
+      return res.json([]);
+    }
+
+    const distanceInMeters = Math.min(parseInt(maxDistance) || 5000, 5000); // Strict 5km radius limit
 
     // Build base query — only active rides with available seats
     const query = { 
@@ -267,7 +302,7 @@ exports.searchRides = async (req, res) => {
       query.date = { $gte: past48h };
     }
 
-    // Helper: check if a ride's scheduled date+time is still relevant (48-hour buffer)
+    // Helper: check if a ride's scheduled date+time is still relevant
     const now = new Date();
     const isRideUpcoming = (ride) => {
       if (!ride.date) return true;
@@ -299,118 +334,71 @@ exports.searchRides = async (req, res) => {
         0,
         0
       );
-      // Give 48-hour buffer so newly posted rides remain discoverable
       const expiration = new Date(scheduled.getTime() + 48 * 60 * 60 * 1000);
       return expiration > now;
     };
 
-    let rides = [];
-    const distanceInMeters = parseInt(maxDistance) || 25000;
+    // Retrieve active candidate rides
+    const candidateRides = await Ride.find(query)
+      .populate('providerId', 'name rating gender college')
+      .sort({ createdAt: -1 });
 
-    // If coordinates provided, try geo-proximity search
-    if (lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng))) {
-      const latitude = parseFloat(lat);
-      const longitude = parseFloat(lng);
-      
-      try {
-        rides = await Ride.find({
-          ...query,
-          pickup: {
-            $near: {
-              $geometry: {
-                type: 'Point',
-                coordinates: [longitude, latitude] // [lng, lat] for MongoDB
-              },
-              $maxDistance: distanceInMeters
-            }
-          }
-        }).populate('providerId', 'name rating gender college');
-      } catch (geoErr) {
-        console.warn('Geo search near error (index missing?):', geoErr.message);
-        rides = await Ride.find(query)
-          .populate('providerId', 'name rating gender college')
-          .sort({ createdAt: -1 });
-      }
+    const upcomingRides = candidateRides.filter(isRideUpcoming);
 
-      rides = rides.filter(isRideUpcoming);
+    const seekerHasPickupCoord = lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+    const seekerHasDropCoord = dropLat && dropLng && !isNaN(parseFloat(dropLat)) && !isNaN(parseFloat(dropLng));
+    const sPickLat = seekerHasPickupCoord ? parseFloat(lat) : null;
+    const sPickLng = seekerHasPickupCoord ? parseFloat(lng) : null;
+    const sDropLat = seekerHasDropCoord ? parseFloat(dropLat) : null;
+    const sDropLng = seekerHasDropCoord ? parseFloat(dropLng) : null;
 
-      // If drop location provided, filter by drop distance (soft filter: only if matches exist)
-      if (dropLat && dropLng && !isNaN(parseFloat(dropLat)) && !isNaN(parseFloat(dropLng))) {
-        const dropLatitude = parseFloat(dropLat);
-        const dropLongitude = parseFloat(dropLng);
-        
-        const dropMatches = rides.filter(ride => {
-          if (!ride.drop?.coordinates || ride.drop.coordinates.length !== 2) return true;
-          
-          const R = 6371e3;
-          const φ1 = dropLatitude * Math.PI / 180;
-          const φ2 = ride.drop.coordinates[1] * Math.PI / 180;
-          const Δφ = (ride.drop.coordinates[1] - dropLatitude) * Math.PI / 180;
-          const Δλ = (ride.drop.coordinates[0] - dropLongitude) * Math.PI / 180;
-          
-          const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                    Math.cos(φ1) * Math.cos(φ2) *
-                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          const distance = R * c;
-          
-          return distance <= (distanceInMeters * 1.5);
-        });
-        
-        if (dropMatches.length > 0) {
-          rides = dropMatches;
+    // Filter strictly to rides along the seeker's route and within 5km (5000m)
+    let matchedRides = upcomingRides.filter(ride => {
+      const rPLat = Array.isArray(ride.pickup?.coordinates) && ride.pickup.coordinates.length >= 2 ? ride.pickup.coordinates[1] : null;
+      const rPLng = Array.isArray(ride.pickup?.coordinates) && ride.pickup.coordinates.length >= 2 ? ride.pickup.coordinates[0] : null;
+      const rDLat = Array.isArray(ride.drop?.coordinates) && ride.drop.coordinates.length >= 2 ? ride.drop.coordinates[1] : null;
+      const rDLng = Array.isArray(ride.drop?.coordinates) && ride.drop.coordinates.length >= 2 ? ride.drop.coordinates[0] : null;
+
+      const hasProviderCoords = rPLat !== null && rPLng !== null && rDLat !== null && rDLng !== null;
+
+      if (hasProviderCoords && (seekerHasPickupCoord || seekerHasDropCoord)) {
+        let pickupMatches = true;
+        let dropMatches = true;
+
+        if (seekerHasPickupCoord) {
+          const directPickupDist = calculateDistance(sPickLat, sPickLng, rPLat, rPLng);
+          const routePickupDist = distanceToSegment(sPickLat, sPickLng, rPLat, rPLng, rDLat, rDLng);
+          pickupMatches = directPickupDist <= distanceInMeters || routePickupDist <= distanceInMeters;
         }
-      }
-    }
 
-    // If text query provided and no geo results yet, try text-based matching on pickup/drop address
-    if (rides.length === 0 && (pickupText || dropText)) {
-      const textQuery = { ...query };
-      const textConditions = [];
-      if (pickupText && pickupText.trim()) {
-        textConditions.push({ 'pickup.address': { $regex: new RegExp(pickupText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } });
-      }
-      if (dropText && dropText.trim()) {
-        textConditions.push({ 'drop.address': { $regex: new RegExp(dropText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } });
-      }
-      if (textConditions.length > 0) {
-        textQuery.$or = textConditions;
-        rides = await Ride.find(textQuery)
-          .populate('providerId', 'name rating gender college')
-          .sort({ createdAt: -1 });
-        rides = rides.filter(isRideUpcoming);
-      }
-    }
+        if (seekerHasDropCoord) {
+          const directDropDist = calculateDistance(sDropLat, sDropLng, rDLat, rDLng);
+          const routeDropDist = distanceToSegment(sDropLat, sDropLng, rPLat, rPLng, rDLat, rDLng);
+          dropMatches = directDropDist <= distanceInMeters || routeDropDist <= distanceInMeters;
+        }
 
-    // Fallback 1: If 0 matches, fetch active rides matching query
-    if (rides.length === 0) {
-      rides = await Ride.find(query)
-        .populate('providerId', 'name rating gender college')
-        .sort({ createdAt: -1 });
-      rides = rides.filter(isRideUpcoming);
-    }
+        return pickupMatches && dropMatches;
+      }
 
-    // Fallback 2 (Ultimate Platform Fallback): If still 0, return all active rides on platform
-    if (rides.length === 0) {
-      const globalQuery = {
-        status: 'active',
-        seatsAvailable: { $gt: 0 },
-        ...(seeker?.gender === 'male' ? { womenOnly: { $ne: true } } : {}),
-        ...(req.query.womenOnly === 'true' && femaleProviderIds.length > 0 ? {
-          $or: [
-            { womenOnly: true },
-            { providerId: { $in: femaleProviderIds } }
-          ]
-        } : {})
-      };
-      rides = await Ride.find(globalQuery)
-        .populate('providerId', 'name rating gender college')
-        .sort({ createdAt: -1 })
-        .limit(20);
-    }
+      // If text query provided without coordinates, match pickup/drop text
+      if (pickupText || dropText) {
+        let textMatches = false;
+        if (pickupText && pickupText.trim() && ride.pickup?.address) {
+          const pRegex = new RegExp(pickupText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+          if (pRegex.test(ride.pickup.address)) textMatches = true;
+        }
+        if (dropText && dropText.trim() && ride.drop?.address) {
+          const dRegex = new RegExp(dropText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+          if (dRegex.test(ride.drop.address)) textMatches = true;
+        }
+        return textMatches;
+      }
+
+      return false;
+    });
 
     // Privacy safeguard: Ensure provider's phone and USN are NEVER exposed in search results
-    const sanitized = rides.map(r => {
+    const sanitized = matchedRides.map(r => {
       const rObj = r.toObject ? r.toObject() : { ...r };
       if (rObj.providerId && typeof rObj.providerId === 'object') {
         rObj.providerId.phone = null;
@@ -1076,20 +1064,4 @@ exports.findNearbyRides = async (req, res) => {
     console.error('Find nearby rides error:', error);
     res.status(500).json({ message: error.message });
   }
-};
-
-// Helper: Calculate distance between two points
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371e3; // Earth's radius in meters
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ/2) * Math.sin(Δλ/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-  return R * c; // Distance in meters
 };
