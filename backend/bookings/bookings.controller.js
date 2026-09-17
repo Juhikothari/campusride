@@ -391,15 +391,33 @@ exports.getMyBookings = async (req, res) => {
     const bookings = await Booking.find({ seekerId: req.user.userId })
       .populate({
         path: 'rideId',
-        select: 'pickup drop date time costPerSeat status vehicleType vehicleName college womenOnly cancelReason',
+        select: 'pickup drop date time costPerSeat status vehicleType vehicleName vehicleNumber college womenOnly cancelReason seekerChecklistCompleted',
         populate: {
           path: 'providerId',
-          select: 'name phone usn gender kycDocuments rating',
+          select: 'name phone usn gender kycDocuments rating college',
         }
       })
       .sort({ createdAt: -1 });
 
-    res.json(bookings);
+    // Privacy masking: Only reveal provider's phone, USN, and vehicle plate number after booking is accepted
+    const sanitized = bookings.map(b => {
+      const bObj = b.toObject();
+      if (b.status !== 'accepted') {
+        if (bObj.rideId && typeof bObj.rideId === 'object') {
+          bObj.rideId.vehicleNumber = null;
+          if (bObj.rideId.providerId && typeof bObj.rideId.providerId === 'object') {
+            bObj.rideId.providerId.phone = null;
+            bObj.rideId.providerId.usn = null;
+            if (bObj.rideId.providerId.kycDocuments) {
+              bObj.rideId.providerId.kycDocuments.vehicleNumber = null;
+            }
+          }
+        }
+      }
+      return bObj;
+    });
+
+    res.json(sanitized);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

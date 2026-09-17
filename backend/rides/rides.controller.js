@@ -205,9 +205,9 @@ exports.createRide = async (req, res) => {
 // ================= SEARCH RIDES =================
 exports.searchRides = async (req, res) => {
   try {
-    const { lat, lng, maxDistance = 25000, date, dropLat, dropLng, vehicleType } = req.query;
+    const { lat, lng, maxDistance = 25000, date, dropLat, dropLng, vehicleType, pickupText, dropText } = req.query;
     
-    console.log('Search params:', { lat, lng, maxDistance, date, dropLat, dropLng, vehicleType });
+    console.log('Search params:', { lat, lng, maxDistance, date, dropLat, dropLng, vehicleType, pickupText, dropText });
 
     // Build base query — only active rides with available seats
     const query = { 
@@ -229,30 +229,25 @@ exports.searchRides = async (req, res) => {
       }
     }
 
-    // College filter — soft matching: show rides from same college, or unassigned college
     const seekerId = req.user?.userId || req.user?.id;
     const seeker = await User.findById(seekerId).select('college gender');
-    if (seeker?.college) {
-      const { normalizeCollege } = require('../config/collegeDomains');
-      const normalizedSeekerCollege = normalizeCollege(seeker.college);
-      query.$or = [
-        { college: normalizedSeekerCollege },
-        { college: seeker.college },
-        { college: { $regex: new RegExp(normalizedSeekerCollege.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } },
-        { college: '' },
-        { college: null },
-        { college: { $exists: false } }
-      ];
-    }
 
-    // Women-only filter — hide women-only rides from male accounts
+    // Women-only safety logic:
+    // 1. Hide women-only rides from male accounts
     if (seeker?.gender === 'male') {
       query.womenOnly = { $ne: true };
     }
 
-    // Women-only filter: if requested, only show women-only rides
+    // 2. If women-only is requested by a female seeker:
+    // Show only rides where the provider is female OR the ride is tagged women-only
+    let femaleProviderIds = [];
     if (req.query.womenOnly === 'true') {
-      query.womenOnly = true;
+      const femaleUsers = await User.find({ gender: 'female' }).select('_id');
+      femaleProviderIds = femaleUsers.map(u => u._id);
+      query.$or = [
+        { womenOnly: true },
+        { providerId: { $in: femaleProviderIds } }
+      ];
     }
 
     // Add specific date filter if provided
@@ -266,12 +261,10 @@ exports.searchRides = async (req, res) => {
         $gte: searchDate,
         $lt: nextDay
       };
-      console.log('Date filter:', searchDate, 'to', nextDay);
     } else {
       // No date provided ("Ride Now") — show rides from last 48 hours up to future
       const past48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
       query.date = { $gte: past48h };
-      console.log('Ride Now — showing rides from:', past48h);
     }
 
     // Helper: check if a ride's scheduled date+time is still relevant (48-hour buffer)
@@ -319,8 +312,6 @@ exports.searchRides = async (req, res) => {
       const latitude = parseFloat(lat);
       const longitude = parseFloat(lng);
       
-      console.log('Geo search:', { latitude, longitude, distanceInMeters });
-
       try {
         rides = await Ride.find({
           ...query,
@@ -333,15 +324,14 @@ exports.searchRides = async (req, res) => {
               $maxDistance: distanceInMeters
             }
           }
-        }).populate('providerId', 'name rating gender college phone');
+        }).populate('providerId', 'name rating gender college');
       } catch (geoErr) {
         console.warn('Geo search near error (index missing?):', geoErr.message);
         rides = await Ride.find(query)
-          .populate('providerId', 'name rating gender college phone')
+          .populate('providerId', 'name rating gender college')
           .sort({ createdAt: -1 });
       }
 
-      console.log(`Found ${rides.length} rides within ${distanceInMeters}m (before time filter)`);
       rides = rides.filter(isRideUpcoming);
 
       // If drop location provided, filter by drop distance (soft filter: only if matches exist)
@@ -370,42 +360,68 @@ exports.searchRides = async (req, res) => {
         if (dropMatches.length > 0) {
           rides = dropMatches;
         }
-        console.log(`After drop filter: ${rides.length} rides`);
       }
-    } else {
-      // No coordinates — return all active rides matching query
-      rides = await Ride.find(query)
-        .populate('providerId', 'name rating gender college phone')
-        .sort({ createdAt: -1 });
-      rides = rides.filter(isRideUpcoming);
-      console.log(`Found ${rides.length} rides (no geo filter)`);
     }
 
-    // Fallback 1: If strict geo returned 0, fetch all active rides matching college query
+    // If text query provided and no geo results yet, try text-based matching on pickup/drop address
+    if (rides.length === 0 && (pickupText || dropText)) {
+      const textQuery = { ...query };
+      const textConditions = [];
+      if (pickupText && pickupText.trim()) {
+        textConditions.push({ 'pickup.address': { $regex: new RegExp(pickupText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } });
+      }
+      if (dropText && dropText.trim()) {
+        textConditions.push({ 'drop.address': { $regex: new RegExp(dropText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') } });
+      }
+      if (textConditions.length > 0) {
+        textQuery.$or = textConditions;
+        rides = await Ride.find(textQuery)
+          .populate('providerId', 'name rating gender college')
+          .sort({ createdAt: -1 });
+        rides = rides.filter(isRideUpcoming);
+      }
+    }
+
+    // Fallback 1: If 0 matches, fetch active rides matching query
     if (rides.length === 0) {
       rides = await Ride.find(query)
-        .populate('providerId', 'name rating gender college phone')
+        .populate('providerId', 'name rating gender college')
         .sort({ createdAt: -1 });
       rides = rides.filter(isRideUpcoming);
-      console.log(`Fallback 1 returned ${rides.length} rides`);
     }
 
-    // Fallback 2 (Ultimate Safety): If still 0, return all active rides on platform
+    // Fallback 2 (Ultimate Platform Fallback): If still 0, return all active rides on platform
     if (rides.length === 0) {
       const globalQuery = {
         status: 'active',
         seatsAvailable: { $gt: 0 },
         ...(seeker?.gender === 'male' ? { womenOnly: { $ne: true } } : {}),
-        ...(req.query.womenOnly === 'true' ? { womenOnly: true } : {})
+        ...(req.query.womenOnly === 'true' && femaleProviderIds.length > 0 ? {
+          $or: [
+            { womenOnly: true },
+            { providerId: { $in: femaleProviderIds } }
+          ]
+        } : {})
       };
       rides = await Ride.find(globalQuery)
-        .populate('providerId', 'name rating gender college phone')
+        .populate('providerId', 'name rating gender college')
         .sort({ createdAt: -1 })
         .limit(20);
-      console.log(`Ultimate fallback returned ${rides.length} rides`);
     }
 
-    res.json(rides);
+    // Privacy safeguard: Ensure provider's phone and USN are NEVER exposed in search results
+    const sanitized = rides.map(r => {
+      const rObj = r.toObject ? r.toObject() : { ...r };
+      if (rObj.providerId && typeof rObj.providerId === 'object') {
+        rObj.providerId.phone = null;
+        rObj.providerId.usn = null;
+      }
+      // Mask vehicle plate number in search (seeker only sees vehicle name & vehicle type)
+      rObj.vehicleNumber = null;
+      return rObj;
+    });
+
+    res.json(sanitized);
   } catch (error) {
     console.error('Search rides error:', error);
     res.status(500).json({ message: error.message });
@@ -417,12 +433,34 @@ exports.getRide = async (req, res) => {
   try {
     const ride = await Ride.findById(req.params.id).populate(
       'providerId',
-      'name phone rating gender'
+      'name phone usn rating gender college kycDocuments'
     );
 
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
 
-    res.json(ride);
+    const currentUserId = String(req.user?.userId || req.user?.id || '');
+    const isOwner = String(ride.providerId?._id || ride.providerId) === currentUserId;
+
+    // Check if user has an accepted booking
+    const Booking = require('../bookings/bookings.model');
+    const acceptedBooking = await Booking.findOne({
+      rideId: ride._id,
+      seekerId: currentUserId,
+      status: 'accepted'
+    });
+
+    const rideObj = ride.toObject();
+
+    // Privacy Protection: Only reveal phone, USN, and vehicle plate number after booking is accepted
+    if (!isOwner && !acceptedBooking) {
+      if (rideObj.providerId && typeof rideObj.providerId === 'object') {
+        rideObj.providerId.phone = null;
+        rideObj.providerId.usn = null;
+      }
+      rideObj.vehicleNumber = null;
+    }
+
+    res.json(rideObj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

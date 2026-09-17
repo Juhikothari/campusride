@@ -39,6 +39,13 @@ const matchesVehicleType = (rideType, selectedFilter) => {
   return rt === sf;
 };
 
+const matchesWomenFilter = (ride, isFilterActive) => {
+  if (!isFilterActive) return true;
+  if (ride.womenOnly) return true;
+  const pGender = (ride.providerId?.gender || ride.provider?.gender || '').toLowerCase();
+  return pGender === 'female';
+};
+
 export default function SearchRidesScreen({ navigation }) {
   const { user } = useAuth();
   const isSeeker  = user?.role === 'seeker' || user?.role === 'both';
@@ -173,14 +180,15 @@ export default function SearchRidesScreen({ navigation }) {
       });
       if (Array.isArray(results)) {
         if (vehicle) results = results.filter(r => matchesVehicleType(r.vehicleType, vehicle));
-        if (womenOnly) results = results.filter(r => r.womenOnly === true);
+        if (womenOnly) results = results.filter(r => matchesWomenFilter(r, true));
+        if (!isFemale) results = results.filter(r => !r.womenOnly);
         setRides(results);
       }
     } catch {}
     finally {
       setLoading(false);
     }
-  }, [vehicle, womenOnly]);
+  }, [vehicle, womenOnly, isFemale]);
 
   // Automatically load available campus rides on screen mount or filter change
   useEffect(() => {
@@ -203,6 +211,8 @@ export default function SearchRidesScreen({ navigation }) {
       const params = {
         ...(pickup.lat && { lat: pickup.lat, lng: pickup.lng, maxDistance: 25000 }),
         ...(drop.lat && { dropLat: drop.lat, dropLng: drop.lng }),
+        ...(pickup.label && { pickupText: pickup.label }),
+        ...(drop.label && { dropText: drop.label }),
         ...(schedMode === 'later' && date && { date }),
         ...(schedMode === 'later' && time && { time }),
         ...(womenOnly && { womenOnly: true }),
@@ -210,25 +220,26 @@ export default function SearchRidesScreen({ navigation }) {
       };
       let results = await api.searchRides(params);
       if (vehicle) results = (results || []).filter(r => matchesVehicleType(r.vehicleType, vehicle));
-      if (womenOnly) results = (results || []).filter(r => r.womenOnly === true);
+      if (womenOnly) results = (results || []).filter(r => matchesWomenFilter(r, true));
+      if (!isFemale) results = (results || []).filter(r => !r.womenOnly);
 
       // If zero matches found for strict coordinates, also fetch all active rides so seeker is never stuck
       if (!results || results.length === 0) {
         const allRides = await api.searchRides(womenOnly ? { womenOnly: 'true' } : {}).catch(() => []);
         if (Array.isArray(allRides) && allRides.length > 0) {
           let fallbackMatches = vehicle ? allRides.filter(r => matchesVehicleType(r.vehicleType, vehicle)) : allRides;
-          if (womenOnly) fallbackMatches = fallbackMatches.filter(r => r.womenOnly === true);
+          if (womenOnly) fallbackMatches = fallbackMatches.filter(r => matchesWomenFilter(r, true));
+          if (!isFemale) fallbackMatches = fallbackMatches.filter(r => !r.womenOnly);
           results = fallbackMatches;
         }
       }
-      if (womenOnly) results = (results || []).filter(r => r.womenOnly === true);
       setRides(results || []);
     } catch (e) {
       setError(e.message || 'Search failed');
     } finally {
       setLoading(false);
     }
-  }, [pickup, drop, schedMode, date, time, womenOnly, vehicle]);
+  }, [pickup, drop, schedMode, date, time, womenOnly, vehicle, isFemale]);
 
   const book = async (rideId) => {
     setBookingMap(m => ({ ...m, [rideId]: { loading: true } }));

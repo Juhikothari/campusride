@@ -70,8 +70,11 @@ const register = async (req, res) => {
       name, email, password, phone, role, college,
       aadhar, drivingLicense, collegeIdCard,
       vehiclePhoto, vehicleNumber, vehicleName,
-      emergencyContact, adminKey, gender, usn
+      emergencyContact, adminKey, gender, usn,
+      profilePhoto, selfie
     } = req.body;
+
+    const effectivePhoto = profilePhoto || selfie || '';
 
     const { normalizeCollege } = require('../config/collegeDomains');
 
@@ -124,12 +127,13 @@ const register = async (req, res) => {
       college: role === 'admin' ? undefined : normalizeCollege(college),
       gender: gender || 'prefer_not_to_say',
       usn: usn || '',
+      profilePhoto: effectivePhoto,
       kycStatus,
       kycDocuments: {
         aadhar:         aadhar         || null,
         drivingLicense: drivingLicense || null,
         collegeIdCard:  collegeIdCard  || null,
-        selfie:         null,
+        selfie:         effectivePhoto || null,
         vehiclePhoto:   vehiclePhoto   || null,
         vehicleNumber:  vNum,
         vehicleName:    vNum ? vName : null,
@@ -162,7 +166,7 @@ const register = async (req, res) => {
       user: {
         id: user._id, name: user.name, email: user.email,
         role: user.role, college: user.college, phone: user.phone,
-        gender: user.gender, kycStatus: user.kycStatus
+        gender: user.gender, profilePhoto: user.profilePhoto, kycStatus: user.kycStatus
       }
     });
   } catch (error) {

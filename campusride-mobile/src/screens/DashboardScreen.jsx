@@ -305,50 +305,61 @@ export default function DashboardScreen({ navigation }) {
                 </TouchableOpacity>
               ) : tripRole === 'driver' ? (
                 <View style={{ gap: 6 }}>
-                  <TouchableOpacity
-                    style={[
-                      styles.openGpsBtn,
-                      { backgroundColor: activeTrip.seekerChecklistCompleted ? colors.green : '#2a2214', borderWidth: 1, borderColor: activeTrip.seekerChecklistCompleted ? colors.green : colors.accent }
-                    ]}
-                    onPress={async () => {
-                      if (!activeTrip.seekerChecklistCompleted) {
-                        RNAlert.alert(
-                          '⏳ Passenger Checklist Pending',
-                          'For campus safety, the passenger must verify their pre-ride safety checklist before departure. The ride can be started once the passenger completes the checklist.'
-                        );
-                        return;
-                      }
-                      const rId = activeTrip._id || activeTrip.id;
-                      try {
-                        await api.startRide(rId);
-                        navigation.navigate('LiveTracking', { rideId: rId });
-                      } catch (err) {
-                        RNAlert.alert('Cannot Start Ride', err.message || 'Wait for passenger to complete safety checklist.');
-                      }
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.openGpsBtnText, { color: activeTrip.seekerChecklistCompleted ? '#000' : colors.accent }]}>
-                      {activeTrip.seekerChecklistCompleted ? '🚀 Start Ride Now →' : '⏳ Waiting for Passenger Checklist…'}
-                    </Text>
-                  </TouchableOpacity>
-                  <Text style={{ color: activeTrip.seekerChecklistCompleted ? colors.green : colors.text3, fontSize: 11.5, textAlign: 'center', fontWeight: '600' }}>
-                    {activeTrip.seekerChecklistCompleted
-                      ? '✓ Passenger verified safety checklist! Ready to depart.'
-                      : '🔒 Passenger is completing pre-ride checklist before ride can start.'}
-                  </Text>
+                  {activeTrip.seekerChecklistCompleted ? (
+                    <>
+                      <TouchableOpacity
+                        style={[
+                          styles.openGpsBtn,
+                          { backgroundColor: colors.green, borderWidth: 1, borderColor: colors.green }
+                        ]}
+                        onPress={async () => {
+                          const rId = activeTrip._id || activeTrip.id;
+                          try {
+                            await api.startRide(rId);
+                            navigation.navigate('LiveTracking', { rideId: rId });
+                          } catch (err) {
+                            RNAlert.alert('Cannot Start Ride', err.message || 'Wait for passenger to complete safety checklist.');
+                          }
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.openGpsBtnText, { color: '#000' }]}>
+                          🚀 Start Ride Now →
+                        </Text>
+                      </TouchableOpacity>
+                      <Text style={{ color: colors.green, fontSize: 11.5, textAlign: 'center', fontWeight: '600' }}>
+                        ✓ Passenger verified safety checklist! Ready to depart.
+                      </Text>
+                    </>
+                  ) : (
+                    <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
+                      <Text style={{ fontSize: 20, marginBottom: 4 }}>⏳</Text>
+                      <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Passenger Checklist</Text>
+                      <Text style={{ color: colors.text2, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 2 }}>
+                        The passenger must complete their safety checklist before departure. Start option will appear once verified.
+                      </Text>
+                    </View>
+                  )}
                 </View>
               ) : (
                 <View style={{ gap: 6 }}>
-                  <TouchableOpacity
-                    style={styles.openGpsBtn}
-                    onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeTrip._id || activeTrip.id })}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.openGpsBtnText}>🛡️ View Safety Checklist & Details →</Text>
-                  </TouchableOpacity>
+                  {!activeTrip.seekerChecklistCompleted ? (
+                    <TouchableOpacity
+                      style={[styles.openGpsBtn, { backgroundColor: colors.accent }]}
+                      onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeTrip._id || activeTrip.id })}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.openGpsBtnText, { color: '#000' }]}>🛡️ Complete Safety Checklist to Start →</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, alignItems: 'center' }}>
+                      <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
+                        ✅ Safety checklist verified! Waiting for driver to start ride.
+                      </Text>
+                    </View>
+                  )}
                   <Text style={{ color: colors.accent, fontSize: 11.5, textAlign: 'center', fontWeight: '600', marginTop: 2 }}>
-                    ⏳ Pre-ride matched. Live tracking will activate once driver taps Start Ride.
+                    ⏳ Pre-ride matched. Live tracking map will activate once driver taps Start Ride.
                   </Text>
                 </View>
               )}

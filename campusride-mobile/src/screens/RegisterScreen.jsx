@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   KeyboardAvoidingView, Platform, StyleSheet, Modal, TextInput, FlatList,
-  Alert as RNAlert,
+  Alert as RNAlert, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { Input, Btn, Alert, TogglePill } from '../components/UI';
@@ -59,6 +60,7 @@ export default function RegisterScreen({ navigation }) {
   const [role,     setRole]     = useState('both');
   const [emergency,setEmergency]= useState('');
   const [adminKey, setAdminKey] = useState('');
+  const [selfieUri, setSelfieUri] = useState(null);
 
   // College Dropdown Modal state
   const [showCollegeModal, setShowCollegeModal] = useState(false);
@@ -131,6 +133,62 @@ export default function RegisterScreen({ navigation }) {
     ]);
   };
 
+  const handleCaptureSelfie = () => {
+    RNAlert.alert(
+      '🤳 Profile Selfie',
+      'Take a front-camera selfie or select a photo from your gallery for your commuter profile:',
+      [
+        {
+          text: '📷 Front-Camera Selfie',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestCameraPermissionsAsync();
+              if (status !== 'granted') {
+                RNAlert.alert('Permission Denied', 'Camera permission is required to take a selfie.');
+                return;
+              }
+              const result = await ImagePicker.launchCameraAsync({
+                cameraType: ImagePicker.CameraType.front,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+              });
+              if (!result.canceled && result.assets && result.assets[0]?.uri) {
+                setSelfieUri(result.assets[0].uri);
+              }
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to capture selfie');
+            }
+          }
+        },
+        {
+          text: '🖼️ Choose from Gallery',
+          onPress: async () => {
+            try {
+              const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (status !== 'granted') {
+                RNAlert.alert('Permission Denied', 'Photo library permission is required.');
+                return;
+              }
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+              });
+              if (!result.canceled && result.assets && result.assets[0]?.uri) {
+                setSelfieUri(result.assets[0].uri);
+              }
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to pick photo');
+            }
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
+  };
+
   const validateStep1 = () => {
     if (!name.trim())     return 'Full name is required';
     if (!phone.trim())    return 'Phone number is required';
@@ -161,6 +219,7 @@ export default function RegisterScreen({ navigation }) {
     try {
       const uploadedDocs = {};
       setUploading(true);
+      if (selfieUri) uploadedDocs.selfie = await uploadToCloudinary(selfieUri);
       if (kycDocs && kycDocs.aadhar)   uploadedDocs.aadhar          = await uploadToCloudinary(kycDocs.aadhar);
       if (kycDocs && kycDocs.license)  uploadedDocs.drivingLicense  = await uploadToCloudinary(kycDocs.license);
       if (kycDocs && kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinary(kycDocs.collegeId);
@@ -182,6 +241,8 @@ export default function RegisterScreen({ navigation }) {
         phone: phone.trim(), college: college.trim(),
         password, role, usn: usn.trim() || 'STUDENT', gender,
         emergencyContact: emergency.trim(),
+        profilePhoto: uploadedDocs.selfie || null,
+        selfie: uploadedDocs.selfie || null,
         ...(role === 'admin' && { adminKey }),
         ...(primaryVehicle ? {
           vehicleNumber:  primaryVehicle.vehicleNumber,
@@ -219,6 +280,33 @@ export default function RegisterScreen({ navigation }) {
 
           <Text style={styles.title}>Create account</Text>
           <Text style={styles.subtitle}>Join thousands of campus commuters</Text>
+
+          {/* Selfie Capture Option */}
+          <View style={styles.selfieCard}>
+            <TouchableOpacity onPress={handleCaptureSelfie} style={styles.selfieAvatarWrap} activeOpacity={0.8}>
+              {selfieUri ? (
+                <Image source={{ uri: selfieUri }} style={styles.selfieAvatarImage} />
+              ) : (
+                <View style={styles.selfiePlaceholder}>
+                  <Text style={{ fontSize: 28 }}>🤳</Text>
+                </View>
+              )}
+              <View style={styles.selfieCameraBadge}>
+                <Text style={{ fontSize: 11 }}>📷</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.selfieTitle}>Profile Selfie</Text>
+              <Text style={styles.selfieSubtitle}>
+                {selfieUri ? 'Selfie captured! Tap to change' : 'Capture your selfie for commuter verification'}
+              </Text>
+              <TouchableOpacity onPress={handleCaptureSelfie} style={styles.selfieBtn} activeOpacity={0.8}>
+                <Text style={styles.selfieBtnText}>
+                  {selfieUri ? '📷 Retake Selfie' : '🤳 Capture Selfie (Front Camera)'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
           <Alert message={error} />
 
@@ -425,9 +513,9 @@ export default function RegisterScreen({ navigation }) {
 
             {/* Compulsory KYC Documents */}
             <Text style={[styles.label, { marginTop: 6, marginBottom: 8 }]}>VERIFICATION DOCUMENTS (COMPULSORY)</Text>
+            <DocUploadRow label="Driving License (Required for Providers)" icon="🚘" onUpload={() => showDocPicker('license')} uri={docs.license} />
             <DocUploadRow label="Aadhar Card *" icon="🪪" onUpload={() => showDocPicker('aadhar')} uri={docs.aadhar} />
             <DocUploadRow label="College ID Card *" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
-            <DocUploadRow label="Driving License (Required for Providers)" icon="🚘" onUpload={() => showDocPicker('license')} uri={docs.license} />
           </View>
 
           <Btn
@@ -825,5 +913,81 @@ const styles = StyleSheet.create({
   vChipTextActive: {
     color: colors.accent,
     fontWeight: '800',
+  },
+  selfieCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderColor: 'rgba(245,166,35,0.25)',
+    padding: 14,
+    marginBottom: spacing.md,
+    marginTop: 4,
+  },
+  selfieAvatarWrap: {
+    position: 'relative',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    overflow: 'visible',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1b2230',
+  },
+  selfieAvatarImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  selfiePlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#161b24',
+  },
+  selfieCameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: colors.accent,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#0a0d14',
+  },
+  selfieTitle: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  selfieSubtitle: {
+    color: colors.text3,
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 8,
+  },
+  selfieBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  selfieBtnText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

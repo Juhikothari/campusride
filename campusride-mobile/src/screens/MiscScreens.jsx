@@ -128,14 +128,72 @@ export function RideDetailScreen({ navigation, route }) {
               </View>
             </View>
 
+            {/* Confirmed Provider Card — ONLY AFTER ACCEPTANCE */}
+            {booking.status === 'accepted' && (
+              <View style={[styles.card, { borderColor: colors.green, borderWidth: 1.5 }]}>
+                <Text style={{ color: colors.green, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }}>CONFIRMED PROVIDER & VEHICLE</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.green }}>
+                    <Text style={{ color: colors.green, fontSize: 18, fontWeight: '800' }}>
+                      {ride.providerId?.name?.charAt(0) || 'P'}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>
+                      {ride.providerId?.name || 'Provider'}
+                    </Text>
+                    <Text style={{ color: colors.text2, fontSize: 12, marginTop: 2 }}>
+                      {ride.vehicleName || 'Vehicle'} • {(ride.vehicleType || 'Car').toUpperCase()}
+                    </Text>
+                  </View>
+                  {(ride.vehicleNumber || ride.providerId?.kycDocuments?.vehicleNumber) && (
+                    <View style={{ backgroundColor: colors.surface2, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border }}>
+                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>
+                        {ride.vehicleNumber || ride.providerId?.kycDocuments?.vehicleNumber}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  {ride.providerId?.usn ? (
+                    <Text style={{ color: colors.text2, fontSize: 12 }}>
+                      🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{ride.providerId.usn}</Text>
+                    </Text>
+                  ) : null}
+                  {ride.providerId?.phone ? (
+                    <Text style={{ color: colors.text2, fontSize: 12 }}>
+                      📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{ride.providerId.phone}</Text>
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            )}
+
+            {!isOwner && booking.status !== 'accepted' && (
+              <View style={{ padding: 10, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: radius.md, marginTop: 4, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ color: colors.text3, fontSize: 11.5, textAlign: 'center' }}>
+                  🔒 Provider's phone number, USN, and vehicle plate number are revealed once the booking is accepted.
+                </Text>
+              </View>
+            )}
+
             {/* Booking */}
             <Alert message={booking.error} />
-            {booking.status === 'pending'  && <Alert message="⏳ Booking request sent! Waiting for provider." type="warning" />}
-            {booking.status === 'accepted' && <Alert message="✅ Your booking is confirmed!" type="success" />}
+            {booking.status === 'pending'  && <Alert message="⏳ Booking request sent! Waiting for provider to accept." type="warning" />}
+            {booking.status === 'accepted' && <Alert message="✅ Your booking is confirmed! Complete safety checklist to start." type="success" />}
             {booking.status === 'rejected' && <Alert message="❌ Booking was rejected." />}
 
             {canBook && (
               <Btn label="Book This Ride" onPress={doBook} loading={booking.loading} style={{ marginTop: 8 }} />
+            )}
+
+            {booking.status === 'accepted' && (
+              <Btn
+                label="🛡️ Safety Checklist & Live Track →"
+                onPress={() => navigation.navigate('PreRideChecklist', { rideId: ride._id })}
+                style={{ marginTop: 8 }}
+              />
             )}
 
             {isOwner && (

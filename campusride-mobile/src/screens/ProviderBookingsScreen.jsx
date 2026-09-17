@@ -164,12 +164,43 @@ export default function ProviderBookingsScreen({ navigation }) {
         {selectedRide && (
           <>
             {/* Ride status controls */}
-            {selectedRide.status === 'active' && (
-              <View style={styles.statusRow}>
-                <Btn label="▶ Start Ride & Track" onPress={() => updateRideStatus(selectedRide._id, 'in-progress')} style={{ flex: 1 }} />
-                <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" style={{ flex: 1 }} />
-              </View>
-            )}
+            {selectedRide.status === 'active' && (() => {
+              const hasAccepted = bookings.some(b => b.status === 'accepted');
+              const hasChecklist = selectedRide.seekerChecklistCompleted || bookings.some(b => b.status === 'accepted' && b.checklistCompleted);
+              
+              if (!hasAccepted) {
+                return (
+                  <View style={{ marginBottom: spacing.md }}>
+                    <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
+                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                        ⏳ Waiting for Passenger: Accept a booking request below before starting.
+                      </Text>
+                    </View>
+                    <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" />
+                  </View>
+                );
+              }
+
+              if (!hasChecklist) {
+                return (
+                  <View style={{ marginBottom: spacing.md }}>
+                    <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
+                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                        ⏳ Passenger Checklist Pending: Passenger must complete pre-ride safety checklist before departure.
+                      </Text>
+                    </View>
+                    <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" />
+                  </View>
+                );
+              }
+
+              return (
+                <View style={styles.statusRow}>
+                  <Btn label="▶ Start Ride & Track" onPress={() => updateRideStatus(selectedRide._id, 'in-progress')} style={{ flex: 1 }} />
+                  <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" style={{ flex: 1 }} />
+                </View>
+              );
+            })()}
             {selectedRide.status === 'in-progress' && (
               <View style={{ gap: 8, marginBottom: spacing.md }}>
                 <Btn label="📍 Open Live Route & Tracking" onPress={() => navigation.navigate('LiveTracking', { rideId: selectedRide._id })} />
