@@ -220,6 +220,9 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 // Helper: Distance from a point to a route segment (in meters)
 const distanceToSegment = (pLat, pLng, r1Lat, r1Lng, r2Lat, r2Lng) => {
+  if (pLat === undefined || pLng === undefined || r1Lat === undefined || r1Lng === undefined || r2Lat === undefined || r2Lng === undefined) {
+    return Infinity;
+  }
   const d1 = calculateDistance(pLat, pLng, r1Lat, r1Lng);
   const d2 = calculateDistance(pLat, pLng, r2Lat, r2Lng);
   const lineLenSq = (r2Lat - r1Lat) ** 2 + (r2Lng - r1Lng) ** 2;
@@ -232,6 +235,28 @@ const distanceToSegment = (pLat, pLng, r1Lat, r1Lng, r2Lat, r2Lng) => {
   return calculateDistance(pLat, pLng, projLat, projLng);
 };
 
+// Helper: Smart coordinate extractor handling both [lng, lat] GeoJSON and [lat, lng] array/object formats
+const extractCoords = (loc) => {
+  if (!loc) return null;
+  if (loc.lat !== undefined && loc.lng !== undefined) {
+    let lat = parseFloat(loc.lat);
+    let lng = parseFloat(loc.lng);
+    if (isNaN(lat) || isNaN(lng)) return null;
+    if (lat > 50 && lng < 40) [lat, lng] = [lng, lat];
+    return { lat, lng };
+  }
+  if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
+    const c0 = parseFloat(loc.coordinates[0]);
+    const c1 = parseFloat(loc.coordinates[1]);
+    if (isNaN(c0) || isNaN(c1)) return null;
+    // In India: Longitude is > 50 (e.g. 77.59), Latitude is < 40 (e.g. 12.97)
+    if (c0 > 50 && c1 < 40) return { lat: c1, lng: c0 };
+    if (c1 > 50 && c0 < 40) return { lat: c0, lng: c1 };
+    return { lat: c1, lng: c0 };
+  }
+  return null;
+};
+
 // ================= SEARCH RIDES =================
 exports.searchRides = async (req, res) => {
   try {
@@ -242,7 +267,7 @@ exports.searchRides = async (req, res) => {
       return res.json([]);
     }
 
-    const distanceInMeters = Math.min(parseInt(maxDistance) || 5000, 5000); // Strict 5km radius limit
+    const distanceInMeters = Math.max(parseInt(maxDistance) || 5000, 5000); // 5km radius limit
 
     // Build base query — only active rides with available seats
     const query = { 
@@ -285,7 +310,7 @@ exports.searchRides = async (req, res) => {
       ];
     }
 
-    // Add specific date filter if provided
+    // Add specific date filter ONLY if provided
     if (date) {
       const searchDate = new Date(date);
       const nextDay = new Date(searchDate);
@@ -296,46 +321,18 @@ exports.searchRides = async (req, res) => {
         $gte: searchDate,
         $lt: nextDay
       };
-    } else {
-      // No date provided ("Ride Now") — show rides from last 48 hours up to future
-      const past48h = new Date(Date.now() - 48 * 60 * 60 * 1000);
-      query.date = { $gte: past48h };
     }
 
     // Helper: check if a ride's scheduled date+time is still relevant
     const now = new Date();
     const isRideUpcoming = (ride) => {
       if (!ride.date) return true;
-      if (!ride.time) return true;
-      let hours = 0;
-      let minutes = 0;
-      const timeStr = String(ride.time).trim();
-      const match = timeStr.match(/^(\d{1,2}):(\d{2})(?:\s*([AaPp][Mm]))?$/);
-      if (match) {
-        hours = parseInt(match[1], 10);
-        minutes = parseInt(match[2], 10);
-        const ampm = match[3]?.toUpperCase();
-        if (ampm === 'PM' && hours < 12) hours += 12;
-        if (ampm === 'AM' && hours === 12) hours = 0;
-      } else {
-        const parts = timeStr.split(':').map(Number);
-        if (isNaN(parts[0])) return true;
-        hours = parts[0];
-        minutes = parts[1] || 0;
+      try {
+        const rideDate = new Date(ride.date);
+        return (rideDate.getTime() + 48 * 60 * 60 * 1000) > now.getTime();
+      } catch {
+        return true;
       }
-
-      const rideDate = new Date(ride.date);
-      const scheduled = new Date(
-        rideDate.getFullYear(),
-        rideDate.getMonth(),
-        rideDate.getDate(),
-        hours,
-        minutes,
-        0,
-        0
-      );
-      const expiration = new Date(scheduled.getTime() + 48 * 60 * 60 * 1000);
-      return expiration > now;
     };
 
     // Retrieve active candidate rides
@@ -345,56 +342,67 @@ exports.searchRides = async (req, res) => {
 
     const upcomingRides = candidateRides.filter(isRideUpcoming);
 
-    const seekerHasPickupCoord = lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
-    const seekerHasDropCoord = dropLat && dropLng && !isNaN(parseFloat(dropLat)) && !isNaN(parseFloat(dropLng));
-    const sPickLat = seekerHasPickupCoord ? parseFloat(lat) : null;
-    const sPickLng = seekerHasPickupCoord ? parseFloat(lng) : null;
-    const sDropLat = seekerHasDropCoord ? parseFloat(dropLat) : null;
-    const sDropLng = seekerHasDropCoord ? parseFloat(dropLng) : null;
+    const sPick = (lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng)))
+      ? extractCoords({ lat: parseFloat(lat), lng: parseFloat(lng) })
+      : null;
+    const sDrop = (dropLat && dropLng && !isNaN(parseFloat(dropLat)) && !isNaN(parseFloat(dropLng)))
+      ? extractCoords({ lat: parseFloat(dropLat), lng: parseFloat(dropLng) })
+      : null;
 
     // Filter strictly to rides along the seeker's route and within 5km (5000m)
     let matchedRides = upcomingRides.filter(ride => {
-      const rPLat = Array.isArray(ride.pickup?.coordinates) && ride.pickup.coordinates.length >= 2 ? ride.pickup.coordinates[1] : null;
-      const rPLng = Array.isArray(ride.pickup?.coordinates) && ride.pickup.coordinates.length >= 2 ? ride.pickup.coordinates[0] : null;
-      const rDLat = Array.isArray(ride.drop?.coordinates) && ride.drop.coordinates.length >= 2 ? ride.drop.coordinates[1] : null;
-      const rDLng = Array.isArray(ride.drop?.coordinates) && ride.drop.coordinates.length >= 2 ? ride.drop.coordinates[0] : null;
+      const rPick = extractCoords(ride.pickup);
+      const rDrop = extractCoords(ride.drop);
 
-      const hasProviderCoords = rPLat !== null && rPLng !== null && rDLat !== null && rDLng !== null;
+      let geoMatched = false;
+      let textMatched = false;
 
-      if (hasProviderCoords && (seekerHasPickupCoord || seekerHasDropCoord)) {
-        let pickupMatches = true;
-        let dropMatches = true;
+      // 1. Coordinate-based route & proximity match
+      if (rPick && rDrop && (sPick || sDrop)) {
+        let pMatch = true;
+        let dMatch = true;
 
-        if (seekerHasPickupCoord) {
-          const directPickupDist = calculateDistance(sPickLat, sPickLng, rPLat, rPLng);
-          const routePickupDist = distanceToSegment(sPickLat, sPickLng, rPLat, rPLng, rDLat, rDLng);
-          pickupMatches = directPickupDist <= distanceInMeters || routePickupDist <= distanceInMeters;
+        if (sPick) {
+          const directPickupDist = calculateDistance(sPick.lat, sPick.lng, rPick.lat, rPick.lng);
+          const routePickupDist = distanceToSegment(sPick.lat, sPick.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
+          pMatch = directPickupDist <= distanceInMeters || routePickupDist <= distanceInMeters;
         }
 
-        if (seekerHasDropCoord) {
-          const directDropDist = calculateDistance(sDropLat, sDropLng, rDLat, rDLng);
-          const routeDropDist = distanceToSegment(sDropLat, sDropLng, rPLat, rPLng, rDLat, rDLng);
-          dropMatches = directDropDist <= distanceInMeters || routeDropDist <= distanceInMeters;
+        if (sDrop) {
+          const directDropDist = calculateDistance(sDrop.lat, sDrop.lng, rDrop.lat, rDrop.lng);
+          const routeDropDist = distanceToSegment(sDrop.lat, sDrop.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
+          dMatch = directDropDist <= distanceInMeters || routeDropDist <= distanceInMeters;
         }
 
-        return pickupMatches && dropMatches;
+        if (pMatch && dMatch) geoMatched = true;
       }
 
-      // If text query provided without coordinates, match pickup/drop text
+      // 2. Text-based route match (if user typed names or landmarks without exact GPS)
       if (pickupText || dropText) {
-        let textMatches = false;
+        const stopWords = new Set(['road', 'street', 'cross', 'main', 'near', 'opp', 'opposite', 'behind', 'stage', 'layout', 'city', 'state', 'india', 'bangalore', 'bengaluru', 'the', 'and', 'for', 'with', 'at', 'in', 'to', 'from']);
+        let pTextMatch = !pickupText?.trim();
+        let dTextMatch = !dropText?.trim();
+
         if (pickupText && pickupText.trim() && ride.pickup?.address) {
-          const pRegex = new RegExp(pickupText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-          if (pRegex.test(ride.pickup.address)) textMatches = true;
+          const pWords = pickupText.trim().toLowerCase().split(/[\s,]+/).filter(w => w.length > 2 && !stopWords.has(w));
+          const rPickAddr = ride.pickup.address.toLowerCase();
+          if (pWords.length === 0 || pWords.some(w => rPickAddr.includes(w))) {
+            pTextMatch = true;
+          }
         }
+
         if (dropText && dropText.trim() && ride.drop?.address) {
-          const dRegex = new RegExp(dropText.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-          if (dRegex.test(ride.drop.address)) textMatches = true;
+          const dWords = dropText.trim().toLowerCase().split(/[\s,]+/).filter(w => w.length > 2 && !stopWords.has(w));
+          const rDropAddr = ride.drop.address.toLowerCase();
+          if (dWords.length === 0 || dWords.some(w => rDropAddr.includes(w))) {
+            dTextMatch = true;
+          }
         }
-        return textMatches;
+
+        if (pTextMatch && dTextMatch) textMatched = true;
       }
 
-      return false;
+      return geoMatched || textMatched;
     });
 
     // Privacy safeguard: Ensure provider's phone and USN are NEVER exposed in search results

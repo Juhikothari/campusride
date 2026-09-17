@@ -32,6 +32,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
 
   const search = useCallback((text) => {
     setQuery(text);
+    if (onChange) onChange(text, '', '');
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!text.trim() || text.length < 2) { setResults([]); setShowResults(false); return; }
     debounceRef.current = setTimeout(async () => {
