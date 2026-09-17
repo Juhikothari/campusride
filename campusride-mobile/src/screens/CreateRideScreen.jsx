@@ -167,10 +167,30 @@ export default function CreateRideScreen({ navigation }) {
   // Set default college pickup when "college" is chosen
   useEffect(() => {
     if (pickupFrom === 'college' && user?.college) {
-      setPickup({
-        label: `${user.college} (Campus Main Gate)`,
-        lat: '12.9716',
-        lng: '77.5946',
+      const collegeLabel = `${user.college} (Campus Main Gate)`;
+      setPickup(prev => ({ ...prev, label: collegeLabel }));
+      api.searchLocation(`${user.college} Bangalore`).then(res => {
+        if (Array.isArray(res) && res.length > 0 && res[0].lat && res[0].lng) {
+          setPickup({
+            label: collegeLabel,
+            lat: res[0].lat.toString(),
+            lng: res[0].lng.toString(),
+          });
+        } else {
+          setPickup(prev => ({
+            ...prev,
+            label: collegeLabel,
+            lat: prev.lat || '12.9716',
+            lng: prev.lng || '77.5946',
+          }));
+        }
+      }).catch(() => {
+        setPickup(prev => ({
+          ...prev,
+          label: collegeLabel,
+          lat: prev.lat || '12.9716',
+          lng: prev.lng || '77.5946',
+        }));
       });
     } else if (pickupFrom === 'home') {
       setPickup({ label: '', lat: '', lng: '' });

@@ -136,6 +136,21 @@ export default function SearchRidesScreen({ navigation }) {
     }
   };
 
+  const fillCollegeLocation = async (field) => {
+    if (!user?.college) return;
+    const label = `${user.college} (Campus Main Gate)`;
+    if (field === 'pickup') setPickup({ label, lat: '12.9716', lng: '77.5946' });
+    else                    setDrop  ({ label, lat: '12.9716', lng: '77.5946' });
+
+    try {
+      const res = await api.searchLocation(`${user.college} Bangalore`);
+      if (Array.isArray(res) && res.length > 0 && res[0].lat && res[0].lng) {
+        if (field === 'pickup') setPickup({ label, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
+        else                    setDrop  ({ label, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
+      }
+    } catch {}
+  };
+
   // Search history state
   const [searchHistory, setSearchHistory] = useState([]);
 
@@ -250,6 +265,26 @@ export default function SearchRidesScreen({ navigation }) {
           }}
           placeholder="Where do you want to go?"
         />
+
+        {/* Quick Campus Shortcuts */}
+        {Boolean(user?.college) && (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 }}>
+            <TouchableOpacity
+              style={styles.campusChip}
+              onPress={() => fillCollegeLocation('pickup')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.campusChipText}>🏫 Start at {user.college.split(' ')[0]}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.campusChip}
+              onPress={() => fillCollegeLocation('drop')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.campusChipText}>🏫 Drop at {user.college.split(' ')[0]}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── Recent Search History Chips ── */}
         {searchHistory.length > 0 && (
@@ -629,5 +664,21 @@ const styles = StyleSheet.create({
     color: colors.text3,
     fontSize: 11,
     marginTop: 2,
+  },
+  campusChip: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    borderColor: 'rgba(0, 229, 255, 0.3)',
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  campusChipText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

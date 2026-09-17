@@ -402,7 +402,22 @@ exports.searchRides = async (req, res) => {
         if (pTextMatch && dTextMatch) textMatched = true;
       }
 
-      return geoMatched || textMatched;
+      // 3. Campus college match fallback:
+      let collegeMatched = false;
+      if (ride.college && seeker?.college) {
+        const normSeeker = require('../config/collegeDomains').normalizeCollege(seeker.college);
+        if (ride.college === normSeeker) {
+          const pWords = (pickupText || '').toLowerCase();
+          const dWords = (dropText || '').toLowerCase();
+          const cName = (seeker.college || '').toLowerCase();
+          if (pWords.includes('campus') || pWords.includes('college') || (normSeeker && pWords.includes(normSeeker)) || (cName && pWords.includes(cName)) ||
+              dWords.includes('campus') || dWords.includes('college') || (normSeeker && dWords.includes(normSeeker)) || (cName && dWords.includes(cName))) {
+            collegeMatched = true;
+          }
+        }
+      }
+
+      return geoMatched || textMatched || collegeMatched;
     });
 
     // Privacy safeguard: Ensure provider's phone and USN are NEVER exposed in search results
