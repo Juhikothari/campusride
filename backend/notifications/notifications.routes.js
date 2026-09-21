@@ -4,8 +4,8 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const Notification = require('./notifications.model');
 
-// Get my notifications
-router.get('/my', auth, async (req, res) => {
+// Get my notifications (supports both / and /my)
+const getMyNotificationsHandler = async (req, res) => {
   try {
     const { limit = 20, unreadOnly = false } = req.query;
     
@@ -30,7 +30,10 @@ router.get('/my', auth, async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-});
+};
+
+router.get('/', auth, getMyNotificationsHandler);
+router.get('/my', auth, getMyNotificationsHandler);
 
 // Mark as read
 router.put('/:id/read', auth, async (req, res) => {

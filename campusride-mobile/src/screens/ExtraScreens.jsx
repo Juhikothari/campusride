@@ -163,6 +163,8 @@ export function AdminDashboardScreen({ navigation }) {
   const [stats,        setStats]        = useState(null);
   const [users,        setUsers]        = useState([]);
   const [kycList,      setKycList]      = useState([]);
+  const [ridesList,    setRidesList]    = useState([]);
+  const [rideFilter,   setRideFilter]   = useState('all'); // 'all' | 'active' | 'completed' | 'cancelled'
   const [kycSubTab,    setKycSubTab]    = useState('pending'); // 'pending' | 'approved' | 'all'
   const [expandedUserDocs, setExpandedUserDocs] = useState({});
   const [tab,          setTab]          = useState('kyc');
@@ -181,9 +183,11 @@ export function AdminDashboardScreen({ navigation }) {
       api.getAdminStats(),
       api.getAllUsers(),
       api.getKycRequests('all'),
-    ]).then(([sRes, uRes, kRes]) => {
+      api.getAdminRides(),
+    ]).then(([sRes, uRes, kRes, rRes]) => {
       let loadedUsers = [];
       let loadedKyc = [];
+      let loadedRides = [];
 
       if (uRes.status === 'fulfilled' && Array.isArray(uRes.value)) {
         loadedUsers = uRes.value;
@@ -197,6 +201,11 @@ export function AdminDashboardScreen({ navigation }) {
         setKycList(loadedKyc);
       }
 
+      if (rRes.status === 'fulfilled') {
+        loadedRides = Array.isArray(rRes.value) ? rRes.value : (rRes.value?.rides || []);
+        setRidesList(loadedRides);
+      }
+
       if (sRes.status === 'fulfilled' && sRes.value) {
         setStats(sRes.value);
       } else {
@@ -207,6 +216,8 @@ export function AdminDashboardScreen({ navigation }) {
           totalSeekers: loadedUsers.filter(u => u.role === 'seeker' || u.role === 'both').length,
           verifiedUsers: loadedUsers.filter(u => u.kycStatus === 'approved').length,
           pendingKYC: loadedKyc.filter(k => k.kycStatus === 'pending').length,
+          totalRides: loadedRides.length,
+          activeRides: loadedRides.filter(r => r.status === 'active' || r.status === 'in-progress').length,
         });
       }
     }).finally(() => setLoading(false));
@@ -240,6 +251,11 @@ export function AdminDashboardScreen({ navigation }) {
         setKycList(k => k.map(x => (x._id || x.id) === id ? { ...x, kycStatus: 'rejected' } : x));
         setUsers(u => u.map(x => (x._id || x.id) === id ? { ...x, kycStatus: 'rejected' } : x));
         RNAlert.alert('❌ KYC Rejected', 'Student KYC has been rejected.');
+      }
+      if (action === 'deleteRide') {
+        await api.deleteAdminRide(id);
+        setRidesList(r => r.filter(x => x._id !== id));
+        RNAlert.alert('Ride Removed', 'The ride has been removed and pending bookings cancelled.');
       }
     } catch (e) {
       RNAlert.alert('Error', e.message || 'Action failed');
@@ -275,10 +291,18 @@ export function AdminDashboardScreen({ navigation }) {
     return true;
   });
 
+  const filteredRides = ridesList.filter(r => {
+    if (rideFilter === 'active') return r.status === 'active' || r.status === 'in-progress';
+    if (rideFilter === 'completed') return r.status === 'completed';
+    if (rideFilter === 'cancelled') return r.status === 'cancelled';
+    return true;
+  });
+
   const TABS = [
     { key: 'kyc',       label: `🪪 Verifications (${pendingKycList.length})` },
     { key: 'users',     label: `👥 Users (${users.length})` },
-    { key: 'overview',  label: '📊 Overview' },
+    { key: 'rides',     label: `🚗 Rides (${ridesList.length})` },
+    { key: 'overview',  label: '📊 Analytics' },
   ];
 
   return (
@@ -709,22 +733,148 @@ export function AdminDashboardScreen({ navigation }) {
               </>
             )}
 
-            {/* ── SYSTEM OVERVIEW TAB ── */}
-            {tab === 'overview' && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                {[
-                  { label: 'Total Users',        value: stats?.totalUsers    || users.length, color: colors.accent },
-                  { label: 'Campus Providers',   value: stats?.totalProviders || users.filter(u => u.role === 'provider' || u.role === 'both').length, color: colors.accent },
-                  { label: 'Campus Seekers',     value: stats?.totalSeekers   || users.filter(u => u.role === 'seeker' || u.role === 'both').length, color: colors.blue },
-                  { label: 'Verified Students',  value: users.filter(u => u.kycStatus === 'approved').length, color: colors.green },
-                  { label: 'Pending KYC Review', value: pendingKycList.length, color: colors.red },
-                ].map(s => (
-                  <View key={s.label} style={[styles.statCard, { borderColor: s.color + '44' }]}>
-                    <Text style={[styles.statNum, { color: s.color }]}>{s.value}</Text>
-                    <Text style={styles.statLabel}>{s.label}</Text>
+            {/* ── LIVE RIDES TAB ── */}
+            {tab === 'rides' && (
+              <>
+                {/* Status Filter chips */}
+                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+                  {[
+                    { key: 'all',       label: `All (${ridesList.length})` },
+                    { key: 'active',    label: '🟢 Active / Live' },
+                    { key: 'completed', label: '✓ Completed' },
+                    { key: 'cancelled', label: '✕ Cancelled' },
+                  ].map(f => (
+                    <TouchableOpacity
+                      key={f.key}
+                      onPress={() => setRideFilter(f.key)}
+                      style={[styles.roleFilterChip, rideFilter === f.key && styles.roleFilterChipActive]}
+                    >
+                      <Text style={[styles.roleFilterChipText, rideFilter === f.key && styles.roleFilterChipTextActive]}>{f.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {filteredRides.length === 0 ? (
+                  <View style={{ padding: 40, alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ fontSize: 40, marginBottom: 12 }}>🚗</Text>
+                    <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 4 }}>No Rides Found</Text>
+                    <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center' }}>No rides matching this status are currently listed.</Text>
                   </View>
-                ))}
-              </View>
+                ) : (
+                  filteredRides.map(r => {
+                    const providerName = r.providerId?.name || r.providerName || 'Student Driver';
+                    const providerCollege = r.providerId?.college || r.college || 'Campus';
+                    const pickAddr = r.pickup?.address || 'Pickup Point';
+                    const dropAddr = r.drop?.address || 'Drop Point';
+                    const rDate = r.date ? new Date(r.date).toLocaleDateString('en-IN') : 'Today';
+                    const rTime = r.time || '—';
+                    const isActive = r.status === 'active' || r.status === 'in-progress';
+                    const isCompleted = r.status === 'completed';
+
+                    return (
+                      <View key={r._id} style={styles.kycCardNew}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>{providerName}</Text>
+                            <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 1 }}>🏫 {providerCollege}</Text>
+                          </View>
+                          <View style={{
+                            backgroundColor: isActive ? 'rgba(0,230,118,0.15)' : isCompleted ? 'rgba(33,150,243,0.15)' : 'rgba(255,82,82,0.15)',
+                            paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.full, borderWidth: 1,
+                            borderColor: isActive ? colors.green : isCompleted ? colors.blue : colors.red
+                          }}>
+                            <Text style={{ color: isActive ? colors.green : isCompleted ? colors.blue : colors.red, fontSize: 10, fontWeight: '800' }}>
+                              {r.status?.toUpperCase()}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Vehicle & Pricing info */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#090d14', padding: 8, borderRadius: radius.md, marginBottom: 8 }}>
+                          <Text style={{ color: colors.text2, fontSize: 12 }}>
+                            🚘 {r.vehicleName || r.vehicleType || 'Vehicle'} • {r.vehicleNumber ? r.vehicleNumber : 'Plate hidden'}
+                          </Text>
+                          <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>
+                            ₹{r.costPerSeat} / seat
+                          </Text>
+                        </View>
+
+                        {/* Route display */}
+                        <View style={{ gap: 4, marginBottom: 8 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 12 }}>🟢</Text>
+                            <Text style={{ color: colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>{pickAddr}</Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 12 }}>🔴</Text>
+                            <Text style={{ color: colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>{dropAddr}</Text>
+                          </View>
+                        </View>
+
+                        {/* Schedule & seats */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6, borderTopWidth: 1, borderColor: colors.border }}>
+                          <Text style={{ color: colors.text3, fontSize: 11 }}>
+                            📅 {rDate} at {rTime} • 🪑 {r.seatsAvailable} seat(s) left
+                          </Text>
+                          {isActive && (
+                            <TouchableOpacity
+                              disabled={acting[r._id]}
+                              onPress={() => {
+                                RNAlert.alert(
+                                  'Cancel Ride',
+                                  `Are you sure you want to cancel and remove this ride from ${providerName}?`,
+                                  [
+                                    { text: 'Back', style: 'cancel' },
+                                    { text: 'Cancel Ride', style: 'destructive', onPress: () => act(r._id, 'deleteRide') },
+                                  ]
+                                );
+                              }}
+                              style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.sm, backgroundColor: 'rgba(255,82,82,0.12)', borderWidth: 1, borderColor: colors.red }}
+                            >
+                              <Text style={{ color: colors.red, fontSize: 11, fontWeight: '700' }}>
+                                {acting[r._id] ? '…' : 'Cancel Ride'}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </>
+            )}
+
+            {/* ── SYSTEM OVERVIEW & ANALYTICS TAB ── */}
+            {tab === 'overview' && (
+              <>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+                  {[
+                    { label: 'Total Commuters',   value: stats?.totalUsers    || users.length, color: colors.accent, icon: '👥' },
+                    { label: 'Active Live Rides', value: stats?.activeRides   || ridesList.filter(r => r.status === 'active').length, color: colors.green, icon: '🟢' },
+                    { label: 'Pending KYC Review',value: pendingKycList.length, color: colors.red, icon: '⏳' },
+                    { label: 'Verified Students', value: users.filter(u => u.kycStatus === 'approved').length, color: colors.blue, icon: '✓' },
+                    { label: 'Campus Providers',  value: stats?.totalProviders || users.filter(u => u.role === 'provider' || u.role === 'both').length, color: colors.accent, icon: '🚘' },
+                    { label: 'Campus Seekers',    value: stats?.totalSeekers   || users.filter(u => u.role === 'seeker' || u.role === 'both').length, color: colors.text, icon: '🎒' },
+                  ].map(s => (
+                    <View key={s.label} style={[styles.statCard, { borderColor: s.color + '44' }]}>
+                      <Text style={{ fontSize: 20, marginBottom: 2 }}>{s.icon}</Text>
+                      <Text style={[styles.statNum, { color: s.color }]}>{s.value}</Text>
+                      <Text style={styles.statLabel}>{s.label}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Campus Trust & Safety Policy Banner */}
+                <View style={{ backgroundColor: colors.surface, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.border, padding: 16, marginBottom: 16 }}>
+                  <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '800', marginBottom: 6 }}>🛡️ Campus Safety Governance</Text>
+                  <Text style={{ color: colors.text2, fontSize: 12, lineHeight: 18 }}>
+                    • Only verified students with approved institutional KYC (Aadhar + College ID) can offer or seek rides.{'\n'}
+                    • All provider vehicles require verified RC plate numbers.{'\n'}
+                    • Stale rides are automatically cancelled after 3 hours of inactivity.{'\n'}
+                    • Rides only match within verified corridor routes and college campuses.
+                  </Text>
+                </View>
+              </>
             )}
           </>
         )}

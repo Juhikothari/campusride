@@ -23,6 +23,20 @@ export function AuthProvider({ children }) {
     setUserState(null);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const u = await api.getMe();
+      if (u && (u._id || u.id)) {
+        await api.setUser(u);
+        setUserState(u);
+        return u;
+      }
+    } catch (e) {
+      console.log('Refresh user error:', e.message);
+    }
+    return null;
+  }, []);
+
   const loginUser = async (email, password) => {
     setLoading(true);
     try {
@@ -124,7 +138,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginUser, registerUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, loginUser, registerUser, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

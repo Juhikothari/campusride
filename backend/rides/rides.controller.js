@@ -4,24 +4,74 @@ const Booking = require('../bookings/bookings.model');
 const User = require('../users/users.model');
 const Notification = require('../notifications/notifications.model');
 
+// Base fares & rates per km as configured
+const BASE_FARES = {
+  motorcycle: 20,
+  bike: 20,
+  scooter: 20,
+  car: 25,
+  suv: 25,
+  xuv: 25,
+};
+
+const PER_KM_RATES = {
+  motorcycle: 5,
+  bike: 5,
+  scooter: 5,
+  car: 7,
+  suv: 7,
+  xuv: 10,
+};
+
+const calculateFare = (distanceKm, vehicleType) => {
+  if (!distanceKm || distanceKm <= 0) return 0;
+  const vt = (vehicleType || 'car').toLowerCase();
+  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 20 : 25);
+  const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 5 : 7));
+  const d = Math.min(distanceKm, 100);
+  // Within 1 km it should be base fare; above that it should be base fare + per km price
+  if (d <= 1.0) {
+    return base;
+  }
+  return Math.round(base + (d * perKm));
+};
+exports.calculateFare = calculateFare;
+
 // ================= 3-HOUR AUTO-CANCEL HELPER =================
 const autoCancelStaleRides = async () => {
   try {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const staleRides = await Ride.find({
       status: 'active',
-      date: { $lt: oneDayAgo },
-      createdAt: { $lt: oneDayAgo }
+      $or: [
+        { date: { $lt: threeHoursAgo } },
+        { createdAt: { $lt: threeHoursAgo } }
+      ]
     });
     for (const sr of staleRides) {
-      sr.status = 'cancelled';
-      sr.cancelReason = 'Auto-cancelled after 24 hours of inactivity';
-      sr.cancelledAt = new Date();
-      await sr.save();
-      await Booking.updateMany(
-        { rideId: sr._id, status: { $in: ['pending', 'accepted'] } },
-        { status: 'cancelled', cancelReason: 'Ride auto-cancelled after 24 hours' }
-      );
+      let shouldCancel = true;
+      if (sr.date && sr.time) {
+        try {
+          const match = sr.time.match(/^(\d{1,2}):(\d{2})/);
+          if (match) {
+            const dep = new Date(sr.date);
+            dep.setHours(parseInt(match[1], 10), parseInt(match[2], 10), 0, 0);
+            if (dep.getTime() > threeHoursAgo.getTime()) {
+              shouldCancel = false;
+            }
+          }
+        } catch {}
+      }
+      if (shouldCancel) {
+        sr.status = 'cancelled';
+        sr.cancelReason = 'Auto-cancelled after 3 hours of inactivity';
+        sr.cancelledAt = new Date();
+        await sr.save();
+        await Booking.updateMany(
+          { rideId: sr._id, status: { $in: ['pending', 'accepted'] } },
+          { status: 'cancelled', cancelReason: 'Ride auto-cancelled after 3 hours' }
+        );
+      }
     }
   } catch (e) {
     console.error('Auto-cancel stale rides error:', e.message);
@@ -130,14 +180,43 @@ exports.createRide = async (req, res) => {
     const pickupAddress = extractAddress(pickup, 'Pickup Spot');
     const dropAddress   = extractAddress(drop, 'Drop-off Spot');
 
+    const userCollege = user.college || req.body.college || '';
+    const normalizedCollege = userCollege ? require('../config/collegeDomains').normalizeCollege(userCollege) : '';
+
+    // Mandatory college policy: at least ONE location must be their college campus
+    const pAddr = (pickupAddress || '').toLowerCase();
+    const dAddr = (dropAddress || '').toLowerCase();
+    const cName = (userCollege || '').toLowerCase();
+    const normC = (normalizedCollege || '').toLowerCase();
+    const hasCollegeLoc = (cName && (pAddr.includes(cName) || dAddr.includes(cName))) ||
+                          (normC && (pAddr.includes(normC) || dAddr.includes(normC))) ||
+                          pAddr.includes('campus') || pAddr.includes('college') ||
+                          dAddr.includes('campus') || dAddr.includes('college');
+
+    if (!hasCollegeLoc) {
+      return res.status(400).json({
+        message: 'Campus ride policy: At least one location (pickup or drop) must be your college campus.'
+      });
+    }
+
     // Women-only ride: only female accounts can set this
     const womenOnly = req.body.womenOnly === true && user.gender === 'female';
 
     const now = new Date();
     const effectiveDate = date ? new Date(date) : now;
     const effectiveTime = time || `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const userCollege = user.college || req.body.college || '';
-    const normalizedCollege = userCollege ? require('../config/collegeDomains').normalizeCollege(userCollege) : '';
+
+    // Calculate distance & verify/calculate fare
+    const pLng = Array.isArray(pickup?.coordinates) ? pickup.coordinates[0] : 0;
+    const pLat = Array.isArray(pickup?.coordinates) ? pickup.coordinates[1] : 0;
+    const dLng = Array.isArray(drop?.coordinates) ? drop.coordinates[0] : 0;
+    const dLat = Array.isArray(drop?.coordinates) ? drop.coordinates[1] : 0;
+    const distM = calculateDistance(pLat, pLng, dLat, dLng);
+    const distKm = distM !== Infinity ? distM / 1000 : 0;
+    const computedCost = calculateFare(distKm, req.body.vehicleType || 'car');
+    const effectiveCost = (costPerSeat !== undefined && costPerSeat !== null && Number(costPerSeat) > 0)
+      ? Number(costPerSeat)
+      : computedCost;
 
     const ride = new Ride({
       providerId: userId,
@@ -154,7 +233,7 @@ exports.createRide = async (req, res) => {
       date: effectiveDate,
       time: effectiveTime,
       seatsAvailable,
-      costPerSeat,
+      costPerSeat: effectiveCost,
       womenOnly,
       vehicleType: req.body.vehicleType || 'car',
       vehicleName: effectiveVehicleName || 'Car',
@@ -264,11 +343,21 @@ const extractCoords = (loc) => {
   return null;
 };
 
+// Helper: Scalar projection factor of point P along segment AB (0 = at A, 1 = at B)
+const projectionFactor = (pLat, pLng, aLat, aLng, bLat, bLng) => {
+  const lineLenSq = (bLat - aLat) ** 2 + (bLng - aLng) ** 2;
+  if (lineLenSq === 0) return 0;
+  return ((pLat - aLat) * (bLat - aLat) + (pLng - aLng) * (bLng - aLng)) / lineLenSq;
+};
+
 // ================= SEARCH RIDES =================
 exports.searchRides = async (req, res) => {
   try {
     const { lat, lng, maxDistance = 5000, date, time, dropLat, dropLng, vehicleType, pickupText, dropText } = req.query;
     
+    // Auto-cancel any stale rides first
+    autoCancelStaleRides().catch(() => {});
+
     // If no search parameters are provided, return empty array (do NOT show all offered rides before search)
     if (!lat && !lng && !dropLat && !dropLng && !pickupText && !dropText) {
       return res.json([]);
@@ -317,17 +406,24 @@ exports.searchRides = async (req, res) => {
       ];
     }
 
-    // Add specific date filter ONLY if provided
+    // Date filtering:
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
     if (date) {
-      const searchDate = new Date(date);
-      const nextDay = new Date(searchDate);
-      nextDay.setDate(nextDay.getDate() + 1);
-      nextDay.setHours(0, 0, 0, 0);
-      
-      query.date = {
-        $gte: searchDate,
-        $lt: nextDay
-      };
+      // User requested a specific calendar date
+      const parts = date.split('-');
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      const startOfDay = new Date(y, m, d, 0, 0, 0, 0);
+      const endOfDay   = new Date(y, m, d, 23, 59, 59, 999);
+      query.date = { $gte: startOfDay, $lte: endOfDay };
+    } else {
+      // User requested "NOW": Strictly match rides scheduled for TODAY only! Do NOT show tomorrow's rides.
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const endOfToday   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      query.date = { $gte: startOfToday, $lte: endOfToday };
     }
 
     // Helper: Parse time string "HH:MM" or "HH:MM AM/PM" to minutes from midnight
@@ -345,30 +441,48 @@ exports.searchRides = async (req, res) => {
     };
 
     const searchTimeMins = time ? parseTimeToMinutes(time) : null;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
 
     // Helper: check if a ride's scheduled date+time is still relevant
-    const now = new Date();
     const isRideUpcoming = (ride) => {
-      if (!ride.date) return true;
       try {
-        const rideDate = new Date(ride.date);
-        const withinFuture = (rideDate.getTime() + 48 * 60 * 60 * 1000) > now.getTime();
-        if (!withinFuture) return false;
+        const rideDate = new Date(ride.date || ride.createdAt || now);
+        const rideDateStr = `${rideDate.getFullYear()}-${String(rideDate.getMonth() + 1).padStart(2, '0')}-${String(rideDate.getDate()).padStart(2, '0')}`;
 
-        // If user searched for a specific scheduled time, match within +/- 60 minutes
+        // If searching for "NOW" (no date query parameter):
+        if (!date) {
+          // Strictly today only
+          if (rideDateStr !== todayStr) return false;
+
+          // Check departure time:
+          if (ride.time) {
+            const rideMins = parseTimeToMinutes(ride.time);
+            if (rideMins !== null) {
+              // Ride must be departing between 15 minutes ago and up to 3 hours from now
+              if (rideMins < (nowMins - 15) || rideMins > (nowMins + 180)) {
+                return false;
+              }
+            }
+          }
+          return true;
+        }
+
+        // Searching for scheduled date (date provided):
+        if (date !== rideDateStr) return false;
+
+        // If specific time was searched, window is +/- 45 mins
         if (searchTimeMins !== null && ride.time) {
           const rideMins = parseTimeToMinutes(ride.time);
           if (rideMins !== null) {
             const diff = Math.abs(rideMins - searchTimeMins);
-            // Allow +/- 60 mins window
-            if (diff > 60 && diff < (1440 - 60)) {
+            if (diff > 45) {
               return false;
             }
           }
         }
         return true;
       } catch {
-        return true;
+        return false;
       }
     };
 
@@ -396,26 +510,38 @@ exports.searchRides = async (req, res) => {
 
       // 1. Coordinate-based route & proximity match
       if (rPick && rDrop && (sPick || sDrop)) {
-        let pMatch = true;
-        let dMatch = true;
-
-        if (sPick) {
-          const directPickupDist = calculateDistance(sPick.lat, sPick.lng, rPick.lat, rPick.lng);
+        if (sPick && sDrop) {
           const routePickupDist = distanceToSegment(sPick.lat, sPick.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
-          pMatch = directPickupDist <= distanceInMeters || routePickupDist <= distanceInMeters;
-        }
+          const routeDropDist   = distanceToSegment(sDrop.lat, sDrop.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
 
-        if (sDrop) {
+          // Both seeker pickup and drop must be within corridor (5km max)
+          if (routePickupDist <= distanceInMeters && routeDropDist <= distanceInMeters) {
+            const tPick = projectionFactor(sPick.lat, sPick.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
+            const tDrop = projectionFactor(sDrop.lat, sDrop.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
+
+            // Direction of travel check: Seeker pickup must occur along route before seeker drop
+            // with 0.15 tolerance for endpoints, and within route boundaries
+            if (tPick <= tDrop + 0.15 && tPick <= 1.25 && tDrop >= -0.25) {
+              geoMatched = true;
+            }
+          }
+        } else if (sPick) {
+          const directPickupDist = calculateDistance(sPick.lat, sPick.lng, rPick.lat, rPick.lng);
+          const routePickupDist  = distanceToSegment(sPick.lat, sPick.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
+          if (directPickupDist <= distanceInMeters || routePickupDist <= distanceInMeters) {
+            geoMatched = true;
+          }
+        } else if (sDrop) {
           const directDropDist = calculateDistance(sDrop.lat, sDrop.lng, rDrop.lat, rDrop.lng);
-          const routeDropDist = distanceToSegment(sDrop.lat, sDrop.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
-          dMatch = directDropDist <= distanceInMeters || routeDropDist <= distanceInMeters;
+          const routeDropDist  = distanceToSegment(sDrop.lat, sDrop.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
+          if (directDropDist <= distanceInMeters || routeDropDist <= distanceInMeters) {
+            geoMatched = true;
+          }
         }
-
-        if (pMatch && dMatch) geoMatched = true;
       }
 
-      // 2. Text-based route match (if user typed names or landmarks without exact GPS)
-      if (pickupText || dropText) {
+      // 2. Text-based route match (ONLY if coordinates were NOT provided)
+      if (!geoMatched && (!sPick && !sDrop) && (pickupText || dropText)) {
         const stopWords = new Set(['road', 'street', 'cross', 'main', 'near', 'opp', 'opposite', 'behind', 'stage', 'layout', 'city', 'state', 'india', 'bangalore', 'bengaluru', 'the', 'and', 'for', 'with', 'at', 'in', 'to', 'from']);
         let pTextMatch = !pickupText?.trim();
         let dTextMatch = !dropText?.trim();
@@ -439,22 +565,7 @@ exports.searchRides = async (req, res) => {
         if (pTextMatch && dTextMatch) textMatched = true;
       }
 
-      // 3. Campus college match fallback:
-      let collegeMatched = false;
-      if (ride.college && seeker?.college) {
-        const normSeeker = require('../config/collegeDomains').normalizeCollege(seeker.college);
-        if (ride.college === normSeeker) {
-          const pWords = (pickupText || '').toLowerCase();
-          const dWords = (dropText || '').toLowerCase();
-          const cName = (seeker.college || '').toLowerCase();
-          if (pWords.includes('campus') || pWords.includes('college') || (normSeeker && pWords.includes(normSeeker)) || (cName && pWords.includes(cName)) ||
-              dWords.includes('campus') || dWords.includes('college') || (normSeeker && dWords.includes(normSeeker)) || (cName && dWords.includes(cName))) {
-            collegeMatched = true;
-          }
-        }
-      }
-
-      return geoMatched || textMatched || collegeMatched;
+      return geoMatched || textMatched;
     });
 
     // Privacy safeguard: Ensure provider's phone and USN are NEVER exposed in search results

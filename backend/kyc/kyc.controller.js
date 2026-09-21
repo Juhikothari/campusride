@@ -215,9 +215,20 @@ exports.getDocumentImage = async (req, res) => {
 
     const fileData = user.kycDocuments[docType];
 
-    // ✅ UPDATED: only redirect (Cloudinary URL)
+    // Redirect external URLs (Cloudinary, S3, etc.)
     if (fileData.startsWith('http://') || fileData.startsWith('https://')) {
       return res.redirect(fileData);
+    }
+
+    // Serve base64 data URI directly
+    if (fileData.startsWith('data:image')) {
+      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const contentType = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        res.set('Content-Type', contentType);
+        return res.send(buffer);
+      }
     }
 
     return res.status(400).json({ message: 'Invalid file format' });

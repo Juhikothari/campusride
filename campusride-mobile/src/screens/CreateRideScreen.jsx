@@ -24,6 +24,8 @@ const VEHICLES = [
 // Base fares & per km rates as configured
 const baseFares = {
   motorcycle: 20, // Bike base fare
+  bike:       20,
+  scooter:    20,
   car:        25, // Car base fare
   suv:        25, // SUV base fare
   xuv:        25, // XUV base fare
@@ -31,6 +33,8 @@ const baseFares = {
 
 const perKmRates = {
   motorcycle: 5,  // Bikes: ₹5 per km
+  bike:       5,
+  scooter:    5,
   car:        7,  // Cars: ₹7 per km
   suv:        7,  // SUVs: ₹7 per km
   xuv:        10, // XUVs: ₹10 per km
@@ -38,9 +42,9 @@ const perKmRates = {
 
 function calcCost(distKm, vehicleType) {
   if (!distKm || distKm <= 0) return 0;
-  const vt = vehicleType || 'car';
-  const base = baseFares[vt] !== undefined ? baseFares[vt] : 25;
-  const perKm = perKmRates[vt] !== undefined ? perKmRates[vt] : 7;
+  const vt = (vehicleType || 'car').toLowerCase();
+  const base = baseFares[vt] !== undefined ? baseFares[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 20 : 25);
+  const perKm = perKmRates[vt] !== undefined ? perKmRates[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 5 : 7));
   const d = Math.min(distKm, 50);
   // Within 1 km it should be base fare; above that it should be base fare + per km price
   if (d <= 1.0) {
@@ -53,6 +57,20 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
   return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
+}
+
+// Auto-mask helpers: numeric input auto-formatted to YYYY-MM-DD and HH:MM
+function formatDateInput(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+}
+
+function formatTimeInput(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
 }
 
 export default function CreateRideScreen({ navigation }) {
@@ -467,7 +485,7 @@ export default function CreateRideScreen({ navigation }) {
                 <Input
                   label="Date (YYYY-MM-DD)"
                   value={date}
-                  onChangeText={(val) => setDate(val.replace(/[^0-9-]/g, ''))}
+                  onChangeText={(val) => setDate(formatDateInput(val))}
                   placeholder="YYYY-MM-DD"
                   keyboardType="numeric"
                   maxLength={10}
@@ -476,7 +494,7 @@ export default function CreateRideScreen({ navigation }) {
                 <Input
                   label="Time (HH:MM)"
                   value={time}
-                  onChangeText={(val) => setTime(val.replace(/[^0-9:]/g, ''))}
+                  onChangeText={(val) => setTime(formatTimeInput(val))}
                   placeholder="e.g. 15:30"
                   keyboardType="numeric"
                   maxLength={5}

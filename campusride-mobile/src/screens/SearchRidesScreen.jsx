@@ -47,8 +47,22 @@ const matchesWomenFilter = (ride, isFilterActive) => {
   return pGender === 'female';
 };
 
+// Auto-mask helpers: numeric input auto-formatted to YYYY-MM-DD and HH:MM
+function formatDateInput(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+}
+
+function formatTimeInput(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`;
+}
+
 export default function SearchRidesScreen({ navigation }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const isSeeker  = user?.role === 'seeker' || user?.role === 'both';
   const isFemale  = user?.gender === 'female';
 
@@ -65,6 +79,11 @@ export default function SearchRidesScreen({ navigation }) {
   const [searched,   setSearched]   = useState(false);
   const [error,      setError]      = useState('');
   const [bookingMap, setBookingMap] = useState({});
+
+  // Background refresh user profile on mount to ensure verified KYC state is loaded
+  useEffect(() => {
+    refreshUser?.().catch(() => {});
+  }, [refreshUser]);
 
   // Active in-progress ride state
   const [activeRide,   setActiveRide]   = useState(null);
@@ -198,7 +217,15 @@ export default function SearchRidesScreen({ navigation }) {
       return;
     }
 
-    if (user?.kycStatus !== 'approved') {
+    let currentKyc = user?.kycStatus;
+    if (currentKyc !== 'approved' && refreshUser) {
+      const refreshed = await refreshUser().catch(() => null);
+      if (refreshed?.kycStatus) {
+        currentKyc = refreshed.kycStatus;
+      }
+    }
+
+    if (currentKyc !== 'approved') {
       setError('Your KYC documents must be approved by campus admin before you can search and book rides.');
       return;
     }
@@ -368,25 +395,25 @@ export default function SearchRidesScreen({ navigation }) {
               <Input
                 label="Date (YYYY-MM-DD)"
                 value={date}
-                onChangeText={(val) => setDate(val.replace(/[^0-9-]/g, ''))}
+                onChangeText={(val) => setDate(formatDateInput(val))}
                 placeholder="YYYY-MM-DD"
                 keyboardType="numeric"
                 maxLength={10}
                 containerStyle={{ flex: 1 }}
               />
               <Input
-                label="Time"
+                label="Time (HH:MM)"
                 value={time}
-                onChangeText={(val) => setTime(val.replace(/[^0-9:APMapm\s]/g, ''))}
-                placeholder="e.g. 09:30 AM"
+                onChangeText={(val) => setTime(formatTimeInput(val))}
+                placeholder="e.g. 15:30"
                 keyboardType="numeric"
-                maxLength={8}
+                maxLength={5}
                 containerStyle={{ flex: 1 }}
               />
             </View>
 
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-              {['08:30 AM', '01:00 PM', '05:30 PM', '08:00 PM'].map(tStr => (
+              {['08:30', '13:00', '17:30', '20:00'].map(tStr => (
                 <TouchableOpacity
                   key={tStr}
                   onPress={() => setTime(tStr)}
