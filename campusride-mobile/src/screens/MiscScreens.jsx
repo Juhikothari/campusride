@@ -364,7 +364,7 @@ export function WalkTogetherScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🚶 Walk Together</Text>
+        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🚶 Nadi</Text>
         <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Find a walking companion on campus</Text>
 
         <View style={styles.card}>
@@ -372,18 +372,7 @@ export function WalkTogetherScreen({ navigation }) {
           <View style={inputStyles.wrap}><Text style={inputStyles.icon}>📍</Text>
             <Text onPress={()=>{}} style={{flex:1}} />
           </View>
-          {[
-            { placeholder: 'From (e.g. Gate 1, Main Block)', value: from, setter: setFrom },
-            { placeholder: 'To (e.g. Library, Canteen)',     value: to,   setter: setTo   },
-            { placeholder: 'Time (e.g. 8:30 AM)',            value: time, setter: setTime },
-          ].map((f, i) => (
-            <View key={i} style={inputStyles.fieldWrap}>
-              <Text style={inputStyles.inputField} onPress={() => {}}>
-                {/* handled by TextInput */}
-              </Text>
-            </View>
-          ))}
-          {/* Using raw TextInput for simplicity */}
+          {/* Using raw TextInput with numeric time format */}
           {renderWalkInputs(from, setFrom, to, setTo, time, setTime)}
 
           {user?.gender === 'female' && (
@@ -440,11 +429,30 @@ function renderWalkInputs(from, setFrom, to, setTo, time, setTime) {
   const s = RNStyleSheet.create({
     inp: { backgroundColor: colors.surface2, borderWidth:1, borderColor:colors.border, borderRadius:radius.md, color:colors.text, paddingHorizontal:14, paddingVertical:12, fontSize:14, marginBottom:10 },
   });
+
+  const handleTimeChange = (txt) => {
+    // Only numbers allowed, format as HH:MM
+    const digits = txt.replace(/[^0-9]/g, '');
+    if (digits.length <= 2) {
+      setTime(digits);
+    } else {
+      setTime(`${digits.slice(0, 2)}:${digits.slice(2, 4)}`);
+    }
+  };
+
   return (
     <>
       <TextInput style={s.inp} value={from} onChangeText={setFrom} placeholder="From (e.g. Gate 1, Hostel)" placeholderTextColor={colors.text3} />
       <TextInput style={s.inp} value={to}   onChangeText={setTo}   placeholder="To (e.g. Library, Canteen)" placeholderTextColor={colors.text3} />
-      <TextInput style={s.inp} value={time} onChangeText={setTime} placeholder="Time (e.g. 8:30 AM)"        placeholderTextColor={colors.text3} />
+      <TextInput
+        style={s.inp}
+        value={time}
+        onChangeText={handleTimeChange}
+        placeholder="Time in 24hr format (e.g. 14:30)"
+        placeholderTextColor={colors.text3}
+        keyboardType="numeric"
+        maxLength={5}
+      />
     </>
   );
 }

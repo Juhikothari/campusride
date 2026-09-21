@@ -489,8 +489,8 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             {/* Vehicle Type Selection Chips */}
-            <Text style={[styles.label, { marginTop: 4, marginBottom: 6 }]}>VEHICLE TYPE</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <Text style={[styles.label, { marginTop: 4, marginBottom: 8 }]}>VEHICLE TYPE</Text>
+            <View style={styles.vChipsGrid}>
               {[
                 { type: 'motorcycle', label: '🏍️ Bike' },
                 { type: 'car',        label: '🚗 Car' },
@@ -512,7 +512,7 @@ export default function RegisterScreen({ navigation }) {
             </View>
 
             {/* Compulsory KYC Documents */}
-            <Text style={[styles.label, { marginTop: 6, marginBottom: 8 }]}>VERIFICATION DOCUMENTS (COMPULSORY)</Text>
+            <Text style={[styles.label, { marginTop: 12, marginBottom: 8 }]}>VERIFICATION DOCUMENTS (COMPULSORY)</Text>
             <DocUploadRow label="Driving License (Required for Providers)" icon="🚘" onUpload={() => showDocPicker('license')} uri={docs.license} />
             <DocUploadRow label="Aadhar Card *" icon="🪪" onUpload={() => showDocPicker('aadhar')} uri={docs.aadhar} />
             <DocUploadRow label="College ID Card *" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
@@ -890,9 +890,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 14,
   },
+  vChipsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
   vChip: {
-    flex: 1,
-    minWidth: 70,
+    width: '48%',
     backgroundColor: '#161b24',
     borderWidth: 1.5,
     borderColor: '#262d3d',
@@ -900,6 +905,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    marginVertical: 4,
   },
   vChipActive: {
     borderColor: colors.accent,

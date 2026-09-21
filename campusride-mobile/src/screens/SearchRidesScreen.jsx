@@ -197,6 +197,24 @@ export default function SearchRidesScreen({ navigation }) {
       return;
     }
 
+    if (user?.kycStatus !== 'approved') {
+      setError('Your KYC documents must be approved by campus admin before you can search and book rides.');
+      return;
+    }
+
+    // Mandatory college check: at least ONE location must be their college
+    const collegeStr = (user?.college || '').trim().toLowerCase();
+    const pText = (pickup.label || '').toLowerCase();
+    const dText = (drop.label || '').toLowerCase();
+    const hasCollege = (collegeStr && (pText.includes(collegeStr) || dText.includes(collegeStr))) ||
+      pText.includes('campus') || pText.includes('college') ||
+      dText.includes('campus') || dText.includes('college');
+
+    if (!hasCollege) {
+      setError(`Campus policy: Either pickup or drop must be your college campus (${user?.college || 'college'}).`);
+      return;
+    }
+
     setError('');
     setLoading(true);
     setSearched(true);
@@ -242,9 +260,18 @@ export default function SearchRidesScreen({ navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopHeader title="Search Your Match" subtitle="Find verified campus commuters" />
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        {/* Section divider */}
-        <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH & MATCH RIDES</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: 140 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Section divider */}
+          <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH & MATCH RIDES</Text>
 
         {/* Pickup */}
         <LocationSearch
@@ -456,6 +483,7 @@ export default function SearchRidesScreen({ navigation }) {
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />

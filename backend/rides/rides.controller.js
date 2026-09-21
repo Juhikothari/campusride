@@ -55,6 +55,13 @@ exports.createRide = async (req, res) => {
       return res.status(403).json({ message: 'Access denied. Provider role required.' });
     }
 
+    // Require KYC approval to offer rides
+    if (user.kycStatus !== 'approved') {
+      return res.status(403).json({
+        message: 'Your KYC documents must be approved by campus admin before you can offer rides.'
+      });
+    }
+
     // ── Prevent simultaneous offering & seeking ──────────────────────
     const activeSeekerBooking = await Booking.findOne({
       seekerId: userId,
@@ -260,7 +267,7 @@ const extractCoords = (loc) => {
 // ================= SEARCH RIDES =================
 exports.searchRides = async (req, res) => {
   try {
-    const { lat, lng, maxDistance = 5000, date, dropLat, dropLng, vehicleType, pickupText, dropText } = req.query;
+    const { lat, lng, maxDistance = 5000, date, time, dropLat, dropLng, vehicleType, pickupText, dropText } = req.query;
     
     // If no search parameters are provided, return empty array (do NOT show all offered rides before search)
     if (!lat && !lng && !dropLat && !dropLng && !pickupText && !dropText) {
@@ -323,13 +330,43 @@ exports.searchRides = async (req, res) => {
       };
     }
 
+    // Helper: Parse time string "HH:MM" or "HH:MM AM/PM" to minutes from midnight
+    const parseTimeToMinutes = (tStr) => {
+      if (!tStr) return null;
+      const clean = tStr.trim().toUpperCase();
+      const match = clean.match(/^(\d{1,2}):(\d{2})(?:\s*([AP]M))?/);
+      if (!match) return null;
+      let hours = parseInt(match[1], 10);
+      const mins = parseInt(match[2], 10);
+      const meridiem = match[3];
+      if (meridiem === 'PM' && hours < 12) hours += 12;
+      if (meridiem === 'AM' && hours === 12) hours = 0;
+      return hours * 60 + mins;
+    };
+
+    const searchTimeMins = time ? parseTimeToMinutes(time) : null;
+
     // Helper: check if a ride's scheduled date+time is still relevant
     const now = new Date();
     const isRideUpcoming = (ride) => {
       if (!ride.date) return true;
       try {
         const rideDate = new Date(ride.date);
-        return (rideDate.getTime() + 48 * 60 * 60 * 1000) > now.getTime();
+        const withinFuture = (rideDate.getTime() + 48 * 60 * 60 * 1000) > now.getTime();
+        if (!withinFuture) return false;
+
+        // If user searched for a specific scheduled time, match within +/- 60 minutes
+        if (searchTimeMins !== null && ride.time) {
+          const rideMins = parseTimeToMinutes(ride.time);
+          if (rideMins !== null) {
+            const diff = Math.abs(rideMins - searchTimeMins);
+            // Allow +/- 60 mins window
+            if (diff > 60 && diff < (1440 - 60)) {
+              return false;
+            }
+          }
+        }
+        return true;
       } catch {
         return true;
       }
@@ -469,6 +506,20 @@ exports.getRide = async (req, res) => {
         rideObj.providerId.usn = null;
       }
       rideObj.vehicleNumber = null;
+    }
+
+    // Attach passenger/seeker details for provider view
+    if (isOwner) {
+      const acceptedBookings = await Booking.find({
+        rideId: ride._id,
+        status: { $in: ['accepted', 'pending'] }
+      }).populate('seekerId', 'name phone usn college gender');
+      rideObj.passengers = acceptedBookings.map(b => ({
+        bookingId: b._id,
+        status: b.status,
+        seats: b.seats || 1,
+        seeker: b.seekerId,
+      }));
     }
 
     res.json(rideObj);

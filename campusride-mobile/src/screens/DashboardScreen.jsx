@@ -18,7 +18,7 @@ const MAIN_SERVICES = [
   {
     key: 'CreateRide',
     icon: '🚗',
-    title: 'Offer a Ride',
+    title: 'Get a Buddy',
     sub: 'Post your route and split the cost',
     iconBg: '#1c2630',
   },
@@ -32,7 +32,7 @@ const MAIN_SERVICES = [
   {
     key: 'WalkTogether',
     icon: '🚶',
-    title: 'Walk Together',
+    title: 'Nadi',
     sub: 'Find someone walking the same campus route',
     iconBg: '#222328',
   },

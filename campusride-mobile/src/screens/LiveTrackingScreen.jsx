@@ -460,13 +460,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
 
             {/* Interactive OpenStreetMap Live Map with Eye-Catching Markers */}
+            {/* Leg 1 (Provider -> Seeker Pickup) shows first; Leg 2 (Destination) shows only after Seeker completes checklist */}
             <LiveMapView
               pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
-              drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
+              drop={rideInfo?.seekerChecklistCompleted && dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
               driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
-              coordinates={routeCoordinates}
+              coordinates={rideInfo?.seekerChecklistCompleted ? routeCoordinates : []}
               leg1Coordinates={leg1Coords}
-              leg2Coordinates={leg2Coords}
+              leg2Coordinates={rideInfo?.seekerChecklistCompleted ? leg2Coords : []}
               height={isMapExpanded ? 460 : 320}
               style={{ marginBottom: 12 }}
             />
@@ -569,49 +570,102 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* ── DRIVER & VEHICLE DETAILS CARD ── */}
+          {/* ── DETAILS CARD: SHOW PASSENGER DETAILS TO DRIVER, DRIVER DETAILS TO SEEKER ── */}
           {rideInfo && (
             <View style={styles.driverCard}>
-              <Text style={styles.driverSectionTitle}>🚗 ASSIGNED VEHICLE & RIDER</Text>
-              <View style={styles.driverRow}>
-                <View style={styles.driverAvatar}>
-                  <Text style={styles.driverAvatarText}>{rideInfo?.providerId?.name?.charAt(0) || 'P'}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.driverName}>{rideInfo?.providerId?.name || 'Campus Provider'}</Text>
-                  <Text style={styles.driverVehicleName}>
-                    🚘 {rideInfo?.vehicleName || rideInfo?.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(rideInfo?.vehicleType || 'Car').toUpperCase()}
-                  </Text>
-                </View>
-                {(rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber) && (
-                  <View style={styles.plateContainer}>
-                    <Text style={styles.plateText}>
-                      {rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber}
-                    </Text>
+              {isDriver ? (
+                <>
+                  <Text style={styles.driverSectionTitle}>👥 ASSIGNED PASSENGER DETAILS</Text>
+                  {rideInfo.passengers && rideInfo.passengers.length > 0 ? (
+                    rideInfo.passengers.map((p, pIdx) => (
+                      <View key={p.bookingId || pIdx} style={{ marginBottom: pIdx < rideInfo.passengers.length - 1 ? 12 : 0 }}>
+                        <View style={styles.driverRow}>
+                          <View style={[styles.driverAvatar, { borderColor: colors.green }]}>
+                            <Text style={[styles.driverAvatarText, { color: colors.green }]}>
+                              {p.seeker?.name?.charAt(0) || 'S'}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.driverName}>{p.seeker?.name || 'Passenger'}</Text>
+                            <Text style={styles.driverVehicleName}>
+                              💺 {p.seats || 1} Seat(s) Booked • {p.status?.toUpperCase() || 'CONFIRMED'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.driverDetailsGrid}>
+                          {p.seeker?.usn && (
+                            <View style={styles.driverGridItem}>
+                              <Text style={styles.driverGridLabel}>USN</Text>
+                              <Text style={styles.driverGridVal}>{p.seeker.usn}</Text>
+                            </View>
+                          )}
+                          {p.seeker?.phone && (
+                            <View style={styles.driverGridItem}>
+                              <Text style={styles.driverGridLabel}>PHONE</Text>
+                              <Text style={[styles.driverGridVal, { color: colors.accent }]}>{p.seeker.phone}</Text>
+                            </View>
+                          )}
+                          {p.seeker?.college && (
+                            <View style={styles.driverGridItem}>
+                              <Text style={styles.driverGridLabel}>CAMPUS</Text>
+                              <Text style={styles.driverGridVal}>{p.seeker.college}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    ))
+                  ) : (
+                    <View style={{ paddingVertical: 8 }}>
+                      <Text style={{ color: colors.text2, fontSize: 13 }}>
+                        Passenger confirmed for this ride.
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={styles.driverSectionTitle}>🚗 ASSIGNED VEHICLE & RIDER</Text>
+                  <View style={styles.driverRow}>
+                    <View style={styles.driverAvatar}>
+                      <Text style={styles.driverAvatarText}>{rideInfo?.providerId?.name?.charAt(0) || 'P'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.driverName}>{rideInfo?.providerId?.name || 'Campus Provider'}</Text>
+                      <Text style={styles.driverVehicleName}>
+                        🚘 {rideInfo?.vehicleName || rideInfo?.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(rideInfo?.vehicleType || 'Car').toUpperCase()}
+                      </Text>
+                    </View>
+                    {(rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber) && (
+                      <View style={styles.plateContainer}>
+                        <Text style={styles.plateText}>
+                          {rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                )}
-              </View>
 
-              <View style={styles.driverDetailsGrid}>
-                {rideInfo?.providerId?.usn && (
-                  <View style={styles.driverGridItem}>
-                    <Text style={styles.driverGridLabel}>USN</Text>
-                    <Text style={styles.driverGridVal}>{rideInfo.providerId.usn}</Text>
+                  <View style={styles.driverDetailsGrid}>
+                    {rideInfo?.providerId?.usn && (
+                      <View style={styles.driverGridItem}>
+                        <Text style={styles.driverGridLabel}>USN</Text>
+                        <Text style={styles.driverGridVal}>{rideInfo.providerId.usn}</Text>
+                      </View>
+                    )}
+                    {rideInfo?.providerId?.phone && (
+                      <View style={styles.driverGridItem}>
+                        <Text style={styles.driverGridLabel}>PHONE</Text>
+                        <Text style={[styles.driverGridVal, { color: colors.accent }]}>{rideInfo.providerId.phone}</Text>
+                      </View>
+                    )}
+                    {rideInfo?.college && (
+                      <View style={styles.driverGridItem}>
+                        <Text style={styles.driverGridLabel}>CAMPUS</Text>
+                        <Text style={styles.driverGridVal}>{rideInfo.college}</Text>
+                      </View>
+                    )}
                   </View>
-                )}
-                {rideInfo?.providerId?.phone && (
-                  <View style={styles.driverGridItem}>
-                    <Text style={styles.driverGridLabel}>PHONE</Text>
-                    <Text style={[styles.driverGridVal, { color: colors.accent }]}>{rideInfo.providerId.phone}</Text>
-                  </View>
-                )}
-                {rideInfo?.college && (
-                  <View style={styles.driverGridItem}>
-                    <Text style={styles.driverGridLabel}>CAMPUS</Text>
-                    <Text style={styles.driverGridVal}>{rideInfo.college}</Text>
-                  </View>
-                )}
-              </View>
+                </>
+              )}
             </View>
           )}
 

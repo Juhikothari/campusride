@@ -31,6 +31,13 @@ exports.requestBooking = async (req, res) => {
       }
     }
 
+    // KYC approval check for seeker
+    if (seeker?.kycStatus !== 'approved') {
+      return res.status(403).json({
+        message: 'Your KYC documents must be approved by campus admin before you can book rides.'
+      });
+    }
+
     // Women-only ride check
     if (ride.womenOnly && seeker?.gender !== 'female') {
       return res.status(403).json({ message: 'This is a women-only ride.' });

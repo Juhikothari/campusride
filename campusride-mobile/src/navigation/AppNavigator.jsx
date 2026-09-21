@@ -73,8 +73,8 @@ function AppStack() {
       {/* Rides & Search */}
       <Stack.Screen name="SearchRides"       component={SearchRidesScreen}      options={{ title: 'Search Your Match' }} />
       <Stack.Screen name="SearchMatch"       component={SearchRidesScreen}      options={{ title: 'Search Your Match' }} />
-      <Stack.Screen name="CreateRide"        component={CreateRideScreen}       options={{ title: 'Offer a Ride' }} />
-      <Stack.Screen name="OfferRide"         component={CreateRideScreen}       options={{ title: 'Offer a Ride' }} />
+      <Stack.Screen name="CreateRide"        component={CreateRideScreen}       options={{ title: 'Get a Buddy' }} />
+      <Stack.Screen name="OfferRide"         component={CreateRideScreen}       options={{ title: 'Get a Buddy' }} />
       <Stack.Screen name="RideDetail"        component={RideDetailScreen}       options={{ title: 'Ride Details' }} />
       <Stack.Screen name="LiveTracking"      component={LiveTrackingScreen}     options={{ headerShown: false }} />
 
@@ -85,7 +85,7 @@ function AppStack() {
       {/* AI Assistant & Community */}
       <Stack.Screen name="ChatBot"           component={ChatBotScreen}          options={{ title: 'HOGO AI Assistant' }} />
       <Stack.Screen name="Community"         component={CommunityScreen}        options={{ title: 'Campus Community' }} />
-      <Stack.Screen name="WalkTogether"      component={WalkTogetherScreen}     options={{ title: 'Walk Together' }} />
+      <Stack.Screen name="WalkTogether"      component={WalkTogetherScreen}     options={{ title: 'Nadi' }} />
       <Stack.Screen name="IncidentReport"    component={IncidentReportScreen}   options={{ title: 'Report Incident' }} />
 
       {/* Profile & Account */}

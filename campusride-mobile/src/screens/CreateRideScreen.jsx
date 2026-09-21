@@ -21,18 +21,32 @@ const VEHICLES = [
   { value: 'xuv',        label: '🛻 XUV',  capacity: 6 },
 ];
 
-const RATES = {
-  motorcycle: { base: 20, perKm: 5  },
-  car:        { base: 25, perKm: 7  },
-  suv:        { base: 30, perKm: 9  },
-  xuv:        { base: 35, perKm: 11 },
+// Base fares & per km rates as configured
+const baseFares = {
+  motorcycle: 20, // Bike base fare
+  car:        25, // Car base fare
+  suv:        25, // SUV base fare
+  xuv:        25, // XUV base fare
+};
+
+const perKmRates = {
+  motorcycle: 5,  // Bikes: ₹5 per km
+  car:        7,  // Cars: ₹7 per km
+  suv:        7,  // SUVs: ₹7 per km
+  xuv:        10, // XUVs: ₹10 per km
 };
 
 function calcCost(distKm, vehicleType) {
   if (!distKm || distKm <= 0) return 0;
+  const vt = vehicleType || 'car';
+  const base = baseFares[vt] !== undefined ? baseFares[vt] : 25;
+  const perKm = perKmRates[vt] !== undefined ? perKmRates[vt] : 7;
   const d = Math.min(distKm, 50);
-  const { base, perKm } = RATES[vehicleType] || RATES.car;
-  return Math.max(20, base + (d > 1 ? Math.round(d * perKm) : 0));
+  // Within 1 km it should be base fare; above that it should be base fare + per km price
+  if (d <= 1.0) {
+    return base;
+  }
+  return Math.round(base + (d * perKm));
 }
 
 function haversineKm(lat1, lng1, lat2, lng2) {
@@ -222,6 +236,23 @@ export default function CreateRideScreen({ navigation }) {
     </SafeAreaView>
   );
 
+  if (user?.kycStatus !== 'approved') return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
+      <TopHeader title="Get a Buddy" subtitle="Campus Verification" />
+      <View style={{ flex: 1, padding: 24, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ fontSize: 44, marginBottom: 12 }}>🛡️</Text>
+        <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 8 }}>
+          KYC Approval Required
+        </Text>
+        <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
+          Your KYC documents must be verified and approved by your campus administrator before you can offer rides and get buddies.
+        </Text>
+        <Btn label="Check KYC Status" onPress={() => navigation.navigate('KYC')} style={{ width: '100%', marginBottom: 10 }} />
+        <Btn label="Go Back" onPress={() => navigation.goBack()} variant="outline" style={{ width: '100%' }} />
+      </View>
+    </SafeAreaView>
+  );
+
   const isFemale = user?.gender === 'female';
 
   const handleSelectVehicle = (v, idx) => {
@@ -283,6 +314,20 @@ export default function CreateRideScreen({ navigation }) {
     if (!pickup.lat) { setError('Enter or select pickup location'); return; }
     if (!drop.lat)   { setError('Enter drop location');   return; }
 
+    // Mandatory college check: at least ONE location must be their college
+    const collegeStr = (user?.college || '').trim().toLowerCase();
+    const pText = (pickup.label || '').toLowerCase();
+    const dText = (drop.label || '').toLowerCase();
+    const hasCollege = pickupFrom === 'college' || 
+      (collegeStr && (pText.includes(collegeStr) || dText.includes(collegeStr))) ||
+      pText.includes('campus') || pText.includes('college') ||
+      dText.includes('campus') || dText.includes('college');
+
+    if (!hasCollege) {
+      setError(`Campus safety policy: Either your pickup or drop location must be your college (${user?.college || 'campus'}).`);
+      return;
+    }
+
     const nowSubmit = new Date();
     const defaultDate = nowSubmit.toISOString().split('T')[0];
     const defaultTime = `${String(nowSubmit.getHours()).padStart(2, '0')}:${String(nowSubmit.getMinutes()).padStart(2, '0')}`;
@@ -337,10 +382,18 @@ export default function CreateRideScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="HOGO" subtitle="Find Your Match" />
+      <TopHeader title="Get a Buddy" subtitle="Offer your ride and split cost" />
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: 120 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <Alert message={error} />
 
           {/* ── WHERE ARE YOU PICKING UP FROM? ── */}
@@ -479,7 +532,38 @@ export default function CreateRideScreen({ navigation }) {
                 Your vehicle details and documents have been submitted and are being reviewed by the campus administrator. You will be able to post rides once approved.
               </Text>
             </View>
-          ) : null /* When verified: Do NOT show vehicle details to provider while offering */}
+          ) : null}
+
+          {/* If provider has multiple vehicles registered, show selector */}
+          {userVehicles.length > 1 && (
+            <View style={{ marginBottom: spacing.md }}>
+              <Text style={styles.sectionHeading}>SELECT VEHICLE FOR THIS RIDE</Text>
+              <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+                {userVehicles.map((v, idx) => {
+                  const isSel = selectedVIdx === idx;
+                  return (
+                    <TouchableOpacity
+                      key={v.vehicleNumber || idx}
+                      style={[
+                        styles.vehicleSelectChip,
+                        isSel && styles.vehicleSelectChipActive
+                      ]}
+                      onPress={() => handleSelectVehicle(v, idx)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 16 }}>{v.vehicleType === 'motorcycle' ? '🏍️' : '🚗'}</Text>
+                      <View>
+                        <Text style={[styles.vehicleSelectName, isSel && { color: colors.accent }]}>
+                          {v.vehicleName || 'Vehicle'}
+                        </Text>
+                        <Text style={styles.vehicleSelectNum}>{v.vehicleNumber}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
 
           {/* Women-only toggle */}
           {isFemale && (
@@ -812,5 +896,31 @@ const styles = StyleSheet.create({
   vTypeChipTextActive: {
     color: colors.accent,
     fontWeight: '800',
+  },
+  vehicleSelectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface2,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    minWidth: '45%',
+  },
+  vehicleSelectChipActive: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentDim,
+  },
+  vehicleSelectName: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  vehicleSelectNum: {
+    color: colors.text3,
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

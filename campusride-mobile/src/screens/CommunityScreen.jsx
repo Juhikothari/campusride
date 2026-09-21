@@ -331,9 +331,11 @@ export default function CommunityScreen() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
 
+  const collegeCommunityTitle = user?.college ? `${user.college} Community` : 'Campus Community';
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <TopHeader title="HOGO Community" subtitle="Campus Forum & Chat" />
+      <TopHeader title={collegeCommunityTitle} subtitle="Campus Forum & Chat" />
 
       {/* Tabs */}
       <View style={styles.tabBar}>

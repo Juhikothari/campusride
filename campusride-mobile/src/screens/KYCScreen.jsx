@@ -162,12 +162,6 @@ export default function KYCScreen({ navigation }) {
               {docs_.aadhar       && <DocRow label="Aadhar Card"      icon="🪪" submitted />}
               {docs_.collegeIdCard && <DocRow label="College ID"       icon="🎓" submitted />}
               {docs_.drivingLicense && <DocRow label="Driving License"  icon="🚘" submitted />}
-              {docs_.vehicleNumber && (
-                <View style={{ marginTop: 8 }}>
-                  <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 4 }}>VEHICLE NUMBER</Text>
-                  <Text style={{ color: colors.accent, fontSize: 22, fontWeight: '900', letterSpacing: 3 }}>{docs_.vehicleNumber}</Text>
-                </View>
-              )}
             </View>
           )}
 
@@ -200,9 +194,8 @@ export default function KYCScreen({ navigation }) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionLabel}>VEHICLE DETAILS & TYPE (OPTIONAL / PROVIDER)</Text>
-          <Input label="Vehicle Number" value={vehicleNum} onChangeText={setVehicleNum} placeholder="e.g. KA01AB1234" autoCapitalize="characters" />
-          <Input label="Vehicle Name"   value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa, Nexon" autoCapitalize="words" />
+          <Text style={styles.sectionLabel}>VEHICLE TYPE (FOR PROVIDERS)</Text>
+          <Input label="Vehicle Name / Model" value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa, Nexon" autoCapitalize="words" />
 
             <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginTop: 8, marginBottom: 8 }}>
               VEHICLE TYPE
