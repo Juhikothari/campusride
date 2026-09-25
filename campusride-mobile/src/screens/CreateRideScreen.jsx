@@ -258,16 +258,37 @@ export default function CreateRideScreen({ navigation }) {
     if (item.drop) setDrop(item.drop);
   };
 
-  // Set default college pickup when "college" is chosen, or default college drop when "home" is chosen
-  useEffect(() => {
+  const isLocCollege = (locLabel) => {
+    if (!locLabel) return false;
+    const str = locLabel.toLowerCase();
+    const cStr = (user?.college || '').toLowerCase().trim();
+    return (cStr && str.includes(cStr)) || str.includes('campus') || str.includes('college');
+  };
+
+  const handleSelectPickupCollege = () => {
     if (!user?.college) return;
     const colLoc = getCollegeLocation(user.college);
-    if (pickupFrom === 'college') {
-      setPickup(colLoc);
-    } else if (pickupFrom === 'home') {
-      setDrop(colLoc);
+    setPickupFrom('college');
+    setPickup(colLoc);
+    // If drop was also college, clear it so only 1 location is college
+    setDrop(prev => isLocCollege(prev.label) ? { label: '', lat: '', lng: '' } : prev);
+  };
+
+  const handleSelectDropCollege = () => {
+    if (!user?.college) return;
+    const colLoc = getCollegeLocation(user.college);
+    setPickupFrom('home');
+    setDrop(colLoc);
+    // If pickup was also college, clear it so only 1 location is college
+    setPickup(prev => isLocCollege(prev.label) ? { label: '', lat: '', lng: '' } : prev);
+  };
+
+  // Set default college pickup once on initial mount
+  useEffect(() => {
+    if (user?.college && !pickup.label && !drop.label) {
+      handleSelectPickupCollege();
     }
-  }, [pickupFrom, user?.college]);
+  }, [user?.college]);
 
   // Auto-calculate distance + cost
   useEffect(() => {
@@ -387,6 +408,14 @@ export default function CreateRideScreen({ navigation }) {
       return;
     }
 
+    // Ensure both are not college
+    const pIsCollege = isLocCollege(pickup.label);
+    const dIsCollege = isLocCollege(drop.label);
+    if (pIsCollege && dIsCollege) {
+      setError('Pickup and drop cannot both be your college campus. A ride must be between your home/city and college.');
+      return;
+    }
+
     const nowSubmit = new Date();
     const defaultDate = nowSubmit.toISOString().split('T')[0];
     const defaultTime = `${String(nowSubmit.getHours()).padStart(2, '0')}:${String(nowSubmit.getMinutes()).padStart(2, '0')}`;
@@ -463,7 +492,7 @@ export default function CreateRideScreen({ navigation }) {
           <View style={styles.pickupSourceRow}>
             <TouchableOpacity
               style={[styles.pickupSourceBtn, pickupFrom === 'college' && styles.pickupSourceBtnActive]}
-              onPress={() => setPickupFrom('college')}
+              onPress={handleSelectPickupCollege}
               activeOpacity={0.8}
             >
               <Text style={{ fontSize: 24, marginBottom: 4 }}>🏫</Text>
@@ -472,7 +501,7 @@ export default function CreateRideScreen({ navigation }) {
 
             <TouchableOpacity
               style={[styles.pickupSourceBtn, pickupFrom === 'home' && styles.pickupSourceBtnActive]}
-              onPress={() => setPickupFrom('home')}
+              onPress={handleSelectDropCollege}
               activeOpacity={0.8}
             >
               <Text style={{ fontSize: 24, marginBottom: 4 }}>🏠</Text>
@@ -485,7 +514,11 @@ export default function CreateRideScreen({ navigation }) {
             label="Pickup Location"
             value={pickup.label}
             onChange={(label, lat, lng) => {
-              setPickup({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              const newLabel = label || '';
+              setPickup({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              if (isLocCollege(newLabel) && isLocCollege(drop.label)) {
+                setDrop({ label: '', lat: '', lng: '' });
+              }
             }}
             placeholder={pickupFrom === 'college' ? `${user?.college || 'College'} Campus` : 'Enter Home / Pickup Location'}
           />
@@ -494,7 +527,11 @@ export default function CreateRideScreen({ navigation }) {
             label="Drop Location"
             value={drop.label}
             onChange={(label, lat, lng) => {
-              setDrop({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              const newLabel = label || '';
+              setDrop({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              if (isLocCollege(newLabel) && isLocCollege(pickup.label)) {
+                setPickup({ label: '', lat: '', lng: '' });
+              }
             }}
             placeholder="Where are you going?"
           />
@@ -504,14 +541,14 @@ export default function CreateRideScreen({ navigation }) {
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 }}>
               <TouchableOpacity
                 style={styles.campusChip}
-                onPress={() => setPickup(getCollegeLocation(user.college))}
+                onPress={handleSelectPickupCollege}
                 activeOpacity={0.7}
               >
                 <Text style={styles.campusChipText}>🏫 Start at {user.college.split(' ')[0]}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.campusChip}
-                onPress={() => setDrop(getCollegeLocation(user.college))}
+                onPress={handleSelectDropCollege}
                 activeOpacity={0.7}
               >
                 <Text style={styles.campusChipText}>🏫 Drop at {user.college.split(' ')[0]}</Text>

@@ -170,14 +170,18 @@ exports.createRide = async (req, res) => {
     const dAddr = (dropAddress || '').toLowerCase();
     const cName = (userCollege || '').toLowerCase();
     const normC = (normalizedCollege || '').toLowerCase();
-    const hasCollegeLoc = (cName && (pAddr.includes(cName) || dAddr.includes(cName))) ||
-                          (normC && (pAddr.includes(normC) || dAddr.includes(normC))) ||
-                          pAddr.includes('campus') || pAddr.includes('college') ||
-                          dAddr.includes('campus') || dAddr.includes('college');
+    const pIsCollege = (cName && pAddr.includes(cName)) || (normC && pAddr.includes(normC)) || pAddr.includes('campus') || pAddr.includes('college');
+    const dIsCollege = (cName && dAddr.includes(cName)) || (normC && dAddr.includes(normC)) || dAddr.includes('campus') || dAddr.includes('college');
 
-    if (!hasCollegeLoc) {
+    if (!pIsCollege && !dIsCollege) {
       return res.status(400).json({
         message: 'Campus ride policy: At least one location (pickup or drop) must be your college campus.'
+      });
+    }
+
+    if (pIsCollege && dIsCollege) {
+      return res.status(400).json({
+        message: 'Campus ride policy: Pickup and drop cannot both be your college campus. A ride must be between your home/city and college.'
       });
     }
 

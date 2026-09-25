@@ -169,6 +169,13 @@ export default function SearchRidesScreen({ navigation }) {
     jssate: { lat: '12.9038', lng: '77.5029', name: 'JSSATE Campus, Uttarahalli' },
   };
 
+  const isLocCollege = (locLabel) => {
+    if (!locLabel) return false;
+    const str = locLabel.toLowerCase();
+    const cStr = (user?.college || '').toLowerCase().trim();
+    return (cStr && str.includes(cStr)) || str.includes('campus') || str.includes('college');
+  };
+
   const fillCollegeLocation = async (field) => {
     if (!user?.college) return;
     const rawCollege = user.college.toLowerCase().trim();
@@ -179,15 +186,27 @@ export default function SearchRidesScreen({ navigation }) {
     };
     const collegeLabel = `${user.college.toUpperCase()} Campus — ${preset.name || 'Main Gate'}`;
     
-    if (field === 'pickup') setPickup({ label: collegeLabel, lat: preset.lat, lng: preset.lng });
-    else                    setDrop  ({ label: collegeLabel, lat: preset.lat, lng: preset.lng });
+    if (field === 'pickup') {
+      setPickup({ label: collegeLabel, lat: preset.lat, lng: preset.lng });
+      // If drop was already college, remove it so both are not college
+      setDrop(prev => isLocCollege(prev.label) ? { label: '', lat: '', lng: '' } : prev);
+    } else {
+      setDrop({ label: collegeLabel, lat: preset.lat, lng: preset.lng });
+      // If pickup was already college, remove it so both are not college
+      setPickup(prev => isLocCollege(prev.label) ? { label: '', lat: '', lng: '' } : prev);
+    }
 
     try {
       const res = await api.searchLocation(`${user.college} Bangalore`);
       if (Array.isArray(res) && res.length > 0 && res[0].lat && res[0].lng) {
         const enriched = `${user.college.toUpperCase()} Campus — ${res[0].display_name || preset.name}`;
-        if (field === 'pickup') setPickup({ label: enriched, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
-        else                    setDrop  ({ label: enriched, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
+        if (field === 'pickup') {
+          setPickup({ label: enriched, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
+          setDrop(prev => isLocCollege(prev.label) ? { label: '', lat: '', lng: '' } : prev);
+        } else {
+          setDrop({ label: enriched, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
+          setPickup(prev => isLocCollege(prev.label) ? { label: '', lat: '', lng: '' } : prev);
+        }
       }
     } catch {}
   };
@@ -270,6 +289,14 @@ export default function SearchRidesScreen({ navigation }) {
       return;
     }
 
+    // Check if both pickup and drop are college
+    const pIsCollege = isLocCollege(pickup.label);
+    const dIsCollege = isLocCollege(drop.label);
+    if (pIsCollege && dIsCollege) {
+      setError('Pickup and drop cannot both be your college campus. One must be your commute origin or destination.');
+      return;
+    }
+
     setError('');
     setLoading(true);
     setSearched(true);
@@ -338,7 +365,11 @@ export default function SearchRidesScreen({ navigation }) {
           label="Pickup Location"
           value={pickup.label}
           onChange={(label, lat, lng) => {
-            setPickup({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+            const newLabel = label || '';
+            setPickup({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+            if (isLocCollege(newLabel) && isLocCollege(drop.label)) {
+              setDrop({ label: '', lat: '', lng: '' });
+            }
           }}
           placeholder="Where are you starting from?"
         />
@@ -348,7 +379,11 @@ export default function SearchRidesScreen({ navigation }) {
           label="Drop Location"
           value={drop.label}
           onChange={(label, lat, lng) => {
-            setDrop({ label, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+            const newLabel = label || '';
+            setDrop({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+            if (isLocCollege(newLabel) && isLocCollege(pickup.label)) {
+              setPickup({ label: '', lat: '', lng: '' });
+            }
           }}
           placeholder="Where do you want to go?"
         />
