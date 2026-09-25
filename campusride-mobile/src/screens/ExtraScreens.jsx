@@ -1097,8 +1097,8 @@ export function PreRideChecklistScreen({ route, navigation }) {
       } else {
         RNAlert.alert(
           '✅ Safety Checklist Verified',
-          'All pre-ride checks verified! The driver can now start the ride, and live GPS tracking will activate automatically.',
-          [{ text: 'OK', onPress: () => navigation.navigate('Home') }]
+          'All pre-ride checks verified! The driver can now start the ride, and route to destination will activate automatically.',
+          [{ text: 'View Live Ride Map', onPress: () => navigation.replace('LiveTracking', { rideId }) }]
         );
       }
     }

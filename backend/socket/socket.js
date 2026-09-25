@@ -9,15 +9,28 @@ module.exports = {
     io.on("connection", (socket) => {
       console.log("Socket connected:", socket.id);
       
+      socket.on("authenticate", ({ userId, userType }) => {
+        if (!userId) return;
+        socket.userId = userId;
+        socket.userType = userType;
+        socket.join(`user-${userId}`);
+        socket.join(`provider-${userId}`);
+        socket.join(`seeker-${userId}`);
+        if (userType) socket.join(`${userType}s`);
+        console.log(`User ${userId} (${userType}) authenticated via helper`);
+      });
+
       // Join ride room
       socket.on("join-ride", (rideId) => {
         socket.join(`ride-${rideId}`);
         console.log(`Socket ${socket.id} joined ride-${rideId}`);
       });
       
-      // FIXED: Join user room for personal notifications
+      // Join user room for personal notifications
       socket.on("join-user", (userId) => {
         socket.join(`user-${userId}`);
+        socket.join(`provider-${userId}`);
+        socket.join(`seeker-${userId}`);
         console.log(`Socket ${socket.id} joined user-${userId}`);
       });
       
@@ -36,7 +49,3 @@ module.exports = {
     return io;
   }
 };
-socket.on("authenticate", ({ userId, userType }) => {
-  socket.join(`user-${userId}`);
-  console.log(`User ${userId} (${userType}) authenticated`);
-});

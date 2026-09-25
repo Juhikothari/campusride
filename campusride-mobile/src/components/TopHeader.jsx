@@ -8,6 +8,8 @@ import { useAuth } from '../context/AuthContext';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
+import { subscribeToNotifications, getSharedSocket } from '../hooks/useSocket';
+
 export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Match' }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
@@ -19,6 +21,11 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Match'
 
   useEffect(() => {
     let mounted = true;
+    const userId = user?._id || user?.userId;
+    if (userId) {
+      getSharedSocket(userId, user?.role);
+    }
+
     const fetchUnread = () => {
       api.getNotifications()
         .then(res => {
@@ -36,9 +43,25 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Match'
     };
 
     fetchUnread();
-    const interval = setInterval(fetchUnread, 15000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, [modalVisible]);
+
+    // Instant real-time socket badge update
+    const unsubSocket = subscribeToNotifications((event) => {
+      if (['new-notification', 'new-booking', 'booking-response', 'rider-arrived', 'booking-update'].includes(event)) {
+        fetchUnread();
+      }
+    });
+
+    // Navigation focus listener to update whenever screen appears
+    const unsubFocus = navigation?.addListener ? navigation.addListener('focus', fetchUnread) : () => {};
+
+    const interval = setInterval(fetchUnread, 12000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      unsubSocket();
+      unsubFocus();
+    };
+  }, [user?._id, user?.userId, navigation]);
 
   const handleLogout = () => {
     setModalVisible(false);

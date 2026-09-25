@@ -12,6 +12,7 @@ import FloatingChatBot from '../components/FloatingChatBot';
 import { Btn, Alert, EmptyState } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { subscribeToNotifications } from '../hooks/useSocket';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -163,6 +164,37 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => { isMounted = false; };
   }, [activeRideId]);
 
+  // Real-time synchronization for arrival, checklist, and ride started
+  useEffect(() => {
+    const unsub = subscribeToNotifications((event, data) => {
+      if (event === 'riderArrivedAtSeeker' || event === 'rider-arrived') {
+        if (!data?.rideId || data.rideId === activeRideId) {
+          setRideInfo(prev => prev ? ({ ...prev, riderReachedSeeker: true }) : prev);
+        }
+      } else if (event === 'checklistCompleted') {
+        if (!data?.rideId || data.rideId === activeRideId) {
+          setRideInfo(prev => prev ? ({ ...prev, seekerChecklistCompleted: true }) : prev);
+        }
+      } else if (event === 'rideStarted') {
+        if (!data?.rideId || data.rideId === activeRideId) {
+          setRideInfo(prev => prev ? ({ ...prev, status: 'in-progress' }) : prev);
+        }
+      }
+    });
+    return () => unsub();
+  }, [activeRideId]);
+
+  // Screen focus listener to refresh ride info
+  useEffect(() => {
+    if (!activeRideId) return;
+    const unsubFocus = navigation?.addListener ? navigation.addListener('focus', () => {
+      api.getRideById(activeRideId).then(data => {
+        if (data) setRideInfo(data);
+      }).catch(() => {});
+    }) : () => {};
+    return () => unsubFocus();
+  }, [activeRideId, navigation]);
+
   // 3. Elapsed ride timer
   useEffect(() => {
     if (!tracking) return;
@@ -304,7 +336,30 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
   const [actionLoading, setActionLoading] = useState(false);
 
+  const handleArrivedAtSeeker = async () => {
+    setActionLoading(true);
+    try {
+      await api.markArrivedAtSeeker(activeRideId);
+      setRideInfo(prev => ({ ...prev, riderReachedSeeker: true }));
+      RNAlert.alert(
+        '📍 Arrived at Seeker',
+        'Arrival confirmed! The passenger can now complete their safety checklist before departure.'
+      );
+    } catch (err) {
+      RNAlert.alert('Error', err.message || 'Failed to update arrival status');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleStartRide = async () => {
+    if (!rideInfo?.riderReachedSeeker) {
+      RNAlert.alert(
+        '📍 Confirm Arrival First',
+        'Please confirm you have arrived at the passenger pickup spot before starting the ride.'
+      );
+      return;
+    }
     if (!rideInfo?.seekerChecklistCompleted) {
       RNAlert.alert(
         '⏳ Passenger Checklist Incomplete',
@@ -316,7 +371,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
     try {
       await api.startRide(activeRideId);
       setRideInfo(prev => ({ ...prev, status: 'in-progress' }));
-      RNAlert.alert('🚀 Trip Started', 'Your ride is now LIVE. Passengers can track your route in real-time.');
+      RNAlert.alert('🚀 Trip Started', 'Your ride is now LIVE. Route to destination is now displayed on the map.');
     } catch (err) {
       RNAlert.alert('Error', err.message || 'Failed to start ride');
     } finally {
@@ -409,6 +464,8 @@ export default function LiveTrackingScreen({ navigation, route }) {
     );
   };
 
+  const isTripToDestination = rideInfo?.status === 'in-progress' || rideInfo?.status === 'completed';
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopHeader title="HOGO Track" subtitle="Live Route & Navigation" />
@@ -433,20 +490,24 @@ export default function LiveTrackingScreen({ navigation, route }) {
           {/* Interactive Route Map with Eye-Catching Points — Always Shown in Track Ride */}
           <View style={styles.radarCard}>
             <View style={styles.radarHeader}>
-              <View style={[styles.livePulseDot, rideInfo?.status !== 'in-progress' && { backgroundColor: colors.accent }]} />
+              <View style={[styles.livePulseDot, !isTripToDestination && { backgroundColor: colors.accent }]} />
               <Text style={styles.radarTitle}>
-                {rideInfo?.status === 'in-progress' ? '🛰️ LIVE GPS TRACKING ACTIVE' : '🗺️ CONFIRMED RIDE ROUTE'}
+                {isTripToDestination
+                  ? '🛰️ LIVE GPS TRACKING ACTIVE'
+                  : (rideInfo?.riderReachedSeeker ? '🟢 AT PASSENGER PICKUP' : '🗺️ EN ROUTE TO SEEKER PICKUP')}
               </Text>
-              <View style={[styles.timerBadge, rideInfo?.status !== 'in-progress' && { backgroundColor: 'rgba(245,166,35,0.15)', borderColor: colors.accent }]}>
-                <Text style={[styles.timerText, rideInfo?.status !== 'in-progress' && { color: colors.accent }]}>
-                  {rideInfo?.status === 'in-progress' ? fmt(elapsed) : 'PRE-START'}
+              <View style={[styles.timerBadge, !isTripToDestination && { backgroundColor: 'rgba(245,166,35,0.15)', borderColor: colors.accent }]}>
+                <Text style={[styles.timerText, !isTripToDestination && { color: colors.accent }]}>
+                  {isTripToDestination ? fmt(elapsed) : (rideInfo?.riderReachedSeeker ? 'CHECKLIST' : 'LEG 1')}
                 </Text>
               </View>
             </View>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 4 }}>
               <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
-                {isMapExpanded ? '🗺️ ENLARGED FULL ROUTE MAP' : '🗺️ INTERACTIVE ROUTE MAP'}
+                {isTripToDestination
+                  ? (isMapExpanded ? '🗺️ DESTINATION ROUTE (FULL)' : '🗺️ ROUTE TO FINAL DESTINATION')
+                  : (isMapExpanded ? '🗺️ ROUTE TO SEEKER (FULL)' : '🗺️ ROUTE TO PASSENGER PICKUP')}
               </Text>
               <TouchableOpacity
                 onPress={() => setIsMapExpanded(e => !e)}
@@ -460,14 +521,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
 
             {/* Interactive OpenStreetMap Live Map with Eye-Catching Markers */}
-            {/* Leg 1 (Provider -> Seeker Pickup) shows first; Leg 2 (Destination) shows only after Seeker completes checklist */}
+            {/* FIRST rider gets route to seeker location; AFTER reaching seeker and checklist, gets route to destination */}
             <LiveMapView
               pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
-              drop={rideInfo?.seekerChecklistCompleted && dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
+              drop={isTripToDestination && dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
               driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
-              coordinates={rideInfo?.seekerChecklistCompleted ? routeCoordinates : []}
-              leg1Coordinates={leg1Coords}
-              leg2Coordinates={rideInfo?.seekerChecklistCompleted ? leg2Coords : []}
+              coordinates={isTripToDestination ? routeCoordinates : []}
+              leg1Coordinates={!isTripToDestination ? leg1Coords : []}
+              leg2Coordinates={isTripToDestination ? leg2Coords : []}
               height={isMapExpanded ? 460 : 320}
               style={{ marginBottom: 12 }}
             />
@@ -482,18 +543,20 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.nodeLabel, { color: '#00E5FF' }]}>1. PROVIDER LOCATION</Text>
                   <Text style={styles.nodeAddress} numberOfLines={1}>
-                    {isDriver ? 'Your Live Location' : `${rideInfo?.providerId?.name || rideInfo?.providerName || 'Provider'} (${rideInfo?.status === 'in-progress' ? 'En Route' : 'Assigned'})`}
+                    {isDriver ? 'Your Live Location' : `${rideInfo?.providerId?.name || rideInfo?.providerName || 'Provider'} (${isTripToDestination ? 'Trip in Progress' : 'En Route to Pickup'})`}
                   </Text>
                 </View>
               </View>
 
               {/* Leg 1 connector: Provider to Pickup */}
               <View style={styles.nodeConnector}>
-                <View style={[styles.connectorLine, { borderColor: '#00E5FF', borderStyle: 'dashed' }]} />
+                <View style={[styles.connectorLine, { borderColor: '#00E5FF', borderStyle: isTripToDestination ? 'solid' : 'dashed' }]} />
                 <View style={[styles.liveCarBadge, { borderColor: '#00E5FF' }]}>
-                  <Text style={{ fontSize: 11 }}>➡️</Text>
+                  <Text style={{ fontSize: 11 }}>{rideInfo?.riderReachedSeeker ? '✅' : '➡️'}</Text>
                   <Text style={[styles.liveCarText, { color: '#00E5FF' }]}>
-                    {leg1Duration ? `To Seeker (${leg1Duration})` : 'Heading to Pickup'}
+                    {isTripToDestination
+                      ? 'Reached Seeker ✅'
+                      : (rideInfo?.riderReachedSeeker ? 'Arrived at Pickup 🟢' : (leg1Duration ? `To Seeker (${leg1Duration})` : 'Heading to Pickup'))}
                   </Text>
                 </View>
               </View>
@@ -511,22 +574,24 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
               {/* Leg 2 connector: Pickup to Destination */}
               <View style={styles.nodeConnector}>
-                <View style={styles.connectorLine} />
-                <View style={styles.liveCarBadge}>
-                  <Text style={{ fontSize: 11 }}>🏁</Text>
-                  <Text style={styles.liveCarText}>
-                    {leg2Duration ? `To Destination (${leg2Duration})` : 'In Transit'}
+                <View style={[styles.connectorLine, !isTripToDestination && { borderColor: 'rgba(255,255,255,0.15)', borderStyle: 'dotted' }]} />
+                <View style={[styles.liveCarBadge, !isTripToDestination && { borderColor: 'rgba(255,255,255,0.2)' }]}>
+                  <Text style={{ fontSize: 11 }}>{isTripToDestination ? '🏁' : '🔒'}</Text>
+                  <Text style={[styles.liveCarText, !isTripToDestination && { color: colors.text3 }]}>
+                    {isTripToDestination
+                      ? (leg2Duration ? `To Destination (${leg2Duration})` : 'In Transit')
+                      : 'Route unlocks after departure'}
                   </Text>
                 </View>
               </View>
 
               {/* Node 3: Drop-off Destination */}
-              <View style={styles.routeNode}>
-                <View style={[styles.nodeIcon, { backgroundColor: colors.accent + '22', borderColor: colors.accent }]}>
+              <View style={[styles.routeNode, !isTripToDestination && { opacity: 0.65 }]}>
+                <View style={[styles.nodeIcon, { backgroundColor: colors.accent + '22', borderColor: isTripToDestination ? colors.accent : colors.text3 }]}>
                   <Text style={{ fontSize: 16 }}>🏁</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.nodeLabel}>3. DROP-OFF DESTINATION</Text>
+                  <Text style={[styles.nodeLabel, !isTripToDestination && { color: colors.text3 }]}>3. DROP-OFF DESTINATION</Text>
                   <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
                 </View>
               </View>
@@ -536,36 +601,48 @@ export default function LiveTrackingScreen({ navigation, route }) {
             <View style={styles.telemetryBar}>
               <View style={styles.telemetryItem}>
                 <Text style={styles.telemetryLabel}>TO PICKUP</Text>
-                <Text style={[styles.telemetryVal, { color: '#00E5FF' }]}>{leg1Duration || leg1Distance || 'Confirmed'}</Text>
+                <Text style={[styles.telemetryVal, { color: '#00E5FF' }]}>
+                  {rideInfo?.riderReachedSeeker ? 'Reached 🟢' : (leg1Duration || leg1Distance || 'Approaching')}
+                </Text>
               </View>
               <View style={styles.telemetryDivider} />
               <View style={styles.telemetryItem}>
                 <Text style={styles.telemetryLabel}>TO DESTINATION</Text>
-                <Text style={[styles.telemetryVal, { color: colors.accent }]}>{leg2Duration || leg2Distance || routeDuration || 'Route Ready'}</Text>
+                <Text style={[styles.telemetryVal, { color: colors.accent }]}>
+                  {isTripToDestination ? (leg2Duration || leg2Distance || routeDuration || 'En Route') : 'Locked until start'}
+                </Text>
               </View>
               <View style={styles.telemetryDivider} />
               <View style={styles.telemetryItem}>
                 <Text style={styles.telemetryLabel}>STATUS</Text>
-                <Text style={[styles.telemetryVal, { color: rideInfo?.status === 'in-progress' ? colors.green : colors.accent }]}>
-                  {rideInfo?.status?.toUpperCase() || 'CONFIRMED'}
+                <Text style={[styles.telemetryVal, { color: isTripToDestination ? colors.green : colors.accent }]}>
+                  {isTripToDestination ? 'TRIP LIVE' : (rideInfo?.riderReachedSeeker ? 'AT PICKUP' : 'APPROACHING')}
                 </Text>
               </View>
             </View>
           </View>
 
           {/* Pre-Departure Info Card if ride not started yet */}
-          {rideInfo?.status !== 'in-progress' && (
+          {!isTripToDestination && (
             <View style={styles.preDepartureNoticeBox}>
-              <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 6 }}>⏳</Text>
-              <Text style={styles.preDepartureTitle}>Ride Not Started Yet</Text>
+              <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 6 }}>
+                {rideInfo?.riderReachedSeeker ? '📍' : '🚗'}
+              </Text>
+              <Text style={styles.preDepartureTitle}>
+                {rideInfo?.riderReachedSeeker ? 'Rider at Pickup Location' : 'Rider En Route to Pickup'}
+              </Text>
               <Text style={styles.preDepartureSub}>
                 {isDriver
-                  ? (rideInfo?.seekerChecklistCompleted
-                      ? 'Passenger safety checklist verified! Tap "🚀 Start Ride" below to begin trip navigation.'
-                      : 'Waiting for passenger to complete their safety checklist before departure.')
-                  : (rideInfo?.seekerChecklistCompleted
-                      ? 'Your safety checklist is confirmed! Waiting for driver to start the ride.'
-                      : 'Please complete your pre-ride safety checklist below before departure.')}
+                  ? (!rideInfo?.riderReachedSeeker
+                      ? 'Follow the map above to passenger pickup spot. Once you arrive, tap "I Have Reached Seeker Location" below.'
+                      : (rideInfo?.seekerChecklistCompleted
+                          ? 'Passenger safety checklist verified! Tap "🚀 Start Ride" below to begin destination navigation.'
+                          : 'Waiting for passenger to complete their pre-ride safety checklist before departure.'))
+                  : (!rideInfo?.riderReachedSeeker
+                      ? `Rider is on the way to your pickup point (${rideInfo?.pickup?.address || 'Pickup'}). You will complete the safety checklist upon arrival.`
+                      : (rideInfo?.seekerChecklistCompleted
+                          ? 'Safety checklist verified! Driver is ready to begin your trip.'
+                          : 'Your rider has arrived! Please complete your safety checklist below to start your ride.'))}
               </Text>
             </View>
           )}
@@ -709,14 +786,48 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 </>
               ) : rideInfo?.status === 'active' ? (
                 <View style={{ gap: 10 }}>
-                  {!rideInfo?.seekerChecklistCompleted ? (
+                  {!rideInfo?.riderReachedSeeker ? (
+                    <>
+                      <View style={{ backgroundColor: 'rgba(0,229,255,0.12)', borderWidth: 1, borderColor: '#00E5FF', borderRadius: radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <Text style={{ fontSize: 24 }}>📍</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: '#00E5FF', fontSize: 13, fontWeight: '800' }}>Navigating to Seeker</Text>
+                          <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
+                            Map is guiding you to {rideInfo?.pickup?.address || 'passenger pickup'}. Tap below when you reach the passenger.
+                          </Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[styles.completeRideBtn, { backgroundColor: '#00E5FF', borderColor: '#00E5FF' }]}
+                        onPress={handleArrivedAtSeeker}
+                        disabled={actionLoading}
+                        activeOpacity={0.85}
+                      >
+                        {actionLoading ? (
+                          <ActivityIndicator color="#000" size="small" />
+                        ) : (
+                          <Text style={[styles.completeRideBtnText, { color: '#000' }]}>
+                            📍 I Have Reached Seeker Location
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.driverSubBtn, { borderColor: colors.red + '55', paddingVertical: 12 }]}
+                        onPress={handleCancelRide}
+                      >
+                        <Text style={[styles.driverSubBtnText, { color: colors.red, textAlign: 'center' }]}>✕ Cancel Ride</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : !rideInfo?.seekerChecklistCompleted ? (
                     <>
                       <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                         <Text style={{ fontSize: 22 }}>⏳</Text>
                         <View style={{ flex: 1 }}>
                           <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Passenger Checklist</Text>
                           <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
-                            The passenger must verify their pre-ride safety checklist before departure. The start option will appear once verified.
+                            You have arrived at pickup! Passenger must verify safety checklist before ride departure.
                           </Text>
                         </View>
                       </View>
@@ -733,7 +844,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Text style={{ fontSize: 16 }}>✅</Text>
                         <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
-                          Passenger checklist verified! You can now start the ride.
+                          Passenger checklist verified! Tap below to start ride and show route to destination.
                         </Text>
                       </View>
 
@@ -752,7 +863,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                           disabled={actionLoading}
                         >
                           <Text style={[styles.completeRideBtnText, { color: '#000' }]}>
-                            🚀 Start Ride
+                            🚀 Start Ride to Destination
                           </Text>
                         </TouchableOpacity>
 
@@ -774,19 +885,37 @@ export default function LiveTrackingScreen({ navigation, route }) {
           {!isDriver && (rideInfo?.status === 'active' || rideInfo?.status === 'in-progress') && (
             <View style={{ gap: 10, marginBottom: 12 }}>
               {rideInfo?.status === 'active' && (
-                !rideInfo?.seekerChecklistCompleted ? (
-                  <TouchableOpacity
-                    style={[styles.completeRideBtn, { backgroundColor: colors.accent }]}
-                    onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeRideId })}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.completeRideBtnText}>🛡️ Complete Safety Checklist to Start →</Text>
-                  </TouchableOpacity>
+                !rideInfo?.riderReachedSeeker ? (
+                  <View style={{ backgroundColor: 'rgba(0,229,255,0.12)', borderWidth: 1, borderColor: '#00E5FF', borderRadius: radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Text style={{ fontSize: 20 }}>🚗</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#00E5FF', fontSize: 13, fontWeight: '800' }}>Rider Approaching Pickup</Text>
+                      <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
+                        Your rider is on their way. Safety checklist will unlock as soon as your rider arrives at your pickup spot.
+                      </Text>
+                    </View>
+                  </View>
+                ) : !rideInfo?.seekerChecklistCompleted ? (
+                  <>
+                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 18 }}>📍</Text>
+                      <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
+                        Your rider has arrived! Please complete your safety checklist now.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.completeRideBtn, { backgroundColor: colors.accent }]}
+                      onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeRideId })}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.completeRideBtnText}>🛡️ Complete Safety Checklist Now →</Text>
+                    </TouchableOpacity>
+                  </>
                 ) : (
                   <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Text style={{ fontSize: 16 }}>✅</Text>
                     <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
-                      Safety checklist completed. Waiting for provider to start ride.
+                      Safety checklist completed. Waiting for provider to start ride to destination.
                     </Text>
                   </View>
                 )

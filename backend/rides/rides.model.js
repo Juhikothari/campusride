@@ -38,6 +38,8 @@ const rideSchema = new mongoose.Schema({
   },
   parentRideId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Ride', default: null },
   recurringGroupId: { type: mongoose.Schema.Types.ObjectId, ref: 'Ride', default: null },
+  riderReachedSeeker:         { type: Boolean, default: false },
+  riderReachedSeekerAt:       { type: Date },
   seekerChecklistCompleted:   { type: Boolean, default: false },
   seekerChecklistCompletedAt: { type: Date },
   providerChecklistCompleted: { type: Boolean, default: false },

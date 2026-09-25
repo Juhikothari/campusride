@@ -132,8 +132,10 @@ await ride.save();
       // Real-time socket notification
       const io = req.app.get('io');
       if (io) {
+        const notifObj = providerNotification.toObject();
+        io.to(`provider-${ride.providerId._id}`).to(`user-${ride.providerId._id}`).emit('new-notification', notifObj);
         io.to(`provider-${ride.providerId._id}`).emit('new-booking', {
-          notification: providerNotification.toObject(),
+          notification: notifObj,
           booking: {
             _id: booking._id,
             seeker: {
@@ -377,8 +379,10 @@ exports.respondBooking = async (req, res) => {
       // Real-time notification to seeker
       const io = req.app.get('io');
       if (io) {
+        const notifObj = seekerNotification.toObject();
+        io.to(`user-${booking.seekerId._id}`).to(`seeker-${booking.seekerId._id}`).emit('new-notification', notifObj);
         io.to(`user-${booking.seekerId._id}`).emit('booking-response', {
-          notification: seekerNotification.toObject(),
+          notification: notifObj,
           booking: {
             _id: booking._id,
             status: status,

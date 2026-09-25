@@ -733,6 +733,74 @@ exports.submitChecklist = async (req, res) => {
   }
 };
 
+// ================= ARRIVED AT SEEKER PICKUP =================
+exports.arrivedAtSeeker = async (req, res) => {
+  try {
+    const { rideId } = req.params;
+    const currentUserId = req.user?.userId || req.user?.id;
+    const ride = await Ride.findOne({ _id: rideId, providerId: currentUserId });
+
+    if (!ride) return res.status(404).json({ message: 'Ride not found or you are not the provider' });
+
+    ride.riderReachedSeeker = true;
+    ride.riderReachedSeekerAt = new Date();
+    await ride.save();
+
+    // Notify all accepted passengers
+    const acceptedBookings = await Booking.find({ rideId, status: 'accepted' }).populate('seekerId', 'name');
+    for (const b of acceptedBookings) {
+      try {
+        const notif = new Notification({
+          userId: b.seekerId._id,
+          userType: 'seeker',
+          type: 'RIDER_ARRIVED',
+          title: '📍 Your Rider Has Arrived!',
+          body: `Your rider has arrived at your pickup spot. Please verify your pre-ride safety checklist so departure can begin.`,
+          data: {
+            rideId: ride._id,
+            bookingId: b._id,
+            pickup: ride.pickup,
+            arrivedAt: ride.riderReachedSeekerAt
+          },
+          priority: 'high',
+          channels: ['in_app', 'socket']
+        });
+        await notif.save();
+
+        const io = req.app.get('io');
+        if (io) {
+          const notifObj = notif.toObject();
+          io.to(`user-${b.seekerId._id}`).to(`seeker-${b.seekerId._id}`).emit('new-notification', notifObj);
+          io.to(`user-${b.seekerId._id}`).to(`seeker-${b.seekerId._id}`).emit('rider-arrived', {
+            rideId: ride._id,
+            arrivedAt: ride.riderReachedSeekerAt
+          });
+        }
+      } catch (notifErr) {
+        console.error('Error sending rider-arrived notification:', notifErr);
+      }
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`ride-${rideId}`).emit('riderArrivedAtSeeker', {
+        rideId,
+        riderReachedSeeker: true,
+        riderReachedSeekerAt: ride.riderReachedSeekerAt
+      });
+    }
+
+    res.json({
+      message: 'Marked arrived at seeker pickup location',
+      ride,
+      riderReachedSeeker: true,
+      riderReachedSeekerAt: ride.riderReachedSeekerAt
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ================= PICKUP PASSENGER =================
 exports.pickupPassenger = async (req, res) => {
   try {
@@ -919,6 +987,24 @@ exports.startRide = async (req, res) => {
         status: 'in-progress',
         startedAt: ride.startedAt
       });
+    }
+
+    for (const b of acceptedBookings) {
+      try {
+        const notif = new Notification({
+          userId: b.seekerId,
+          userType: 'seeker',
+          type: 'RIDE_STARTED',
+          title: '🚀 Ride Started to Destination!',
+          body: `Your ride is now en route to ${ride.drop?.address || 'destination'}. Live GPS tracking is active.`,
+          data: { rideId: ride._id, bookingId: b._id }
+        });
+        await notif.save();
+        if (io) {
+          const notifObj = notif.toObject();
+          io.to(`user-${b.seekerId}`).to(`seeker-${b.seekerId}`).emit('new-notification', notifObj);
+        }
+      } catch (e) {}
     }
 
     res.json({ message: 'Ride started successfully', ride });

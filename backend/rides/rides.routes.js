@@ -19,6 +19,8 @@ router.get('/nearby-suggestions', controller.findNearbyRides);
 router.get('/recurring/:rideId/instances', controller.getRecurringInstances);
 
 // Trip status flow (specific parameterized routes before generic /:id)
+router.post('/:rideId/arrived',   controller.arrivedAtSeeker);
+router.put('/:rideId/arrived',    controller.arrivedAtSeeker);
 router.post('/:rideId/checklist', controller.submitChecklist);
 router.post('/:rideId/pickup',    controller.pickupPassenger);
 router.post('/:rideId/drop',      controller.dropPassenger);
