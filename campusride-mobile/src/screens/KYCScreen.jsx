@@ -46,7 +46,7 @@ export default function KYCScreen({ navigation }) {
   const [uploading,   setUploading]   = useState(false);
   const [submitted,   setSubmitted]   = useState(false);
   const [error,       setError]       = useState('');
-  const [docs,        setDocs]        = useState({ aadhar: null, collegeId: null, license: null });
+  const [docs,        setDocs]        = useState({ aadhar: null, collegeId: null, license: null, selfie: null });
   const [vehicleNum,  setVehicleNum]  = useState('');
   const [vehicleName, setVehicleName] = useState('');
   const [vehicleType, setVehicleType] = useState('car');
@@ -61,6 +61,27 @@ export default function KYCScreen({ navigation }) {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const captureSelfie = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        RNAlert.alert('Permission Denied', 'Camera permission is required to capture your live verification selfie.');
+        return;
+      }
+      const r = await ImagePicker.launchCameraAsync({
+        quality: 0.8,
+        cameraType: ImagePicker.CameraType?.front || 'front',
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+      if (!r.canceled && r.assets?.[0]?.uri) {
+        setDocs(d => ({ ...d, selfie: r.assets[0].uri }));
+      }
+    } catch (err) {
+      RNAlert.alert('Camera Error', 'Could not launch camera: ' + err.message);
+    }
+  };
 
   const pickDoc = (docType) => {
     RNAlert.alert('Upload Document', 'Choose source', [
@@ -85,18 +106,27 @@ export default function KYCScreen({ navigation }) {
   };
 
   const submit = async () => {
-    if (!docs.aadhar || !docs.collegeId) { setError('Aadhar and College ID are required'); return; }
+    if (!docs.aadhar || !docs.collegeId) {
+      setError('Aadhar Card and College ID are required');
+      return;
+    }
+    if (!docs.selfie) {
+      setError('Live selfie verification is mandatory. Please capture your selfie.');
+      return;
+    }
     setUploading(true); setError('');
     try {
       const uploadedDocs = {};
       uploadedDocs.aadhar       = await uploadToCloudinary(docs.aadhar);
       uploadedDocs.collegeIdCard = await uploadToCloudinary(docs.collegeId);
+      uploadedDocs.selfie       = await uploadToCloudinary(docs.selfie);
       if (docs.license) uploadedDocs.drivingLicense = await uploadToCloudinary(docs.license);
       const vCleanNum = vehicleNum.trim() ? vehicleNum.trim().toUpperCase() : null;
       const vCleanName = vehicleName.trim() || null;
       await api.submitKyc({
         aadharUrl:         uploadedDocs.aadhar,
         collegeIdCardUrl:  uploadedDocs.collegeIdCard,
+        selfieUrl:         uploadedDocs.selfie,
         drivingLicenseUrl: uploadedDocs.drivingLicense || null,
         vehicleNumber:     vCleanNum,
         vehicleName:       vCleanName,
@@ -156,9 +186,10 @@ export default function KYCScreen({ navigation }) {
           </View>
 
           {/* Doc previews */}
-          {(docs_.aadhar || docs_.collegeIdCard || docs_.drivingLicense) && (
+          {(docs_.aadhar || docs_.collegeIdCard || docs_.drivingLicense || docs_.selfie) && (
             <View style={styles.card}>
               <Text style={styles.sectionLabel}>SUBMITTED DOCUMENTS</Text>
+              {docs_.selfie       && <DocRow label="Live Selfie Photo" icon="📸" submitted />}
               {docs_.aadhar       && <DocRow label="Aadhar Card"      icon="🪪" submitted />}
               {docs_.collegeIdCard && <DocRow label="College ID"       icon="🎓" submitted />}
               {docs_.drivingLicense && <DocRow label="Driving License"  icon="🚘" submitted />}
@@ -166,7 +197,7 @@ export default function KYCScreen({ navigation }) {
           )}
 
           {st === 'rejected' && (
-            <Btn label="Resubmit KYC" onPress={() => { setSubmitted(false); setDocs({ aadhar: null, collegeId: null, license: null }); }} style={{ marginTop: 8 }} />
+            <Btn label="Resubmit KYC" onPress={() => { setSubmitted(false); setDocs({ aadhar: null, collegeId: null, license: null, selfie: null }); }} style={{ marginTop: 8 }} />
           )}
         </ScrollView>
       </SafeAreaView>
@@ -187,9 +218,10 @@ export default function KYCScreen({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>REQUIRED DOCUMENTS</Text>
-          <DocRow label="Aadhar Card"  icon="🪪" onUpload={() => pickDoc('aadhar')}   uri={docs.aadhar}   required />
-          <DocRow label="College ID"   icon="🎓" onUpload={() => pickDoc('collegeId')} uri={docs.collegeId} required />
-          <DocRow label="Driving License" icon="🚘" onUpload={() => pickDoc('license')}  uri={docs.license}  />
+          <DocRow label="Live Selfie Photo" icon="📸" onUpload={captureSelfie}            uri={docs.selfie}   required />
+          <DocRow label="Aadhar Card"       icon="🪪" onUpload={() => pickDoc('aadhar')}   uri={docs.aadhar}   required />
+          <DocRow label="College ID"        icon="🎓" onUpload={() => pickDoc('collegeId')} uri={docs.collegeId} required />
+          <DocRow label="Driving License"   icon="🚘" onUpload={() => pickDoc('license')}  uri={docs.license}  />
           <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>* Required fields</Text>
         </View>
 

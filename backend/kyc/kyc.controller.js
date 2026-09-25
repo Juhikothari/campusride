@@ -28,6 +28,9 @@ exports.submitKyc = async (req, res) => {
     if (!collegeIdCardUrl) {
       return res.status(400).json({ message: "College ID document is required" });
     }
+    if (!selfieUrl) {
+      return res.status(400).json({ message: "Live selfie verification photo is mandatory" });
+    }
 
     // Validate image format (accept data URL, http/https, or mobile file/content URI)
     const isValidImageUrl = (url) => {

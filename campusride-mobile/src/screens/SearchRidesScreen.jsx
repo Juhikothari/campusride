@@ -156,17 +156,38 @@ export default function SearchRidesScreen({ navigation }) {
     }
   };
 
+  const COLLEGE_COORDS = {
+    rnsit: { lat: '12.9004', lng: '77.5186', name: 'RNSIT Campus, RR Nagar' },
+    rvce: { lat: '12.9237', lng: '77.4987', name: 'RVCE Campus, Mysore Road' },
+    bmsce: { lat: '12.9416', lng: '77.5654', name: 'BMSCE Campus, Basavanagudi' },
+    msrit: { lat: '13.0305', lng: '77.5649', name: 'MSRIT Campus, Mathikere' },
+    pesu: { lat: '12.9345', lng: '77.5345', name: 'PES University, Ring Road' },
+    pes: { lat: '12.9345', lng: '77.5345', name: 'PES University, Ring Road' },
+    sjce: { lat: '12.3160', lng: '76.6135', name: 'SJCE Campus, Mysuru' },
+    nie: { lat: '12.2828', lng: '76.6415', name: 'NIE Campus, Mysuru' },
+    dsce: { lat: '12.9080', lng: '77.5668', name: 'DSCE Campus, Kumaraswamy Layout' },
+    jssate: { lat: '12.9038', lng: '77.5029', name: 'JSSATE Campus, Uttarahalli' },
+  };
+
   const fillCollegeLocation = async (field) => {
     if (!user?.college) return;
-    const label = `${user.college} (Campus Main Gate)`;
-    if (field === 'pickup') setPickup({ label, lat: '12.9716', lng: '77.5946' });
-    else                    setDrop  ({ label, lat: '12.9716', lng: '77.5946' });
+    const rawCollege = user.college.toLowerCase().trim();
+    const preset = COLLEGE_COORDS[rawCollege] || {
+      lat: '12.9004',
+      lng: '77.5186',
+      name: `${user.college.toUpperCase()} Campus Main Gate`
+    };
+    const collegeLabel = `${user.college.toUpperCase()} Campus — ${preset.name || 'Main Gate'}`;
+    
+    if (field === 'pickup') setPickup({ label: collegeLabel, lat: preset.lat, lng: preset.lng });
+    else                    setDrop  ({ label: collegeLabel, lat: preset.lat, lng: preset.lng });
 
     try {
       const res = await api.searchLocation(`${user.college} Bangalore`);
       if (Array.isArray(res) && res.length > 0 && res[0].lat && res[0].lng) {
-        if (field === 'pickup') setPickup({ label, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
-        else                    setDrop  ({ label, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
+        const enriched = `${user.college.toUpperCase()} Campus — ${res[0].display_name || preset.name}`;
+        if (field === 'pickup') setPickup({ label: enriched, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
+        else                    setDrop  ({ label: enriched, lat: res[0].lat.toString(), lng: res[0].lng.toString() });
       }
     } catch {}
   };
@@ -218,11 +239,16 @@ export default function SearchRidesScreen({ navigation }) {
     }
 
     let currentKyc = user?.kycStatus;
-    if (currentKyc !== 'approved' && refreshUser) {
-      const refreshed = await refreshUser().catch(() => null);
-      if (refreshed?.kycStatus) {
-        currentKyc = refreshed.kycStatus;
-      }
+    if (currentKyc !== 'approved') {
+      try {
+        const kycRes = await api.getKycStatus().catch(() => null);
+        if (kycRes?.kycStatus) {
+          currentKyc = kycRes.kycStatus;
+        } else if (refreshUser) {
+          const refreshed = await refreshUser().catch(() => null);
+          if (refreshed?.kycStatus) currentKyc = refreshed.kycStatus;
+        }
+      } catch {}
     }
 
     if (currentKyc !== 'approved') {
@@ -236,7 +262,8 @@ export default function SearchRidesScreen({ navigation }) {
     const dText = (drop.label || '').toLowerCase();
     const hasCollege = (collegeStr && (pText.includes(collegeStr) || dText.includes(collegeStr))) ||
       pText.includes('campus') || pText.includes('college') ||
-      dText.includes('campus') || dText.includes('college');
+      dText.includes('campus') || dText.includes('college') ||
+      pText.includes('gate') || dText.includes('gate');
 
     if (!hasCollege) {
       setError(`Campus policy: Either pickup or drop must be your college campus (${user?.college || 'college'}).`);
@@ -250,11 +277,16 @@ export default function SearchRidesScreen({ navigation }) {
       saveSearchHistoryItem(pickup, drop);
     }
     try {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const nowTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
       const params = {
         ...(pickup.lat && { lat: pickup.lat, lng: pickup.lng, maxDistance: 5000 }),
         ...(drop.lat && { dropLat: drop.lat, dropLng: drop.lng }),
         ...(pickup.label && { pickupText: pickup.label }),
         ...(drop.label && { dropText: drop.label }),
+        ...(schedMode === 'now' && { isNow: 'true', date: todayStr, time: nowTimeStr }),
         ...(schedMode === 'later' && date && { date }),
         ...(schedMode === 'later' && time && { time }),
         ...(womenOnly && { womenOnly: true }),

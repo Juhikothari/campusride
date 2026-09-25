@@ -163,6 +163,76 @@ export default function ProviderBookingsScreen({ navigation }) {
         {/* Selected ride details + bookings */}
         {selectedRide && (
           <>
+            {/* Selected Ride Details Card */}
+            <View style={styles.selectedRideCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <Text style={styles.selectedRideTitle}>SELECTED RIDE DETAILS</Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate('RideDetail', { rideId: selectedRide._id })}
+                  style={styles.viewDetailBadge}
+                >
+                  <Text style={styles.viewDetailText}>Full View ↗</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Vehicle & Plate */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <Text style={{ fontSize: 24 }}>
+                  {selectedRide.vehicleType === 'motorcycle' || selectedRide.vehicleType === 'bike' ? '🏍️' : '🚗'}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
+                    {selectedRide.vehicleName || 'Vehicle'}
+                  </Text>
+                  <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 2 }}>
+                    {selectedRide.vehicleNumber ? `Reg: ${selectedRide.vehicleNumber}` : 'Verified Campus Vehicle'}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '800' }}>
+                    ₹{selectedRide.costPerSeat}
+                  </Text>
+                  <Text style={{ color: colors.text3, fontSize: 11 }}>per seat</Text>
+                </View>
+              </View>
+
+              {/* Route */}
+              <View style={styles.routeBox}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, marginTop: 2 }}>🟢</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>PICKUP</Text>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(selectedRide.pickup)}</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                  <Text style={{ fontSize: 13, marginTop: 2 }}>🔴</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>DROP</Text>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(selectedRide.drop)}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Metadata pills */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>🗓 {fmtDate(selectedRide.date)}</Text>
+                </View>
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>⏰ {selectedRide.time}</Text>
+                </View>
+                <View style={styles.metaChip}>
+                  <Text style={styles.metaChipText}>💺 {selectedRide.seatsAvailable} seats available</Text>
+                </View>
+                {Boolean(selectedRide.womenOnly) && (
+                  <View style={[styles.metaChip, { backgroundColor: 'rgba(233,30,99,0.15)', borderColor: 'rgba(233,30,99,0.4)' }]}>
+                    <Text style={[styles.metaChipText, { color: '#ff4081' }]}>♀ Women Only</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
             {/* Ride status controls */}
             {selectedRide.status === 'active' && (() => {
               const hasAccepted = bookings.some(b => b.status === 'accepted');
@@ -344,4 +414,50 @@ const styles = StyleSheet.create({
   seekerName: { color: colors.text, fontSize: 14, fontWeight: '700', marginBottom: 4 },
   seekerMeta: { color: colors.text2, fontSize: 12, marginBottom: 2 },
   statusBadge: { fontSize: 11, fontWeight: '700', borderWidth: 1, borderRadius: radius.full, paddingHorizontal: 8, paddingVertical: 3, textTransform: 'capitalize' },
+  selectedRideCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    borderRadius: radius.xl,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  selectedRideTitle: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  viewDetailBadge: {
+    backgroundColor: colors.accentDim,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.accent + '66',
+  },
+  viewDetailText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  routeBox: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.lg,
+    padding: 10,
+    gap: 6,
+  },
+  metaChip: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  metaChipText: {
+    color: colors.text2,
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });

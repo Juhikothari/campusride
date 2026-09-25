@@ -43,35 +43,17 @@ const autoCancelStaleRides = async () => {
     const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000);
     const staleRides = await Ride.find({
       status: 'active',
-      $or: [
-        { date: { $lt: threeHoursAgo } },
-        { createdAt: { $lt: threeHoursAgo } }
-      ]
+      createdAt: { $lt: threeHoursAgo }
     });
     for (const sr of staleRides) {
-      let shouldCancel = true;
-      if (sr.date && sr.time) {
-        try {
-          const match = sr.time.match(/^(\d{1,2}):(\d{2})/);
-          if (match) {
-            const dep = new Date(sr.date);
-            dep.setHours(parseInt(match[1], 10), parseInt(match[2], 10), 0, 0);
-            if (dep.getTime() > threeHoursAgo.getTime()) {
-              shouldCancel = false;
-            }
-          }
-        } catch {}
-      }
-      if (shouldCancel) {
-        sr.status = 'cancelled';
-        sr.cancelReason = 'Auto-cancelled after 3 hours of inactivity';
-        sr.cancelledAt = new Date();
-        await sr.save();
-        await Booking.updateMany(
-          { rideId: sr._id, status: { $in: ['pending', 'accepted'] } },
-          { status: 'cancelled', cancelReason: 'Ride auto-cancelled after 3 hours' }
-        );
-      }
+      sr.status = 'cancelled';
+      sr.cancelReason = 'Auto-cancelled after 3 hours of inactivity';
+      sr.cancelledAt = new Date();
+      await sr.save();
+      await Booking.updateMany(
+        { rideId: sr._id, status: { $in: ['pending', 'accepted'] } },
+        { status: 'cancelled', cancelReason: 'Ride auto-cancelled after 3 hours' }
+      );
     }
   } catch (e) {
     console.error('Auto-cancel stale rides error:', e.message);
@@ -406,23 +388,30 @@ exports.searchRides = async (req, res) => {
       ];
     }
 
-    // Date filtering:
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    // Helper to get current Indian Standard Time (IST = UTC + 5:30)
+    const getISTDate = (d = new Date()) => {
+      const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+      return new Date(utc + (330 * 60000));
+    };
 
-    if (date) {
-      // User requested a specific calendar date
+    const isNow = req.query.isNow === 'true' || !req.query.date || req.query.schedMode === 'now';
+    const nowIST = getISTDate();
+    const todayISTStr = `${nowIST.getFullYear()}-${String(nowIST.getMonth() + 1).padStart(2, '0')}-${String(nowIST.getDate()).padStart(2, '0')}`;
+    const effectiveSearchDate = (isNow ? todayISTStr : (date || todayISTStr));
+
+    if (!isNow && date) {
+      // User requested a specific calendar date in the future
       const parts = date.split('-');
       const y = parseInt(parts[0], 10);
       const m = parseInt(parts[1], 10) - 1;
       const d = parseInt(parts[2], 10);
-      const startOfDay = new Date(y, m, d, 0, 0, 0, 0);
-      const endOfDay   = new Date(y, m, d, 23, 59, 59, 999);
+      const startOfDay = new Date(Date.UTC(y, m, d, 0, 0, 0, 0) - (330 * 60000));
+      const endOfDay   = new Date(Date.UTC(y, m, d, 23, 59, 59, 999) - (330 * 60000));
       query.date = { $gte: startOfDay, $lte: endOfDay };
     } else {
-      // User requested "NOW": Strictly match rides scheduled for TODAY only! Do NOT show tomorrow's rides.
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const endOfToday   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      // User requested "NOW": Strictly match rides scheduled for TODAY (IST)! Do NOT show tomorrow's rides.
+      const startOfToday = new Date(Date.UTC(nowIST.getFullYear(), nowIST.getMonth(), nowIST.getDate(), 0, 0, 0, 0) - (330 * 60000));
+      const endOfToday   = new Date(Date.UTC(nowIST.getFullYear(), nowIST.getMonth(), nowIST.getDate(), 23, 59, 59, 999) - (330 * 60000));
       query.date = { $gte: startOfToday, $lte: endOfToday };
     }
 
@@ -440,26 +429,28 @@ exports.searchRides = async (req, res) => {
       return hours * 60 + mins;
     };
 
-    const searchTimeMins = time ? parseTimeToMinutes(time) : null;
-    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const clientTimeMins = time ? parseTimeToMinutes(time) : null;
+    const istNowMins = nowIST.getHours() * 60 + nowIST.getMinutes();
+    const effectiveNowMins = (isNow && clientTimeMins !== null) ? clientTimeMins : istNowMins;
 
     // Helper: check if a ride's scheduled date+time is still relevant
     const isRideUpcoming = (ride) => {
       try {
-        const rideDate = new Date(ride.date || ride.createdAt || now);
-        const rideDateStr = `${rideDate.getFullYear()}-${String(rideDate.getMonth() + 1).padStart(2, '0')}-${String(rideDate.getDate()).padStart(2, '0')}`;
+        const rideDate = new Date(ride.date || ride.createdAt || nowIST);
+        const rideDateIST = getISTDate(rideDate);
+        const rideDateStr = `${rideDateIST.getFullYear()}-${String(rideDateIST.getMonth() + 1).padStart(2, '0')}-${String(rideDateIST.getDate()).padStart(2, '0')}`;
 
-        // If searching for "NOW" (no date query parameter):
-        if (!date) {
-          // Strictly today only
-          if (rideDateStr !== todayStr) return false;
+        // If searching for "NOW":
+        if (isNow) {
+          // Strictly today only (IST)
+          if (rideDateStr !== todayISTStr && rideDateStr !== effectiveSearchDate) return false;
 
           // Check departure time:
           if (ride.time) {
             const rideMins = parseTimeToMinutes(ride.time);
             if (rideMins !== null) {
-              // Ride must be departing between 15 minutes ago and up to 3 hours from now
-              if (rideMins < (nowMins - 15) || rideMins > (nowMins + 180)) {
+              // Ride must be departing between 30 minutes ago and up to 4 hours from now
+              if (rideMins < (effectiveNowMins - 30) || rideMins > (effectiveNowMins + 240)) {
                 return false;
               }
             }
@@ -468,14 +459,14 @@ exports.searchRides = async (req, res) => {
         }
 
         // Searching for scheduled date (date provided):
-        if (date !== rideDateStr) return false;
+        if (date && rideDateStr !== date) return false;
 
-        // If specific time was searched, window is +/- 45 mins
-        if (searchTimeMins !== null && ride.time) {
+        // If specific time was searched, window is +/- 60 mins
+        if (clientTimeMins !== null && ride.time) {
           const rideMins = parseTimeToMinutes(ride.time);
           if (rideMins !== null) {
-            const diff = Math.abs(rideMins - searchTimeMins);
-            if (diff > 45) {
+            const diff = Math.abs(rideMins - clientTimeMins);
+            if (diff > 60) {
               return false;
             }
           }

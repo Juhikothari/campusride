@@ -196,36 +196,76 @@ export default function CreateRideScreen({ navigation }) {
     )
   );
 
-  // Set default college pickup when "college" is chosen
+  const COLLEGE_COORDS = {
+    rnsit: { lat: '12.9004', lng: '77.5186', name: 'RNSIT Campus, RR Nagar' },
+    rvce: { lat: '12.9237', lng: '77.4987', name: 'RVCE Campus, Mysore Road' },
+    bmsce: { lat: '12.9416', lng: '77.5654', name: 'BMSCE Campus, Basavanagudi' },
+    msrit: { lat: '13.0305', lng: '77.5649', name: 'MSRIT Campus, Mathikere' },
+    pesu: { lat: '12.9345', lng: '77.5345', name: 'PES University, Ring Road' },
+    pes: { lat: '12.9345', lng: '77.5345', name: 'PES University, Ring Road' },
+    sjce: { lat: '12.3160', lng: '76.6135', name: 'SJCE Campus, Mysuru' },
+    nie: { lat: '12.2828', lng: '76.6415', name: 'NIE Campus, Mysuru' },
+    dsce: { lat: '12.9080', lng: '77.5668', name: 'DSCE Campus, Kumaraswamy Layout' },
+    jssate: { lat: '12.9038', lng: '77.5029', name: 'JSSATE Campus, Uttarahalli' },
+  };
+
+  const getCollegeLocation = (cName) => {
+    const raw = (cName || user?.college || 'college').toLowerCase().trim();
+    const preset = COLLEGE_COORDS[raw] || {
+      lat: '12.9004',
+      lng: '77.5186',
+      name: `${(user?.college || 'College').toUpperCase()} Campus Main Gate`
+    };
+    return {
+      label: `${(user?.college || 'College').toUpperCase()} Campus — ${preset.name || 'Main Gate'}`,
+      lat: preset.lat,
+      lng: preset.lng,
+    };
+  };
+
+  // Commute history state
+  const [searchHistory, setSearchHistory] = useState([]);
+
   useEffect(() => {
-    if (pickupFrom === 'college' && user?.college) {
-      const collegeLabel = `${user.college} (Campus Main Gate)`;
-      setPickup(prev => ({ ...prev, label: collegeLabel }));
-      api.searchLocation(`${user.college} Bangalore`).then(res => {
-        if (Array.isArray(res) && res.length > 0 && res[0].lat && res[0].lng) {
-          setPickup({
-            label: collegeLabel,
-            lat: res[0].lat.toString(),
-            lng: res[0].lng.toString(),
-          });
-        } else {
-          setPickup(prev => ({
-            ...prev,
-            label: collegeLabel,
-            lat: prev.lat || '12.9716',
-            lng: prev.lng || '77.5946',
-          }));
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem('cr_search_history');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) setSearchHistory(list.slice(0, 6));
         }
-      }).catch(() => {
-        setPickup(prev => ({
-          ...prev,
-          label: collegeLabel,
-          lat: prev.lat || '12.9716',
-          lng: prev.lng || '77.5946',
-        }));
+      } catch {}
+    })();
+  }, []);
+
+  const saveSearchHistoryItem = async (p, d) => {
+    if (!p?.label && !d?.label) return;
+    try {
+      const newItem = { pickup: p, drop: d, timestamp: Date.now() };
+      setSearchHistory(prev => {
+        const filtered = prev.filter(item =>
+          !(item.pickup?.label === p.label && item.drop?.label === d.label)
+        );
+        const updated = [newItem, ...filtered].slice(0, 6);
+        AsyncStorage.setItem('cr_search_history', JSON.stringify(updated)).catch(() => {});
+        return updated;
       });
+    } catch {}
+  };
+
+  const applyHistoryItem = (item) => {
+    if (item.pickup) setPickup(item.pickup);
+    if (item.drop) setDrop(item.drop);
+  };
+
+  // Set default college pickup when "college" is chosen, or default college drop when "home" is chosen
+  useEffect(() => {
+    if (!user?.college) return;
+    const colLoc = getCollegeLocation(user.college);
+    if (pickupFrom === 'college') {
+      setPickup(colLoc);
     } else if (pickupFrom === 'home') {
-      setPickup({ label: '', lat: '', lng: '' });
+      setDrop(colLoc);
     }
   }, [pickupFrom, user?.college]);
 
@@ -339,7 +379,8 @@ export default function CreateRideScreen({ navigation }) {
     const hasCollege = pickupFrom === 'college' || 
       (collegeStr && (pText.includes(collegeStr) || dText.includes(collegeStr))) ||
       pText.includes('campus') || pText.includes('college') ||
-      dText.includes('campus') || dText.includes('college');
+      dText.includes('campus') || dText.includes('college') ||
+      pText.includes('gate') || dText.includes('gate');
 
     if (!hasCollege) {
       setError(`Campus safety policy: Either your pickup or drop location must be your college (${user?.college || 'campus'}).`);
@@ -378,6 +419,9 @@ export default function CreateRideScreen({ navigation }) {
         womenOnly:      isFemale ? womenOnly : false,
         college:        user?.college || '',
       });
+      if (pickup.lat && drop.lat) {
+        saveSearchHistoryItem(pickup, drop);
+      }
       setSuccess(ride);
     } catch (e) {
       setError(e.message || 'Failed to create ride');
@@ -454,6 +498,50 @@ export default function CreateRideScreen({ navigation }) {
             }}
             placeholder="Where are you going?"
           />
+
+          {/* Quick Campus Shortcuts */}
+          {Boolean(user?.college) && (
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 }}>
+              <TouchableOpacity
+                style={styles.campusChip}
+                onPress={() => setPickup(getCollegeLocation(user.college))}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.campusChipText}>🏫 Start at {user.college.split(' ')[0]}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.campusChip}
+                onPress={() => setDrop(getCollegeLocation(user.college))}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.campusChipText}>🏫 Drop at {user.college.split(' ')[0]}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* ── Recent Commute History Chips ── */}
+          {searchHistory.length > 0 && (
+            <View style={styles.historySection}>
+              <Text style={styles.historyLabel}>🕒 RECENT COMMUTE ROUTES</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {searchHistory.map((item, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={styles.historyChip}
+                      onPress={() => applyHistoryItem(item)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 12 }}>📍</Text>
+                      <Text style={styles.historyText} numberOfLines={1}>
+                        {item.pickup?.label?.split(',')[0] || 'Pickup'} → {item.drop?.label?.split(',')[0] || 'Drop'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
 
           {/* ── WHEN / SCHEDULE ── */}
           <Text style={styles.fieldLabel}>WHEN?</Text>
@@ -939,6 +1027,49 @@ const styles = StyleSheet.create({
   vehicleSelectNum: {
     color: colors.text3,
     fontSize: 11,
+    fontWeight: '600',
+  },
+  campusChip: {
+    flex: 1,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  campusChipText: {
+    color: colors.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  historySection: {
+    marginBottom: 8,
+  },
+  historyLabel: {
+    color: colors.text3,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  historyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.full,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    maxWidth: 240,
+  },
+  historyText: {
+    color: colors.text2,
+    fontSize: 11.5,
     fontWeight: '600',
   },
 });

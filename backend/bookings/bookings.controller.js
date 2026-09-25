@@ -23,10 +23,13 @@ exports.requestBooking = async (req, res) => {
       return res.status(400).json({ message: 'No seats available' });
     }
 
-    // Same college check — seeker and provider must be from same college
-    const seeker = await User.findById(seekerId).select('college gender');
+    // Same college check & KYC check for seeker
+    const { normalizeCollege } = require('../config/collegeDomains');
+    const seeker = await User.findById(seekerId).select('college gender kycStatus');
     if (seeker?.college && ride.college) {
-      if (seeker.college.trim().toLowerCase() !== ride.college.trim().toLowerCase()) {
+      const normSeeker = normalizeCollege(seeker.college);
+      const normRide   = normalizeCollege(ride.college);
+      if (normSeeker && normRide && normSeeker !== normRide) {
         return res.status(403).json({ message: 'You can only book rides from your own college.' });
       }
     }
