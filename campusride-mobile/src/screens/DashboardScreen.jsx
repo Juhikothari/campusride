@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert as RNAlert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert as RNAlert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
@@ -76,12 +76,19 @@ export default function DashboardScreen({ navigation }) {
           const matchedBookings = requests.filter(b => (b.rideId === activeDriverRide._id || b.rideId?._id === activeDriverRide._id) && b.status === 'accepted');
           const passengerNames = matchedBookings.map(b => b.seekerId?.name || 'Passenger').filter(Boolean);
           const passengerColleges = matchedBookings.map(b => b.seekerId?.college).filter(Boolean);
+          const passengerPhones = matchedBookings.map(b => b.seekerId?.phone).filter(Boolean);
           const isChecklistDone = activeDriverRide.seekerChecklistCompleted || matchedBookings.some(b => b.checklistCompleted);
+
+          let passengerPhone = passengerPhones[0] || null;
+          if (!passengerPhone && activeDriverRide.passengers?.length > 0) {
+            passengerPhone = activeDriverRide.passengers[0]?.seeker?.phone || null;
+          }
 
           setActiveTrip({
             ...activeDriverRide,
             matchedPassengerName: passengerNames[0] || (passengerNames.length > 0 ? passengerNames.join(', ') : 'Passenger'),
             matchedPassengerCollege: passengerColleges[0] || activeDriverRide.college || 'Campus Commuter',
+            matchedPassengerPhone: passengerPhone,
             hasAcceptedBookings: matchedBookings.length > 0,
             seekerChecklistCompleted: isChecklistDone,
           });
@@ -96,7 +103,9 @@ export default function DashboardScreen({ navigation }) {
         if (activeSeekerBooking?.rideId) {
           setActiveTrip({
             ...activeSeekerBooking.rideId,
-            seekerChecklistCompleted: activeSeekerBooking.checklistCompleted || activeSeekerBooking.rideId.seekerChecklistCompleted,
+            bookedSeats: activeSeekerBooking.seats || 1,
+            seatsAvailable: activeSeekerBooking.rideId?.seatsAvailable,
+            seekerChecklistCompleted: activeSeekerBooking.checklistCompleted || activeSeekerBooking.rideId?.seekerChecklistCompleted,
           });
           setActiveBookingId(activeSeekerBooking._id || activeSeekerBooking.id);
           setTripRole('rider');
@@ -265,6 +274,30 @@ export default function DashboardScreen({ navigation }) {
                       ? `🎓 ${activeTrip.matchedPassengerCollege || 'Campus Commuter'}`
                       : `${activeTrip.vehicleName || 'Vehicle'} • ${activeTrip.vehicleNumber || 'Plate Number'}`}
                   </Text>
+                  {tripRole === 'driver' && activeTrip.matchedPassengerPhone ? (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(`tel:${activeTrip.matchedPassengerPhone}`)}
+                      style={styles.phoneContactRow}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.phoneContactText}>📞 {activeTrip.matchedPassengerPhone}</Text>
+                      <View style={styles.phoneCallBadge}>
+                        <Text style={styles.phoneCallBadgeText}>Call</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : null}
+                  {tripRole === 'rider' && activeTrip.providerId?.phone ? (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL(`tel:${activeTrip.providerId.phone}`)}
+                      style={styles.phoneContactRow}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.phoneContactText}>📞 {activeTrip.providerId.phone}</Text>
+                      <View style={styles.phoneCallBadge}>
+                        <Text style={styles.phoneCallBadgeText}>Call Driver</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </View>
 
@@ -289,7 +322,14 @@ export default function DashboardScreen({ navigation }) {
               <View style={styles.tripMetaRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ fontSize: 14 }}>👥</Text>
-                  <Text style={styles.tripMetaText}>{activeTrip.seatsAvailable || 2} seats</Text>
+                  <Text style={styles.tripMetaText}>
+                    {(() => {
+                      const avail = (activeTrip.seatsAvailable !== undefined && activeTrip.seatsAvailable !== null)
+                        ? Number(activeTrip.seatsAvailable)
+                        : 1;
+                      return `${avail} seat${avail === 1 ? '' : 's'}`;
+                    })()}
+                  </Text>
                 </View>
                 <Text style={styles.tripCostText}>₹{activeTrip.costPerSeat || 49} / seat</Text>
               </View>
@@ -590,6 +630,35 @@ const styles = StyleSheet.create({
     color: colors.text2,
     fontSize: 12,
     marginTop: 2,
+  },
+  phoneContactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(0,230,118,0.12)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(0,230,118,0.3)',
+    alignSelf: 'flex-start',
+  },
+  phoneContactText: {
+    color: colors.green,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  phoneCallBadge: {
+    backgroundColor: colors.green,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  phoneCallBadgeText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: '900',
   },
 
   routeBox: {

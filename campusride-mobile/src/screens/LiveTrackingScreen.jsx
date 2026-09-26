@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert as RNAlert, Dimensions,
+  ActivityIndicator, Alert as RNAlert, Dimensions, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -677,10 +677,16 @@ export default function LiveTrackingScreen({ navigation, route }) {
                             </View>
                           )}
                           {p.seeker?.phone && (
-                            <View style={styles.driverGridItem}>
-                              <Text style={styles.driverGridLabel}>PHONE</Text>
-                              <Text style={[styles.driverGridVal, { color: colors.accent }]}>{p.seeker.phone}</Text>
-                            </View>
+                            <TouchableOpacity
+                              style={styles.driverGridItem}
+                              onPress={() => Linking.openURL(`tel:${p.seeker.phone}`)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.driverGridLabel}>PHONE (TAP TO CALL)</Text>
+                              <Text style={[styles.driverGridVal, { color: colors.accent, textDecorationLine: 'underline' }]}>
+                                📞 {p.seeker.phone}
+                              </Text>
+                            </TouchableOpacity>
                           )}
                           {p.seeker?.college && (
                             <View style={styles.driverGridItem}>
@@ -729,10 +735,16 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       </View>
                     )}
                     {rideInfo?.providerId?.phone && (
-                      <View style={styles.driverGridItem}>
-                        <Text style={styles.driverGridLabel}>PHONE</Text>
-                        <Text style={[styles.driverGridVal, { color: colors.accent }]}>{rideInfo.providerId.phone}</Text>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.driverGridItem}
+                        onPress={() => Linking.openURL(`tel:${rideInfo.providerId.phone}`)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.driverGridLabel}>PHONE (TAP TO CALL)</Text>
+                        <Text style={[styles.driverGridVal, { color: colors.accent, textDecorationLine: 'underline' }]}>
+                          📞 {rideInfo.providerId.phone}
+                        </Text>
+                      </TouchableOpacity>
                     )}
                     {rideInfo?.college && (
                       <View style={styles.driverGridItem}>

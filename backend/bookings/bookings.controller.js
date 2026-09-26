@@ -413,7 +413,7 @@ exports.getMyBookings = async (req, res) => {
     const bookings = await Booking.find({ seekerId: req.user.userId })
       .populate({
         path: 'rideId',
-        select: 'pickup drop date time costPerSeat status vehicleType vehicleName vehicleNumber college womenOnly cancelReason seekerChecklistCompleted',
+        select: 'pickup drop date time costPerSeat status vehicleType vehicleName vehicleNumber college womenOnly cancelReason seekerChecklistCompleted seatsAvailable',
         populate: {
           path: 'providerId',
           select: 'name phone usn gender kycDocuments rating college',
@@ -459,7 +459,7 @@ exports.getRideRequests = async (req, res) => {
       rideId: { $in: rideIds },
       status: { $in: ['pending', 'accepted', 'cancelled'] }
     })
-    .populate('rideId', 'pickup drop date time vehicleType vehicleName college status cancelReason')
+    .populate('rideId', 'pickup drop date time vehicleType vehicleName vehicleNumber college status cancelReason seatsAvailable')
     .populate('seekerId', 'name phone rating usn gender college')
     .sort({ createdAt: -1 });
 
