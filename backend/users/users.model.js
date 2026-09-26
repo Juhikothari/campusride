@@ -29,6 +29,9 @@ const userSchema = new mongoose.Schema({
   profilePhoto: { type: String, default: '' },
 
   suspended: { type: Boolean, default: false },
+  suspendedUntil: { type: Date, default: null },
+  suspensionReason: { type: String, default: '' },
+  kycRejectionReason: { type: String, default: '' },
 
   // Block user fields
   blocked: { type: Boolean, default: false },

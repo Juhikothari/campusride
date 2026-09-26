@@ -185,3 +185,23 @@ export const getAdminRides     = (params = '') => request(`/admin/rides${params 
 export const deleteAdminRide   = (id)   => request(`/admin/rides/${id}`, { method:'DELETE' });
 export const getAdminIncidents = ()     => request('/admin/incidents');
 export const updateIncidentStatus = (id, status) => request(`/admin/incidents/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });
+
+// ── Generic API Client (matches axios-like calls across screens) ──
+export const apiClient = {
+  get: (path, config = {}) => {
+    let p = path;
+    if (config.params) {
+      const q = new URLSearchParams(
+        Object.fromEntries(Object.entries(config.params).filter(([, v]) => v !== undefined && v !== ''))
+      ).toString();
+      if (q) p += (p.includes('?') ? '&' : '?') + q;
+    }
+    return request(p, { method: 'GET', headers: config.headers }).then(data => ({ data }));
+  },
+  post: (path, body = {}, config = {}) =>
+    request(path, { method: 'POST', body: JSON.stringify(body), headers: config.headers }).then(data => ({ data })),
+  put: (path, body = {}, config = {}) =>
+    request(path, { method: 'PUT', body: JSON.stringify(body), headers: config.headers }).then(data => ({ data })),
+  delete: (path, config = {}) =>
+    request(path, { method: 'DELETE', headers: config.headers }).then(data => ({ data })),
+};

@@ -37,6 +37,8 @@ import {
   PreRideChecklistScreen,
 } from '../screens/ExtraScreens';
 
+import AdminNavigator from './AdminNavigator';
+
 const Stack = createStackNavigator();
 
 // ── Shared header config ──────────────────────────────────────
@@ -99,13 +101,16 @@ function AppStack() {
       <Stack.Screen name="Notifications"     component={NotificationsScreen}    options={{ title: 'Notifications' }} />
 
       {/* Admin */}
-      <Stack.Screen name="AdminDashboard"    component={AdminDashboardScreen}   options={{ title: 'Admin Dashboard' }} />
+      <Stack.Screen name="Admin"             component={AdminNavigator}         options={{ headerShown: false }} />
+      <Stack.Screen name="AdminDashboard"    component={AdminNavigator}         options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
 
-// ── Root: switches on auth state ──────────────────────────────
+// ── Root: switches on auth state and role ─────────────────────
 export default function AppNavigator() {
   const { user } = useAuth();
-  return user ? <AppStack /> : <AuthStack />;
+  if (!user) return <AuthStack />;
+  if (user?.role === 'admin') return <AdminNavigator />;
+  return <AppStack />;
 }
