@@ -1,10 +1,24 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { ActivityIndicator, View, Text } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import * as api from '../services/api';
 import { colors } from '../theme';
 
 const AuthContext = createContext(null);
+
+export const getDeviceId = async () => {
+  try {
+    let id = await AsyncStorage.getItem('@cr_device_id');
+    if (!id) {
+      id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
+      await AsyncStorage.setItem('@cr_device_id', id);
+    }
+    return id;
+  } catch {
+    return 'dev_' + Date.now().toString(36);
+  }
+};
 
 export function AuthProvider({ children }) {
   const [user,     setUserState] = useState(null);
@@ -18,6 +32,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch (_) {}
     await api.removeToken().catch(() => {});
     await api.removeUser().catch(() => {});
     setUserState(null);
@@ -37,10 +54,11 @@ export function AuthProvider({ children }) {
     return null;
   }, []);
 
-  const loginUser = async (email, password) => {
+  const loginUser = async (email, password, options = {}) => {
     setLoading(true);
     try {
-      const data = await api.login({ email, password });
+      const deviceId = await getDeviceId();
+      const data = await api.login({ email, password, deviceId, ...options });
       await saveAuth(data);
       try {
         const fullUser = await api.getMe();
@@ -60,7 +78,8 @@ export function AuthProvider({ children }) {
   const registerUser = async (fields) => {
     setLoading(true);
     try {
-      const data = await api.register(fields);
+      const deviceId = await getDeviceId();
+      const data = await api.register({ ...fields, deviceId });
       await saveAuth(data);
       return data;
     } finally {

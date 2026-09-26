@@ -73,6 +73,8 @@ const userSchema = new mongoose.Schema({
   // Rotated on every login. The JWT carries this seed; if it doesn't
   // match the stored value the token is rejected (session replaced).
   currentSessionSeed: { type: String, default: '' },
+  activeDeviceId:     { type: String, default: null },
+  isLoggedIn:         { type: Boolean, default: false },
 
   // ── Phone number edit throttle ──────────────────────────────────
   // Users can only update their phone number once every 90 days.

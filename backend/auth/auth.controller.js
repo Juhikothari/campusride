@@ -71,7 +71,7 @@ const register = async (req, res) => {
       aadhar, drivingLicense, collegeIdCard,
       vehiclePhoto, vehicleNumber, vehicleName,
       emergencyContact, adminKey, gender, usn,
-      profilePhoto, selfie
+      profilePhoto, selfie, deviceId
     } = req.body;
 
     const effectivePhoto = profilePhoto || selfie || '';
@@ -93,6 +93,11 @@ const register = async (req, res) => {
     if (role !== 'admin') {
       const { valid, message } = validateCollegeEmail(email, college, role);
       if (!valid) return res.status(400).json({ message: message || 'Please use your official college email address' });
+
+      // Mandatory selfie verification
+      if (!effectivePhoto) {
+        return res.status(400).json({ message: 'Live selfie capture is mandatory for account creation. Please take a selfie.' });
+      }
 
       if (!aadhar || !collegeIdCard) {
         return res.status(400).json({ message: 'Aadhar Card and College ID Card are compulsory for campus registration.' });
@@ -151,12 +156,14 @@ const register = async (req, res) => {
       kycSubmittedAt: hasKycDocs ? new Date() : undefined,
       emergencyContact: emergencyContact || '',
       currentSessionSeed: sessionSeed,
+      activeDeviceId: deviceId || null,
+      isLoggedIn: true,
     });
 
     await user.save();
 
     const token = jwt.sign(
-      { userId: user._id, sessionSeed },
+      { userId: user._id, sessionSeed, deviceId: user.activeDeviceId },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -166,7 +173,8 @@ const register = async (req, res) => {
       user: {
         id: user._id, name: user.name, email: user.email,
         role: user.role, college: user.college, phone: user.phone,
-        gender: user.gender, profilePhoto: user.profilePhoto, kycStatus: user.kycStatus
+        gender: user.gender, profilePhoto: user.profilePhoto, kycStatus: user.kycStatus,
+        activeDeviceId: user.activeDeviceId, isLoggedIn: user.isLoggedIn
       }
     });
   } catch (error) {
@@ -178,7 +186,7 @@ const register = async (req, res) => {
 // ── Login ─────────────────────────────────────────────────────────
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, deviceId, forceLogout } = req.body;
     if (!email || !password)
       return res.status(400).json({ message: 'Email and password are required' });
 
@@ -189,12 +197,27 @@ const login = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Incorrect password. Please try again.' });
 
+    // ── Single-Device Login Enforcement ────────────────────────────
+    // If the account is already logged into another device, block login.
+    if (user.role !== 'admin' && !forceLogout) {
+      if (user.isLoggedIn && user.activeDeviceId && deviceId && user.activeDeviceId !== deviceId) {
+        return res.status(403).json({
+          code: 'ACTIVE_SESSION_EXISTS',
+          message: 'This account is already logged in on another device. Please log out from that device first.'
+        });
+      }
+    }
+
     const sessionSeed = crypto.randomBytes(16).toString('hex');
     user.currentSessionSeed = sessionSeed;
+    user.isLoggedIn = true;
+    if (deviceId) {
+      user.activeDeviceId = deviceId;
+    }
     await user.save();
 
     const token = jwt.sign(
-      { userId: user._id, sessionSeed },
+      { userId: user._id, sessionSeed, deviceId: user.activeDeviceId },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -204,9 +227,26 @@ const login = async (req, res) => {
       user: {
         id: user._id, name: user.name, email: user.email,
         role: user.role, college: user.college, phone: user.phone,
-        gender: user.gender, kycStatus: user.kycStatus
+        gender: user.gender, kycStatus: user.kycStatus, profilePhoto: user.profilePhoto,
+        activeDeviceId: user.activeDeviceId, isLoggedIn: user.isLoggedIn
       }
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ── Logout ────────────────────────────────────────────────────────
+const logout = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (user) {
+      user.isLoggedIn = false;
+      user.activeDeviceId = null;
+      user.currentSessionSeed = '';
+      await user.save();
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -428,4 +468,4 @@ const contactSupport = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe, sendOtp, verifyOtp, resetPasswordWithToken, resetPasswordDirect, contactSupport };
+module.exports = { register, login, logout, getMe, sendOtp, verifyOtp, resetPasswordWithToken, resetPasswordDirect, contactSupport };

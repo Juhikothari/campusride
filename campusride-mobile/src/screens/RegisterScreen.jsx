@@ -135,8 +135,8 @@ export default function RegisterScreen({ navigation }) {
 
   const handleCaptureSelfie = () => {
     RNAlert.alert(
-      '🤳 Profile Selfie',
-      'Take a front-camera selfie or select a photo from your gallery for your commuter profile:',
+      '🤳 Live Profile Selfie (Compulsory)',
+      'Front-camera selfie is strictly required to verify student identity and protect commuter safety:',
       [
         {
           text: '📷 Front-Camera Selfie',
@@ -155,6 +155,7 @@ export default function RegisterScreen({ navigation }) {
               });
               if (!result.canceled && result.assets && result.assets[0]?.uri) {
                 setSelfieUri(result.assets[0].uri);
+                setError('');
               }
             } catch (err) {
               RNAlert.alert('Error', err.message || 'Failed to capture selfie');
@@ -178,6 +179,7 @@ export default function RegisterScreen({ navigation }) {
               });
               if (!result.canceled && result.assets && result.assets[0]?.uri) {
                 setSelfieUri(result.assets[0].uri);
+                setError('');
               }
             } catch (err) {
               RNAlert.alert('Error', err.message || 'Failed to pick photo');
@@ -200,6 +202,7 @@ export default function RegisterScreen({ navigation }) {
     if (!gender)          return 'Please select your gender';
     if (role === 'admin' && adminKey !== 'freewheel') return 'Invalid admin key';
     if (role !== 'admin') {
+      if (!selfieUri)      return 'Selfie capture is compulsory. Please take a live selfie using front camera.';
       if (!docs.aadhar)    return 'Aadhar Card photo is compulsory. Please upload.';
       if (!docs.collegeId) return 'College ID Card photo is compulsory. Please upload.';
     }
@@ -281,9 +284,9 @@ export default function RegisterScreen({ navigation }) {
           <Text style={styles.title}>Create account</Text>
           <Text style={styles.subtitle}>Join thousands of campus commuters</Text>
 
-          {/* Selfie Capture Option */}
-          <View style={styles.selfieCard}>
-            <TouchableOpacity onPress={handleCaptureSelfie} style={styles.selfieAvatarWrap} activeOpacity={0.8}>
+          {/* Mandatory Selfie Capture Card */}
+          <View style={[styles.selfieCard, selfieUri ? styles.selfieCardCaptured : styles.selfieCardPending]}>
+            <TouchableOpacity onPress={handleCaptureSelfie} style={[styles.selfieAvatarWrap, selfieUri && styles.selfieAvatarWrapCaptured]} activeOpacity={0.8}>
               {selfieUri ? (
                 <Image source={{ uri: selfieUri }} style={styles.selfieAvatarImage} />
               ) : (
@@ -291,17 +294,24 @@ export default function RegisterScreen({ navigation }) {
                   <Text style={{ fontSize: 28 }}>🤳</Text>
                 </View>
               )}
-              <View style={styles.selfieCameraBadge}>
-                <Text style={{ fontSize: 11 }}>📷</Text>
+              <View style={[styles.selfieCameraBadge, selfieUri && { backgroundColor: colors.green }]}>
+                <Text style={{ fontSize: 11 }}>{selfieUri ? '✓' : '📷'}</Text>
               </View>
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={styles.selfieTitle}>Profile Selfie</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                <Text style={styles.selfieTitle}>Profile Selfie *</Text>
+                <View style={[styles.selfieStatusBadge, selfieUri ? styles.selfieStatusBadgeDone : styles.selfieStatusBadgeReq]}>
+                  <Text style={[styles.selfieStatusBadgeText, selfieUri ? { color: colors.green } : { color: '#f5a623' }]}>
+                    {selfieUri ? '✓ CAPTURED' : 'MANDATORY'}
+                  </Text>
+                </View>
+              </View>
               <Text style={styles.selfieSubtitle}>
-                {selfieUri ? 'Selfie captured! Tap to change' : 'Capture your selfie for commuter verification'}
+                {selfieUri ? 'Selfie saved! Tap if you wish to retake.' : 'Front-camera selfie is strictly compulsory to verify commuter identity.'}
               </Text>
-              <TouchableOpacity onPress={handleCaptureSelfie} style={styles.selfieBtn} activeOpacity={0.8}>
-                <Text style={styles.selfieBtnText}>
+              <TouchableOpacity onPress={handleCaptureSelfie} style={[styles.selfieBtn, selfieUri && styles.selfieBtnCaptured]} activeOpacity={0.8}>
+                <Text style={[styles.selfieBtnText, selfieUri && { color: colors.green }]}>
                   {selfieUri ? '📷 Retake Selfie' : '🤳 Capture Selfie (Front Camera)'}
                 </Text>
               </TouchableOpacity>
@@ -995,5 +1005,39 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 11,
     fontWeight: '700',
+  },
+  selfieCardCaptured: {
+    borderColor: 'rgba(34,197,94,0.45)',
+    backgroundColor: 'rgba(34,197,94,0.06)',
+  },
+  selfieCardPending: {
+    borderColor: 'rgba(245,166,35,0.4)',
+    backgroundColor: 'rgba(245,166,35,0.04)',
+  },
+  selfieAvatarWrapCaptured: {
+    borderColor: colors.green,
+  },
+  selfieStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    borderWidth: 1,
+  },
+  selfieStatusBadgeDone: {
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderColor: 'rgba(34,197,94,0.4)',
+  },
+  selfieStatusBadgeReq: {
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderColor: 'rgba(245,166,35,0.4)',
+  },
+  selfieStatusBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  selfieBtnCaptured: {
+    backgroundColor: 'rgba(34,197,94,0.12)',
+    borderColor: 'rgba(34,197,94,0.4)',
   },
 });

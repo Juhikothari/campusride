@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   KeyboardAvoidingView, Platform, StyleSheet,
+  Alert as RNAlert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -16,14 +17,33 @@ export default function LoginScreen({ navigation }) {
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
 
-  const submit = async () => {
+  const submit = async (forceLogout = false) => {
     setError('');
     if (!email.trim() || !password) { setError('Please fill in all fields'); return; }
     setLoading(true);
     try {
-      await loginUser(email.trim().toLowerCase(), password);
+      await loginUser(email.trim().toLowerCase(), password, { forceLogout });
     } catch (err) {
-      setError(err.message || 'Login failed. Check your credentials.');
+      const isDeviceConflict = err.code === 'ACTIVE_SESSION_EXISTS' ||
+        (err.message && err.message.toLowerCase().includes('already logged in on another device'));
+
+      if (isDeviceConflict) {
+        setError('This account is already logged in on another device. Please log out from that device first.');
+        RNAlert.alert(
+          'Active Session Detected',
+          'This account is already active on another device.\n\nTo prevent unauthorized access, HOGO restricts accounts to one active device at a time. Please log out from your previous device first.',
+          [
+            { text: 'OK', style: 'cancel' },
+            {
+              text: 'Log out other device & sign in here',
+              style: 'destructive',
+              onPress: () => submit(true)
+            }
+          ]
+        );
+      } else {
+        setError(err.message || 'Login failed. Check your credentials.');
+      }
     } finally {
       setLoading(false);
     }

@@ -5,6 +5,7 @@ const controller = require('./auth.controller');
 
 router.post('/register', controller.register);
 router.post('/login', controller.login);
+router.post('/logout', auth, controller.logout);
 router.get('/me', auth, controller.getMe);
 
 // OTP-based password reset flow

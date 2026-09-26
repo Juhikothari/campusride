@@ -63,6 +63,7 @@ const request = async (path, options = {}) => {
   if (!res.ok) {
     const err = new Error(data.message || data.error || `HTTP ${res.status}`);
     err.status = res.status;
+    err.code = data.code;
     throw err;
   }
   return data;
@@ -70,6 +71,7 @@ const request = async (path, options = {}) => {
 
 // ── Auth ──────────────────────────────────────────────
 export const login             = (body) => request('/auth/login',    { method:'POST', body: JSON.stringify(body) });
+export const logout            = ()     => request('/auth/logout',   { method:'POST' }).catch(() => ({}));
 export const register          = (body) => request('/auth/register', { method:'POST', body: JSON.stringify(body) });
 export const getMe             = ()     => request('/auth/me');
 export const forgotPassword    = (email) => request('/auth/send-otp', { method:'POST', body: JSON.stringify({ email }) });
