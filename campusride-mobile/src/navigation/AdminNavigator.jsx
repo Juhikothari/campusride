@@ -1,4 +1,4 @@
-﻿// campusride-mobile/src/navigation/AdminNavigator.jsx
+// campusride-mobile/src/navigation/AdminNavigator.jsx
 import React from 'react';
 import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -40,9 +40,9 @@ export function AdminNavigator() {
           backgroundColor: '#07090d',
           borderTopColor: '#21262d',
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
+          height: 72,
+          paddingBottom: 16,
+          paddingTop: 8,
         },
         tabBarActiveTintColor: '#2dd4a0',
         tabBarInactiveTintColor: '#6e7681',

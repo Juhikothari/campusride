@@ -1,10 +1,11 @@
-﻿// campusride-mobile/src/screens/admin/AdminIncidentsScreen.jsx
+// campusride-mobile/src/screens/admin/AdminIncidentsScreen.jsx
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Alert, StyleSheet, Modal, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '../../services/api';
+import { AdminHeader } from '../../components/admin/AdminHeader';
 
 export function AdminIncidentsScreen() {
   const [incidents, setIncidents] = useState([]);
@@ -51,10 +52,11 @@ export function AdminIncidentsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerBadge}>SAFETY & SUPPORT</Text>
-          <Text style={styles.headerTitle}>Incident Reports</Text>
-        </View>
+        {/* Header with Top-Right 3-Lines Menu */}
+        <AdminHeader
+          badge="SAFETY & SUPPORT"
+          title="Incident Reports"
+        />
 
         <View style={styles.filterRow}>
           {['open', 'investigating', 'resolved', 'all'].map(s => (

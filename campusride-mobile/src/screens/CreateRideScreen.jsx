@@ -404,7 +404,7 @@ export default function CreateRideScreen({ navigation }) {
       pText.includes('gate') || dText.includes('gate');
 
     if (!hasCollege) {
-      setError(`Campus safety policy: Either your pickup or drop location must be your college (${user?.college || 'campus'}).`);
+      setError(`Campus safety policy: Exactly one location (either pickup or drop-off) must be your college campus (${user?.college || 'campus'}).`);
       return;
     }
 
@@ -412,7 +412,7 @@ export default function CreateRideScreen({ navigation }) {
     const pIsCollege = isLocCollege(pickup.label);
     const dIsCollege = isLocCollege(drop.label);
     if (pIsCollege && dIsCollege) {
-      setError('Pickup and drop cannot both be your college campus. A ride must be between your home/city and college.');
+      setError('Campus safety policy: Pickup and drop-off cannot both be campus. A ride must connect your college with an off-campus location.');
       return;
     }
 
@@ -723,6 +723,46 @@ export default function CreateRideScreen({ navigation }) {
               <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
             </TouchableOpacity>
           )}
+
+          {/* ── LIVE RIDE FARE ESTIMATION CARD FOR PROVIDER ── */}
+          <View style={styles.fareCard}>
+            <View style={styles.fareHeader}>
+              <View>
+                <Text style={styles.fareBadge}>COMMUTER FARE SPLIT</Text>
+                <Text style={styles.fareTitle}>Calculated Ride Fare</Text>
+              </View>
+              <View style={styles.farePriceBadge}>
+                <Text style={styles.farePriceCurrency}>₹</Text>
+                <Text style={styles.farePriceAmount}>
+                  {cost && parseInt(cost, 10) > 0 ? cost : (calcCost(distKm, vehicleType) || 0)}
+                </Text>
+                <Text style={styles.farePricePer}>/ seat</Text>
+              </View>
+            </View>
+
+            <View style={styles.fareDetailsRow}>
+              <View style={styles.fareDetailItem}>
+                <Text style={styles.fareDetailLabel}>ESTIMATED DISTANCE</Text>
+                <Text style={styles.fareDetailValue}>{distKm > 0 ? `${distKm} km` : 'Enter route'}</Text>
+              </View>
+              <View style={styles.fareDetailItem}>
+                <Text style={styles.fareDetailLabel}>VEHICLE TYPE</Text>
+                <Text style={styles.fareDetailValue}>
+                  {vehicleType === 'motorcycle' ? 'Bike (₹5/km)' : vehicleType === 'xuv' ? 'XUV (₹10/km)' : 'Car (₹7/km)'}
+                </Text>
+              </View>
+              <View style={styles.fareDetailItem}>
+                <Text style={styles.fareDetailLabel}>CAPACITY</Text>
+                <Text style={styles.fareDetailValue}>
+                  {VEHICLES.find(v => v.value === vehicleType)?.capacity || 1} seats
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.fareNotice}>
+              💡 Transparent student-rate pricing: base fare + per-km distance. Riders split this exact fare with you upon booking.
+            </Text>
+          </View>
 
           {hasRegisteredVehicle ? (
             isVehiclePending ? (
@@ -1108,5 +1148,89 @@ const styles = StyleSheet.create({
     color: colors.text2,
     fontSize: 11.5,
     fontWeight: '600',
+  },
+  fareCard: {
+    backgroundColor: '#0d131a',
+    borderWidth: 1.5,
+    borderColor: '#1e3a2f',
+    borderRadius: radius.lg,
+    padding: 14,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  fareHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  fareBadge: {
+    color: '#2dd4a0',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  fareTitle: {
+    color: '#f0f6fc',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  farePriceBadge: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    backgroundColor: 'rgba(45, 212, 160, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(45, 212, 160, 0.35)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radius.md,
+  },
+  farePriceCurrency: {
+    color: '#2dd4a0',
+    fontSize: 14,
+    fontWeight: '800',
+    marginRight: 2,
+  },
+  farePriceAmount: {
+    color: '#2dd4a0',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  farePricePer: {
+    color: '#8b949e',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 3,
+  },
+  fareDetailsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#161e27',
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  fareDetailItem: {
+    alignItems: 'center',
+  },
+  fareDetailLabel: {
+    color: '#8b949e',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  fareDetailValue: {
+    color: '#e6edf3',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  fareNotice: {
+    color: '#8b949e',
+    fontSize: 11,
+    lineHeight: 15,
   },
 });

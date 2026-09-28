@@ -660,6 +660,19 @@ export function ForgotPasswordScreen({ navigation }) {
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState('');
   const [successMsg,  setSuccessMsg]  = useState('');
+  const [countdown,   setCountdown]   = useState(120);
+
+  useEffect(() => {
+    let timer = null;
+    if (step === 2 && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown(prev => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [step, countdown]);
 
   const handleSendOtp = async () => {
     if (!email.trim()) { setError('Enter your registered college email'); return; }
@@ -668,6 +681,7 @@ export function ForgotPasswordScreen({ navigation }) {
       const res = await api.sendOtp(email.trim().toLowerCase());
       setSuccessMsg(res.message || `OTP sent to ${email.trim()}`);
       setStep(2);
+      setCountdown(120);
     } catch (e) {
       setError(e.message || 'Failed to send OTP. Please check your email.');
     } finally {
@@ -780,8 +794,20 @@ export function ForgotPasswordScreen({ navigation }) {
               <Text style={styles.btnText}>{loading ? 'Resetting…' : 'Reset Password 🔒'}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={handleSendOtp} disabled={loading} style={{ marginTop: 16, alignItems: 'center' }}>
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '600' }}>Didn't receive OTP? Resend code</Text>
+            <TouchableOpacity
+              onPress={handleSendOtp}
+              disabled={loading || countdown > 0}
+              style={{ marginTop: 16, alignItems: 'center' }}
+            >
+              <Text style={{
+                color: countdown > 0 ? colors.text3 : colors.accent,
+                fontSize: 13,
+                fontWeight: '600'
+              }}>
+                {countdown > 0
+                  ? `Resend code in ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`
+                  : "Didn't receive OTP? Resend code"}
+              </Text>
             </TouchableOpacity>
           </View>
         )}

@@ -42,8 +42,10 @@ const rideSchema = new mongoose.Schema({
   riderReachedSeekerAt:       { type: Date },
   seekerChecklistCompleted:   { type: Boolean, default: false },
   seekerChecklistCompletedAt: { type: Date },
+  seekerChecklistDetails:     { type: Object, default: {} },
   providerChecklistCompleted: { type: Boolean, default: false },
   providerChecklistCompletedAt: { type: Date },
+  providerChecklistDetails:   { type: Object, default: {} },
   preRideChecklist: {
     vehicleInspected:  { type: Boolean, default: false },
     emergencyKitReady: { type: Boolean, default: false },

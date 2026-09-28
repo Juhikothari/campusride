@@ -1,4 +1,4 @@
-﻿// campusride-mobile/src/screens/admin/AdminMoreScreen.jsx
+// campusride-mobile/src/screens/admin/AdminMoreScreen.jsx
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share,
@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../services/api';
+import { AdminHeader } from '../../components/admin/AdminHeader';
 
 export function AdminMoreScreen({ navigation }) {
   const { user, logout } = useAuth();
@@ -43,13 +44,14 @@ export function AdminMoreScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.headerBadge}>ADMINISTRATION</Text>
-          <Text style={styles.headerTitle}>System & Tools</Text>
-          <Text style={styles.headerSub}>Logged in as {user?.name || 'Administrator'} ({user?.email})</Text>
-        </View>
+        {/* Header with Top-Right 3-Lines Menu */}
+        <AdminHeader
+          badge="ADMINISTRATION"
+          title="System & Tools"
+          subtitle={`Logged in as ${user?.name || 'Administrator'} (${user?.email || 'admin'})`}
+        />
 
+        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Section 1: Communications */}
         <Text style={styles.sectionLabel}>COMMUNICATIONS</Text>
         <View style={styles.cardGroup}>

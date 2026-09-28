@@ -1,10 +1,11 @@
-﻿// campusride-mobile/src/screens/admin/AdminRidesScreen.jsx
+// campusride-mobile/src/screens/admin/AdminRidesScreen.jsx
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Alert, StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '../../services/api';
+import { AdminHeader } from '../../components/admin/AdminHeader';
 
 export function AdminRidesScreen() {
   const [rides, setRides] = useState([]);
@@ -59,11 +60,11 @@ export function AdminRidesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerBadge}>TRIP OPERATIONS</Text>
-          <Text style={styles.headerTitle}>Rides Management</Text>
-        </View>
+        {/* Header with Top-Right 3-Lines Menu */}
+        <AdminHeader
+          badge="TRIP OPERATIONS"
+          title="Rides Management"
+        />
 
         {/* Filter Chips */}
         <View style={styles.filterRow}>

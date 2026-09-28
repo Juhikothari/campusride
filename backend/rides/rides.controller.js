@@ -701,13 +701,16 @@ exports.submitChecklist = async (req, res) => {
     if (isProvider) {
       ride.providerChecklistCompleted = true;
       ride.providerChecklistCompletedAt = new Date();
+      ride.providerChecklistDetails = req.body?.checklist || {};
       ride.preRideChecklist = { ...req.body, completedAt: new Date() };
     } else {
       ride.seekerChecklistCompleted = true;
       ride.seekerChecklistCompletedAt = new Date();
+      ride.seekerChecklistDetails = req.body?.checklist || {};
       if (booking) {
         booking.checklistCompleted = true;
         booking.checklistCompletedAt = new Date();
+        booking.checklistDetails = req.body?.checklist || {};
         await booking.save();
       }
     }

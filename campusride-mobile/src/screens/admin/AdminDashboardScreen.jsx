@@ -1,4 +1,4 @@
-﻿// campusride-mobile/src/screens/admin/AdminDashboardScreen.jsx
+// campusride-mobile/src/screens/admin/AdminDashboardScreen.jsx
 import React, { useEffect, useState } from 'react';
 import {
   ScrollView, View, Text, StyleSheet, RefreshControl,
@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAdminStore } from '../../store/adminStore';
 import { StatCard } from '../../components/admin/StatCard';
 import { SimpleLineChart } from '../../components/admin/SimpleLineChart';
+import { AdminHeader } from '../../components/admin/AdminHeader';
 import { apiClient } from '../../services/api';
 
 export function AdminDashboardScreen({ navigation }) {
@@ -52,20 +53,20 @@ export function AdminDashboardScreen({ navigation }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2dd4a0" />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.headerBadge}>CAMPUS OPERATIONS</Text>
-            <Text style={styles.title}>Admin Dashboard</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.refreshBtn}
-            onPress={onRefresh}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.refreshBtnText}>⟳ Refresh</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Header with Top-Right 3-Lines Menu */}
+        <AdminHeader
+          badge="CAMPUS OPERATIONS"
+          title="Admin Dashboard"
+          rightElement={
+            <TouchableOpacity
+              style={styles.refreshBtn}
+              onPress={onRefresh}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.refreshBtnText}>⟳ Refresh</Text>
+            </TouchableOpacity>
+          }
+        />
 
         {/* ── Stat Cards ─────────────────────────── */}
         <View style={styles.grid}>

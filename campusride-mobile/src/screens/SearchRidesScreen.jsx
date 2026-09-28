@@ -285,7 +285,7 @@ export default function SearchRidesScreen({ navigation }) {
       pText.includes('gate') || dText.includes('gate');
 
     if (!hasCollege) {
-      setError(`Campus policy: Either pickup or drop must be your college campus (${user?.college || 'college'}).`);
+      setError(`Campus safety policy: Exactly one location (either pickup or drop-off) must be your college campus (${user?.college || 'campus'}).`);
       return;
     }
 
@@ -293,7 +293,7 @@ export default function SearchRidesScreen({ navigation }) {
     const pIsCollege = isLocCollege(pickup.label);
     const dIsCollege = isLocCollege(drop.label);
     if (pIsCollege && dIsCollege) {
-      setError('Pickup and drop cannot both be your college campus. One must be your commute origin or destination.');
+      setError('Campus safety policy: Pickup and drop-off cannot both be campus. A ride must connect your college with an off-campus location.');
       return;
     }
 

@@ -1,4 +1,4 @@
-﻿// campusride-mobile/src/screens/admin/AdminKYCScreen.jsx
+// campusride-mobile/src/screens/admin/AdminKYCScreen.jsx
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, Image, TouchableOpacity,
@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '../../services/api';
+import { AdminHeader } from '../../components/admin/AdminHeader';
 
 export function AdminKYCScreen() {
   const [submissions, setSubmissions] = useState([]);
@@ -88,11 +89,11 @@ export function AdminKYCScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerBadge}>IDENTITY & SAFETY</Text>
-          <Text style={styles.headerTitle}>KYC Management</Text>
-        </View>
+        {/* Header with Top-Right 3-Lines Menu */}
+        <AdminHeader
+          badge="IDENTITY & SAFETY"
+          title="KYC Management"
+        />
 
         {/* Filter Tabs */}
         <View style={styles.filterRow}>

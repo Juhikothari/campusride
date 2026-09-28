@@ -1,4 +1,4 @@
-﻿// campusride-mobile/src/screens/admin/AdminUsersScreen.jsx
+// campusride-mobile/src/screens/admin/AdminUsersScreen.jsx
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '../../services/api';
+import { AdminHeader } from '../../components/admin/AdminHeader';
 
 export function AdminUsersScreen({ navigation }) {
   const [users, setUsers] = useState([]);
@@ -103,11 +104,11 @@ export function AdminUsersScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerBadge}>COMMUNITY ACCESS</Text>
-          <Text style={styles.headerTitle}>User Management</Text>
-        </View>
+        {/* Header with Top-Right 3-Lines Menu */}
+        <AdminHeader
+          badge="COMMUNITY ACCESS"
+          title="User Management"
+        />
 
         {/* Search */}
         <TextInput

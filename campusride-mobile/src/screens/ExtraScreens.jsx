@@ -1086,7 +1086,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
       // Seeker completes checklist
       setStarting(true);
       try {
-        await api.submitChecklist(rideId, { seekerCompleted: true });
+        await api.submitChecklist(rideId, { seekerCompleted: true, checklist: checks });
       } catch {}
       finally {
         setStarting(false);

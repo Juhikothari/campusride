@@ -11,9 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { Input, Btn, Alert, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import { INDIAN_COLLEGES } from '../data/colleges';
-
-const CLOUD_NAME    = 'dhkui5t39';
-const UPLOAD_PRESET = 'kyc_upload';
+import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 
 const ROLES = [
   { value: 'seeker',   label: 'Seeker',   icon: '🔍' },
@@ -27,23 +25,6 @@ const GENDERS = [
   { value: 'other',             label: 'Other',             symbol: '⚧' },
   { value: 'prefer_not_to_say', label: 'Prefer not to say', symbol: '—' },
 ];
-
-async function uploadToCloudinary(uri, type = 'image') {
-  try {
-    const formData = new FormData();
-    const filename = uri.split('/').pop() || 'image.jpg';
-    formData.append('file', { uri, name: filename, type: 'image/jpeg' });
-    formData.append('upload_preset', UPLOAD_PRESET);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-      method: 'POST', body: formData,
-    });
-    const data = await res.json();
-    if (data.secure_url) return data.secure_url;
-  } catch (err) {
-    console.warn('Cloudinary upload warning:', err);
-  }
-  return uri;
-}
 
 export default function RegisterScreen({ navigation }) {
   const { registerUser } = useAuth();
@@ -222,10 +203,10 @@ export default function RegisterScreen({ navigation }) {
     try {
       const uploadedDocs = {};
       setUploading(true);
-      if (selfieUri) uploadedDocs.selfie = await uploadToCloudinary(selfieUri);
-      if (kycDocs && kycDocs.aadhar)   uploadedDocs.aadhar          = await uploadToCloudinary(kycDocs.aadhar);
-      if (kycDocs && kycDocs.license)  uploadedDocs.drivingLicense  = await uploadToCloudinary(kycDocs.license);
-      if (kycDocs && kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinary(kycDocs.collegeId);
+      if (selfieUri) uploadedDocs.selfie = await uploadToCloudinaryWithRetry(selfieUri);
+      if (kycDocs && kycDocs.aadhar)   uploadedDocs.aadhar          = await uploadToCloudinaryWithRetry(kycDocs.aadhar);
+      if (kycDocs && kycDocs.license)  uploadedDocs.drivingLicense  = await uploadToCloudinaryWithRetry(kycDocs.license);
+      if (kycDocs && kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinaryWithRetry(kycDocs.collegeId);
       setUploading(false);
 
       const validVehicles = vehicles
@@ -328,7 +309,7 @@ export default function RegisterScreen({ navigation }) {
                 style={styles.textInput}
                 value={name}
                 onChangeText={setName}
-                placeholder="Arjun Sharma"
+                placeholder="Full Name (as per ID)"
                 placeholderTextColor={colors.text3}
                 autoCapitalize="words"
               />
@@ -339,7 +320,7 @@ export default function RegisterScreen({ navigation }) {
                 style={styles.textInput}
                 value={phone}
                 onChangeText={t => setPhone(t.replace(/\D/g, ''))}
-                placeholder="+91 9876543210"
+                placeholder="10-digit mobile number"
                 placeholderTextColor={colors.text3}
                 keyboardType="phone-pad"
                 maxLength={10}
@@ -382,7 +363,7 @@ export default function RegisterScreen({ navigation }) {
                 style={styles.textInput}
                 value={emergency}
                 onChangeText={t => setEmergency(t.replace(/\D/g, ''))}
-                placeholder="+91 9876543211"
+                placeholder="Emergency contact number"
                 placeholderTextColor={colors.text3}
                 keyboardType="phone-pad"
               />

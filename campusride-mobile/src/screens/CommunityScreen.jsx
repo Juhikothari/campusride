@@ -2,13 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   FlatList, KeyboardAvoidingView, Platform, StyleSheet,
-  ActivityIndicator, Alert as RNAlert,
+  ActivityIndicator, Alert as RNAlert, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
 import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, getChatMessages } from '../services/api';
+import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 import { colors, spacing, radius } from '../theme';
 import { Btn, Alert } from '../components/UI';
 
@@ -41,6 +43,8 @@ function PostsTab({ user }) {
   const [error,     setError]     = useState('');
   const [replyText, setReplyText] = useState({});
   const [showReply, setShowReply] = useState({});
+  const [attachment, setAttachment] = useState(null); // { uri, name, type }
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   useEffect(() => {
     getCommunityPosts()
@@ -49,16 +53,93 @@ function PostsTab({ user }) {
       .finally(() => setLoading(false));
   }, []);
 
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        RNAlert.alert('Permission Denied', 'Camera roll access is needed to attach images.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        setAttachment({
+          uri: asset.uri,
+          name: asset.fileName || `post_image_${Date.now()}.jpg`,
+          type: 'image',
+        });
+      }
+    } catch (err) {
+      RNAlert.alert('Error', 'Unable to pick image: ' + err.message);
+    }
+  };
+
+  const handleCameraPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        RNAlert.alert('Permission Denied', 'Camera permission is needed to take photos.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        setAttachment({
+          uri: asset.uri,
+          name: `camera_${Date.now()}.jpg`,
+          type: 'image',
+        });
+      }
+    } catch (err) {
+      RNAlert.alert('Error', 'Unable to take photo: ' + err.message);
+    }
+  };
+
   const handlePost = async () => {
-    if (!content.trim()) return;
+    if (!content.trim() && !attachment) return;
     setPosting(true);
     setError('');
     try {
+      let attachments = [];
+      if (attachment) {
+        setUploadingAttachment(true);
+        try {
+          const uploadedUrl = await uploadToCloudinaryWithRetry(attachment.uri, {
+            type: 'image',
+          });
+          attachments.push({
+            url: uploadedUrl,
+            type: 'image',
+            name: attachment.name || 'image.jpg',
+          });
+        } catch (uploadErr) {
+          setError('Failed to upload image attachment. Check your connection.');
+          setPosting(false);
+          setUploadingAttachment(false);
+          return;
+        } finally {
+          setUploadingAttachment(false);
+        }
+      }
+
       // Backend enum compatibility fallback: map 'general' and 'question' to 'tip'
       const safeType = (postType === 'general' || postType === 'question') ? 'tip' : (postType || 'tip');
-      const post = await createCommunityPost({ content, type: safeType, anonymous });
+      const post = await createCommunityPost({
+        content: content.trim() || 'Shared an image',
+        type: safeType,
+        anonymous,
+        attachments,
+      });
       setPosts(prev => [{ ...post, displayType: postType }, ...prev]);
       setContent('');
+      setAttachment(null);
     } catch (e) {
       setError(e.message || 'Failed to post');
     } finally {
@@ -135,14 +216,45 @@ function PostsTab({ user }) {
           multiline
           maxLength={500}
         />
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 }}>
+        {/* Attachment preview if an image is selected */}
+        {attachment && (
+          <View style={styles.attachmentPreviewRow}>
+            <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewThumb} />
+            <View style={{ flex: 1, paddingHorizontal: 8 }}>
+              <Text style={styles.attachmentPreviewName} numberOfLines={1}>{attachment.name}</Text>
+              <Text style={styles.attachmentPreviewSub}>Ready to upload with post</Text>
+            </View>
+            <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachmentBtn}>
+              <Text style={styles.removeAttachmentText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.composeToolbar}>
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <TouchableOpacity onPress={handlePickImage} style={styles.attachActionBtn} activeOpacity={0.75}>
+              <Text style={styles.attachActionIcon}>🖼️</Text>
+              <Text style={styles.attachActionText}>Photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleCameraPhoto} style={styles.attachActionBtn} activeOpacity={0.75}>
+              <Text style={styles.attachActionIcon}>📷</Text>
+              <Text style={styles.attachActionText}>Camera</Text>
+            </TouchableOpacity>
+          </View>
+
           <TouchableOpacity onPress={() => setAnonymous(a => !a)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <View style={[styles.checkbox, anonymous && styles.checkboxActive]}>
               {anonymous && <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>✓</Text>}
             </View>
-            <Text style={{ color: colors.text2, fontSize: 13 }}>Post anonymously</Text>
+            <Text style={{ color: colors.text2, fontSize: 12 }}>Anonymous</Text>
           </TouchableOpacity>
-          <Btn label={posting ? '…' : 'Post'} onPress={handlePost} loading={posting} style={{ paddingHorizontal: 20, paddingVertical: 8 }} />
+
+          <Btn
+            label={posting ? 'Posting…' : 'Post'}
+            onPress={handlePost}
+            loading={posting || uploadingAttachment}
+            style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          />
         </View>
         <Alert message={error} />
       </View>
@@ -187,6 +299,14 @@ function PostsTab({ user }) {
               )}
             </View>
           <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, marginBottom: 10 }}>{post.content}</Text>
+          {Array.isArray(post.attachments) && post.attachments.map((att, attIdx) => att?.url ? (
+            <Image
+              key={attIdx}
+              source={{ uri: att.url }}
+              style={styles.postAttachmentImage}
+              resizeMode="cover"
+            />
+          ) : null)}
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity onPress={() => handleLike(post._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={{ fontSize: 14 }}>❤️</Text>
@@ -431,5 +551,79 @@ const styles = StyleSheet.create({
   sendBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',
+  },
+  attachmentPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161b22',
+    borderWidth: 1,
+    borderColor: '#30363d',
+    borderRadius: radius.md,
+    padding: 8,
+    marginBottom: 10,
+  },
+  attachmentPreviewThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: '#21262d',
+  },
+  attachmentPreviewName: {
+    color: '#e6edf3',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  attachmentPreviewSub: {
+    color: '#8b949e',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  removeAttachmentBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255,82,82,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeAttachmentText: {
+    color: '#ff5252',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  composeToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#21262d',
+  },
+  attachActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#161b22',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  attachActionIcon: {
+    fontSize: 13,
+  },
+  attachActionText: {
+    color: '#c9d1d9',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  postAttachmentImage: {
+    width: '100%',
+    height: 190,
+    borderRadius: radius.md,
+    marginBottom: 10,
+    backgroundColor: '#161b22',
   },
 });

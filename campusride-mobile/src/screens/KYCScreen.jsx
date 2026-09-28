@@ -10,24 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Input, Btn, Alert } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
-
-const CLOUD_NAME    = 'dhkui5t39';
-const UPLOAD_PRESET = 'kyc_upload';
-
-async function uploadToCloudinary(uri) {
-  try {
-    const formData = new FormData();
-    const filename = uri.split('/').pop() || 'upload.jpg';
-    formData.append('file', { uri, name: filename, type: 'image/jpeg' });
-    formData.append('upload_preset', UPLOAD_PRESET);
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, { method: 'POST', body: formData });
-    const data = await res.json();
-    if (data.secure_url) return data.secure_url;
-  } catch (err) {
-    console.warn('Cloudinary upload warning in KYC:', err);
-  }
-  return uri;
-}
+import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 
 const KYC_COLOR = {
   approved:      colors.green,
@@ -117,10 +100,10 @@ export default function KYCScreen({ navigation }) {
     setUploading(true); setError('');
     try {
       const uploadedDocs = {};
-      uploadedDocs.aadhar       = await uploadToCloudinary(docs.aadhar);
-      uploadedDocs.collegeIdCard = await uploadToCloudinary(docs.collegeId);
-      uploadedDocs.selfie       = await uploadToCloudinary(docs.selfie);
-      if (docs.license) uploadedDocs.drivingLicense = await uploadToCloudinary(docs.license);
+      uploadedDocs.aadhar       = await uploadToCloudinaryWithRetry(docs.aadhar);
+      uploadedDocs.collegeIdCard = await uploadToCloudinaryWithRetry(docs.collegeId);
+      uploadedDocs.selfie       = await uploadToCloudinaryWithRetry(docs.selfie);
+      if (docs.license) uploadedDocs.drivingLicense = await uploadToCloudinaryWithRetry(docs.license);
       const vCleanNum = vehicleNum.trim() ? vehicleNum.trim().toUpperCase() : null;
       const vCleanName = vehicleName.trim() || null;
       await api.submitKyc({
