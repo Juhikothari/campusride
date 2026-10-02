@@ -239,6 +239,8 @@ export default function RegisterScreen({ navigation }) {
         collegeIdCard:  uploadedDocs.collegeIdCard || null,
       });
 
+      await AsyncStorage.setItem('@show_onboarding_carousel', 'true').catch(() => {});
+
       if (validVehicles.length > 0) {
         AsyncStorage.setItem('@user_registered_vehicles_list', JSON.stringify(validVehicles)).catch(() => {});
       }

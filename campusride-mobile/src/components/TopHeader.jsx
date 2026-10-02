@@ -10,7 +10,7 @@ import * as api from '../services/api';
 
 import { subscribeToNotifications, getSharedSocket } from '../hooks/useSocket';
 
-export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Match' }) {
+export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy' }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -155,7 +155,6 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Match'
               )}
               <MenuItem icon="📍" label="Track Active Ride" onPress={() => navTo('LiveTracking')} />
               <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} />
-              <MenuItem icon="⭐" label="Ratings & Reviews" onPress={() => navTo('Ratings')} />
               <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} />
 
               {isAdmin && (

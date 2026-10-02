@@ -73,8 +73,8 @@ function AppStack() {
       <Stack.Screen name="Tabs"              component={DashboardScreen}        options={{ headerShown: false }} />
 
       {/* Rides & Search */}
-      <Stack.Screen name="SearchRides"       component={SearchRidesScreen}      options={{ title: 'Search Your Match' }} />
-      <Stack.Screen name="SearchMatch"       component={SearchRidesScreen}      options={{ title: 'Search Your Match' }} />
+      <Stack.Screen name="SearchRides"       component={SearchRidesScreen}      options={{ title: 'Search Your Buddy' }} />
+      <Stack.Screen name="SearchMatch"       component={SearchRidesScreen}      options={{ title: 'Search Your Buddy' }} />
       <Stack.Screen name="CreateRide"        component={CreateRideScreen}       options={{ title: 'Get a Buddy' }} />
       <Stack.Screen name="OfferRide"         component={CreateRideScreen}       options={{ title: 'Get a Buddy' }} />
       <Stack.Screen name="RideDetail"        component={RideDetailScreen}       options={{ title: 'Ride Details' }} />

@@ -46,6 +46,7 @@ export default function ProfileScreen({ navigation }) {
   const [vType,            setVType]            = useState('car');
   const [vSaving,          setVSaving]          = useState(false);
   const [vErr,             setVErr]             = useState('');
+  const [completedRidesCount, setCompletedRidesCount] = useState(0);
 
   const VEHICLES_STORAGE_KEY = '@user_registered_vehicles_list';
 
@@ -54,9 +55,11 @@ export default function ProfileScreen({ navigation }) {
       const cachedVehiclesStr = await AsyncStorage.getItem(VEHICLES_STORAGE_KEY).catch(() => null);
       const cachedVehicles = cachedVehiclesStr ? JSON.parse(cachedVehiclesStr) : [];
 
-      const [pRes, vRes] = await Promise.allSettled([
+      const [pRes, vRes, bRes, rRes] = await Promise.allSettled([
         api.getProfile(),
         api.getUserVehicles(),
+        api.getMyBookings(),
+        api.getMyRides(),
       ]);
 
       const p = pRes.status === 'fulfilled' ? pRes.value : null;
@@ -65,6 +68,15 @@ export default function ProfileScreen({ navigation }) {
         setNewPhone(p.phone || '');
         if (p.profilePhoto) setPhotoUri(p.profilePhoto);
       }
+
+      const bDone = (bRes.status === 'fulfilled' && Array.isArray(bRes.value))
+        ? bRes.value.filter(b => b.status === 'completed' || b.status === 'accepted').length
+        : 0;
+      const rDone = (rRes.status === 'fulfilled' && Array.isArray(rRes.value))
+        ? rRes.value.filter(r => r.status === 'completed').length
+        : 0;
+      const calculatedRides = Math.max(p?.ridesCompleted || 0, bDone + rDone);
+      setCompletedRidesCount(calculatedRides);
 
       const remoteVehicles = vRes.status === 'fulfilled' && Array.isArray(vRes.value) ? vRes.value : [];
       const profileVehicles = (p?.vehicles && Array.isArray(p.vehicles)) ? p.vehicles : [];
@@ -488,9 +500,54 @@ export default function ProfileScreen({ navigation }) {
           </Text>
         )}
 
+        {/* ── RATINGS & 10-RIDE PRIVACY LOCK ── */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Campus Commuter Rating</Text>
+          {completedRidesCount < 10 ? (
+            <View style={styles.lockedRatingBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <View style={styles.lockIconCircle}>
+                  <Text style={{ fontSize: 18 }}>🔒</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.lockedRatingTitle}>
+                    Rating Locked ({completedRidesCount}/10 Rides)
+                  </Text>
+                  <Text style={styles.lockedRatingSub}>
+                    Ratings unlock after completing 10 rides to protect student privacy and ensure unbiased averages.
+                  </Text>
+                </View>
+              </View>
+              {/* Progress bar */}
+              <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarFill, { width: `${Math.min(100, (completedRidesCount / 10) * 100)}%` }]} />
+              </View>
+              <Text style={styles.progressCounterText}>
+                {10 - completedRidesCount} more ride{10 - completedRidesCount !== 1 ? 's' : ''} needed to unlock average rating
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.unlockedRatingBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <View>
+                  <Text style={styles.ratingNumber}>
+                    ⭐ {(p?.averageRating || p?.rating || 5.0).toFixed(1)} <Text style={{ fontSize: 13, color: colors.text3 }}>/ 5.0</Text>
+                  </Text>
+                  <Text style={styles.ratingTotalBadge}>{completedRidesCount} verified campus rides</Text>
+                </View>
+                <View style={styles.unlockedBadgePill}>
+                  <Text style={styles.unlockedBadgePillText}>✓ Unlocked</Text>
+                </View>
+              </View>
+              <Text style={styles.anonymousNotice}>
+                🔒 Individual ratings and reviewer identities are completely private and never shown.
+              </Text>
+            </View>
+          )}
+        </View>
+
         {/* Actions */}
         <Btn label="📋 Update KYC" onPress={() => navigation.navigate('KYC')} variant="outline" style={{ marginBottom: 10 }} />
-        <Btn label="⭐ My Ratings" onPress={() => navigation.navigate('Ratings')} variant="outline" style={{ marginBottom: 10 }} />
         <Btn label="📞 Contact Support" onPress={() => navigation.navigate('ContactSupport')} variant="ghost" style={{ marginBottom: 10 }} />
         <Btn label="Sign Out" onPress={handleLogout} variant="danger" style={{ marginTop: 8, marginBottom: 32 }} />
       </ScrollView>
@@ -792,5 +849,92 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     lineHeight: 16,
     fontWeight: '600',
+  },
+
+  /* Rating styles */
+  lockedRatingBox: {
+    backgroundColor: '#0c1017',
+    borderRadius: radius.lg,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  lockIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockedRatingTitle: {
+    color: colors.text,
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  lockedRatingSub: {
+    color: colors.text3,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  progressBarTrack: {
+    height: 6,
+    backgroundColor: colors.surface2,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.accent,
+    borderRadius: 3,
+  },
+  progressCounterText: {
+    color: colors.accent,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  unlockedRatingBox: {
+    backgroundColor: '#0c1017',
+    borderRadius: radius.lg,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+  },
+  ratingNumber: {
+    color: colors.accent,
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  ratingTotalBadge: {
+    color: colors.text2,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  unlockedBadgePill: {
+    backgroundColor: 'rgba(45, 212, 160, 0.15)',
+    borderWidth: 1,
+    borderColor: colors.green,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  unlockedBadgePillText: {
+    color: colors.green,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  anonymousNotice: {
+    color: colors.text3,
+    fontSize: 10.5,
+    lineHeight: 14,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    paddingTop: 6,
   },
 });

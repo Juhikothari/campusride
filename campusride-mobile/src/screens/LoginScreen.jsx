@@ -71,7 +71,7 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.logo}>
               HO<Text style={{ color: colors.accent }}>GO</Text>
             </Text>
-            <Text style={styles.tagline}>Find Your Match</Text>
+            <Text style={styles.tagline}>Find Your Buddy</Text>
           </View>
 
           {/* Form card */}

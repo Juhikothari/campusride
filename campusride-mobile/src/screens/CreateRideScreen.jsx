@@ -13,6 +13,18 @@ import { Input, Btn, Alert, EmptyState, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as api from '../services/api';
+import { TimePickerModal } from '../components/TimePickerModal';
+
+function formatDisplayTime(timeStr) {
+  if (!timeStr || !timeStr.includes(':')) return 'Select Time';
+  const parts = timeStr.split(':');
+  let h = parseInt(parts[0], 10);
+  const m = String(parts[1] || '00').padStart(2, '0');
+  const period = h >= 12 ? 'PM' : 'AM';
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${String(h).padStart(2, '0')}:${m} ${period}`;
+}
 
 const VEHICLES = [
   { value: 'motorcycle', label: '🏍 Bike', capacity: 1 },
@@ -99,6 +111,7 @@ export default function CreateRideScreen({ navigation }) {
   const [cost,        setCost]        = useState('0');
   const [date,        setDate]        = useState(initDate);
   const [time,        setTime]        = useState(initTime);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [womenOnly,   setWomenOnly]   = useState(false);
   const [schedMode,   setSchedMode]   = useState('now');
   const [loading,     setLoading]     = useState(false);
@@ -562,19 +575,27 @@ export default function CreateRideScreen({ navigation }) {
               <Text style={styles.historyLabel}>🕒 RECENT COMMUTE ROUTES</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
-                  {searchHistory.map((item, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={styles.historyChip}
-                      onPress={() => applyHistoryItem(item)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={{ fontSize: 12 }}>📍</Text>
-                      <Text style={styles.historyText} numberOfLines={1}>
-                        {item.pickup?.label?.split(',')[0] || 'Pickup'} → {item.drop?.label?.split(',')[0] || 'Drop'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+                  {searchHistory.map((item, i) => {
+                    const pName = (item.pickup?.label?.split(',')[0] || 'Pickup').trim();
+                    const dName = (item.drop?.label?.split(',')[0] || 'Drop').trim();
+                    return (
+                      <TouchableOpacity
+                        key={i}
+                        style={styles.historyCard}
+                        onPress={() => applyHistoryItem(item)}
+                        activeOpacity={0.75}
+                      >
+                        <View style={styles.historyBulletRow}>
+                          <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900' }}>•</Text>
+                          <Text style={styles.historyBulletText} numberOfLines={1}>{pName}</Text>
+                        </View>
+                        <View style={styles.historyBulletRow}>
+                          <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900' }}>•</Text>
+                          <Text style={styles.historyBulletText} numberOfLines={1}>{dName}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </ScrollView>
             </View>
@@ -616,15 +637,17 @@ export default function CreateRideScreen({ navigation }) {
                   maxLength={10}
                   containerStyle={{ flex: 1 }}
                 />
-                <Input
-                  label="Time (HH:MM)"
-                  value={time}
-                  onChangeText={(val) => setTime(formatTimeInput(val))}
-                  placeholder="e.g. 15:30"
-                  keyboardType="numeric"
-                  maxLength={5}
-                  containerStyle={{ flex: 1 }}
-                />
+                <View style={{ flex: 1, marginBottom: 12 }}>
+                  <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' }}>TIME *</Text>
+                  <TouchableOpacity
+                    style={styles.timeSelectBtn}
+                    onPress={() => setShowTimePicker(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.timeSelectBtnText}>{formatDisplayTime(time)}</Text>
+                    <Text style={{ fontSize: 14 }}>🕒 ▼</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
@@ -790,6 +813,14 @@ export default function CreateRideScreen({ navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Time Picker Modal */}
+      <TimePickerModal
+        visible={showTimePicker}
+        value={time}
+        onConfirm={(val) => setTime(val)}
+        onClose={() => setShowTimePicker(false)}
+      />
+
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
     </SafeAreaView>
@@ -849,6 +880,23 @@ const styles = StyleSheet.create({
   timeChipActive: { borderColor: colors.accent, backgroundColor: colors.accentDim },
   timeChipText: { color: colors.text2, fontSize: 12, fontWeight: '600' },
   timeChipTextActive: { color: colors.accent, fontWeight: '700' },
+
+  timeSelectBtn: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeSelectBtnText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 
   quickTimeBtn: {
     backgroundColor: colors.surface,
@@ -1143,6 +1191,28 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     maxWidth: 240,
+  },
+  historyCard: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    minWidth: 140,
+    maxWidth: 200,
+    justifyContent: 'center',
+  },
+  historyBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  historyBulletText: {
+    color: colors.text,
+    fontSize: 11.5,
+    fontWeight: '700',
+    flex: 1,
   },
   historyText: {
     color: colors.text2,

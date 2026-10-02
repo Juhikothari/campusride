@@ -28,7 +28,7 @@ function getLocalAnswer(query, user) {
     return "To offer a ride:\n1. Switch to the Offer Ride tab.\n2. Enter your pickup & drop locations.\n3. Choose your vehicle and departure time.\n4. If you are female, you can optionally toggle Women Only.\n5. Tap Post Ride! Students from your college can then view and request seats.";
   }
   if (q.includes('search') || q.includes('find') || q.includes('match') || q.includes('book')) {
-    return "To search and match with rides:\n1. Go to Search Your Match.\n2. Enter your pickup and drop areas (or use GPS auto-detect).\n3. Tap Find My Route to see distance & travel time.\n4. Tap Search Rides to view available verified rides from your college mates!\n5. Tap Book Seat to send a request.";
+    return "To search and match with rides:\n1. Go to Search Your Buddy.\n2. Enter your pickup and drop areas (or use GPS auto-detect).\n3. Tap Find My Route to see distance & travel time.\n4. Tap Search Rides to view available verified rides from your college mates!\n5. Tap Book Seat to send a request.";
   }
   if (q.includes('kyc') || q.includes('verify') || q.includes('document')) {
     return "KYC Verification ensures campus safety:\n• Providers must submit College ID, Driving License, and Vehicle info.\n• You can complete KYC anytime from Top Menu > KYC Verification.\n• Once approved by campus admins, you can immediately post rides.";

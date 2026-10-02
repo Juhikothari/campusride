@@ -1,17 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert as RNAlert, Linking } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  ActivityIndicator, Alert as RNAlert, Linking, Modal,
+  Animated, Easing, Dimensions,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
+import { Btn } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const MAIN_SERVICES = [
   {
     key: 'SearchRides',
     icon: '🔍',
-    title: 'Search Your Match',
+    title: 'Search Your Buddy',
     sub: 'Match with commuters on your route',
     iconBg: '#1a2233',
   },
@@ -44,8 +52,95 @@ export default function DashboardScreen({ navigation }) {
   const [tripRole,   setTripRole]   = useState('driver'); // 'driver' | 'rider'
   const [loading,    setLoading]    = useState(false);
 
+  // First-time Beta Testing Disclaimer popup state
+  const [showBetaDisclaimer, setShowBetaDisclaimer] = useState(false);
+
+  // Onboarding Carousel state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [carouselStep,   setCarouselStep]   = useState(0);
+  const bikeAnim = useRef(new Animated.Value(0)).current;
+
   const firstName = user?.name ? user.name.split(' ')[0] : 'Juhi';
   const collegeName = user?.college || 'Rnsit';
+
+  // Bike Animation Loop
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(bikeAnim, {
+          toValue: 1,
+          duration: 2500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bikeAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [bikeAnim]);
+
+  // First-time Beta Disclaimer & Onboarding Carousel checks
+  useEffect(() => {
+    (async () => {
+      try {
+        const seenBeta = await AsyncStorage.getItem('@has_seen_beta_testing_disclaimer_v1');
+        if (!seenBeta) {
+          setShowBetaDisclaimer(true);
+        }
+
+        const showOnb = await AsyncStorage.getItem('@show_onboarding_carousel');
+        const seenOnb = await AsyncStorage.getItem('@has_seen_onboarding_carousel_v1');
+        if (showOnb === 'true' || !seenOnb) {
+          setShowOnboarding(true);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const dismissBetaDisclaimer = async () => {
+    setShowBetaDisclaimer(false);
+    try {
+      await AsyncStorage.setItem('@has_seen_beta_testing_disclaimer_v1', 'true');
+    } catch {}
+  };
+
+  const dismissOnboarding = async () => {
+    setShowOnboarding(false);
+    try {
+      await AsyncStorage.setItem('@has_seen_onboarding_carousel_v1', 'true');
+      await AsyncStorage.setItem('@show_onboarding_carousel', 'false');
+    } catch {}
+  };
+
+  const ONBOARDING_SLIDES = [
+    {
+      title: 'Welcome to CampusRide 🛵',
+      subtitle: 'Safe Campus Commuting',
+      desc: 'Connect with verified students and staff from your university for safe, convenient, and affordable everyday carpooling.',
+      badge: 'CAMPUS VERIFIED',
+    },
+    {
+      title: 'Search Your Buddy 🤝',
+      subtitle: 'Match Routes Within 5km',
+      desc: 'Find verified peers commuting along your exact route. View live map paths, calculate commute times, and split fuel costs transparently.',
+      badge: 'ROUTE MATCHING',
+    },
+    {
+      title: 'Sitcom Lounges & Forum 🛋️',
+      subtitle: 'Central Perk & Campus Hubs',
+      desc: 'Join your college sitcom lounge (Central Perk Lounge, Dunder Mifflin Hub & more). Post commute tips, alerts, and live campus chat.',
+      badge: 'CAMPUS COMMUNITY',
+    },
+    {
+      title: 'Safety First & Live GPS 🛡️',
+      subtitle: 'Pre-Ride Checklist & SOS',
+      desc: 'Every ride includes two-way safety checklists, live GPS tracking, and instant 24/7 SOS safety alerts to ensure secure student travel.',
+      badge: 'SAFETY & SOS',
+    },
+  ];
 
   // Load active trip status
   useEffect(() => {
@@ -444,6 +539,123 @@ export default function DashboardScreen({ navigation }) {
         <Text style={styles.tagline}>The operating system for daily commuting in Indian cities</Text>
       </ScrollView>
 
+      {/* ── First-Time Beta Testing Disclaimer Modal ── */}
+      <Modal
+        visible={showBetaDisclaimer}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissBetaDisclaimer}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.disclaimerCard}>
+            <View style={styles.disclaimerIconWrap}>
+              <Text style={{ fontSize: 32 }}>🧪</Text>
+            </View>
+            <Text style={styles.disclaimerBadge}>CAMPUS PILOT TRIAL</Text>
+            <Text style={styles.disclaimerTitle}>Beta Testing Notice</Text>
+            <Text style={styles.disclaimerBody}>
+              Welcome to CampusRide! Please note that this is a <Text style={{ color: colors.accent, fontWeight: '800' }}>pilot testing version</Text> developed for university trials at RNSIT and participating engineering campuses.
+            </Text>
+
+            <View style={styles.disclaimerBulletBox}>
+              <Text style={styles.disclaimerBullet}>• Real payments and commercial transactions are not active in this test version.</Text>
+              <Text style={styles.disclaimerBullet}>• Matching algorithms and routes are calibrated for campus testing.</Text>
+              <Text style={styles.disclaimerBullet}>• This notice appears only once per verified user.</Text>
+            </View>
+
+            <Btn
+              label="✓ I Understand & Continue"
+              onPress={dismissBetaDisclaimer}
+              style={{ marginTop: 14 }}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Onboarding Carousel with Animated Bike ── */}
+      <Modal
+        visible={showOnboarding && !showBetaDisclaimer}
+        transparent
+        animationType="slide"
+        onRequestClose={dismissOnboarding}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.carouselCard}>
+            {/* Animated Bike/Scooter Path */}
+            <View style={styles.bikePathContainer}>
+              <View style={styles.dashedRoad} />
+              <Animated.View
+                style={[
+                  styles.animatedBike,
+                  {
+                    transform: [
+                      {
+                        translateX: bikeAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [-10, 240],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 28 }}>🛵💨</Text>
+              </Animated.View>
+            </View>
+
+            <View style={styles.carouselBadgePill}>
+              <Text style={styles.carouselBadgeText}>
+                {ONBOARDING_SLIDES[carouselStep]?.badge}
+              </Text>
+            </View>
+
+            <Text style={styles.carouselTitle}>
+              {ONBOARDING_SLIDES[carouselStep]?.title}
+            </Text>
+            <Text style={styles.carouselSub}>
+              {ONBOARDING_SLIDES[carouselStep]?.subtitle}
+            </Text>
+            <Text style={styles.carouselDesc}>
+              {ONBOARDING_SLIDES[carouselStep]?.desc}
+            </Text>
+
+            {/* Pagination Dots */}
+            <View style={styles.dotsRow}>
+              {ONBOARDING_SLIDES.map((_, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    styles.dot,
+                    carouselStep === idx ? styles.dotActive : null,
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* Next / Get Started Buttons */}
+            <Btn
+              label={carouselStep === ONBOARDING_SLIDES.length - 1 ? '🚀 Get Started' : 'Next →'}
+              onPress={() => {
+                if (carouselStep < ONBOARDING_SLIDES.length - 1) {
+                  setCarouselStep(s => s + 1);
+                } else {
+                  dismissOnboarding();
+                }
+              }}
+              style={{ marginTop: 10 }}
+            />
+
+            <TouchableOpacity
+              onPress={dismissOnboarding}
+              style={styles.skipBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.skipBtnText}>Skip Onboarding</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
     </SafeAreaView>
@@ -750,5 +962,176 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 12,
     marginBottom: 16,
+  },
+
+  /* Modal Backdrop & Shared Styles */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+
+  /* Beta Disclaimer Card */
+  disclaimerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xxl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 380,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    alignItems: 'center',
+  },
+  disclaimerIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(245, 166, 35, 0.15)',
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  disclaimerBadge: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  disclaimerTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  disclaimerBody: {
+    color: colors.text2,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 14,
+  },
+  disclaimerBulletBox: {
+    backgroundColor: colors.surface2,
+    borderRadius: radius.md,
+    padding: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 12,
+    gap: 8,
+  },
+  disclaimerBullet: {
+    color: colors.text2,
+    fontSize: 11.5,
+    lineHeight: 16,
+  },
+
+  /* Onboarding Carousel Card */
+  carouselCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xxl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 380,
+    borderWidth: 1.5,
+    borderColor: '#30363d',
+    alignItems: 'center',
+  },
+  bikePathContainer: {
+    width: '100%',
+    height: 52,
+    backgroundColor: '#0a0d14',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.25)',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  dashedRoad: {
+    position: 'absolute',
+    top: 25,
+    left: 10,
+    right: 10,
+    height: 2,
+    borderWidth: 1,
+    borderColor: '#30363d',
+    borderStyle: 'dashed',
+  },
+  animatedBike: {
+    position: 'absolute',
+    top: 8,
+  },
+  carouselBadgePill: {
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.3)',
+    borderRadius: radius.full,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 10,
+  },
+  carouselBadgeText: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  carouselTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  carouselSub: {
+    color: colors.accent,
+    fontSize: 12.5,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  carouselDesc: {
+    color: colors.text2,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: 18,
+    minHeight: 56,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dotActive: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+    width: 20,
+  },
+  skipBtn: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  skipBtnText: {
+    color: colors.text3,
+    fontSize: 12.5,
+    fontWeight: '600',
   },
 });

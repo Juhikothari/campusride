@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const controller = require('./incidents.controller');
 
 router.post('/report', auth, controller.reportIncident);
+router.post('/',       auth, controller.reportIncident);
 router.post('/:id/evidence', auth, controller.addEvidence);
 router.get('/my', auth, controller.getMyIncidents);
 router.get('/all', auth, controller.getAllIncidents);

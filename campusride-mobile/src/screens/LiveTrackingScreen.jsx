@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert as RNAlert, Dimensions, Linking,
+  ActivityIndicator, Alert as RNAlert, Dimensions, Linking, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -48,6 +48,12 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [loading,          setLoading]          = useState(true);
   const [lookingUp,        setLookingUp]        = useState(!paramRideId);
   const [isMapExpanded,    setIsMapExpanded]    = useState(false);
+
+  // Rating Modal States (post-ride rating for both provider & seeker)
+  const [showRatingModal,  setShowRatingModal]  = useState(false);
+  const [ratingStars,      setRatingStars]      = useState(5);
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [hasRated,         setHasRated]         = useState(false);
 
   const timerRef = useRef(null);
 
@@ -379,6 +385,42 @@ export default function LiveTrackingScreen({ navigation, route }) {
     }
   };
 
+  // Seeker auto-trigger: when rideInfo.status becomes completed, show rating modal
+  useEffect(() => {
+    if (rideInfo?.status === 'completed' && !showRatingModal && !hasRated) {
+      setShowRatingModal(true);
+    }
+  }, [rideInfo?.status, showRatingModal, hasRated]);
+
+  const targetRevieweeId = isDriver
+    ? (rideInfo?.passengers?.[0]?.seeker?._id || rideInfo?.passengers?.[0]?.seeker?.id || rideInfo?.passengers?.[0]?.seeker)
+    : (rideInfo?.providerId?._id || rideInfo?.providerId?.id || rideInfo?.providerId);
+
+  const targetRevieweeName = isDriver
+    ? (rideInfo?.passengers?.[0]?.seeker?.name || 'Passenger')
+    : (rideInfo?.providerId?.name || 'Driver');
+
+  const handleSubmitRating = async (starsToSubmit) => {
+    const stars = starsToSubmit || ratingStars;
+    setSubmittingRating(true);
+    setHasRated(true);
+    try {
+      if (targetRevieweeId && activeRideId) {
+        await api.submitRating({
+          rideId: activeRideId,
+          reviewedUser: targetRevieweeId,
+          rating: stars,
+        });
+      }
+    } catch (e) {
+      console.log('Rating submit error:', e.message);
+    } finally {
+      setSubmittingRating(false);
+      setShowRatingModal(false);
+      navigation.navigate('Home');
+    }
+  };
+
   const handleCompleteRide = () => {
     RNAlert.alert(
       '🏁 Finish & Complete Ride',
@@ -392,9 +434,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
             try {
               await api.completeRide(activeRideId);
               setRideInfo(prev => ({ ...prev, status: 'completed' }));
-              RNAlert.alert('🎉 Ride Completed', 'The trip has been marked as finished successfully!', [
-                { text: 'Back to Home', onPress: () => navigation.navigate('Home') }
-              ]);
+              setShowRatingModal(true);
             } catch (err) {
               RNAlert.alert('Error', err.message || 'Failed to complete ride');
             } finally {
@@ -975,6 +1015,66 @@ export default function LiveTrackingScreen({ navigation, route }) {
         </ScrollView>
       )}
 
+      {/* ── Post-Ride Rating Modal (Provider & Seeker) ── */}
+      <Modal
+        visible={showRatingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setShowRatingModal(false); navigation.navigate('Home'); }}
+      >
+        <View style={styles.ratingBackdrop}>
+          <View style={styles.ratingCard}>
+            <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 6 }}>🎉</Text>
+            <Text style={styles.ratingTitle}>Trip Finished!</Text>
+            <Text style={styles.ratingSub}>
+              How was your campus commute with <Text style={{ color: colors.accent, fontWeight: '700' }}>{targetRevieweeName}</Text>?
+            </Text>
+
+            {/* Interactive Stars */}
+            <View style={styles.ratingStarRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setRatingStars(star)}
+                  activeOpacity={0.7}
+                  style={{ padding: 6 }}
+                >
+                  <Text style={{ fontSize: 36, color: star <= ratingStars ? '#f5a623' : '#30363d' }}>
+                    ★
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.ratingScorePill}>
+              <Text style={styles.ratingScorePillText}>
+                {ratingStars === 5 ? '🌟 Excellent Ride' : ratingStars === 4 ? '👍 Very Good' : ratingStars === 3 ? '👌 Average' : '⚠️ Below Expectations'}
+              </Text>
+            </View>
+
+            <View style={styles.privacyNoticeBox}>
+              <Text style={styles.privacyNoticeText}>
+                🔒 <Text style={{ fontWeight: '700', color: colors.text }}>Campus Privacy Rule:</Text> Ratings remain completely locked and invisible until you complete 10 verified rides. After 10 rides, only your average numeric score is shown. Specific reviewer identities and ratings are never displayed.
+              </Text>
+            </View>
+
+            <Btn
+              label={submittingRating ? 'Submitting…' : `Submit ⭐ ${ratingStars}-Star Rating`}
+              onPress={() => handleSubmitRating(ratingStars)}
+              loading={submittingRating}
+              style={{ marginTop: 14 }}
+            />
+
+            <TouchableOpacity
+              onPress={() => { setShowRatingModal(false); navigation.navigate('Home'); }}
+              style={{ paddingVertical: 12, alignItems: 'center' }}
+            >
+              <Text style={{ color: colors.text3, fontSize: 13, fontWeight: '600' }}>Skip for now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
     </SafeAreaView>
@@ -987,6 +1087,71 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, justifyContent: 'center' },
   loadingText: { color: colors.text2, marginTop: 14, fontSize: 14, fontWeight: '600' },
   scroll: { padding: spacing.md, paddingBottom: 40 },
+
+  /* Rating Modal Styles */
+  ratingBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.82)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  ratingCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+  },
+  ratingTitle: {
+    color: colors.text,
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  ratingSub: {
+    color: colors.text2,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  ratingStarRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
+    marginBottom: 12,
+  },
+  ratingScorePill: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(245, 166, 35, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 166, 35, 0.4)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    marginBottom: 14,
+  },
+  ratingScorePillText: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  privacyNoticeBox: {
+    backgroundColor: '#0c1017',
+    borderRadius: radius.md,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  privacyNoticeText: {
+    color: colors.text3,
+    fontSize: 11,
+    lineHeight: 16,
+  },
 
   preDepartureNoticeBox: {
     backgroundColor: '#121722',

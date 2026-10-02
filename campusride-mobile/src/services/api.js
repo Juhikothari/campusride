@@ -167,7 +167,7 @@ export const markNotificationsRead = () => request('/notifications/read-all', { 
 
 // ── SOS & Safety ──────────────────────────────────────
 export const triggerSOS        = (body) => request('/sos', { method:'POST', body: JSON.stringify(body) });
-export const reportIncident    = (body) => request('/incidents', { method:'POST', body: JSON.stringify(body) });
+export const reportIncident    = (body) => request('/incidents/report', { method:'POST', body: JSON.stringify(body) });
 
 // ── Tracking ──────────────────────────────────────────
 export const updateLocation    = (body) => request('/tracking/update', { method:'POST', body: JSON.stringify(body) });

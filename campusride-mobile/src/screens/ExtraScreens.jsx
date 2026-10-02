@@ -81,12 +81,33 @@ export function RatingsScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.md }}>⭐ Ratings</Text>
 
-        {/* Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.bigNum}>{avg}</Text>
-          <StarRow value={Math.round(parseFloat(avg) || 0)} />
-          <Text style={{ color: colors.text2, fontSize: 12, marginTop: 8 }}>{ratings.length} review{ratings.length !== 1 ? 's' : ''}</Text>
-        </View>
+        {/* Summary or Lock Card */}
+        {ratings.length < 10 ? (
+          <View style={styles.summaryCard}>
+            <Text style={{ fontSize: 32, marginBottom: 6 }}>🔒</Text>
+            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 4 }}>
+              Rating Locked ({ratings.length}/10 Rides)
+            </Text>
+            <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', lineHeight: 18, maxWidth: 280 }}>
+              Ratings unlock after completing 10 rides to ensure reliable averages and protect student privacy.
+            </Text>
+            <View style={{ width: '80%', height: 6, backgroundColor: colors.surface2, borderRadius: 3, marginVertical: 12, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.min(100, (ratings.length / 10) * 100)}%`, height: '100%', backgroundColor: colors.accent }} />
+            </View>
+            <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+              {10 - ratings.length} more ride{10 - ratings.length !== 1 ? 's' : ''} to unlock
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.summaryCard}>
+            <Text style={styles.bigNum}>{avg}</Text>
+            <StarRow value={Math.round(parseFloat(avg) || 0)} />
+            <Text style={{ color: colors.text2, fontSize: 12, marginTop: 8 }}>{ratings.length} verified ride{ratings.length !== 1 ? 's' : ''}</Text>
+            <Text style={{ color: colors.text3, fontSize: 11, marginTop: 8, textAlign: 'center' }}>
+              🔒 Reviewer identities and individual comments remain private to protect campus commuters.
+            </Text>
+          </View>
+        )}
 
         <Alert message={error} />
         <Alert message={success} type="success" />
@@ -119,37 +140,8 @@ export function RatingsScreen({ navigation }) {
             })}
             <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginTop: 14, marginBottom: 8 }}>YOUR RATING</Text>
             <StarRow value={form.rating} onChange={n => setForm(f => ({ ...f, rating: n }))} />
-            <TextInput
-              style={[styles.input, { marginTop: 12, height: 80, textAlignVertical: 'top' }]}
-              value={form.comment}
-              onChangeText={t => setForm(f => ({ ...f, comment: t }))}
-              placeholder="Leave a comment (optional)…"
-              placeholderTextColor={colors.text3}
-              multiline
-              maxLength={300}
-            />
-            <Btn label="Submit Rating" onPress={submitRating} loading={submitting} style={{ marginTop: 12 }} />
+            <Btn label="Submit Rating" onPress={submitRating} loading={submitting} style={{ marginTop: 14 }} />
           </View>
-        )}
-
-        {/* List */}
-        {loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} /> : (
-          ratings.length === 0 ? (
-            <Text style={{ color: colors.text2, textAlign: 'center', marginTop: 24, fontSize: 13 }}>No ratings yet.</Text>
-          ) : ratings.map((r, i) => (
-            <View key={r._id || i} style={styles.ratingCard}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '700' }}>
-                  {r.reviewer?.name || 'Anonymous'}
-                </Text>
-                <StarRow value={r.rating} />
-              </View>
-              {r.comment && <Text style={{ color: colors.text2, fontSize: 13 }}>{r.comment}</Text>}
-              <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>
-                {r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-IN') : ''}
-              </Text>
-            </View>
-          ))
         )}
       </ScrollView>
     </SafeAreaView>
@@ -1272,10 +1264,7 @@ export function ContactSupportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-          <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
-        </TouchableOpacity>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 140 }]} keyboardShouldPersistTaps="handled">
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>📞 Contact Support</Text>
         <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.lg }}>We typically respond within 24 hours</Text>
 

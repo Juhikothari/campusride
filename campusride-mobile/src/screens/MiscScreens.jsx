@@ -587,61 +587,95 @@ export function IncidentReportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-          <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>⚠️ Report Incident</Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Help us keep the community safe</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: 160 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>⚠️ Report Incident</Text>
+          <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Help us keep the community safe</Text>
 
-        <Alert message={error} />
+          <Alert message={error} />
 
-        <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>SELECT RIDE</Text>
-        {ridesLoading ? <ActivityIndicator color={colors.accent} /> : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {rides.slice(0, 10).map(r => {
-                const id = r._id || r.rideId?._id;
-                const addr = r.pickup?.address || r.rideId?.pickup?.address || 'Ride';
-                return (
-                  <TouchableOpacity
-                    key={id}
-                    onPress={() => setRideId(id)}
-                    style={[{ borderRadius:radius.md, borderWidth:1.5, padding:10 }, rideId===id ? { borderColor:colors.accent, backgroundColor:colors.accentDim } : { borderColor:colors.border }]}
-                  >
-                    <Text style={{ color: rideId===id ? colors.accent : colors.text2, fontSize: 12, maxWidth: 140 }} numberOfLines={2}>{addr}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </ScrollView>
-        )}
+          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>SELECT RIDE</Text>
+          {ridesLoading ? <ActivityIndicator color={colors.accent} /> : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {rides.slice(0, 10).map(r => {
+                  const id = r._id || r.rideId?._id;
+                  const pAddr = r.pickup?.address || r.rideId?.pickup?.address || 'Pickup';
+                  const dAddr = r.drop?.address || r.rideId?.drop?.address || 'Destination';
+                  const pShort = pAddr.split(',')[0].trim();
+                  const dShort = dAddr.split(',')[0].trim();
+                  const isSelected = rideId === id;
+                  return (
+                    <TouchableOpacity
+                      key={id}
+                      onPress={() => setRideId(id)}
+                      activeOpacity={0.8}
+                      style={[
+                        {
+                          borderRadius: radius.md,
+                          borderWidth: 1.5,
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          minWidth: 150,
+                          maxWidth: 220,
+                        },
+                        isSelected
+                          ? { borderColor: colors.accent, backgroundColor: colors.accentDim }
+                          : { borderColor: colors.border, backgroundColor: colors.surface2 }
+                      ]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <Text style={{ color: colors.green, fontSize: 14, fontWeight: '900' }}>•</Text>
+                        <Text style={{ color: isSelected ? colors.accent : colors.text, fontSize: 12, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                          {pShort}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ color: '#ff6b6b', fontSize: 14, fontWeight: '900' }}>•</Text>
+                        <Text style={{ color: isSelected ? colors.text : colors.text2, fontSize: 12, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                          {dShort}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          )}
 
-        <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>INCIDENT TYPE</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-          {TYPES.map(t => (
-            <TouchableOpacity key={t} onPress={() => setIncidentType(t)}
-              style={[{ borderRadius:radius.md, borderWidth:1.5, paddingHorizontal:12, paddingVertical:8 }, incidentType===t ? { borderColor:colors.accent, backgroundColor:colors.accentDim } : { borderColor:colors.border }]}>
-              <Text style={{ color: incidentType===t ? colors.accent : colors.text2, fontSize: 12 }}>{t}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>INCIDENT TYPE</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            {TYPES.map(t => (
+              <TouchableOpacity key={t} onPress={() => setIncidentType(t)}
+                style={[{ borderRadius:radius.md, borderWidth:1.5, paddingHorizontal:12, paddingVertical:8 }, incidentType===t ? { borderColor:colors.accent, backgroundColor:colors.accentDim } : { borderColor:colors.border }]}>
+                <Text style={{ color: incidentType===t ? colors.accent : colors.text2, fontSize: 12 }}>{t}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-        <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>DESCRIPTION</Text>
-        <TextInput
-          style={[inputStyle, { height: 100, textAlignVertical: 'top' }]}
-          value={description}
-          onChangeText={setDescription}
-          placeholder="Describe what happened in detail…"
-          placeholderTextColor={colors.text3}
-          multiline
-          maxLength={1000}
-        />
+          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>DESCRIPTION</Text>
+          <TextInput
+            style={[inputStyle, { height: 110, textAlignVertical: 'top' }]}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe what happened in detail…"
+            placeholderTextColor={colors.text3}
+            multiline
+            maxLength={1000}
+          />
 
-        <TouchableOpacity onPress={submit} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }]}>
-          <Text style={styles.btnText}>{loading ? 'Submitting…' : '⚠️ Submit Report'}</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          <TouchableOpacity onPress={submit} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }, { marginTop: 6 }]}>
+            <Text style={styles.btnText}>{loading ? 'Submitting…' : '⚠️ Submit Report'}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

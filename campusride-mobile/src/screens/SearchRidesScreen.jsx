@@ -15,6 +15,18 @@ import FloatingChatBot from '../components/FloatingChatBot';
 import { Btn, Alert, TogglePill, EmptyState, Input } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { TimePickerModal } from '../components/TimePickerModal';
+
+function formatDisplayTime(timeStr) {
+  if (!timeStr || !timeStr.includes(':')) return 'Select Time';
+  const parts = timeStr.split(':');
+  let h = parseInt(parts[0], 10);
+  const m = String(parts[1] || '00').padStart(2, '0');
+  const period = h >= 12 ? 'PM' : 'AM';
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return `${String(h).padStart(2, '0')}:${m} ${period}`;
+}
 
 const VEHICLE_FILTERS = [
   { value: '',     label: 'All',  icon: '🚦' },
@@ -71,6 +83,7 @@ export default function SearchRidesScreen({ navigation }) {
   const [schedMode,  setSchedMode]  = useState('now');
   const [date,       setDate]       = useState('');
   const [time,       setTime]       = useState('');
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [womenOnly,  setWomenOnly]  = useState(false);
   const [vehicle,    setVehicle]    = useState('');
   const [rides,      setRides]      = useState([]);
@@ -345,7 +358,7 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="Search Your Match" subtitle="Find verified campus commuters" />
+      <TopHeader title="Search Your Buddy" subtitle="Find verified campus commuters" />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -414,19 +427,27 @@ export default function SearchRidesScreen({ navigation }) {
             <Text style={styles.historyLabel}>🕒 RECENT SEARCHES</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                {searchHistory.map((item, i) => (
-                  <TouchableOpacity
-                    key={i}
-                    style={styles.historyChip}
-                    onPress={() => applyHistorySearch(item)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 12 }}>📍</Text>
-                    <Text style={styles.historyText} numberOfLines={1}>
-                      {item.pickup?.label?.split(',')[0] || 'Pickup'} → {item.drop?.label?.split(',')[0] || 'Drop'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {searchHistory.map((item, i) => {
+                  const pName = (item.pickup?.label?.split(',')[0] || 'Pickup').trim();
+                  const dName = (item.drop?.label?.split(',')[0] || 'Drop').trim();
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      style={styles.historyCard}
+                      onPress={() => applyHistorySearch(item)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.historyBulletRow}>
+                        <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900' }}>•</Text>
+                        <Text style={styles.historyBulletText} numberOfLines={1}>{pName}</Text>
+                      </View>
+                      <View style={styles.historyBulletRow}>
+                        <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900' }}>•</Text>
+                        <Text style={styles.historyBulletText} numberOfLines={1}>{dName}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </ScrollView>
           </View>
@@ -468,15 +489,17 @@ export default function SearchRidesScreen({ navigation }) {
                 maxLength={10}
                 containerStyle={{ flex: 1 }}
               />
-              <Input
-                label="Time (HH:MM)"
-                value={time}
-                onChangeText={(val) => setTime(formatTimeInput(val))}
-                placeholder="e.g. 15:30"
-                keyboardType="numeric"
-                maxLength={5}
-                containerStyle={{ flex: 1 }}
-              />
+              <View style={{ flex: 1, marginBottom: 12 }}>
+                <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' }}>TIME *</Text>
+                <TouchableOpacity
+                  style={styles.timeSelectBtn}
+                  onPress={() => setShowTimePicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.timeSelectBtnText}>{formatDisplayTime(time)}</Text>
+                  <Text style={{ fontSize: 14 }}>🕒 ▼</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
@@ -528,7 +551,7 @@ export default function SearchRidesScreen({ navigation }) {
 
         <Alert message={error} />
 
-        <Btn label="🔍 Search Your Match" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
+        <Btn label="🔍 Search Your Buddy" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
 
         {/* Results */}
         <View style={{ marginTop: spacing.lg }}>
@@ -540,9 +563,9 @@ export default function SearchRidesScreen({ navigation }) {
           ) : !searched ? (
             <View style={styles.preSearchCard}>
               <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>🧭</Text>
-              <Text style={styles.preSearchTitle}>Ready to Find a Match?</Text>
+              <Text style={styles.preSearchTitle}>Ready to Find a Buddy?</Text>
               <Text style={styles.preSearchSub}>
-                Enter your pickup & drop locations above, then tap "Search Your Match" to find verified rides along your route within 5km.
+                Enter your pickup & drop locations above, then tap "Search Your Buddy" to find verified rides along your route within 5km.
               </Text>
             </View>
           ) : rides.length === 0 ? (
@@ -580,6 +603,14 @@ export default function SearchRidesScreen({ navigation }) {
       </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* Time Picker Modal */}
+      <TimePickerModal
+        visible={showTimePicker}
+        value={time}
+        onConfirm={(t) => setTime(t)}
+        onClose={() => setShowTimePicker(false)}
+      />
+
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
     </SafeAreaView>
@@ -589,6 +620,22 @@ export default function SearchRidesScreen({ navigation }) {
 const styles = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: colors.bg },
   scroll:    { padding: spacing.md, paddingBottom: 48 },
+  timeSelectBtn: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timeSelectBtnText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   scheduleBox: {
     backgroundColor: colors.surface,
     padding: 14,
@@ -656,6 +703,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     maxWidth: 220,
+  },
+  historyCard: {
+    backgroundColor: colors.surface2,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    minWidth: 140,
+    maxWidth: 200,
+    justifyContent: 'center',
+  },
+  historyBulletRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  historyBulletText: {
+    color: colors.text,
+    fontSize: 11.5,
+    fontWeight: '700',
+    flex: 1,
   },
   historyText: {
     color: colors.text2,

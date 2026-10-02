@@ -4,12 +4,12 @@ const Notification = require('../notifications/notifications.model');
 
 exports.addRating = async (req, res) => {
   try {
-    const { rideId, reviewedUser, rating, comment } = req.body;
+    const { rideId, rating, comment } = req.body;
+    const reviewedUser = req.body.reviewedUser || req.body.reviewee;
     const reviewer = req.user.userId;
     if (!rideId) {
       return res.status(400).json({ message: 'rideId is required to submit a ride rating' });
     }
-
 
     console.log('📥 addRating called:', { reviewer, reviewedUser, rating, rideId });
 
