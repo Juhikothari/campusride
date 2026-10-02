@@ -589,12 +589,14 @@ export function IncidentReportScreen({ navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: 160 }]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: 240 }]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={true}
         >
           <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>⚠️ Report Incident</Text>
           <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Help us keep the community safe</Text>

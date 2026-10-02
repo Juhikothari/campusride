@@ -11,10 +11,10 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
 const RIDE_STATUS_CONFIG = {
-  active:        { color: colors.green,  icon: '🟢', label: 'Active'      },
-  'in-progress': { color: colors.blue,   icon: '🔵', label: 'In Progress' },
-  completed:     { color: colors.text3,  icon: '⚪', label: 'Completed'   },
-  cancelled:     { color: colors.red,    icon: '🔴', label: 'Cancelled'   },
+  active:        { color: '#ffffff',     icon: '⚪', label: 'Requested'   },
+  'in-progress': { color: colors.red,    icon: '🔴', label: 'Live Track'  },
+  completed:     { color: colors.green,  icon: '🟢', label: 'Completed'   },
+  cancelled:     { color: colors.text3,  icon: '⚫', label: 'Cancelled'   },
 };
 
 function getAddr(field) {
@@ -293,83 +293,102 @@ export default function ProviderBookingsScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {/* Pending */}
-            <Text style={styles.sectionLabel}>PENDING REQUESTS ({pending.length})</Text>
-            {bkLoading ? (
-              <ActivityIndicator color={colors.accent} />
-            ) : pending.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Text style={{ fontSize: 28, marginBottom: 6 }}>📭</Text>
-                <Text style={{ color: colors.text2, fontSize: 13 }}>No pending requests</Text>
+            {/* Requests / Bookings Section */}
+            {selectedRide.status === 'completed' ? (
+              <View style={[styles.bookingCard, { alignItems: 'center', paddingVertical: 24, marginTop: spacing.sm }]}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>🔒</Text>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Ride Completed</Text>
+                <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 18 }}>
+                  Seeker personal and contact details are hidden once a ride is completed in accordance with student safety and privacy policy.
+                </Text>
+                <View style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface2, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full }}>
+                  <Text style={{ fontSize: 12 }}>🟢</Text>
+                  <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
+                    {resolved.filter(b => b.status === 'accepted').length} Passenger{(resolved.filter(b => b.status === 'accepted').length === 1 ? '' : 's')} Completed
+                  </Text>
+                </View>
               </View>
             ) : (
-              pending.map(b => {
-                const am = actionMap[b._id] || {};
-                const seeker = b.seekerId;
-                return (
-                  <View key={b._id} style={styles.bookingCard}>
-                    <View style={styles.seekerRow}>
-                      <View style={styles.avatar}>
-                        <Text style={styles.avatarText}>{seeker?.name?.charAt(0) || 'S'}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
-                        <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
-                        {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
-                        <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 2 }]}>
-                          🔒 Phone & USN revealed after accepting
-                        </Text>
-                        <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 10, marginTop: 2 }]}>
-                          {new Date(b.createdAt).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Alert message={am.error} />
-                    {am.done ? (
-                      <Text style={{ color: colors.green, fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>✓ Action taken</Text>
-                    ) : (
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                        <Btn label={am.loading ? '…' : '✓ Accept'} onPress={() => respond(b._id, 'accepted')} loading={am.loading} style={{ flex: 1 }} />
-                        <Btn label="✕ Reject" onPress={() => respond(b._id, 'rejected')} variant="danger" disabled={am.loading} style={{ flex: 1 }} />
-                      </View>
-                    )}
-                  </View>
-                );
-              })
-            )}
-
-            {/* Resolved */}
-            {resolved.length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>CONFIRMED / RESOLVED ({resolved.length})</Text>
-                {resolved.map(b => {
-                  const seeker = b.seekerId;
-                  const isAccepted = b.status === 'accepted';
-                  return (
-                    <View key={b._id} style={[styles.bookingCard, !isAccepted && { opacity: 0.7 }]}>
-                      <View style={styles.seekerRow}>
-                        <View style={[styles.avatar, isAccepted && { borderColor: colors.green, backgroundColor: colors.green + '22' }]}>
-                          <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>{seeker?.name?.charAt(0) || 'S'}</Text>
+                {/* Pending */}
+                <Text style={styles.sectionLabel}>PENDING REQUESTS ({pending.length})</Text>
+                {bkLoading ? (
+                  <ActivityIndicator color={colors.accent} />
+                ) : pending.length === 0 ? (
+                  <View style={styles.emptyBox}>
+                    <Text style={{ fontSize: 28, marginBottom: 6 }}>📭</Text>
+                    <Text style={{ color: colors.text2, fontSize: 13 }}>No pending requests</Text>
+                  </View>
+                ) : (
+                  pending.map(b => {
+                    const am = actionMap[b._id] || {};
+                    const seeker = b.seekerId;
+                    return (
+                      <View key={b._id} style={styles.bookingCard}>
+                        <View style={styles.seekerRow}>
+                          <View style={styles.avatar}>
+                            <Text style={styles.avatarText}>{seeker?.name?.charAt(0) || 'S'}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
+                            <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
+                            {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
+                            <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 2 }]}>
+                              🔒 Phone & USN revealed after accepting
+                            </Text>
+                            <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 10, marginTop: 2 }]}>
+                              {new Date(b.createdAt).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
-                          {isAccepted && seeker?.usn ? (
-                            <Text style={styles.seekerMeta}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{seeker.usn}</Text></Text>
-                          ) : null}
-                          {isAccepted && seeker?.phone ? (
-                            <Text style={styles.seekerMeta}>📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text></Text>
-                          ) : null}
-                          {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
-                        </View>
-                        <Text style={[styles.statusBadge, {
-                          color: isAccepted ? colors.green : colors.red,
-                          borderColor: isAccepted ? colors.green : colors.red,
-                        }]}>{b.status}</Text>
+
+                        <Alert message={am.error} />
+                        {am.done ? (
+                          <Text style={{ color: colors.green, fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>✓ Action taken</Text>
+                        ) : (
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                            <Btn label={am.loading ? '…' : '✓ Accept'} onPress={() => respond(b._id, 'accepted')} loading={am.loading} style={{ flex: 1 }} />
+                            <Btn label="✕ Reject" onPress={() => respond(b._id, 'rejected')} variant="danger" disabled={am.loading} style={{ flex: 1 }} />
+                          </View>
+                        )}
                       </View>
-                    </View>
-                  );
-                })}
+                    );
+                  })
+                )}
+
+                {/* Resolved */}
+                {resolved.length > 0 && (
+                  <>
+                    <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>CONFIRMED / RESOLVED ({resolved.length})</Text>
+                    {resolved.map(b => {
+                      const seeker = b.seekerId;
+                      const isAccepted = b.status === 'accepted';
+                      return (
+                        <View key={b._id} style={[styles.bookingCard, !isAccepted && { opacity: 0.7 }]}>
+                          <View style={styles.seekerRow}>
+                            <View style={[styles.avatar, isAccepted && { borderColor: colors.green, backgroundColor: colors.green + '22' }]}>
+                              <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>{seeker?.name?.charAt(0) || 'S'}</Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
+                              {isAccepted && seeker?.usn ? (
+                                <Text style={styles.seekerMeta}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{seeker.usn}</Text></Text>
+                              ) : null}
+                              {isAccepted && seeker?.phone ? (
+                                <Text style={styles.seekerMeta}>📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text></Text>
+                              ) : null}
+                              {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
+                            </View>
+                            <Text style={[styles.statusBadge, {
+                              color: isAccepted ? colors.green : colors.red,
+                              borderColor: isAccepted ? colors.green : colors.red,
+                            }]}>{b.status}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </>
+                )}
               </>
             )}
           </>

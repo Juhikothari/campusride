@@ -1,17 +1,25 @@
 const User  = require('../users/users.model');
 const Admin = require('./admin.model');
 
+const ADMIN_EMAILS = [
+  'admin@campusride.in',
+  'superadmin@campusride.in',
+  'support@campusride.in',
+  ...(process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase()) : [])
+];
+
 const isAdmin = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.userId);
 
     if (!user) return res.status(401).json({ message: 'User not found' });
 
-    // Pass if role is admin or email contains admin or isAdmin flag
+    // Pass if user role is admin, isAdmin flag is true, or verified admin email
+    const isAllowedEmail = user.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim());
     if (
       user.role === 'admin' ||
-      (user.email && user.email.toLowerCase().includes('admin')) ||
-      user.isAdmin === true
+      user.isAdmin === true ||
+      isAllowedEmail
     ) {
       req.adminUser = user;
       req.user.role = 'admin';

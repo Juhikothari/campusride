@@ -501,7 +501,11 @@ function CollegeChatTab({ user }) {
   const myId = user?._id || user?.userId;
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+    >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
       ) : (
@@ -509,7 +513,10 @@ function CollegeChatTab({ user }) {
           ref={flatRef}
           data={messages}
           keyExtractor={(item, i) => item._id || String(i)}
-          contentContainerStyle={{ padding: spacing.md, paddingBottom: 16 }}
+          contentContainerStyle={{ padding: spacing.md, paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={true}
           onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
           renderItem={({ item }) => {
             const isMe = item.senderId === myId;
@@ -535,8 +542,12 @@ function CollegeChatTab({ user }) {
         />
       )}
       <View style={styles.chatInput}>
-        <TouchableOpacity onPress={() => setAnonymous(a => !a)} style={{ padding: 8 }}>
-          <Text style={{ fontSize: 18, opacity: anonymous ? 1 : 0.4 }}>🕵️</Text>
+        <TouchableOpacity
+          onPress={() => setAnonymous(a => !a)}
+          style={{ padding: 8, justifyContent: 'center', alignItems: 'center' }}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 20 }}>{anonymous ? '🎭' : '🎓'}</Text>
         </TouchableOpacity>
         <TextInput
           style={styles.chatTextInput}
@@ -547,8 +558,8 @@ function CollegeChatTab({ user }) {
           onSubmitEditing={sendMsg}
           returnKeyType="send"
         />
-        <TouchableOpacity style={styles.sendBtn} onPress={sendMsg}>
-          <Text style={{ color: '#000', fontSize: 16 }}>↑</Text>
+        <TouchableOpacity style={styles.sendBtn} onPress={sendMsg} activeOpacity={0.8}>
+          <Text style={{ color: '#000', fontSize: 16, fontWeight: '800' }}>➤</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

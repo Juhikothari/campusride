@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, TextInput, Image, Modal, Alert as RNAlert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -1264,35 +1265,46 @@ export function ContactSupportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 140 }]} keyboardShouldPersistTaps="handled">
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>📞 Contact Support</Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.lg }}>We typically respond within 24 hours</Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: 220 }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={true}
+        >
+          <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>📞 Contact Support</Text>
+          <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.lg }}>We typically respond within 24 hours</Text>
 
-        {/* FAQ */}
-        <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 10 }}>FREQUENTLY ASKED QUESTIONS</Text>
-        {FAQS.map((f, i) => (
-          <TouchableOpacity key={i} style={styles.faqRow} onPress={() => setOpenFaq(openFaq === i ? null : i)}>
-            <Text style={{ color: colors.text, fontSize: 13, flex: 1, fontWeight: '600' }}>{f.q}</Text>
-            <Text style={{ color: colors.text3, fontSize: 16 }}>{openFaq === i ? '▲' : '▼'}</Text>
-            {openFaq === i && (
-              <Text style={{ color: colors.text2, fontSize: 13, marginTop: 8, lineHeight: 19, width: '100%' }}>{f.a}</Text>
-            )}
-          </TouchableOpacity>
-        ))}
+          {/* FAQ */}
+          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 10 }}>FREQUENTLY ASKED QUESTIONS</Text>
+          {FAQS.map((f, i) => (
+            <TouchableOpacity key={i} style={styles.faqRow} onPress={() => setOpenFaq(openFaq === i ? null : i)}>
+              <Text style={{ color: colors.text, fontSize: 13, flex: 1, fontWeight: '600' }}>{f.q}</Text>
+              <Text style={{ color: colors.text3, fontSize: 16 }}>{openFaq === i ? '▲' : '▼'}</Text>
+              {openFaq === i && (
+                <Text style={{ color: colors.text2, fontSize: 13, marginTop: 8, lineHeight: 19, width: '100%' }}>{f.a}</Text>
+              )}
+            </TouchableOpacity>
+          ))}
 
-        {/* Contact form */}
-        <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginTop: spacing.lg, marginBottom: 10 }}>SEND A MESSAGE</Text>
-        <Alert message={error} />
-        {sent ? (
-          <Alert message="Message sent! We'll get back to you within 24 hours." type="success" />
-        ) : (
-          <>
-            <TextInput style={inp} value={subject} onChangeText={setSubject} placeholder="Subject" placeholderTextColor={colors.text3} />
-            <TextInput style={[inp, { height: 100, textAlignVertical: 'top' }]} value={message} onChangeText={setMessage} placeholder="Describe your issue in detail…" placeholderTextColor={colors.text3} multiline maxLength={1000} />
-            <Btn label={sending ? 'Sending…' : '📩 Send Message'} onPress={send} loading={sending} />
-          </>
-        )}
-      </ScrollView>
+          {/* Contact form */}
+          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginTop: spacing.lg, marginBottom: 10 }}>SEND A MESSAGE</Text>
+          <Alert message={error} />
+          {sent ? (
+            <Alert message="Message sent! We'll get back to you within 24 hours." type="success" />
+          ) : (
+            <>
+              <TextInput style={inp} value={subject} onChangeText={setSubject} placeholder="Subject" placeholderTextColor={colors.text3} />
+              <TextInput style={[inp, { height: 100, textAlignVertical: 'top' }]} value={message} onChangeText={setMessage} placeholder="Describe your issue in detail…" placeholderTextColor={colors.text3} multiline maxLength={1000} />
+              <Btn label={sending ? 'Sending…' : '📩 Send Message'} onPress={send} loading={sending} />
+            </>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

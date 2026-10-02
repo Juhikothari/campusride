@@ -39,8 +39,7 @@ const request = async (path, options = {}) => {
       throw err;
     }
     throw new Error(
-      `Cannot connect to server at ${API_BASE}. ` +
-      `Check your internet connection or verify your backend is running.`
+      `Unable to connect to the server. Please check your internet connection and try again.`
     );
   } finally {
     clearTimeout(timer);
@@ -49,7 +48,7 @@ const request = async (path, options = {}) => {
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     if (res.status === 404) {
-      const err = new Error(`Endpoint not found (404) on ${API_BASE}.`);
+      const err = new Error(`Endpoint not found (404). Server might be updating.`);
       err.status = 404;
       throw err;
     }

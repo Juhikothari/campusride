@@ -97,7 +97,7 @@ export default function ChatBotScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="HOGO" subtitle="Find Your Match" />
+      <TopHeader title="HOGO" subtitle="Find Your Buddy" />
 
       <View style={styles.botHeader}>
         <View style={styles.botInfo}>
@@ -118,13 +118,15 @@ export default function ChatBotScreen({ navigation }) {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
       >
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={styles.messagesContainer}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.messagesContainer, { paddingBottom: 24 }]}
+          showsVerticalScrollIndicator={true}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           {messages.map((m, idx) => {
             const isUser = m.role === 'user';
