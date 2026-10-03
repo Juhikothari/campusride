@@ -117,28 +117,40 @@ export default function DashboardScreen({ navigation }) {
 
   const ONBOARDING_SLIDES = [
     {
-      title: 'Welcome to CampusRide 🛵',
-      subtitle: 'Safe Campus Commuting',
-      desc: 'Connect with verified students and staff from your university for safe, convenient, and affordable everyday carpooling.',
-      badge: 'CAMPUS VERIFIED',
-    },
-    {
-      title: 'Search Your Buddy 🤝',
+      title: 'Search Your Buddy 🔍',
       subtitle: 'Match Routes Within 5km',
-      desc: 'Find verified peers commuting along your exact route. View live map paths, calculate commute times, and split fuel costs transparently.',
+      desc: 'Find verified peers commuting along your exact route. View live map paths, calculate commute times, and split fuel costs.',
       badge: 'ROUTE MATCHING',
+      route: 'SearchRides',
+      actionLabel: '🔍 Find Buddy Now →',
+      icon: '🛵💨',
     },
     {
-      title: 'Sitcom Lounges & Forum 🛋️',
-      subtitle: 'Central Perk & Campus Hubs',
-      desc: 'Join your college sitcom lounge (Central Perk Lounge, Dunder Mifflin Hub & more). Post commute tips, alerts, and live campus chat.',
+      title: 'Offer a Ride 🚗',
+      subtitle: 'Share Your Daily Commute',
+      desc: 'Post your daily ride to campus or home. Choose verified students from your college to ride with.',
+      badge: 'OFFER SEATS',
+      route: 'CreateRide',
+      actionLabel: '🚗 Offer Ride Now →',
+      icon: '🚗💨',
+    },
+    {
+      title: 'Sitcom Hubs & Lounge 🛋️',
+      subtitle: 'Central Perk & Campus Fun',
+      desc: 'Chat in your official college sitcom lounge (Central Perk, Dunder Mifflin, 99th Precinct & more)!',
       badge: 'CAMPUS COMMUNITY',
+      route: 'Community',
+      actionLabel: '🛋️ Open Sitcom Lounge →',
+      icon: '☕💨',
     },
     {
-      title: 'Safety First & Live GPS 🛡️',
-      subtitle: 'Pre-Ride Checklist & SOS',
-      desc: 'Every ride includes two-way safety checklists, live GPS tracking, and instant 24/7 SOS safety alerts to ensure secure student travel.',
+      title: 'Safety First & SOS 🛡️',
+      subtitle: 'KYC Checks & Live Tracking',
+      desc: 'Two-way pre-ride checklists, live map tracking, and instant emergency SOS keep everyone safe.',
       badge: 'SAFETY & SOS',
+      route: 'KYC',
+      actionLabel: '🛡️ Verify Documents →',
+      icon: '🛡️💨',
     },
   ];
 
@@ -429,6 +441,21 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={styles.tripCostText}>₹{activeTrip.costPerSeat || 49} / seat</Text>
               </View>
 
+              {/* Price displayed to seeker to pay upon provider acceptance */}
+              {tripRole === 'rider' && (
+                <View style={styles.riderFareBox}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View>
+                      <Text style={styles.riderFareTag}>💰 FARE TO PAY DRIVER</Text>
+                      <Text style={styles.riderFareSub}>Pay directly to driver via UPI or cash</Text>
+                    </View>
+                    <Text style={styles.riderFareAmount}>
+                      ₹{(activeTrip.costPerSeat || 49) * (activeTrip.bookedSeats || 1)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Action Buttons based on in-progress vs pre-start */}
               {activeTrip.status === 'in-progress' ? (
                 <TouchableOpacity
@@ -539,7 +566,7 @@ export default function DashboardScreen({ navigation }) {
         <Text style={styles.tagline}>The operating system for daily commuting in Indian cities</Text>
       </ScrollView>
 
-      {/* ── First-Time Beta Testing Disclaimer Modal ── */}
+      {/* ── First-Time Short Testing Version Notice ── */}
       <Modal
         visible={showBetaDisclaimer}
         transparent
@@ -547,26 +574,16 @@ export default function DashboardScreen({ navigation }) {
         onRequestClose={dismissBetaDisclaimer}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.disclaimerCard}>
-            <View style={styles.disclaimerIconWrap}>
-              <Text style={{ fontSize: 32 }}>🧪</Text>
-            </View>
-            <Text style={styles.disclaimerBadge}>CAMPUS PILOT TRIAL</Text>
-            <Text style={styles.disclaimerTitle}>Beta Testing Notice</Text>
-            <Text style={styles.disclaimerBody}>
-              Welcome to CampusRide! Please note that this is a <Text style={{ color: colors.accent, fontWeight: '800' }}>pilot testing version</Text> developed for university trials at RNSIT and participating engineering campuses.
+          <View style={[styles.disclaimerCard, { padding: 22, maxWidth: 310, alignItems: 'center', borderRadius: radius.xl }]}>
+            <Text style={{ fontSize: 32, marginBottom: 8 }}>🧪</Text>
+            <Text style={{ color: colors.accent, fontSize: 17, fontWeight: '800', marginBottom: 6 }}>Testing Version</Text>
+            <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', lineHeight: 18, marginBottom: 16 }}>
+              This is a trial testing version of HOGO for campus evaluation.
             </Text>
-
-            <View style={styles.disclaimerBulletBox}>
-              <Text style={styles.disclaimerBullet}>• Real payments and commercial transactions are not active in this test version.</Text>
-              <Text style={styles.disclaimerBullet}>• Matching algorithms and routes are calibrated for campus testing.</Text>
-              <Text style={styles.disclaimerBullet}>• This notice appears only once per verified user.</Text>
-            </View>
-
             <Btn
-              label="✓ I Understand & Continue"
+              label="✓ Got it"
               onPress={dismissBetaDisclaimer}
-              style={{ marginTop: 14 }}
+              style={{ width: '100%', paddingVertical: 10 }}
             />
           </View>
         </View>
@@ -599,7 +616,7 @@ export default function DashboardScreen({ navigation }) {
                   },
                 ]}
               >
-                <Text style={{ fontSize: 28 }}>🛵💨</Text>
+                <Text style={{ fontSize: 28 }}>{ONBOARDING_SLIDES[carouselStep]?.icon || '🛵💨'}</Text>
               </Animated.View>
             </View>
 
@@ -632,26 +649,38 @@ export default function DashboardScreen({ navigation }) {
               ))}
             </View>
 
-            {/* Next / Get Started Buttons */}
+            {/* Primary Action Button: Navigate directly to the feature with animation */}
             <Btn
-              label={carouselStep === ONBOARDING_SLIDES.length - 1 ? '🚀 Get Started' : 'Next →'}
+              label={ONBOARDING_SLIDES[carouselStep]?.actionLabel || '🚀 Explore Feature →'}
               onPress={() => {
-                if (carouselStep < ONBOARDING_SLIDES.length - 1) {
-                  setCarouselStep(s => s + 1);
-                } else {
-                  dismissOnboarding();
-                }
+                const target = ONBOARDING_SLIDES[carouselStep]?.route;
+                dismissOnboarding();
+                if (target) navigation.navigate(target);
               }}
-              style={{ marginTop: 10 }}
+              style={{ marginTop: 12, width: '100%' }}
             />
 
-            <TouchableOpacity
-              onPress={dismissOnboarding}
-              style={styles.skipBtn}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.skipBtnText}>Skip Onboarding</Text>
-            </TouchableOpacity>
+            {/* Next / Skip Row */}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, width: '100%' }}>
+              <Btn
+                label={carouselStep === ONBOARDING_SLIDES.length - 1 ? 'Finish' : 'Next →'}
+                onPress={() => {
+                  if (carouselStep < ONBOARDING_SLIDES.length - 1) {
+                    setCarouselStep(s => s + 1);
+                  } else {
+                    dismissOnboarding();
+                  }
+                }}
+                variant="outline"
+                style={{ flex: 1, paddingVertical: 8 }}
+              />
+              <Btn
+                label="Skip"
+                onPress={dismissOnboarding}
+                variant="ghost"
+                style={{ flex: 1, paddingVertical: 8 }}
+              />
+            </View>
           </View>
         </View>
       </Modal>
@@ -919,6 +948,30 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 13,
     fontWeight: '800',
+  },
+  riderFareBox: {
+    backgroundColor: 'rgba(45, 212, 160, 0.12)',
+    borderWidth: 1.5,
+    borderColor: '#2dd4a0',
+    borderRadius: radius.md,
+    padding: 12,
+    marginBottom: 12,
+  },
+  riderFareTag: {
+    color: '#2dd4a0',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  riderFareSub: {
+    color: colors.text2,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  riderFareAmount: {
+    color: '#2dd4a0',
+    fontSize: 22,
+    fontWeight: '900',
   },
 
   openGpsBtn: {

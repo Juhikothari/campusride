@@ -43,6 +43,7 @@ const Stack = createStackNavigator();
 
 // ── Shared header config ──────────────────────────────────────
 const screenOptions = {
+  headerShown:      false,
   headerStyle:      { backgroundColor: colors.bg, elevation: 0, shadowOpacity: 0 },
   headerTitleStyle: { color: colors.text, fontWeight: '700', fontSize: 16 },
   headerTintColor:  colors.accent,

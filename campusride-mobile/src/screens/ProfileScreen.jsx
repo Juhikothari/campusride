@@ -547,8 +547,6 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* Actions */}
-        <Btn label="📋 Update KYC" onPress={() => navigation.navigate('KYC')} variant="outline" style={{ marginBottom: 10 }} />
-        <Btn label="📞 Contact Support" onPress={() => navigation.navigate('ContactSupport')} variant="ghost" style={{ marginBottom: 10 }} />
         <Btn label="Sign Out" onPress={handleLogout} variant="danger" style={{ marginTop: 8, marginBottom: 32 }} />
       </ScrollView>
 

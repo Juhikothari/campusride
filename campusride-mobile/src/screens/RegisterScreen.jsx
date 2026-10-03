@@ -12,6 +12,7 @@ import { Input, Btn, Alert, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import { INDIAN_COLLEGES } from '../data/colleges';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
+import * as api from '../services/api';
 
 const ROLES = [
   { value: 'seeker',   label: 'Seeker',   icon: '🔍' },
@@ -20,10 +21,9 @@ const ROLES = [
 ];
 
 const GENDERS = [
-  { value: 'male',              label: 'Male',              symbol: '♂' },
-  { value: 'female',            label: 'Female',            symbol: '♀' },
-  { value: 'other',             label: 'Other',             symbol: '⚧' },
-  { value: 'prefer_not_to_say', label: 'Prefer not to say', symbol: '—' },
+  { value: 'male',   label: 'Male',   symbol: '♂' },
+  { value: 'female', label: 'Female', symbol: '♀' },
+  { value: 'other',  label: 'Other',  symbol: '⚧' },
 ];
 
 export default function RegisterScreen({ navigation }) {
@@ -37,7 +37,7 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [confirm,  setConfirm]  = useState('');
   const [usn,      setUsn]      = useState('');
-  const [gender,   setGender]   = useState('prefer_not_to_say');
+  const [gender,   setGender]   = useState('');
   const [role,     setRole]     = useState('both');
   const [emergency,setEmergency]= useState('');
   const [adminKey, setAdminKey] = useState('');
@@ -60,8 +60,25 @@ export default function RegisterScreen({ navigation }) {
 
   const isProvider = role === 'provider' || role === 'both';
 
-  // Filtered colleges
+  const [remoteColleges, setRemoteColleges] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    if (showCollegeModal) {
+      api.getColleges(collegeSearch)
+        .then(res => {
+          if (active && res && Array.isArray(res.colleges)) {
+            setRemoteColleges(res.colleges);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => { active = false; };
+  }, [showCollegeModal, collegeSearch]);
+
+  // Filtered colleges (backend search results or local search fallback)
   const filteredColleges = useMemo(() => {
+    if (remoteColleges && remoteColleges.length > 0) return remoteColleges;
     if (!collegeSearch.trim()) return INDIAN_COLLEGES;
     const q = collegeSearch.toLowerCase();
     return INDIAN_COLLEGES.filter(c =>
@@ -69,7 +86,7 @@ export default function RegisterScreen({ navigation }) {
       c.short.toLowerCase().includes(q) ||
       c.city.toLowerCase().includes(q)
     );
-  }, [collegeSearch]);
+  }, [collegeSearch, remoteColleges]);
 
   const addVehicleRow = () => {
     setVehicles(prev => [...prev, { vehicleNumber: '', vehicleName: '', vehicleType: 'car' }]);

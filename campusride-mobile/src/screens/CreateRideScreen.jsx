@@ -494,9 +494,10 @@ export default function CreateRideScreen({ navigation }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: 120 }]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: 280 }]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={true}
         >
           <Alert message={error} />
 
@@ -604,7 +605,7 @@ export default function CreateRideScreen({ navigation }) {
           {/* ── WHEN / SCHEDULE ── */}
           <Text style={styles.fieldLabel}>WHEN?</Text>
           <TogglePill
-            options={[{ value: 'now', label: '⚡ Ride Now' }, { value: 'later', label: '🗓 Schedule' }]}
+            options={[{ value: 'now', label: '🚗 Depart Now' }, { value: 'later', label: '🗓 Schedule' }]}
             value={schedMode}
             onChange={setSchedMode}
           />
@@ -746,46 +747,6 @@ export default function CreateRideScreen({ navigation }) {
               <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
             </TouchableOpacity>
           )}
-
-          {/* ── LIVE RIDE FARE ESTIMATION CARD FOR PROVIDER ── */}
-          <View style={styles.fareCard}>
-            <View style={styles.fareHeader}>
-              <View>
-                <Text style={styles.fareBadge}>COMMUTER FARE SPLIT</Text>
-                <Text style={styles.fareTitle}>Calculated Ride Fare</Text>
-              </View>
-              <View style={styles.farePriceBadge}>
-                <Text style={styles.farePriceCurrency}>₹</Text>
-                <Text style={styles.farePriceAmount}>
-                  {cost && parseInt(cost, 10) > 0 ? cost : (calcCost(distKm, vehicleType) || 0)}
-                </Text>
-                <Text style={styles.farePricePer}>/ seat</Text>
-              </View>
-            </View>
-
-            <View style={styles.fareDetailsRow}>
-              <View style={styles.fareDetailItem}>
-                <Text style={styles.fareDetailLabel}>ESTIMATED DISTANCE</Text>
-                <Text style={styles.fareDetailValue}>{distKm > 0 ? `${distKm} km` : 'Enter route'}</Text>
-              </View>
-              <View style={styles.fareDetailItem}>
-                <Text style={styles.fareDetailLabel}>VEHICLE TYPE</Text>
-                <Text style={styles.fareDetailValue}>
-                  {vehicleType === 'motorcycle' ? 'Bike (₹5/km)' : vehicleType === 'xuv' ? 'XUV (₹10/km)' : 'Car (₹7/km)'}
-                </Text>
-              </View>
-              <View style={styles.fareDetailItem}>
-                <Text style={styles.fareDetailLabel}>CAPACITY</Text>
-                <Text style={styles.fareDetailValue}>
-                  {VEHICLES.find(v => v.value === vehicleType)?.capacity || 1} seats
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.fareNotice}>
-              💡 Transparent student-rate pricing: base fare + per-km distance. Riders split this exact fare with you upon booking.
-            </Text>
-          </View>
 
           {hasRegisteredVehicle ? (
             isVehiclePending ? (

@@ -572,12 +572,12 @@ export default function CommunityScreen() {
   const [activeTab, setActiveTab] = useState(0);
 
   const sitcomInfo = getSitcomForCollege(user?.college);
-  const collegeCommunityTitle = user?.college ? `${user.college} Community` : 'Campus Community';
-  const sitcomSubtitle = `${sitcomInfo.hangout} · (${sitcomInfo.sitcom})`;
+  const sitcomTitle = sitcomInfo.hangout.replace(/[☕⚛️📄🚨💻🍻🌳📚🏡]/g, '').trim();
+  const sitcomSubtitle = `${sitcomInfo.sitcom} Hub • ${user?.college || 'Campus'} Community`;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <TopHeader title={collegeCommunityTitle} subtitle={sitcomSubtitle} />
+      <TopHeader title={sitcomTitle} subtitle={sitcomSubtitle} />
 
       {/* Sitcom Hangout Banner */}
       <View style={styles.sitcomBanner}>
@@ -777,19 +777,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    backgroundColor: colors.accentDim,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.3)',
+    borderWidth: 1.5,
+    borderColor: colors.accent + '44',
   },
   attachMainIcon: {
-    fontSize: 14,
+    fontSize: 15,
   },
   attachMainText: {
     color: colors.accent,
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '700',
   },
   postAttachmentImage: {

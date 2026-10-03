@@ -4,11 +4,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert as RNAlert,
+  ActivityIndicator, Alert as RNAlert, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Btn, Alert, Badge } from '../components/UI';
+import TimePickerModal from '../components/TimePickerModal';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -335,6 +336,7 @@ export function WalkTogetherScreen({ navigation }) {
   const [from,    setFrom]    = useState('');
   const [to,      setTo]      = useState('');
   const [time,    setTime]    = useState('');
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [posting, setPosting] = useState(false);
   const [womenOnly,setWomenOnly]= useState(false);
   const [joined,  setJoined]  = useState({});
@@ -372,8 +374,14 @@ export function WalkTogetherScreen({ navigation }) {
           <View style={inputStyles.wrap}><Text style={inputStyles.icon}>📍</Text>
             <Text onPress={()=>{}} style={{flex:1}} />
           </View>
-          {/* Using raw TextInput with numeric time format */}
-          {renderWalkInputs(from, setFrom, to, setTo, time, setTime)}
+          {renderWalkInputs(from, setFrom, to, setTo, time, () => setShowTimePicker(true))}
+
+          <TimePickerModal
+            visible={showTimePicker}
+            value={time}
+            onConfirm={(val) => setShowTimePicker(false) || setTime(val)}
+            onClose={() => setShowTimePicker(false)}
+          />
 
           {user?.gender === 'female' && (
             <TouchableOpacity onPress={() => setWomenOnly(w => !w)} style={[{ flexDirection:'row', alignItems:'center', gap:10, borderRadius:radius.md, borderWidth:1.5, padding:12, marginBottom:12 }, womenOnly ? { borderColor:colors.pink, backgroundColor:'rgba(233,30,140,0.08)' } : { borderColor:colors.border }]}>
@@ -424,35 +432,26 @@ export function WalkTogetherScreen({ navigation }) {
   );
 }
 
-function renderWalkInputs(from, setFrom, to, setTo, time, setTime) {
+function renderWalkInputs(from, setFrom, to, setTo, time, onOpenTimePicker) {
   const { TextInput, StyleSheet: RNStyleSheet } = require('react-native');
   const s = RNStyleSheet.create({
     inp: { backgroundColor: colors.surface2, borderWidth:1, borderColor:colors.border, borderRadius:radius.md, color:colors.text, paddingHorizontal:14, paddingVertical:12, fontSize:14, marginBottom:10 },
+    timeBtn: { backgroundColor: colors.surface2, borderWidth:1, borderColor: time ? colors.accent : colors.border, borderRadius:radius.md, paddingHorizontal:14, paddingVertical:13, marginBottom:12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   });
-
-  const handleTimeChange = (txt) => {
-    // Only numbers allowed, format as HH:MM
-    const digits = txt.replace(/[^0-9]/g, '');
-    if (digits.length <= 2) {
-      setTime(digits);
-    } else {
-      setTime(`${digits.slice(0, 2)}:${digits.slice(2, 4)}`);
-    }
-  };
 
   return (
     <>
       <TextInput style={s.inp} value={from} onChangeText={setFrom} placeholder="From (e.g. Gate 1, Hostel)" placeholderTextColor={colors.text3} />
       <TextInput style={s.inp} value={to}   onChangeText={setTo}   placeholder="To (e.g. Library, Canteen)" placeholderTextColor={colors.text3} />
-      <TextInput
-        style={s.inp}
-        value={time}
-        onChangeText={handleTimeChange}
-        placeholder="Time in 24hr format (e.g. 14:30)"
-        placeholderTextColor={colors.text3}
-        keyboardType="numeric"
-        maxLength={5}
-      />
+      <TouchableOpacity style={s.timeBtn} onPress={onOpenTimePicker} activeOpacity={0.8}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={{ fontSize: 16 }}>⏰</Text>
+          <Text style={{ color: time ? colors.text : colors.text3, fontSize: 14, fontWeight: time ? '700' : '400' }}>
+            {time ? `Departure Time: ${time}` : 'Select Time (Hour & Min)'}
+          </Text>
+        </View>
+        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>{time ? 'Change' : 'Pick Time ▾'}</Text>
+      </TouchableOpacity>
     </>
   );
 }
@@ -570,8 +569,6 @@ export function IncidentReportScreen({ navigation }) {
     finally { setLoading(false); }
   };
 
-  const { TextInput, Picker } = require('react-native');
-
   if (success) return (
     <SafeAreaView style={[styles.safe, { alignItems:'center', justifyContent:'center', padding:24 }]}>
       <Text style={{ fontSize: 52, marginBottom: 16 }}>✅</Text>
@@ -686,7 +683,6 @@ export function IncidentReportScreen({ navigation }) {
 //  FORGOT PASSWORD / OTP RESET SCREEN
 // ═══════════════════════════════════════════════════════════════
 export function ForgotPasswordScreen({ navigation }) {
-  const { TextInput } = require('react-native');
   const [step,        setStep]        = useState(1); // 1: Email, 2: OTP & New Password, 3: Success
   const [email,       setEmail]       = useState('');
   const [otp,         setOtp]         = useState('');

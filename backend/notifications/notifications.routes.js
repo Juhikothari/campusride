@@ -80,4 +80,19 @@ router.get('/unread-count', auth, async (req, res) => {
   }
 });
 
+// Register push notification token (FCM / Expo)
+router.post('/register-token', auth, async (req, res) => {
+  try {
+    const { token, platform } = req.body;
+    if (!token) return res.status(400).json({ message: 'Push token required' });
+    const User = require('../users/users.model');
+    await User.findByIdAndUpdate(req.user.userId, {
+      $set: { pushToken: token, pushPlatform: platform || 'expo' }
+    });
+    res.json({ success: true, message: 'Push token registered successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;

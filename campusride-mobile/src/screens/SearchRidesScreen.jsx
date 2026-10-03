@@ -366,9 +366,10 @@ export default function SearchRidesScreen({ navigation }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: 140 }]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: 280 }]}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={true}
         >
           {/* Section divider */}
           <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH & MATCH RIDES</Text>
@@ -456,7 +457,7 @@ export default function SearchRidesScreen({ navigation }) {
         {/* Schedule */}
         <Text style={styles.filterLabel}>When do you need a ride?</Text>
         <TogglePill
-          options={[{ value: 'now', label: '⚡ Ride Now' }, { value: 'later', label: '🗓 Schedule' }]}
+          options={[{ value: 'now', label: '🚗 Leave Now' }, { value: 'later', label: '🗓 Schedule' }]}
           value={schedMode}
           onChange={setSchedMode}
         />

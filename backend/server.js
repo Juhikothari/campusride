@@ -277,6 +277,7 @@ app.use('/api/incidents',     require('./incidents/incidents.routes'));
 app.use('/api/notifications', require('./notifications/notifications.routes'));
 app.use('/api/community',     require('./community/community.routes'));
 app.use('/api/chatbot',       require('./chatbot/chatbot.routes'));
+app.use('/api/colleges',      require('./colleges/colleges.routes'));
 
 // ==========================================
 // 7. ERROR HANDLERS

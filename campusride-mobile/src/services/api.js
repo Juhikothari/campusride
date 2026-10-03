@@ -184,6 +184,8 @@ export const getAdminRides     = (params = '') => request(`/admin/rides${params 
 export const deleteAdminRide   = (id)   => request(`/admin/rides/${id}`, { method:'DELETE' });
 export const getAdminIncidents = ()     => request('/admin/incidents');
 export const updateIncidentStatus = (id, status) => request(`/admin/incidents/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });
+export const getColleges       = (search = '') => request(`/colleges${search ? '?search=' + encodeURIComponent(search) : ''}`);
+export const registerPushToken = (token, platform) => request('/notifications/register-token', { method: 'POST', body: JSON.stringify({ token, platform }) });
 
 // ── Generic API Client (matches axios-like calls across screens) ──
 export const apiClient = {

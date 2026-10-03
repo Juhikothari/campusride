@@ -66,7 +66,7 @@ export default function LoginScreen({ navigation }) {
           {/* Logo */}
           <View style={styles.logoWrap}>
             <View style={styles.badgeWrap}>
-              <Text style={styles.logoBadge}>⚡</Text>
+              <Text style={styles.logoBadge}>🚗</Text>
             </View>
             <Text style={styles.logo}>
               HO<Text style={{ color: colors.accent }}>GO</Text>

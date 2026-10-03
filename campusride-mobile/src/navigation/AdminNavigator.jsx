@@ -51,7 +51,7 @@ export function AdminNavigator() {
           fontWeight: '700',
         },
         tabBarIcon: ({ focused }) => {
-          let icon = '⚡';
+          let icon = '📊';
           if (route.name === 'Dashboard') icon = '📊';
           else if (route.name === 'KYC') icon = '🪪';
           else if (route.name === 'Users') icon = '👥';

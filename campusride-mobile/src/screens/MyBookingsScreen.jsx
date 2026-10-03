@@ -183,6 +183,28 @@ export default function MyBookingsScreen({ navigation }) {
                   </View>
                 )}
 
+                {/* Price displayed to seeker to pay upon provider acceptance */}
+                {b.status === 'accepted' && (
+                  <View style={styles.farePayBox}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <View style={{ flex: 1, marginRight: 10 }}>
+                        <Text style={styles.farePayTag}>💰 FARE TO PAY PROVIDER</Text>
+                        <Text style={styles.farePaySub}>
+                          Pay directly to {provider?.name ? provider.name.split(' ')[0] : 'driver'} via UPI / Cash
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.farePayAmount}>
+                          ₹{(ride?.costPerSeat || 0) * (b.seatsBooked || b.seats || 1)}
+                        </Text>
+                        <Text style={styles.farePayDetail}>
+                          {b.seatsBooked || b.seats || 1} seat{(b.seatsBooked || b.seats || 1) > 1 ? 's' : ''} (₹{ride?.costPerSeat || 0}/seat)
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
                 {/* Actions */}
                 <View style={{ gap: 8, marginTop: 12 }}>
                   {b.status === 'pending' && (
@@ -298,5 +320,36 @@ const styles = StyleSheet.create({
   providerMetaText: {
     color: colors.text2,
     fontSize: 12,
+  },
+  farePayBox: {
+    backgroundColor: 'rgba(45, 212, 160, 0.1)',
+    borderWidth: 1.5,
+    borderColor: '#2dd4a0',
+    borderRadius: radius.lg,
+    padding: 14,
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  farePayTag: {
+    color: '#2dd4a0',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  farePaySub: {
+    color: colors.text2,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  farePayAmount: {
+    color: '#2dd4a0',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  farePayDetail: {
+    color: colors.text3,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 1,
   },
 });

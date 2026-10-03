@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert as RNAlert,
+  ActivityIndicator, Alert as RNAlert, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import TopHeader from '../components/TopHeader';
 import { Input, Btn, Alert } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -35,15 +36,37 @@ export default function KYCScreen({ navigation }) {
   const [vehicleType, setVehicleType] = useState('car');
 
   useEffect(() => {
+    // Populate docs if already uploaded in registration
+    const uDocs = user?.kycDocuments || {};
+    if (uDocs.aadhar || uDocs.collegeIdCard || uDocs.drivingLicense || uDocs.selfie || user?.selfieUrl) {
+      setDocs(d => ({
+        aadhar: d.aadhar || uDocs.aadhar || null,
+        collegeId: d.collegeId || uDocs.collegeIdCard || null,
+        license: d.license || uDocs.drivingLicense || null,
+        selfie: d.selfie || uDocs.selfie || user?.selfieUrl || null,
+      }));
+    }
+
     api.getKycStatus()
       .then(status => {
-        const isReal = ['pending', 'approved', 'rejected'].includes(status.kycStatus) && status.documents;
+        const docObj = status?.documents || {};
+        setDocs(d => ({
+          aadhar: d.aadhar || docObj.aadhar || null,
+          collegeId: d.collegeId || docObj.collegeIdCard || null,
+          license: d.license || docObj.drivingLicense || null,
+          selfie: d.selfie || docObj.selfie || null,
+        }));
+        if (status.vehicleNumber) setVehicleNum(status.vehicleNumber);
+        if (status.vehicleName) setVehicleName(status.vehicleName);
+        if (status.vehicleType) setVehicleType(status.vehicleType);
+
+        const isReal = ['pending', 'approved', 'rejected'].includes(status.kycStatus) && (docObj.aadhar || docObj.collegeIdCard);
         if (isReal) { setKycStatus(status); setSubmitted(true); }
         else setKycStatus(status);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   const captureSelfie = async () => {
     try {
@@ -151,11 +174,8 @@ export default function KYCScreen({ navigation }) {
 
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
+        <TopHeader title="KYC Verification" subtitle="Student & Vehicle Verification" showBack={true} />
         <ScrollView contentContainerStyle={styles.scroll}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-            <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>KYC Verification</Text>
 
           <View style={[styles.statusCard, { borderColor: stColor + '55', backgroundColor: stColor + '10' }]}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>{stEmoji}</Text>
@@ -190,11 +210,8 @@ export default function KYCScreen({ navigation }) {
   // Upload form
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-          <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>KYC Verification</Text>
+      <TopHeader title="KYC Verification" subtitle="Student & Vehicle Verification" showBack={true} />
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} keyboardShouldPersistTaps="handled">
         <Text style={styles.subtitle}>Submit your documents to get verified. Required to offer rides.</Text>
 
         <Alert message={error} />
@@ -256,22 +273,42 @@ export default function KYCScreen({ navigation }) {
 }
 
 function DocRow({ label, icon, onUpload, uri, submitted, required }) {
+  const isAdded = Boolean(uri || submitted);
+
   return (
     <TouchableOpacity
       onPress={onUpload}
       disabled={submitted}
-      style={[styles.docRow, (uri || submitted) && styles.docRowDone]}
+      style={[styles.docRow, isAdded && styles.docRowDone]}
+      activeOpacity={0.75}
     >
-      <Text style={{ fontSize: 20 }}>{icon}</Text>
+      {uri ? (
+        <Image source={{ uri }} style={styles.docThumbnail} resizeMode="cover" />
+      ) : (
+        <View style={styles.docIconBox}>
+          <Text style={{ fontSize: 20 }}>{icon}</Text>
+        </View>
+      )}
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>
-          {label}{required && !submitted ? ' *' : ''}
-        </Text>
-        <Text style={{ color: (uri || submitted) ? colors.green : colors.text3, fontSize: 12, marginTop: 2 }}>
-          {submitted ? '✓ Submitted' : uri ? '✓ Uploaded — tap to change' : 'Tap to upload'}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>
+            {label}{required && !submitted ? ' *' : ''}
+          </Text>
+          {isAdded && (
+            <View style={styles.addedBadge}>
+              <Text style={styles.addedBadgeText}>✓ Added</Text>
+            </View>
+          )}
+        </View>
+        <Text style={{ color: isAdded ? colors.green : colors.text3, fontSize: 12, marginTop: 3 }}>
+          {submitted ? '✓ Verified on record' : uri ? '✓ Document attached (tap to change)' : 'Tap to capture / upload'}
         </Text>
       </View>
-      {!submitted && <Text style={{ fontSize: 18, color: uri ? colors.green : colors.text3 }}>{uri ? '✓' : '+'}</Text>}
+      {!submitted && (
+        <Text style={{ fontSize: 16, color: uri ? colors.green : colors.accent, fontWeight: '700' }}>
+          {uri ? '✎' : '+'}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -293,9 +330,38 @@ const styles = StyleSheet.create({
   docRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: colors.surface2, borderRadius: radius.lg,
-    borderWidth: 1, borderColor: colors.border, padding: 14, marginBottom: 10,
+    borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10,
   },
-  docRowDone: { borderColor: colors.green + '55', backgroundColor: colors.greenDim },
+  docRowDone: { borderColor: colors.green + '55', backgroundColor: 'rgba(45,212,160,0.06)' },
+  docThumbnail: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: '#000',
+    borderWidth: 1.5,
+    borderColor: colors.green,
+  },
+  docIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addedBadge: {
+    backgroundColor: 'rgba(0,230,118,0.15)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.green + '44',
+  },
+  addedBadgeText: {
+    color: colors.green,
+    fontSize: 10,
+    fontWeight: '800',
+  },
   vTypeChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,

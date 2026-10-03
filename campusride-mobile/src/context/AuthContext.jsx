@@ -3,6 +3,7 @@ import { ActivityIndicator, View, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import * as api from '../services/api';
+import { registerForPushNotificationsAsync } from '../services/pushNotification';
 import { colors } from '../theme';
 
 const AuthContext = createContext(null);
@@ -141,10 +142,16 @@ export function AuthProvider({ children }) {
     };
   }, [logout]);
 
+  useEffect(() => {
+    if (user?._id || user?.id) {
+      registerForPushNotificationsAsync().catch(() => {});
+    }
+  }, [user?._id, user?.id]);
+
   if (!initDone) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontSize: 44, marginBottom: 12 }}>⚡</Text>
+        <Text style={{ fontSize: 44, marginBottom: 12 }}>🚗</Text>
         <Text style={{ color: colors.accent, fontSize: 28, fontWeight: '900', letterSpacing: 2 }}>
           HO<Text style={{ color: colors.text }}>GO</Text>
         </Text>

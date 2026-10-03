@@ -330,7 +330,15 @@ export default function LiveTrackingScreen({ navigation, route }) {
               });
               setSosSent(true);
             } catch (e) {
-              RNAlert.alert('Error', e.message || 'SOS failed. Please call 112 immediately.');
+              Linking.openURL('tel:112').catch(() => {});
+              RNAlert.alert(
+                'SOS Fallback: Dialing 112',
+                'SOS alert could not connect to server. Dialing emergency 112 immediately.',
+                [
+                  { text: 'Call 112 Now', onPress: () => Linking.openURL('tel:112') },
+                  { text: 'OK' },
+                ]
+              );
             } finally {
               setSosLoading(false);
             }
@@ -803,7 +811,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
           {/* ── DRIVER TRIP CONTROLS CARD ── */}
           {isDriver && (
             <View style={styles.driverControlCard}>
-              <Text style={styles.driverControlTitle}>⚡ DRIVER TRIP CONTROLS</Text>
+              <Text style={styles.driverControlTitle}>🚗 DRIVER TRIP CONTROLS</Text>
               
               {rideInfo?.status === 'in-progress' ? (
                 <>
@@ -936,6 +944,20 @@ export default function LiveTrackingScreen({ navigation, route }) {
           {/* Passenger Checklist & Cancel Booking Option */}
           {!isDriver && (rideInfo?.status === 'active' || rideInfo?.status === 'in-progress') && (
             <View style={{ gap: 10, marginBottom: 12 }}>
+              {/* Seeker Fare To Pay Card */}
+              <View style={styles.seekerFareCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View>
+                    <Text style={styles.seekerFareTag}>💰 FARE TO PAY PROVIDER</Text>
+                    <Text style={styles.seekerFareSub}>Direct to driver via UPI or Cash</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.seekerFareAmount}>₹{rideInfo?.costPerSeat || 49}</Text>
+                    <Text style={styles.seekerFarePerSeat}>per seat</Text>
+                  </View>
+                </View>
+              </View>
+
               {rideInfo?.status === 'active' && (
                 !rideInfo?.riderReachedSeeker ? (
                   <View style={{ backgroundColor: 'rgba(0,229,255,0.12)', borderWidth: 1, borderColor: '#00E5FF', borderRadius: radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -1002,6 +1024,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
               ) : (
                 <Text style={styles.sosBtnText}>🆘 SOS EMERGENCY</Text>
               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.call112Btn}
+              onPress={() => Linking.openURL('tel:112')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.call112BtnText}>📞 112</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1511,5 +1541,48 @@ const styles = StyleSheet.create({
     color: colors.red,
     fontSize: 13,
     fontWeight: '700',
+  },
+  seekerFareCard: {
+    backgroundColor: 'rgba(45, 212, 160, 0.12)',
+    borderWidth: 1.5,
+    borderColor: '#2dd4a0',
+    borderRadius: radius.md,
+    padding: 12,
+  },
+  seekerFareTag: {
+    color: '#2dd4a0',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  seekerFareSub: {
+    color: colors.text2,
+    fontSize: 11,
+    marginTop: 2,
+  },
+  seekerFareAmount: {
+    color: '#2dd4a0',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  seekerFarePerSeat: {
+    color: colors.text3,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  call112Btn: {
+    backgroundColor: 'rgba(255, 68, 68, 0.18)',
+    borderWidth: 1.5,
+    borderColor: colors.red,
+    borderRadius: radius.lg,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  call112BtnText: {
+    color: colors.red,
+    fontSize: 13,
+    fontWeight: '900',
   },
 });

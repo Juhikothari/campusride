@@ -10,7 +10,25 @@ import * as api from '../services/api';
 
 import { subscribeToNotifications, getSharedSocket } from '../hooks/useSocket';
 
-export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy' }) {
+function getHeaderEmoji(title) {
+  const t = (title || '').toLowerCase();
+  if (t.includes('get a buddy') || t.includes('offer')) return '🚗';
+  if (t.includes('search') || t.includes('find')) return '🔍';
+  if (t.includes('walk') || t.includes('nadi')) return '🚶';
+  if (t.includes('community') || t.includes('sitcom') || t.includes('lounge') || t.includes('perk') || t.includes('dunder') || t.includes('99th') || t.includes('caltech')) return '🛋️';
+  if (t.includes('kyc') || t.includes('verification')) return '🛡️';
+  if (t.includes('profile')) return '👤';
+  if (t.includes('report') || t.includes('incident')) return '⚠️';
+  if (t.includes('support') || t.includes('contact')) return '📞';
+  if (t.includes('checklist')) return '🛡️';
+  if (t.includes('rating')) return '⭐';
+  if (t.includes('assistant') || t.includes('bot')) return '🤖';
+  if (t.includes('notification')) return '🔔';
+  if (t.includes('booking') || t.includes('request')) return '📋';
+  return '🛵';
+}
+
+export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -77,16 +95,30 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
   };
 
   const initials = (user?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const canGoBack = showBack !== undefined ? showBack : (navigation?.canGoBack ? navigation.canGoBack() : false);
+  const emoji = getHeaderEmoji(title);
 
   return (
     <>
       <View style={styles.header}>
-        {/* Brand */}
+        {/* Brand with Back Button */}
         <View style={styles.brandContainer}>
-          <Text style={styles.brandLogo}>⚡</Text>
-          <View>
-            <Text style={styles.brandTitle}>{title}</Text>
-            {subtitle ? <Text style={styles.brandSub}>{subtitle}</Text> : null}
+          {canGoBack && (
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Go back to previous screen"
+            >
+              <Text style={styles.backBtnText}>←</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={styles.brandLogo}>{emoji}</Text>
+          <View style={{ flexShrink: 1 }}>
+            <Text style={styles.brandTitle} numberOfLines={1}>{title}</Text>
+            {subtitle ? <Text style={styles.brandSub} numberOfLines={1}>{subtitle}</Text> : null}
           </View>
         </View>
 
@@ -97,6 +129,8 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
             style={styles.iconBtn}
             onPress={() => navTo('Notifications')}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Notifications, ${unreadCount} unread`}
           >
             <Text style={{ fontSize: 20 }}>🔔</Text>
             {unreadCount > 0 && (
@@ -111,6 +145,8 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
             style={styles.avatarBtn}
             onPress={() => setModalVisible(true)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Open user menu"
           >
             <Text style={styles.avatarBtnText}>{initials}</Text>
           </TouchableOpacity>
@@ -204,9 +240,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  brandContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
+  backBtn: {
+    paddingRight: 6,
+    paddingVertical: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnText: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '700',
+  },
   brandLogo: { fontSize: 24 },
-  brandTitle: { color: colors.accent, fontSize: 20, fontWeight: '900', letterSpacing: 1 },
+  brandTitle: { color: colors.accent, fontSize: 18, fontWeight: '800' },
   brandSub: { color: colors.text3, fontSize: 11, fontWeight: '600' },
 
   rightActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
