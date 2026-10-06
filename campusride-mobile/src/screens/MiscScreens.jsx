@@ -583,6 +583,44 @@ export function IncidentReportScreen({ navigation }) {
 
   const inputStyle = { backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border, borderRadius:radius.md, color:colors.text, paddingHorizontal:14, paddingVertical:12, fontSize:14, marginBottom:12 };
 
+  const getRideDateTime = (r) => {
+    if (!r) return { date: '—', time: '—' };
+    const ride = r.rideId || r;
+    let d = ride.date;
+    let t = ride.time;
+    if (ride.departureTime) {
+      try {
+        const dt = new Date(ride.departureTime);
+        if (!d) d = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        if (!t) t = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      } catch {}
+    }
+    if (!d && r.createdAt) {
+      try {
+        const dt = new Date(r.createdAt);
+        d = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        if (!t) t = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      } catch {}
+    }
+    return { date: d || 'Today', time: t || 'Scheduled' };
+  };
+
+  const getRidePickup = (r) => {
+    if (!r) return 'Pickup';
+    const p = r.pickup || r.rideId?.pickup;
+    if (typeof p === 'string') return p;
+    return p?.address || p?.label || getAddr(p) || 'Pickup Location';
+  };
+
+  const getRideDrop = (r) => {
+    if (!r) return 'Drop';
+    const d = r.drop || r.rideId?.drop;
+    if (typeof d === 'string') return d;
+    return d?.address || d?.label || getAddr(d) || 'Drop Location';
+  };
+
+  const selectedRideObj = rides.find(r => (r._id || r.rideId?._id) === rideId);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <KeyboardAvoidingView
@@ -603,51 +641,103 @@ export function IncidentReportScreen({ navigation }) {
 
           <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>SELECT RIDE</Text>
           {ridesLoading ? <ActivityIndicator color={colors.accent} /> : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {rides.slice(0, 10).map(r => {
-                  const id = r._id || r.rideId?._id;
-                  const pAddr = typeof r.pickup === 'string' ? r.pickup : (r.pickup?.address || r.rideId?.pickup?.address || getAddr(r.pickup || r.rideId?.pickup));
-                  const dAddr = typeof r.drop === 'string' ? r.drop : (r.drop?.address || r.rideId?.drop?.address || getAddr(r.drop || r.rideId?.drop));
-                  const pShort = (pAddr || 'Pickup').split(',')[0].trim();
-                  const dShort = (dAddr || 'Destination').split(',')[0].trim();
-                  const isSelected = rideId === id;
-                  return (
-                    <TouchableOpacity
-                      key={id}
-                      onPress={() => setRideId(id)}
-                      activeOpacity={0.8}
-                      style={[
-                        {
-                          borderRadius: radius.md,
-                          borderWidth: 1.5,
-                          paddingVertical: 8,
-                          paddingHorizontal: 12,
-                          minWidth: 150,
-                          maxWidth: 220,
-                        },
-                        isSelected
-                          ? { borderColor: colors.accent, backgroundColor: colors.accentDim }
-                          : { borderColor: colors.border, backgroundColor: colors.surface2 }
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <Text style={{ color: colors.green, fontSize: 14, fontWeight: '900' }}>•</Text>
-                        <Text style={{ color: isSelected ? colors.accent : colors.text, fontSize: 12, fontWeight: '700', flex: 1 }} numberOfLines={1}>
-                          {pShort}
-                        </Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ color: '#ff6b6b', fontSize: 14, fontWeight: '900' }}>•</Text>
-                        <Text style={{ color: isSelected ? colors.text : colors.text2, fontSize: 12, fontWeight: '600', flex: 1 }} numberOfLines={1}>
-                          {dShort}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
+            <>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {rides.slice(0, 10).map(r => {
+                    const id = r._id || r.rideId?._id;
+                    const pAddr = typeof r.pickup === 'string' ? r.pickup : (r.pickup?.address || r.rideId?.pickup?.address || getAddr(r.pickup || r.rideId?.pickup));
+                    const dAddr = typeof r.drop === 'string' ? r.drop : (r.drop?.address || r.rideId?.drop?.address || getAddr(r.drop || r.rideId?.drop));
+                    const pShort = (pAddr || 'Pickup').split(',')[0].trim();
+                    const dShort = (dAddr || 'Destination').split(',')[0].trim();
+                    const isSelected = rideId === id;
+                    const dtInfo = getRideDateTime(r);
+                    return (
+                      <TouchableOpacity
+                        key={id}
+                        onPress={() => setRideId(id)}
+                        activeOpacity={0.8}
+                        style={[
+                          {
+                            borderRadius: radius.md,
+                            borderWidth: 1.5,
+                            paddingVertical: 10,
+                            paddingHorizontal: 12,
+                            minWidth: 160,
+                            maxWidth: 240,
+                          },
+                          isSelected
+                            ? { borderColor: colors.accent, backgroundColor: colors.accentDim }
+                            : { borderColor: colors.border, backgroundColor: colors.surface2 }
+                        ]}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900' }}>•</Text>
+                          <Text style={{ color: isSelected ? colors.accent : colors.text, fontSize: 12, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                            {pShort}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900' }}>•</Text>
+                          <Text style={{ color: isSelected ? colors.text : colors.text2, fontSize: 12, fontWeight: '600', flex: 1 }} numberOfLines={1}>
+                            {dShort}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: isSelected ? 'rgba(245,166,35,0.2)' : colors.border }}>
+                          <Text style={{ color: colors.text3, fontSize: 10.5, fontWeight: '600' }} numberOfLines={1}>
+                            📅 {dtInfo.date} • ⏰ {dtInfo.time}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              {/* Prominent selected ride preview with full pickup, drop, date, and time */}
+              {selectedRideObj ? (
+                <View style={{
+                  backgroundColor: '#131822',
+                  borderRadius: radius.md,
+                  borderWidth: 1.5,
+                  borderColor: colors.accent,
+                  padding: 12,
+                  marginBottom: 14,
+                  gap: 6,
+                }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 }}>
+                      SELECTED RIDE FOR REPORT
+                    </Text>
+                    <Text style={{ color: colors.green, fontSize: 10, fontWeight: '800', backgroundColor: 'rgba(0,230,118,0.1)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                      ACTIVE
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                    <Text style={{ fontSize: 12, marginTop: 1 }}>🟢</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, flex: 1, lineHeight: 17 }}>
+                      <Text style={{ fontWeight: '800', color: colors.text2 }}>Pickup: </Text>
+                      {getRidePickup(selectedRideObj)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                    <Text style={{ fontSize: 12, marginTop: 1 }}>🔴</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, flex: 1, lineHeight: 17 }}>
+                      <Text style={{ fontWeight: '800', color: colors.text2 }}>Drop: </Text>
+                      {getRideDrop(selectedRideObj)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#1e2430' }}>
+                    <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600' }}>
+                      📅 Date: <Text style={{ color: colors.text, fontWeight: '700' }}>{getRideDateTime(selectedRideObj).date}</Text>
+                    </Text>
+                    <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600' }}>
+                      ⏰ Time: <Text style={{ color: colors.text, fontWeight: '700' }}>{getRideDateTime(selectedRideObj).time}</Text>
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+            </>
           )}
 
           <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 6 }}>INCIDENT TYPE</Text>

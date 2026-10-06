@@ -84,6 +84,29 @@ exports.addReply = async (req, res) => {
       createdAt:  new Date(),
     });
     await post.save();
+
+    // Notify post author if replied by someone else
+    const authorId = post.author?.toString();
+    const replierName = anonymous ? 'Someone' : (user?.name || 'A classmate');
+    if (authorId && authorId !== req.user.userId.toString()) {
+      const io = req.app.get('io');
+      if (io) {
+        const snippet = content.trim().length > 60 ? `${content.trim().slice(0, 60)}…` : content.trim();
+        const notifPayload = {
+          title: '💬 New Reply to Your Post',
+          message: `${replierName} replied: "${snippet}"`,
+          type: 'community-reply',
+          postId: post._id,
+          createdAt: new Date(),
+        };
+        io.to(`user-${authorId}`).emit('new-notification', notifPayload);
+        io.to(`user-${authorId}`).emit('community-reply', {
+          postId: post._id,
+          reply: { authorName: replierName, content: content.trim() },
+        });
+      }
+    }
+
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });

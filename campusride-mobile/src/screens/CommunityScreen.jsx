@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
 import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, getChatMessages } from '../services/api';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
+import { resetCommunityUnreadCount } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import { Btn, Alert } from '../components/UI';
 
@@ -570,6 +571,10 @@ function CollegeChatTab({ user }) {
 export default function CommunityScreen() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
+
+  useEffect(() => {
+    resetCommunityUnreadCount();
+  }, []);
 
   const sitcomInfo = getSitcomForCollege(user?.college);
   const sitcomTitle = sitcomInfo.hangout.replace(/[☕⚛️📄🚨💻🍻🌳📚🏡]/g, '').trim();
