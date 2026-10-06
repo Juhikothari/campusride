@@ -1,4 +1,4 @@
-﻿// campusride-mobile/src/components/TimePickerModal.jsx
+// campusride-mobile/src/components/TimePickerModal.jsx
 import React, { useState, useEffect } from 'react';
 import {
   Modal, View, Text, TouchableOpacity, StyleSheet,
@@ -124,43 +124,95 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
             </TouchableOpacity>
           </View>
 
-          {/* Hour Selector */}
-          <Text style={styles.sectionLabel}>SELECT HOUR</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {HOURS.map((h) => {
-                const isSel = selectedHour === h;
-                return (
-                  <TouchableOpacity
-                    key={h}
-                    style={[styles.chip, isSel && styles.chipActive]}
-                    onPress={() => setSelectedHour(h)}
-                  >
-                    <Text style={[styles.chipText, isSel && styles.chipTextActive]}>{h}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+          {/* Vertical Order Columns: Hours, Minutes, and AM/PM */}
+          <View style={styles.verticalColumnsContainer}>
+            {/* Hours Column */}
+            <View style={styles.verticalCol}>
+              <Text style={styles.colHeaderLabel}>HOURS</Text>
+              <View style={styles.colScrollWrapper}>
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.colScrollContent}
+                >
+                  {HOURS.map((h) => {
+                    const isSel = selectedHour === h;
+                    return (
+                      <TouchableOpacity
+                        key={h}
+                        style={[styles.vChip, isSel && styles.vChipActive]}
+                        onPress={() => setSelectedHour(h)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.vChipText, isSel && styles.vChipTextActive]}>{h}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
             </View>
-          </ScrollView>
 
-          {/* Minute Selector */}
-          <Text style={styles.sectionLabel}>SELECT MINUTE</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-            <View style={{ flexDirection: 'row', gap: 6 }}>
-              {MINUTES.map((m) => {
-                const isSel = selectedMin === m;
-                return (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.chip, isSel && styles.chipActive]}
-                    onPress={() => setSelectedMin(m)}
-                  >
-                    <Text style={[styles.chipText, isSel && styles.chipTextActive]}>{m}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={styles.vColDivider}>
+              <Text style={styles.vColDividerColon}>:</Text>
             </View>
-          </ScrollView>
+
+            {/* Minutes Column */}
+            <View style={styles.verticalCol}>
+              <Text style={styles.colHeaderLabel}>MINUTES</Text>
+              <View style={styles.colScrollWrapper}>
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.colScrollContent}
+                >
+                  {MINUTES.map((m) => {
+                    const isSel = selectedMin === m;
+                    return (
+                      <TouchableOpacity
+                        key={m}
+                        style={[styles.vChip, isSel && styles.vChipActive]}
+                        onPress={() => setSelectedMin(m)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.vChipText, isSel && styles.vChipTextActive]}>{m}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+
+            {/* Period Column */}
+            <View style={[styles.verticalCol, { flex: 0.8 }]}>
+              <Text style={styles.colHeaderLabel}>AM / PM</Text>
+              <View style={[styles.colScrollWrapper, { justifyContent: 'center', gap: 10, paddingVertical: 10 }]}>
+                <TouchableOpacity
+                  style={[styles.periodVBtn, selectedPeriod === 'AM' && styles.periodVBtnActive]}
+                  onPress={() => setSelectedPeriod('AM')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.periodVBtnText, selectedPeriod === 'AM' && styles.periodVBtnTextActive]}>
+                    AM
+                  </Text>
+                  <Text style={[styles.periodSubText, selectedPeriod === 'AM' && styles.periodSubTextActive]}>
+                    Morning
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.periodVBtn, selectedPeriod === 'PM' && styles.periodVBtnActive]}
+                  onPress={() => setSelectedPeriod('PM')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.periodVBtnText, selectedPeriod === 'PM' && styles.periodVBtnTextActive]}>
+                    PM
+                  </Text>
+                  <Text style={[styles.periodSubText, selectedPeriod === 'PM' && styles.periodSubTextActive]}>
+                    Evening
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
 
           {/* Confirm Button */}
           <TouchableOpacity
@@ -342,11 +394,114 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 12,
   },
   confirmBtnText: {
     color: '#000000',
     fontSize: 14,
+    fontWeight: '800',
+  },
+  verticalColumnsContainer: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    backgroundColor: '#131822',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#21262d',
+    padding: 10,
+    marginBottom: 10,
+    height: 195,
+  },
+  verticalCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  colHeaderLabel: {
+    color: '#8b949e',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  colScrollWrapper: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#0d1117',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#21262d',
+    overflow: 'hidden',
+  },
+  colScrollContent: {
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    gap: 6,
+    alignItems: 'center',
+  },
+  vChip: {
+    width: '100%',
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#161b22',
+    borderWidth: 1,
+    borderColor: '#30363d',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vChipActive: {
+    backgroundColor: 'rgba(45, 212, 160, 0.2)',
+    borderColor: '#2dd4a0',
+  },
+  vChipText: {
+    color: '#c9d1d9',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  vChipTextActive: {
+    color: '#2dd4a0',
+    fontWeight: '900',
+  },
+  vColDivider: {
+    width: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vColDividerColon: {
+    color: '#484f58',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  periodVBtn: {
+    marginHorizontal: 6,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#161b22',
+    borderWidth: 1,
+    borderColor: '#30363d',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  periodVBtnActive: {
+    backgroundColor: '#2dd4a0',
+    borderColor: '#2dd4a0',
+  },
+  periodVBtnText: {
+    color: '#8b949e',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  periodVBtnTextActive: {
+    color: '#000000',
+    fontWeight: '900',
+  },
+  periodSubText: {
+    color: '#6e7681',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  periodSubTextActive: {
+    color: '#0d1117',
     fontWeight: '800',
   },
 });

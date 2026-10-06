@@ -108,10 +108,12 @@ export default function MyBookingsScreen({ navigation }) {
           bookings.map(b => {
             const ride = b.rideId && typeof b.rideId === 'object' ? b.rideId : null;
             const rideIdStr = ride?._id || (typeof b.rideId === 'string' ? b.rideId : '');
+            const isCompleted = b.status === 'completed' || ride?.status === 'completed';
             const isCancelled = b.status === 'cancelled' || ride?.status === 'cancelled';
-            const canCancel = ['pending', 'accepted'].includes(b.status) && !isCancelled;
-            const canTrack  = b.status === 'accepted' && (!ride || ride.status !== 'cancelled');
-            const provider  = ride?.providerId;
+            const canCancel   = ['pending', 'accepted'].includes(b.status) && !isCancelled && !isCompleted;
+            const isChecklistDone = b.checklistCompleted || ride?.seekerChecklistCompleted;
+            const canTrack    = b.status === 'accepted' && (!ride || (ride.status !== 'cancelled' && ride.status !== 'completed')) && !isCompleted;
+            const provider    = ride?.providerId;
 
             return (
               <View key={b._id} style={[styles.card, isCancelled && styles.cardCancelled]}>
@@ -207,13 +209,21 @@ export default function MyBookingsScreen({ navigation }) {
 
                 {/* Actions */}
                 <View style={{ gap: 8, marginTop: 12 }}>
+                  {isCompleted && (
+                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
+                      <Text style={{ color: colors.green, fontSize: 13, fontWeight: '800' }}>🏁 Ride Completed</Text>
+                      <Text style={{ color: colors.text2, fontSize: 11, textAlign: 'center', marginTop: 2 }}>
+                        This trip has ended. Thank you for commuting with HOGO!
+                      </Text>
+                    </View>
+                  )}
                   {b.status === 'pending' && (
                     <Alert message="⏳ Booking request submitted. Ride starts once provider accepts." />
                   )}
                   {canTrack && rideIdStr && (
                     <Btn
-                      label="🛡️ Safety Checklist & Track Ride →"
-                      onPress={() => navigation.navigate('PreRideChecklist', { rideId: rideIdStr })}
+                      label={isChecklistDone ? "📍 Live Track Ride →" : "🛡️ Safety Checklist & Track Ride →"}
+                      onPress={() => navigation.navigate(isChecklistDone ? 'LiveTracking' : 'PreRideChecklist', { rideId: rideIdStr })}
                     />
                   )}
                   {rideIdStr && !isCancelled && (

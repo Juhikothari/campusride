@@ -486,7 +486,7 @@ export default function CreateRideScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="Get a Buddy" subtitle="Offer your ride and split cost" />
+      <TopHeader title="Get a Buddy" subtitle="Offer your ride and split cost" showBack={false} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -500,28 +500,6 @@ export default function CreateRideScreen({ navigation }) {
           showsVerticalScrollIndicator={true}
         >
           <Alert message={error} />
-
-          {/* ── WHERE ARE YOU PICKING UP FROM? ── */}
-          <Text style={styles.sectionHeading}>WHERE ARE YOU PICKING UP FROM? *</Text>
-          <View style={styles.pickupSourceRow}>
-            <TouchableOpacity
-              style={[styles.pickupSourceBtn, pickupFrom === 'college' && styles.pickupSourceBtnActive]}
-              onPress={handleSelectPickupCollege}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 24, marginBottom: 4 }}>🏫</Text>
-              <Text style={[styles.pickupSourceText, pickupFrom === 'college' && styles.pickupSourceTextActive]}>COLLEGE</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.pickupSourceBtn, pickupFrom === 'home' && styles.pickupSourceBtnActive]}
-              onPress={handleSelectDropCollege}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 24, marginBottom: 4 }}>🏠</Text>
-              <Text style={[styles.pickupSourceText, pickupFrom === 'home' && styles.pickupSourceTextActive]}>HOME</Text>
-            </TouchableOpacity>
-          </View>
 
           {/* Pickup & Drop Locations */}
           <LocationSearch

@@ -1082,12 +1082,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
               </Text>
             </View>
 
-            <View style={styles.privacyNoticeBox}>
-              <Text style={styles.privacyNoticeText}>
-                🔒 <Text style={{ fontWeight: '700', color: colors.text }}>Campus Privacy Rule:</Text> Ratings remain completely locked and invisible until you complete 10 verified rides. After 10 rides, only your average numeric score is shown. Specific reviewer identities and ratings are never displayed.
-              </Text>
-            </View>
-
             <Btn
               label={submittingRating ? 'Submitting…' : `Submit ⭐ ${ratingStars}-Star Rating`}
               onPress={() => handleSubmitRating(ratingStars)}

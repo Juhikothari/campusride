@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert as RNAlert, TextInput,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -606,10 +607,10 @@ export function IncidentReportScreen({ navigation }) {
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {rides.slice(0, 10).map(r => {
                   const id = r._id || r.rideId?._id;
-                  const pAddr = r.pickup?.address || r.rideId?.pickup?.address || 'Pickup';
-                  const dAddr = r.drop?.address || r.rideId?.drop?.address || 'Destination';
-                  const pShort = pAddr.split(',')[0].trim();
-                  const dShort = dAddr.split(',')[0].trim();
+                  const pAddr = typeof r.pickup === 'string' ? r.pickup : (r.pickup?.address || r.rideId?.pickup?.address || getAddr(r.pickup || r.rideId?.pickup));
+                  const dAddr = typeof r.drop === 'string' ? r.drop : (r.drop?.address || r.rideId?.drop?.address || getAddr(r.drop || r.rideId?.drop));
+                  const pShort = (pAddr || 'Pickup').split(',')[0].trim();
+                  const dShort = (dAddr || 'Destination').split(',')[0].trim();
                   const isSelected = rideId === id;
                   return (
                     <TouchableOpacity

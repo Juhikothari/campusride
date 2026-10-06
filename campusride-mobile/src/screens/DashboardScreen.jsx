@@ -52,24 +52,26 @@ export default function DashboardScreen({ navigation }) {
   const [tripRole,   setTripRole]   = useState('driver'); // 'driver' | 'rider'
   const [loading,    setLoading]    = useState(false);
 
-  // First-time Beta Testing Disclaimer popup state
+  // Per-user Testing popup & Onboarding Tour states
   const [showBetaDisclaimer, setShowBetaDisclaimer] = useState(false);
-
-  // Onboarding Carousel state
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [carouselStep,   setCarouselStep]   = useState(0);
-  const bikeAnim = useRef(new Animated.Value(0)).current;
+  const [selectedFeatureIdx, setSelectedFeatureIdx] = useState(0);
 
+  const userKey = user?._id || user?.id || user?.email || (user?.phone ? String(user.phone) : 'guest');
   const firstName = user?.name ? user.name.split(' ')[0] : 'Juhi';
   const collegeName = user?.college || 'Rnsit';
 
-  // Bike Animation Loop
+  // Animation values for vehicle and pointing indicator
+  const bikeAnim = useRef(new Animated.Value(0)).current;
+  const pointerAnim = useRef(new Animated.Value(0)).current;
+
+  // Continuous vehicle cruising animation
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
         Animated.timing(bikeAnim, {
           toValue: 1,
-          duration: 2500,
+          duration: 2000,
           easing: Easing.inOut(Easing.ease),
           useNativeDriver: true,
         }),
@@ -82,75 +84,123 @@ export default function DashboardScreen({ navigation }) {
     ).start();
   }, [bikeAnim]);
 
-  // First-time Beta Disclaimer & Onboarding Carousel checks
+  // Pointing beacon bounce animation
   useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pointerAnim, {
+          toValue: 6,
+          duration: 500,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pointerAnim, {
+          toValue: 0,
+          duration: 500,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [pointerAnim]);
+
+  // Per-user First-time Beta Disclaimer & Onboarding Tour checks
+  useEffect(() => {
+    let mounted = true;
     (async () => {
       try {
-        const seenBeta = await AsyncStorage.getItem('@has_seen_beta_testing_disclaimer_v1');
-        if (!seenBeta) {
+        const betaKey = `@has_seen_beta_testing_popup_${userKey}`;
+        const seenBeta = await AsyncStorage.getItem(betaKey);
+        if (!seenBeta && mounted) {
           setShowBetaDisclaimer(true);
         }
 
+        const onbKey = `@has_seen_onboarding_tour_${userKey}`;
         const showOnb = await AsyncStorage.getItem('@show_onboarding_carousel');
-        const seenOnb = await AsyncStorage.getItem('@has_seen_onboarding_carousel_v1');
-        if (showOnb === 'true' || !seenOnb) {
+        const seenOnb = await AsyncStorage.getItem(onbKey);
+        if ((showOnb === 'true' || !seenOnb) && mounted) {
           setShowOnboarding(true);
         }
       } catch {}
     })();
-  }, []);
+    return () => { mounted = false; };
+  }, [userKey]);
 
   const dismissBetaDisclaimer = async () => {
     setShowBetaDisclaimer(false);
     try {
-      await AsyncStorage.setItem('@has_seen_beta_testing_disclaimer_v1', 'true');
+      await AsyncStorage.setItem(`@has_seen_beta_testing_popup_${userKey}`, 'true');
     } catch {}
   };
 
   const dismissOnboarding = async () => {
     setShowOnboarding(false);
     try {
-      await AsyncStorage.setItem('@has_seen_onboarding_carousel_v1', 'true');
+      await AsyncStorage.setItem(`@has_seen_onboarding_tour_${userKey}`, 'true');
       await AsyncStorage.setItem('@show_onboarding_carousel', 'false');
     } catch {}
   };
 
-  const ONBOARDING_SLIDES = [
+  const ONBOARDING_FEATURES = [
     {
-      title: 'Search Your Buddy 🔍',
-      subtitle: 'Match Routes Within 5km',
-      desc: 'Find verified peers commuting along your exact route. View live map paths, calculate commute times, and split fuel costs.',
+      id: 'search',
+      title: 'Search Your Buddy',
+      icon: '🔍',
+      vehicle: '🛵💨',
+      station: 'Stop 1',
+      tagline: 'Match routes within 5km & split fuel cost',
+      desc: 'Find verified peers commuting along your exact route. View live map paths, calculate commute times, and split fuel costs effortlessly.',
       badge: 'ROUTE MATCHING',
       route: 'SearchRides',
       actionLabel: '🔍 Find Buddy Now →',
-      icon: '🛵💨',
     },
     {
-      title: 'Offer a Ride 🚗',
-      subtitle: 'Share Your Daily Commute',
-      desc: 'Post your daily ride to campus or home. Choose verified students from your college to ride with.',
+      id: 'offer',
+      title: 'Get a Buddy (Offer Ride)',
+      icon: '🚗',
+      vehicle: '🚗💨',
+      station: 'Stop 2',
+      tagline: 'Post empty seats & save daily commute costs',
+      desc: 'Driving or riding to campus? Post your seats, pick up verified classmates, and cut travel costs in half safely.',
       badge: 'OFFER SEATS',
       route: 'CreateRide',
       actionLabel: '🚗 Offer Ride Now →',
-      icon: '🚗💨',
     },
     {
-      title: 'Sitcom Hubs & Lounge 🛋️',
-      subtitle: 'Central Perk & Campus Fun',
-      desc: 'Chat in your official college sitcom lounge (Central Perk, Dunder Mifflin, 99th Precinct & more)!',
+      id: 'walk',
+      title: 'Nadi Walk Together',
+      icon: '🚶',
+      vehicle: '👟💨',
+      station: 'Stop 3',
+      tagline: 'Never walk alone across campus routes',
+      desc: 'Find buddies walking the same path across campus hostels, libraries, or metro gates for safe company.',
+      badge: 'CAMPUS WALK',
+      route: 'WalkTogether',
+      actionLabel: '🚶 Walk with Buddy →',
+    },
+    {
+      id: 'community',
+      title: 'Sitcom Campus Lounge',
+      icon: '🛋️',
+      vehicle: '☕💨',
+      station: 'Stop 4',
+      tagline: 'Central Perk & Dunder Mifflin college chats',
+      desc: 'Hang out in sitcom-themed campus hubs (Central Perk, Dunder Mifflin, 99th Precinct) for student alerts & rides.',
       badge: 'CAMPUS COMMUNITY',
       route: 'Community',
       actionLabel: '🛋️ Open Sitcom Lounge →',
-      icon: '☕💨',
     },
     {
-      title: 'Safety First & SOS 🛡️',
-      subtitle: 'KYC Checks & Live Tracking',
-      desc: 'Two-way pre-ride checklists, live map tracking, and instant emergency SOS keep everyone safe.',
+      id: 'safety',
+      title: 'Safety, Live GPS & SOS',
+      icon: '🛡️',
+      vehicle: '🚨💨',
+      station: 'Stop 5',
+      tagline: 'Two-way checklists, live map tracking & emergency SOS',
+      desc: 'Mandatory pre-ride checklist between seeker and provider, real-time live map tracking, and 24/7 instant emergency SOS.',
       badge: 'SAFETY & SOS',
       route: 'KYC',
       actionLabel: '🛡️ Verify Documents →',
-      icon: '🛡️💨',
     },
   ];
 
@@ -589,7 +639,7 @@ export default function DashboardScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* ── Onboarding Carousel with Animated Bike ── */}
+      {/* ── Interactive All-Features Transit Tour with Vehicle Animation & Pointer ── */}
       <Modal
         visible={showOnboarding && !showBetaDisclaimer}
         transparent
@@ -597,88 +647,167 @@ export default function DashboardScreen({ navigation }) {
         onRequestClose={dismissOnboarding}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.carouselCard}>
-            {/* Animated Bike/Scooter Path */}
-            <View style={styles.bikePathContainer}>
-              <View style={styles.dashedRoad} />
+          <View style={styles.tourCard}>
+            {/* Header */}
+            <View style={styles.tourHeader}>
+              <View style={styles.tourBadgePill}>
+                <Text style={styles.tourBadgeText}>CAMPUS TRANSIT TOUR</Text>
+              </View>
+              <Text style={styles.tourTitle}>Explore All Campus Features</Text>
+              <Text style={styles.tourSub}>
+                Hop in with fellow students and cruise across every feature
+              </Text>
+            </View>
+
+            {/* Vehicle Roadmap & Track */}
+            <View style={styles.tourTrackContainer}>
+              <View style={styles.tourTrackLine} />
+              <View style={styles.tourStationsRow}>
+                {ONBOARDING_FEATURES.map((feat, idx) => {
+                  const isCur = selectedFeatureIdx === idx;
+                  return (
+                    <TouchableOpacity
+                      key={feat.id}
+                      style={[styles.stationNode, isCur && styles.stationNodeActive]}
+                      onPress={() => setSelectedFeatureIdx(idx)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.stationIcon, isCur && { fontSize: 18 }]}>{feat.icon}</Text>
+                      {isCur && (
+                        <View style={styles.stationActiveGlow} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Animated Vehicle Cruising on Track */}
               <Animated.View
                 style={[
-                  styles.animatedBike,
+                  styles.animatedCruisingVehicle,
                   {
                     transform: [
                       {
                         translateX: bikeAnim.interpolate({
                           inputRange: [0, 1],
-                          outputRange: [-10, 240],
+                          outputRange: [-15, SCREEN_WIDTH > 380 ? 250 : 200],
                         }),
                       },
                     ],
                   },
                 ]}
               >
-                <Text style={{ fontSize: 28 }}>{ONBOARDING_SLIDES[carouselStep]?.icon || '🛵💨'}</Text>
+                <Text style={{ fontSize: 20 }}>
+                  {ONBOARDING_FEATURES[selectedFeatureIdx]?.vehicle || '🛵💨'}
+                </Text>
               </Animated.View>
             </View>
 
-            <View style={styles.carouselBadgePill}>
-              <Text style={styles.carouselBadgeText}>
-                {ONBOARDING_SLIDES[carouselStep]?.badge}
-              </Text>
-            </View>
+            {/* All Features Stack with Pointer pointing at selected */}
+            <ScrollView
+              style={{ maxHeight: 290, width: '100%' }}
+              contentContainerStyle={{ gap: 8, paddingBottom: 6 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {ONBOARDING_FEATURES.map((feat, idx) => {
+                const isSelected = selectedFeatureIdx === idx;
+                return (
+                  <View key={feat.id} style={styles.featureItemWrapper}>
+                    {/* Animated Pointer pointing at active feature */}
+                    {isSelected ? (
+                      <Animated.View
+                        style={[
+                          styles.pointerBeacon,
+                          {
+                            transform: [{ translateX: pointerAnim }],
+                          },
+                        ]}
+                      >
+                        <Text style={styles.pointerBeaconEmoji}>👉</Text>
+                      </Animated.View>
+                    ) : (
+                      <View style={styles.pointerBeaconPlaceholder} />
+                    )}
 
-            <Text style={styles.carouselTitle}>
-              {ONBOARDING_SLIDES[carouselStep]?.title}
-            </Text>
-            <Text style={styles.carouselSub}>
-              {ONBOARDING_SLIDES[carouselStep]?.subtitle}
-            </Text>
-            <Text style={styles.carouselDesc}>
-              {ONBOARDING_SLIDES[carouselStep]?.desc}
-            </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.featureCard,
+                        isSelected && styles.featureCardSelected,
+                      ]}
+                      onPress={() => setSelectedFeatureIdx(idx)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.featureCardTopRow}>
+                        <View style={styles.featureCardIconBadge}>
+                          <Text style={{ fontSize: 18 }}>{feat.icon}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Text style={[styles.featureCardTitle, isSelected && styles.featureCardTitleActive]}>
+                              {feat.title}
+                            </Text>
+                            {isSelected && (
+                              <Animated.View
+                                style={{
+                                  transform: [
+                                    {
+                                      translateX: bikeAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [0, 6],
+                                      }),
+                                    },
+                                  ],
+                                }}
+                              >
+                                <Text style={{ fontSize: 15 }}>{feat.vehicle}</Text>
+                              </Animated.View>
+                            )}
+                          </View>
+                          <Text style={styles.featureCardTagline}>{feat.tagline}</Text>
+                        </View>
+                      </View>
 
-            {/* Pagination Dots */}
-            <View style={styles.dotsRow}>
-              {ONBOARDING_SLIDES.map((_, idx) => (
-                <View
-                  key={idx}
-                  style={[
-                    styles.dot,
-                    carouselStep === idx ? styles.dotActive : null,
-                  ]}
-                />
-              ))}
-            </View>
+                      {isSelected && (
+                        <View style={styles.featureDetailSection}>
+                          <Text style={styles.featureCardDesc}>{feat.desc}</Text>
+                          <TouchableOpacity
+                            style={styles.featureHopInBtn}
+                            onPress={() => {
+                              dismissOnboarding();
+                              if (feat.route) navigation.navigate(feat.route);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.featureHopInBtnText}>
+                              🚀 Hop in & Explore {feat.title} →
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
 
-            {/* Primary Action Button: Navigate directly to the feature with animation */}
-            <Btn
-              label={ONBOARDING_SLIDES[carouselStep]?.actionLabel || '🚀 Explore Feature →'}
-              onPress={() => {
-                const target = ONBOARDING_SLIDES[carouselStep]?.route;
-                dismissOnboarding();
-                if (target) navigation.navigate(target);
-              }}
-              style={{ marginTop: 12, width: '100%' }}
-            />
-
-            {/* Next / Skip Row */}
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 8, width: '100%' }}>
+            {/* Bottom Controls */}
+            <View style={styles.tourBottomRow}>
               <Btn
-                label={carouselStep === ONBOARDING_SLIDES.length - 1 ? 'Finish' : 'Next →'}
+                label={selectedFeatureIdx === ONBOARDING_FEATURES.length - 1 ? 'Start Commuting 🚀' : 'Next Stop →'}
                 onPress={() => {
-                  if (carouselStep < ONBOARDING_SLIDES.length - 1) {
-                    setCarouselStep(s => s + 1);
+                  if (selectedFeatureIdx < ONBOARDING_FEATURES.length - 1) {
+                    setSelectedFeatureIdx(i => i + 1);
                   } else {
                     dismissOnboarding();
                   }
                 }}
-                variant="outline"
-                style={{ flex: 1, paddingVertical: 8 }}
+                style={{ flex: 1 }}
               />
               <Btn
-                label="Skip"
+                label="Close"
                 onPress={dismissOnboarding}
                 variant="ghost"
-                style={{ flex: 1, paddingVertical: 8 }}
+                style={{ paddingHorizontal: 16 }}
               />
             </View>
           </View>
@@ -1085,106 +1214,198 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  /* Onboarding Carousel Card */
-  carouselCard: {
-    backgroundColor: colors.surface,
+  /* Interactive All-Features Transit Tour */
+  tourCard: {
+    backgroundColor: '#0d1117',
     borderRadius: radius.xxl,
-    padding: spacing.xl,
+    padding: 16,
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 390,
     borderWidth: 1.5,
     borderColor: '#30363d',
     alignItems: 'center',
   },
-  bikePathContainer: {
+  tourHeader: {
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  tourBadgePill: {
+    backgroundColor: 'rgba(45, 212, 160, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(45, 212, 160, 0.3)',
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginBottom: 4,
+  },
+  tourBadgeText: {
+    color: '#2dd4a0',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  tourTitle: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  tourSub: {
+    color: colors.text2,
+    fontSize: 11,
+    textAlign: 'center',
+    lineHeight: 15,
+  },
+  tourTrackContainer: {
     width: '100%',
-    height: 52,
-    backgroundColor: '#0a0d14',
+    height: 48,
+    backgroundColor: '#131822',
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.25)',
+    borderColor: '#21262d',
     justifyContent: 'center',
     position: 'relative',
     overflow: 'hidden',
-    marginBottom: 16,
-    paddingHorizontal: 8,
+    marginVertical: 10,
+    paddingHorizontal: 12,
   },
-  dashedRoad: {
+  tourTrackLine: {
     position: 'absolute',
-    top: 25,
-    left: 10,
-    right: 10,
+    top: 23,
+    left: 20,
+    right: 20,
     height: 2,
     borderWidth: 1,
     borderColor: '#30363d',
     borderStyle: 'dashed',
   },
-  animatedBike: {
-    position: 'absolute',
-    top: 8,
-  },
-  carouselBadgePill: {
-    backgroundColor: 'rgba(0, 229, 255, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.3)',
-    borderRadius: radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginBottom: 10,
-  },
-  carouselBadgeText: {
-    color: colors.accent,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  carouselTitle: {
-    color: colors.text,
-    fontSize: 20,
-    fontWeight: '900',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  carouselSub: {
-    color: colors.accent,
-    fontSize: 12.5,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  carouselDesc: {
-    color: colors.text2,
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
-    marginBottom: 18,
-    minHeight: 56,
-  },
-  dotsRow: {
+  tourStationsRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.surface2,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dotActive: {
-    backgroundColor: colors.accent,
-    borderColor: colors.accent,
-    width: 20,
-  },
-  skipBtn: {
-    paddingVertical: 12,
+    justifyContent: 'space-between',
     alignItems: 'center',
+    zIndex: 2,
   },
-  skipBtnText: {
+  stationNode: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#161b22',
+    borderWidth: 1.5,
+    borderColor: '#30363d',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  stationNodeActive: {
+    backgroundColor: 'rgba(45, 212, 160, 0.2)',
+    borderColor: '#2dd4a0',
+    transform: [{ scale: 1.15 }],
+  },
+  stationIcon: {
+    fontSize: 14,
+  },
+  stationActiveGlow: {
+    position: 'absolute',
+    bottom: -3,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2dd4a0',
+  },
+  animatedCruisingVehicle: {
+    position: 'absolute',
+    top: 10,
+    zIndex: 1,
+  },
+  featureItemWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  pointerBeacon: {
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 2,
+  },
+  pointerBeaconEmoji: {
+    fontSize: 16,
+  },
+  pointerBeaconPlaceholder: {
+    width: 24,
+    marginRight: 2,
+  },
+  featureCard: {
+    flex: 1,
+    backgroundColor: '#131822',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#21262d',
+    padding: 10,
+  },
+  featureCardSelected: {
+    backgroundColor: '#161d2b',
+    borderColor: '#2dd4a0',
+    borderWidth: 1.5,
+  },
+  featureCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  featureCardIconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#1c2333',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  featureCardTitle: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  featureCardTitleActive: {
+    color: '#2dd4a0',
+  },
+  featureCardTagline: {
     color: colors.text3,
-    fontSize: 12.5,
-    fontWeight: '600',
+    fontSize: 10.5,
+    marginTop: 1,
+  },
+  featureDetailSection: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#21262d',
+  },
+  featureCardDesc: {
+    color: colors.text2,
+    fontSize: 11,
+    lineHeight: 15,
+    marginBottom: 8,
+  },
+  featureHopInBtn: {
+    backgroundColor: '#2dd4a0',
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureHopInBtnText: {
+    color: '#000000',
+    fontSize: 11.5,
+    fontWeight: '800',
+  },
+  tourBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    width: '100%',
   },
 });
