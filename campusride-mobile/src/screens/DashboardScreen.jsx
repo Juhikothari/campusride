@@ -542,22 +542,22 @@ export default function DashboardScreen({ navigation }) {
               <View key={item.key} style={{ position: 'relative' }}>
                 {isTourTarget && (
                   <View style={styles.tourPointingRow}>
-                    <Animated.View style={{ transform: [{ translateX: pointerAnim }] }}>
-                      <Text style={{ fontSize: 22 }}>👉</Text>
-                    </Animated.View>
                     <Animated.View
-                      style={{
-                        transform: [
-                          {
-                            translateX: bikeAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, 10],
-                            }),
-                          },
-                        ],
-                      }}
+                      style={[
+                        styles.tourBikeAnimatedBadge,
+                        {
+                          transform: [
+                            {
+                              translateX: bikeAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 24],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
                     >
-                      <Text style={{ fontSize: 20 }}>{TOUR_STEPS[tourStep]?.vehicle || '🛵💨'}</Text>
+                      <Text style={{ fontSize: 22 }}>{TOUR_STEPS[tourStep]?.vehicle || '🛵💨'}</Text>
                     </Animated.View>
                     <View style={styles.tourCurrentStopBadge}>
                       <Text style={styles.tourCurrentStopText}>📍 STOP {tourStep}/5 · TAP TO EXPLORE</Text>
@@ -591,7 +591,24 @@ export default function DashboardScreen({ navigation }) {
                     </View>
                     <Text style={styles.serviceSub}>{item.sub}</Text>
                   </View>
-                  <Text style={styles.serviceArrow}>→</Text>
+                  
+                  {/* Animated bike moving navigation indicator instead of static arrow */}
+                  <View style={styles.serviceNavWrap}>
+                    <Animated.View
+                      style={{
+                        transform: [
+                          {
+                            translateX: bikeAnim.interpolate({
+                              inputRange: [0, 0.5, 1],
+                              outputRange: [0, 6, 0],
+                            }),
+                          },
+                        ],
+                      }}
+                    >
+                      <Text style={styles.serviceNavBike}>{isTourTarget ? (TOUR_STEPS[tourStep]?.vehicle || '🛵💨') : '🛵💨'}</Text>
+                    </Animated.View>
+                  </View>
                 </TouchableOpacity>
               </View>
             );
@@ -601,22 +618,22 @@ export default function DashboardScreen({ navigation }) {
           {showOnboarding && !showBetaDisclaimer && tourStep === 5 && (
             <View style={{ position: 'relative', marginTop: 4 }}>
               <View style={styles.tourPointingRow}>
-                <Animated.View style={{ transform: [{ translateX: pointerAnim }] }}>
-                  <Text style={{ fontSize: 22 }}>👉</Text>
-                </Animated.View>
                 <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        translateX: bikeAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 10],
-                        }),
-                      },
-                    ],
-                  }}
+                  style={[
+                    styles.tourBikeAnimatedBadge,
+                    {
+                      transform: [
+                        {
+                          translateX: bikeAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 24],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
                 >
-                  <Text style={{ fontSize: 20 }}>🚨💨</Text>
+                  <Text style={{ fontSize: 22 }}>🚨💨</Text>
                 </Animated.View>
                 <View style={styles.tourCurrentStopBadge}>
                   <Text style={styles.tourCurrentStopText}>📍 STOP 5/5 · SAFETY & KYC</Text>
@@ -637,7 +654,22 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={styles.serviceTitle}>Campus Safety & Verification</Text>
                   <Text style={styles.serviceSub}>Upload college student ID, KYC & emergency contact</Text>
                 </View>
-                <Text style={styles.serviceArrow}>→</Text>
+                <View style={styles.serviceNavWrap}>
+                  <Animated.View
+                    style={{
+                      transform: [
+                        {
+                          translateX: bikeAnim.interpolate({
+                            inputRange: [0, 0.5, 1],
+                            outputRange: [0, 6, 0],
+                          }),
+                        },
+                      ],
+                    }}
+                  >
+                    <Text style={styles.serviceNavBike}>🛡️💨</Text>
+                  </Animated.View>
+                </View>
               </TouchableOpacity>
             </View>
           )}
@@ -993,6 +1025,18 @@ const styles = StyleSheet.create({
     color: colors.accent,
     fontSize: 18,
     fontWeight: '700',
+  },
+  serviceNavWrap: {
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 2,
+  },
+  serviceNavBike: {
+    fontSize: 16,
+  },
+  tourBikeAnimatedBadge: {
+    paddingRight: 6,
   },
 
   activeTripSection: {

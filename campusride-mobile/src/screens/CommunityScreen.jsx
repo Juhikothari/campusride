@@ -582,13 +582,28 @@ export default function CommunityScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <TopHeader title={sitcomTitle} subtitle={sitcomSubtitle} showBack={navigation.canGoBack()} />
+      <TopHeader 
+        title="Campus Community" 
+        subtitle={`${user?.college || 'Student Commuters'} Lounge`} 
+        showBack={navigation.canGoBack()} 
+      />
 
-      {/* Sitcom Hangout Banner */}
+      {/* Sitcom Hangout Banner - Display name once with catchy stylized aesthetic */}
       <View style={styles.sitcomBanner}>
-        <Text style={styles.sitcomBannerText}>
-          🛋️ <Text style={{ color: colors.accent, fontWeight: '800' }}>{sitcomInfo.hangout}</Text>
-          <Text style={{ color: colors.text2 }}> · Official {sitcomInfo.sitcom} themed hub for {user?.college || 'campus'} commuters</Text>
+        <View style={styles.sitcomBadgeContainer}>
+          <Text style={styles.sitcomThemeTag}>★ {sitcomInfo.sitcom.toUpperCase()} THEMED LOUNGE</Text>
+          <View style={styles.sitcomLivePill}>
+            <View style={styles.sitcomLiveDot} />
+            <Text style={styles.sitcomLiveText}>COMMUNITY LIVE</Text>
+          </View>
+        </View>
+
+        <View style={styles.sitcomHangoutTitleRow}>
+          <Text style={styles.sitcomHangoutName}>{sitcomInfo.hangout}</Text>
+        </View>
+
+        <Text style={styles.sitcomCatchyTagline}>
+          Exclusive hangout & ride chat for verified {user?.college || 'campus'} peers
         </Text>
       </View>
 
@@ -621,15 +636,61 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.accent },
 
   sitcomBanner: {
-    backgroundColor: '#0e1620',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 229, 255, 0.15)',
+    backgroundColor: '#0c1421',
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(0, 229, 255, 0.25)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 229, 255, 0.1)',
     paddingHorizontal: spacing.md,
-    paddingVertical: 9,
+    paddingVertical: 12,
   },
-  sitcomBannerText: {
-    fontSize: 12,
-    lineHeight: 17,
+  sitcomBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  sitcomThemeTag: {
+    color: '#00e5ff',
+    fontSize: 10.5,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  sitcomLivePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(45, 212, 160, 0.15)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    gap: 4,
+  },
+  sitcomLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#2dd4a0',
+  },
+  sitcomLiveText: {
+    color: '#2dd4a0',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  sitcomHangoutTitleRow: {
+    marginBottom: 2,
+  },
+  sitcomHangoutName: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+  sitcomCatchyTagline: {
+    color: colors.text2,
+    fontSize: 11.5,
+    lineHeight: 16,
+    fontWeight: '500',
   },
 
   composeCard: {
