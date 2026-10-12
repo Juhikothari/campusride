@@ -483,7 +483,7 @@ exports.searchRides = async (req, res) => {
 
     // Retrieve active candidate rides
     const candidateRides = await Ride.find(query)
-      .populate('providerId', 'name rating gender college')
+      .populate('providerId', 'name usn phone rating gender college kycDocuments')
       .sort({ createdAt: -1 });
 
     const upcomingRides = candidateRides.filter(isRideUpcoming);
@@ -1150,12 +1150,12 @@ exports.noMatchSuggest = async (req, res) => {
           }
         }
       })
-      .populate('providerId', 'name rating gender')
+      .populate('providerId', 'name usn phone rating gender college kycDocuments')
       .limit(3);
     } else {
       // Fallback: return any active rides
       rides = await Ride.find({ status: 'active', seatsAvailable: { $gt: 0 } })
-        .populate('providerId', 'name rating gender')
+        .populate('providerId', 'name usn phone rating gender college kycDocuments')
         .limit(3)
         .sort({ createdAt: -1 });
     }
@@ -1240,7 +1240,7 @@ exports.findNearbyRides = async (req, res) => {
           $maxDistance: parseInt(originalDistance)
         }
       }
-    }).populate('providerId', 'name rating gender');
+    }).populate('providerId', 'name usn phone rating gender college kycDocuments');
 
     // 2. If few/no exact matches, expand distance (up to 25km)
     if (results.exactMatches.length < 3 && expandDistance === 'true') {
@@ -1261,7 +1261,7 @@ exports.findNearbyRides = async (req, res) => {
             $maxDistance: 25000 // 25km expanded search
           }
         }
-      }).populate('providerId', 'name rating gender');
+      }).populate('providerId', 'name usn phone rating gender college kycDocuments');
 
       // Filter out exact matches to avoid duplicates
       const exactIds = results.exactMatches.map(r => r._id.toString());
@@ -1301,7 +1301,7 @@ exports.findNearbyRides = async (req, res) => {
             $maxDistance: parseInt(originalDistance) // Keep original distance for date expansion
           }
         }
-      }).populate('providerId', 'name rating gender');
+      }).populate('providerId', 'name usn phone rating gender college kycDocuments');
 
       // Filter out duplicates
       const existingIds = [

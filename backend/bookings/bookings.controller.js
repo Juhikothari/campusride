@@ -421,7 +421,7 @@ exports.getMyBookings = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    // Privacy masking: Only reveal provider's phone, USN, and vehicle plate number after booking is accepted
+    // Privacy masking: Show only USN before acceptance; reveal phone & plate after acceptance; never show name
     const sanitized = bookings.map(b => {
       const bObj = b.toObject();
       if (b.status !== 'accepted') {
@@ -429,12 +429,15 @@ exports.getMyBookings = async (req, res) => {
           bObj.rideId.vehicleNumber = null;
           if (bObj.rideId.providerId && typeof bObj.rideId.providerId === 'object') {
             bObj.rideId.providerId.phone = null;
-            bObj.rideId.providerId.usn = null;
             if (bObj.rideId.providerId.kycDocuments) {
               bObj.rideId.providerId.kycDocuments.vehicleNumber = null;
             }
           }
         }
+      }
+      // Mask provider name with USN
+      if (bObj.rideId?.providerId && typeof bObj.rideId.providerId === 'object') {
+        bObj.rideId.providerId.name = bObj.rideId.providerId.usn || 'Student Commuter';
       }
       return bObj;
     });
@@ -463,12 +466,14 @@ exports.getRideRequests = async (req, res) => {
     .populate('seekerId', 'name phone rating usn gender college')
     .sort({ createdAt: -1 });
 
-    // Privacy masking: Only reveal phone and USN after booking is accepted
+    // Privacy masking: Only reveal phone after booking is accepted; always show USN; never show name
     const sanitized = bookings.map(b => {
       const bObj = b.toObject();
       if (b.status === 'pending' && bObj.seekerId) {
         bObj.seekerId.phone = null;
-        bObj.seekerId.usn = null;
+      }
+      if (bObj.seekerId) {
+        bObj.seekerId.name = bObj.seekerId.usn || 'Student Seeker';
       }
       return bObj;
     });
@@ -498,12 +503,14 @@ exports.getBookingsForRide = async (req, res) => {
       .populate('seekerId', 'name phone rating college usn gender')
       .sort({ createdAt: -1 });
 
-    // Privacy masking: Only reveal phone and USN after booking is accepted
+    // Privacy masking: Only reveal phone after booking is accepted; always show USN; never show name
     const sanitized = bookings.map(b => {
       const bObj = b.toObject();
       if (b.status === 'pending' && bObj.seekerId) {
         bObj.seekerId.phone = null;
-        bObj.seekerId.usn = null;
+      }
+      if (bObj.seekerId) {
+        bObj.seekerId.name = bObj.seekerId.usn || 'Student Seeker';
       }
       return bObj;
     });

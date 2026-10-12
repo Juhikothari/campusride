@@ -582,7 +582,7 @@ export default function CommunityScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
-      <TopHeader title={sitcomTitle} subtitle={sitcomSubtitle} showBack={false} />
+      <TopHeader title={sitcomTitle} subtitle={sitcomSubtitle} showBack={navigation.canGoBack()} />
 
       {/* Sitcom Hangout Banner */}
       <View style={styles.sitcomBanner}>

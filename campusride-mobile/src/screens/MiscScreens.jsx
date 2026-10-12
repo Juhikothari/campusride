@@ -5,11 +5,12 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert as RNAlert, TextInput,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Btn, Alert, Badge } from '../components/UI';
+import TopHeader from '../components/TopHeader';
 import TimePickerModal from '../components/TimePickerModal';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -68,10 +69,8 @@ export function RideDetailScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopHeader title="Ride Details" subtitle="Verified campus ride" showBack={navigation.canGoBack()} />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-          <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
-        </TouchableOpacity>
 
         <Alert message={error} />
 
@@ -87,7 +86,7 @@ export function RideDetailScreen({ navigation, route }) {
                       {ride.vehicleName || ride.vehicleType}
                     </Text>
                     <Text style={{ color: colors.text2, fontSize: 13, marginTop: 2 }}>
-                      {ride.providerId?.name || 'Provider'}
+                      🪪 USN: {ride.providerId?.usn || ride.provider?.usn || 'Verified Commuter'}
                     </Text>
                   </View>
                 </View>
@@ -298,8 +297,8 @@ export function NotificationsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopHeader title="Notifications" subtitle="Alerts & ride updates" showBack={navigation.canGoBack()} />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.md }}>🔔 Notifications</Text>
         {loading ? <ActivityIndicator color={colors.accent} /> : allNotifs.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 40 }}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
@@ -340,13 +339,18 @@ export function WalkTogetherScreen({ navigation }) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [posting, setPosting] = useState(false);
   const [womenOnly,setWomenOnly]= useState(false);
-  const [joined,  setJoined]  = useState({});
+  const [activeTab, setActiveTab] = useState('active'); // 'active' | 'history'
+  const [inspectModalPost, setInspectModalPost] = useState(null);
 
-  useEffect(() => {
+  const fetchWalks = () => {
     api.getCommunityPosts()
       .then(data => setPosts((Array.isArray(data) ? data : []).filter(p => p.type === 'walk')))
       .catch(() => {})
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchWalks();
   }, []);
 
   const postWalk = async () => {
@@ -362,33 +366,77 @@ export function WalkTogetherScreen({ navigation }) {
     finally { setPosting(false); }
   };
 
-  const { Input: InputComp, Btn: BtnComp } = require('../components/UI');
+  const deleteWalk = (postId) => {
+    RNAlert.alert('Delete Walk Request', 'Are you sure you want to delete this walk request?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.deleteCommunityPost(postId);
+            setPosts(prev => prev.filter(p => p._id !== postId));
+          } catch (e) {
+            RNAlert.alert('Error', e.message || 'Failed to delete walk request');
+          }
+        }
+      }
+    ]);
+  };
+
+  const toggleJoin = async (postId) => {
+    try {
+      const res = await api.joinWalkPost(postId);
+      if (res?.post) {
+        setPosts(prev => prev.map(p => p._id === postId ? res.post : p));
+      } else {
+        fetchWalks();
+      }
+    } catch (e) {
+      RNAlert.alert('Error', e.message || 'Failed to update walk join status');
+    }
+  };
+
+  const currentUserId = (user?._id || user?.userId || '').toString();
+  const now = Date.now();
+  const isWalkActive = (p) => (now - new Date(p.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+
+  const activeWalks  = posts.filter(isWalkActive);
+  const historyWalks = posts.filter(p => !isWalkActive(p));
+  const currentList  = activeTab === 'active' ? activeWalks : historyWalks;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🚶 Nadi</Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Find a walking companion on campus</Text>
+      <TopHeader title="Walk Together" subtitle="Find a walking companion on campus" showBack={navigation.canGoBack()} />
 
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Post new walk card */}
         <View style={styles.card}>
-          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 12 }}>📢 I'M WALKING…</Text>
-          <View style={inputStyles.wrap}><Text style={inputStyles.icon}>📍</Text>
-            <Text onPress={()=>{}} style={{flex:1}} />
-          </View>
+          <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }}>
+            📢 POST A WALK COMPANION REQUEST
+          </Text>
           {renderWalkInputs(from, setFrom, to, setTo, time, () => setShowTimePicker(true))}
 
           <TimePickerModal
             visible={showTimePicker}
             value={time}
-            onConfirm={(val) => setShowTimePicker(false) || setTime(val)}
+            onConfirm={(val) => { setShowTimePicker(false); setTime(val); }}
             onClose={() => setShowTimePicker(false)}
           />
 
           {user?.gender === 'female' && (
-            <TouchableOpacity onPress={() => setWomenOnly(w => !w)} style={[{ flexDirection:'row', alignItems:'center', gap:10, borderRadius:radius.md, borderWidth:1.5, padding:12, marginBottom:12 }, womenOnly ? { borderColor:colors.pink, backgroundColor:'rgba(233,30,140,0.08)' } : { borderColor:colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setWomenOnly(w => !w)}
+              style={[{
+                flexDirection: 'row', alignItems: 'center', gap: 10,
+                borderRadius: radius.md, borderWidth: 1.5, padding: 12, marginBottom: 12
+              }, womenOnly ? { borderColor: colors.pink, backgroundColor: 'rgba(233,30,140,0.08)' } : { borderColor: colors.border }]}
+            >
               <Text style={{ fontSize: 18 }}>{womenOnly ? '🔒' : '♀'}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: womenOnly ? colors.pink : colors.text2, fontSize: 13, fontWeight: '700' }}>{womenOnly ? 'Women Only 🔒' : 'Open to everyone'}</Text>
+                <Text style={{ color: womenOnly ? colors.pink : colors.text2, fontSize: 13, fontWeight: '700' }}>
+                  {womenOnly ? 'Women Only 🔒' : 'Open to everyone'}
+                </Text>
                 <Text style={{ color: colors.text3, fontSize: 11 }}>Tap to toggle women-only</Text>
               </View>
             </TouchableOpacity>
@@ -403,32 +451,274 @@ export function WalkTogetherScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {loading ? <ActivityIndicator color={colors.accent} /> : posts.length === 0 ? (
-          <View style={{ alignItems: 'center', paddingTop: 32 }}>
-            <Text style={{ fontSize: 40, marginBottom: 8 }}>🚶</Text>
-            <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center' }}>No walk requests yet. Post one above!</Text>
+        {/* 24-Hour Expiration Tabs: Active vs. History */}
+        <View style={{
+          flexDirection: 'row',
+          backgroundColor: '#12161f',
+          borderRadius: radius.lg,
+          padding: 4,
+          marginBottom: 14,
+          borderWidth: 1,
+          borderColor: colors.border
+        }}>
+          <TouchableOpacity
+            onPress={() => setActiveTab('active')}
+            style={[{
+              flex: 1, paddingVertical: 9, borderRadius: radius.md, alignItems: 'center',
+            }, activeTab === 'active' && { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.accent }]}
+          >
+            <Text style={{
+              color: activeTab === 'active' ? colors.accent : colors.text2,
+              fontWeight: '800', fontSize: 12.5
+            }}>
+              🚶 Active Walks ({activeWalks.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setActiveTab('history')}
+            style={[{
+              flex: 1, paddingVertical: 9, borderRadius: radius.md, alignItems: 'center',
+            }, activeTab === 'history' && { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border2 }]}
+          >
+            <Text style={{
+              color: activeTab === 'history' ? colors.text : colors.text3,
+              fontWeight: '700', fontSize: 12.5
+            }}>
+              📜 History (Past 24h) ({historyWalks.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
+        ) : currentList.length === 0 ? (
+          <View style={{ alignItems: 'center', paddingVertical: 36 }}>
+            <Text style={{ fontSize: 40, marginBottom: 8 }}>
+              {activeTab === 'active' ? '🚶' : '📜'}
+            </Text>
+            <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center' }}>
+              {activeTab === 'active'
+                ? 'No active walk requests in the last 24h. Post one above!'
+                : 'No expired walk history recorded yet.'}
+            </Text>
           </View>
         ) : (
-          posts.map(post => (
-            <View key={post._id} style={styles.card}>
-              <Text style={{ color: colors.text, fontSize: 14, lineHeight: 20, marginBottom: 10 }}>{post.content}</Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Text style={{ color: colors.text3, fontSize: 12 }}>
-                  {post.anonymous ? 'Anonymous' : post.authorName}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setJoined(j => ({ ...j, [post._id]: !j[post._id] }))}
-                  style={[{ borderRadius:radius.full, paddingHorizontal:14, paddingVertical:6, borderWidth:1 }, joined[post._id] ? { backgroundColor:colors.green, borderColor:colors.green } : { borderColor:colors.border }]}
-                >
-                  <Text style={{ color: joined[post._id] ? '#000' : colors.text2, fontSize: 12, fontWeight: '700' }}>
-                    {joined[post._id] ? '✓ Joined' : 'Join'}
+          currentList.map(post => {
+            const authorId = (post.author?._id || post.author || post.authorId || '').toString();
+            const isMyPost = authorId === currentUserId;
+            const joinedList = post.joinedUsers || [];
+            const isJoined = joinedList.some(j => (j.userId?._id || j.userId || '').toString() === currentUserId);
+            const isExpired = !isWalkActive(post);
+
+            return (
+              <View key={post._id} style={[styles.card, isExpired && { opacity: 0.75 }]}>
+                {/* Header: Posted Date & Time */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <Text style={{ color: colors.text3, fontSize: 11, fontWeight: '600' }}>
+                    📅 Posted: {new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} • {new Date(post.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                   </Text>
-                </TouchableOpacity>
+                  {isExpired ? (
+                    <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.sm }}>
+                      <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>24h+ Past</Text>
+                    </View>
+                  ) : (
+                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.sm }}>
+                      <Text style={{ color: colors.green, fontSize: 10, fontWeight: '800' }}>ACTIVE</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Content */}
+                <Text style={{ color: colors.text, fontSize: 14.5, lineHeight: 21, marginBottom: 10 }}>
+                  {post.content}
+                </Text>
+
+                {/* Author USN (no full names) */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <Text style={{ color: colors.text2, fontSize: 12 }}>
+                    🪪 Poster USN: <Text style={{ color: colors.accent, fontWeight: '700' }}>
+                      {post.author?.usn || (post.authorName ? 'Verified Student' : 'Anonymous')}
+                    </Text>
+                  </Text>
+                  {post.college && (
+                    <Text style={{ color: colors.text3, fontSize: 11 }}>• {post.college.toUpperCase()}</Text>
+                  )}
+                </View>
+
+                {/* Joined Count Pill (Tap to view USN modal) */}
+                <View style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingTop: 8,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                  gap: 8,
+                }}>
+                  <TouchableOpacity
+                    onPress={() => setInspectModalPost(post)}
+                    activeOpacity={0.7}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      backgroundColor: 'rgba(45,212,160,0.12)',
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: radius.md,
+                      borderWidth: 1,
+                      borderColor: 'rgba(45,212,160,0.3)',
+                    }}
+                  >
+                    <Text style={{ color: '#2dd4a0', fontSize: 12, fontWeight: '800' }}>
+                      👥 {joinedList.length} Joined (View USNs) ↗
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    {/* Join / Leave button */}
+                    {!isExpired && (
+                      <TouchableOpacity
+                        onPress={() => toggleJoin(post._id)}
+                        activeOpacity={0.8}
+                        style={[{
+                          borderRadius: radius.full,
+                          paddingHorizontal: 14,
+                          paddingVertical: 6,
+                          borderWidth: 1,
+                        }, isJoined
+                          ? { backgroundColor: colors.green, borderColor: colors.green }
+                          : { borderColor: colors.border2, backgroundColor: colors.surface2 }
+                        ]}
+                      >
+                        <Text style={{ color: isJoined ? '#000' : colors.text, fontSize: 12, fontWeight: '700' }}>
+                          {isJoined ? '✓ Joined' : '+ Join'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Delete button (Author only) */}
+                    {isMyPost && (
+                      <TouchableOpacity
+                        onPress={() => deleteWalk(post._id)}
+                        activeOpacity={0.8}
+                        style={{
+                          backgroundColor: 'rgba(255,82,82,0.15)',
+                          borderColor: colors.red,
+                          borderWidth: 1,
+                          borderRadius: radius.full,
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                        }}
+                      >
+                        <Text style={{ color: colors.red, fontSize: 12, fontWeight: '700' }}>
+                          🗑️ Delete
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
               </View>
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
+
+      {/* Modal: View USNs of joined students */}
+      <Modal
+        visible={!!inspectModalPost}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInspectModalPost(null)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.75)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: 20,
+        }}>
+          <View style={{
+            width: '100%',
+            maxWidth: 380,
+            backgroundColor: '#121824',
+            borderRadius: radius.xl,
+            borderWidth: 1.5,
+            borderColor: colors.accent,
+            padding: 18,
+          }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>
+                👥 Joined Students ({(inspectModalPost?.joinedUsers?.length || 0)})
+              </Text>
+              <TouchableOpacity onPress={() => setInspectModalPost(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ color: colors.text2, fontSize: 18, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: colors.text3, fontSize: 12, marginBottom: 12 }} numberOfLines={2}>
+              {inspectModalPost?.content}
+            </Text>
+
+            {(inspectModalPost?.joinedUsers?.length || 0) === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 28, marginBottom: 6 }}>🚶</Text>
+                <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center' }}>
+                  No students have joined this walk yet.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 220 }}>
+                {inspectModalPost.joinedUsers.map((item, idx) => (
+                  <View
+                    key={idx}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      backgroundColor: '#182030',
+                      borderRadius: radius.md,
+                      padding: 10,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor: '#26334a',
+                    }}
+                  >
+                    <Text style={{ fontSize: 20 }}>🎓</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>
+                        🪪 USN: {item.usn || 'Verified Student'}
+                      </Text>
+                      <Text style={{ color: colors.text3, fontSize: 10.5, marginTop: 2 }}>
+                        Joined: {new Date(item.joinedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    </View>
+                    <Text style={{ color: colors.green, fontSize: 11, fontWeight: '700' }}>
+                      ✓ Walking
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              onPress={() => setInspectModalPost(null)}
+              style={{
+                backgroundColor: colors.surface2,
+                borderRadius: radius.md,
+                paddingVertical: 10,
+                alignItems: 'center',
+                marginTop: 12,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

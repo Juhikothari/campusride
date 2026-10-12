@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
+import TopHeader from '../components/TopHeader';
 import { useSocket } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -118,12 +119,12 @@ export default function ProviderBookingsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopHeader title="Ride Requests" subtitle="Manage incoming passenger requests" showBack={navigation.canGoBack()} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchRides(); }} tintColor={colors.accent} />}
       >
-        <Text style={styles.title}>Ride Requests</Text>
         <Alert message={error} />
 
         {/* My rides list */}
@@ -327,14 +328,14 @@ export default function ProviderBookingsScreen({ navigation }) {
                       <View key={b._id} style={styles.bookingCard}>
                         <View style={styles.seekerRow}>
                           <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>{seeker?.name?.charAt(0) || 'S'}</Text>
+                            <Text style={styles.avatarText}>🪪</Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
+                            <Text style={styles.seekerName}>🪪 USN: {seeker?.usn || 'Seeker Student'}</Text>
                             <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
                             {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
                             <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 2 }]}>
-                              🔒 Phone & USN revealed after accepting
+                              🔒 Phone revealed after accepting
                             </Text>
                             <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 10, marginTop: 2 }]}>
                               {new Date(b.createdAt).toLocaleString('en-IN', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
@@ -367,13 +368,10 @@ export default function ProviderBookingsScreen({ navigation }) {
                         <View key={b._id} style={[styles.bookingCard, !isAccepted && { opacity: 0.7 }]}>
                           <View style={styles.seekerRow}>
                             <View style={[styles.avatar, isAccepted && { borderColor: colors.green, backgroundColor: colors.green + '22' }]}>
-                              <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>{seeker?.name?.charAt(0) || 'S'}</Text>
+                              <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>🪪</Text>
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.seekerName}>{seeker?.name || 'Seeker'}</Text>
-                              {isAccepted && seeker?.usn ? (
-                                <Text style={styles.seekerMeta}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{seeker.usn}</Text></Text>
-                              ) : null}
+                              <Text style={styles.seekerName}>🪪 USN: {seeker?.usn || 'Seeker Student'}</Text>
                               {isAccepted && seeker?.phone ? (
                                 <Text style={styles.seekerMeta}>📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text></Text>
                               ) : null}

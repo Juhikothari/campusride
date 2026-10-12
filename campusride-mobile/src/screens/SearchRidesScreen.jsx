@@ -358,7 +358,7 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="Search Your Buddy" subtitle="Find verified campus commuters" showBack={false} />
+      <TopHeader title="Search Your Buddy" subtitle="Find verified campus commuters" showBack={navigation.canGoBack()} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

@@ -57,7 +57,9 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
             <Text style={styles.vehicleName}>
               {ride.vehicleName || (ride.vehicleType ? ride.vehicleType.charAt(0).toUpperCase() + ride.vehicleType.slice(1) : 'Ride')}
             </Text>
-            <Text style={styles.providerName}>{ride.providerName || ride.provider?.name || 'Provider'}</Text>
+            <Text style={styles.providerName}>
+              🪪 USN: {ride.providerId?.usn || ride.provider?.usn || ride.providerUsn || 'Verified Commuter'}
+            </Text>
           </View>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>

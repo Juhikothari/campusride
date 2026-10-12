@@ -153,59 +153,95 @@ export default function DashboardScreen({ navigation }) {
   const TOUR_STEPS = [
     {
       step: 0,
-      badge: 'WELCOME TO HOGO',
-      title: '👋 Welcome to HOGO CampusRide!',
+      badge: '✨ DISCOVER HOGO',
+      tag: 'Campus Exclusive',
+      icon: '🎓',
+      iconBg: '#1e3a5f',
+      title: 'Welcome to HOGO CampusRide',
       desc: 'Go through these 2–3 lines first: HOGO connects verified students from your campus to split commute costs, find walking buddies, and hang out in college hubs safely. Follow the tour below as we guide you through each feature step-by-step!',
       vehicle: '🛵💨',
-      btnLabel: 'Start Campus Tour 🛵💨',
+      vehicleName: 'Electric Campus Scooter',
+      costTag: '100% Student Verified',
+      rating: '5.0 ★★★★★',
+      btnLabel: 'Ride To Stop 1 🛵💨',
     },
     {
       step: 1,
       targetKey: 'SearchRides',
       badge: 'STOP 1 OF 5',
-      title: '🔍 Stop 1: Search Your Buddy',
+      tag: 'Best Match',
+      icon: '🔍',
+      iconBg: '#0f382c',
+      title: 'Search Your Buddy',
       desc: 'Match with verified peers commuting along your exact route within 5km. Calculate commute times, view verified student profiles, and split petrol expenses effortlessly.',
       vehicle: '🛵💨',
-      btnLabel: 'Next Stop →',
+      vehicleName: 'Daily Campus Carpool',
+      costTag: 'Split Fuel Costs 50%',
+      rating: '4.9 ★★★★★',
+      btnLabel: 'Cruise To Stop 2 🚗💨',
       route: 'SearchRides',
     },
     {
       step: 2,
       targetKey: 'CreateRide',
       badge: 'STOP 2 OF 5',
-      title: '🚗 Stop 2: Get a Buddy (Offer Ride)',
+      tag: 'Provider Hub',
+      icon: '🚗',
+      iconBg: '#3a2010',
+      title: 'Get a Buddy (Offer Ride)',
       desc: 'Riding or driving to college? Post your daily route, select peers from your campus, and cut your petrol expenses in half while commuting together.',
       vehicle: '🚗💨',
-      btnLabel: 'Next Stop →',
+      vehicleName: 'Student Ride Offer',
+      costTag: 'Offset 100% Commute Costs',
+      rating: '4.9 ★★★★★',
+      btnLabel: 'Cruise To Stop 3 🛋️💨',
       route: 'CreateRide',
     },
     {
       step: 3,
       targetKey: 'Community',
       badge: 'STOP 3 OF 5',
-      title: '🛋️ Stop 3: Campus Community & Chat',
+      tag: 'Campus Lounge',
+      icon: '🛋️',
+      iconBg: '#2a1a4a',
+      title: 'Campus Community & Chat',
       desc: 'Hang out in your sitcom-themed college lounge (Central Perk, Dunder Mifflin), get campus transit alerts, and receive instant notifications whenever someone replies!',
       vehicle: '☕💨',
-      btnLabel: 'Next Stop →',
+      vehicleName: 'Sitcom Hubs & Discussions',
+      costTag: 'Instant Reply Alerts',
+      rating: '4.8 ★★★★★',
+      btnLabel: 'Walk To Stop 4 🚶💨',
       route: 'Community',
     },
     {
       step: 4,
       targetKey: 'WalkTogether',
       badge: 'STOP 4 OF 5',
-      title: '🚶 Stop 4: Nadi Walk Together',
+      tag: 'Nadi Safety',
+      icon: '🚶',
+      iconBg: '#103038',
+      title: 'Nadi Walk Together',
       desc: 'Never walk alone at night or across long campus routes. Partner up with verified classmates for safe company between hostels, libraries, and metro gates.',
       vehicle: '👟💨',
-      btnLabel: 'Next Stop →',
+      vehicleName: 'Campus Night Walking Groups',
+      costTag: '24h Expiration & USN Tracking',
+      rating: '5.0 ★★★★★',
+      btnLabel: 'Cruise To Stop 5 🛡️💨',
       route: 'WalkTogether',
     },
     {
       step: 5,
       targetKey: 'profile',
       badge: 'STOP 5 OF 5',
-      title: '🛡️ Stop 5: Campus Profile & Safety',
+      tag: 'Student Trust',
+      icon: '🛡️',
+      iconBg: '#331010',
+      title: 'Campus Profile & Safety',
       desc: 'Student safety is top priority. Complete your college student KYC, verify two-way checklists before every ride, and access 24/7 instant emergency SOS.',
       vehicle: '🚨💨',
+      vehicleName: 'KYC & 2-Way Checklists',
+      costTag: 'Strict USN Privacy',
+      rating: '5.0 ★★★★★',
       btnLabel: 'Finish Tour & Start Commuting 🚀',
       route: 'KYC',
     },
@@ -371,67 +407,127 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* ── Guided Interactive Onboarding Tour Banner ── */}
+        {/* ── Image 1 Styled Showcase Onboarding Carousel ── */}
         {showOnboarding && !showBetaDisclaimer && (
-          <View style={styles.tourBannerCard}>
-            <View style={styles.tourBannerTopRow}>
-              <View style={styles.tourBannerBadge}>
-                <Text style={styles.tourBannerBadgeText}>
-                  {TOUR_STEPS[tourStep]?.badge}
-                </Text>
+          <View style={styles.image1CarouselWrapper}>
+            {/* Header with Title and Skip */}
+            <View style={styles.image1HeaderRow}>
+              <View>
+                <Text style={styles.image1SectionTitle}>Featured Features</Text>
+                <Text style={styles.image1SectionSubtitle}>Interactive Guided Tour</Text>
               </View>
               <TouchableOpacity onPress={dismissOnboarding} style={styles.tourDismissBtn} activeOpacity={0.7}>
                 <Text style={styles.tourDismissBtnText}>Skip Tour ✕</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-              <Text style={styles.tourBannerTitle}>{TOUR_STEPS[tourStep]?.title}</Text>
-              <Animated.View
-                style={{
-                  transform: [
-                    {
-                      translateX: bikeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-6, 6],
-                      }),
-                    },
-                  ],
-                }}
-              >
-                <Text style={{ fontSize: 24 }}>{TOUR_STEPS[tourStep]?.vehicle}</Text>
-              </Animated.View>
-            </View>
+            {/* Centered Showcase Card (Matching Image 1) */}
+            <View style={styles.image1CardContainer}>
+              {/* Card Illustration / Visual Area */}
+              <View style={[styles.image1CardMedia, { backgroundColor: TOUR_STEPS[tourStep]?.iconBg || '#162235' }]}>
+                {/* Badge top-left */}
+                <View style={styles.image1Badge}>
+                  <Text style={styles.image1BadgeText}>{TOUR_STEPS[tourStep]?.tag || 'Featured'}</Text>
+                </View>
 
-            <Text style={styles.tourBannerDesc}>{TOUR_STEPS[tourStep]?.desc}</Text>
+                {/* Big Visual Icon */}
+                <Text style={styles.image1CenterIcon}>{TOUR_STEPS[tourStep]?.icon || '🛵'}</Text>
 
-            {/* Tour Navigation Controls */}
-            <View style={styles.tourNavRow}>
-              {tourStep > 0 && (
-                <TouchableOpacity
-                  style={styles.tourNavPrevBtn}
-                  onPress={() => setTourStep(s => Math.max(0, s - 1))}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.tourNavPrevText}>← Previous</Text>
-                </TouchableOpacity>
-              )}
+                {/* Step indicator top-right */}
+                <View style={styles.image1StepBadge}>
+                  <Text style={styles.image1StepBadgeText}>{TOUR_STEPS[tourStep]?.badge}</Text>
+                </View>
+              </View>
 
-              <TouchableOpacity
-                style={styles.tourNavNextBtn}
-                onPress={() => {
-                  if (tourStep < TOUR_STEPS.length - 1) {
-                    setTourStep(s => s + 1);
-                  } else {
-                    dismissOnboarding();
-                  }
-                }}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.tourNavNextText}>
-                  {TOUR_STEPS[tourStep]?.btnLabel}
+              {/* Card Content Details */}
+              <View style={styles.image1CardBody}>
+                <View style={styles.image1TitleRow}>
+                  <Text style={styles.image1Title} numberOfLines={1}>
+                    {TOUR_STEPS[tourStep]?.title}
+                  </Text>
+                </View>
+
+                {/* Rating Stars & Vehicle Name */}
+                <View style={styles.image1RatingRow}>
+                  <Text style={styles.image1RatingText}>{TOUR_STEPS[tourStep]?.rating || '★★★★★'}</Text>
+                  <Text style={styles.image1VehicleSubtitle}>• {TOUR_STEPS[tourStep]?.vehicleName}</Text>
+                </View>
+
+                {/* Description */}
+                <Text style={styles.image1Description}>
+                  {TOUR_STEPS[tourStep]?.desc}
                 </Text>
-              </TouchableOpacity>
+
+                {/* Feature highlight cost / trust tag */}
+                <View style={styles.image1TagRow}>
+                  <Text style={styles.image1CostTag}>🏷️ {TOUR_STEPS[tourStep]?.costTag}</Text>
+                </View>
+
+                {/* ── Animated Bike Transit Track Navigation (Replacing simple arrow navigation) ── */}
+                <View style={styles.bikeTransitTrackContainer}>
+                  <View style={styles.bikeTransitTrackBackground} />
+                  <Animated.View
+                    style={[
+                      styles.bikeAnimatedRunner,
+                      {
+                        transform: [
+                          {
+                            translateX: bikeAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [0, 140],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <Text style={styles.bikeTrackIcon}>🏍️💨</Text>
+                  </Animated.View>
+                </View>
+
+                {/* Action Buttons: Prev (Bike / Walk) and Next */}
+                <View style={styles.image1ActionRow}>
+                  {tourStep > 0 && (
+                    <TouchableOpacity
+                      style={styles.image1PrevBtn}
+                      onPress={() => setTourStep(s => Math.max(0, s - 1))}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.image1PrevText}>‹ Prev</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.image1NextBtn}
+                    onPress={() => {
+                      if (tourStep < TOUR_STEPS.length - 1) {
+                        setTourStep(s => s + 1);
+                      } else {
+                        dismissOnboarding();
+                      }
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.image1NextText}>
+                      {TOUR_STEPS[tourStep]?.btnLabel}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Pagination Dots (● ○ ○ ○ ○ ○) */}
+                <View style={styles.image1DotsRow}>
+                  {TOUR_STEPS.map((_, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setTourStep(i)}
+                      style={[
+                        styles.image1Dot,
+                        tourStep === i ? styles.image1DotActive : styles.image1DotInactive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
             </View>
           </View>
         )}
@@ -1336,5 +1432,216 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 11,
     fontWeight: '900',
+  },
+
+  /* ── Image 1 Style Showcase Carousel ── */
+  image1CarouselWrapper: {
+    marginBottom: spacing.lg,
+  },
+  image1HeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  image1SectionTitle: {
+    color: '#4fc3f7',
+    fontSize: 19,
+    fontWeight: '900',
+    letterSpacing: -0.3,
+  },
+  image1SectionSubtitle: {
+    color: colors.text3,
+    fontSize: 11.5,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  image1CardContainer: {
+    backgroundColor: '#0e1626',
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#1e385c',
+    shadowColor: '#00d2ff',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  image1CardMedia: {
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  image1Badge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: '#0288d1',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  image1BadgeText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  image1StepBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: radius.full,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  image1StepBadgeText: {
+    color: '#e0e0e0',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
+  image1CenterIcon: {
+    fontSize: 54,
+  },
+  image1CardBody: {
+    padding: 16,
+    backgroundColor: '#0b1320',
+  },
+  image1TitleRow: {
+    marginBottom: 4,
+  },
+  image1Title: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: -0.2,
+  },
+  image1RatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  image1RatingText: {
+    color: '#f5a623',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  image1VehicleSubtitle: {
+    color: colors.text3,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  image1Description: {
+    color: '#94a3b8',
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
+  image1TagRow: {
+    marginBottom: 12,
+  },
+  image1CostTag: {
+    color: '#2dd4a0',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+
+  /* Bike Transit Animation Road / Track */
+  bikeTransitTrackContainer: {
+    height: 36,
+    backgroundColor: '#131e30',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#1f3350',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    marginBottom: 14,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bikeTransitTrackBackground: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    height: 2,
+    backgroundColor: '#23395b',
+    top: 17,
+  },
+  bikeAnimatedRunner: {
+    position: 'absolute',
+    left: 8,
+    top: 4,
+  },
+  bikeTrackIcon: {
+    fontSize: 20,
+  },
+
+  /* Buttons & Dots */
+  image1ActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  image1PrevBtn: {
+    backgroundColor: '#172235',
+    borderWidth: 1,
+    borderColor: '#2b3e5e',
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  image1PrevText: {
+    color: colors.text2,
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  image1NextBtn: {
+    flex: 1,
+    backgroundColor: '#2dd4a0',
+    borderRadius: radius.md,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2dd4a0',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  image1NextText: {
+    color: '#000000',
+    fontSize: 13.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+  image1DotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 2,
+  },
+  image1Dot: {
+    height: 8,
+    borderRadius: 4,
+  },
+  image1DotActive: {
+    width: 22,
+    backgroundColor: '#0288d1',
+  },
+  image1DotInactive: {
+    width: 8,
+    backgroundColor: '#22354e',
   },
 });

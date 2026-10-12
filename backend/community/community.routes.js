@@ -3,7 +3,7 @@ const express = require('express');
 const router  = express.Router();
 const auth    = require('../middleware/auth');
 const {
-  getPosts, createPost, toggleLike, addReply, deletePost,
+  getPosts, createPost, toggleLike, addReply, deletePost, toggleJoinWalk,
 } = require('./community.controller');
 
 router.get('/',               auth, getPosts);
@@ -15,6 +15,8 @@ router.post('/:id/like',      auth, toggleLike);
 router.post('/posts/:id/like',auth, toggleLike);
 router.post('/:id/reply',     auth, addReply);
 router.post('/posts/:id/reply', auth, addReply);
+router.post('/:id/join-walk', auth, toggleJoinWalk);
+router.post('/posts/:id/join-walk', auth, toggleJoinWalk);
 router.delete('/:id',         auth, deletePost);
 router.delete('/posts/:id',   auth, deletePost);
 

@@ -1154,7 +1154,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
           <View style={{ backgroundColor: '#10141e', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.lg, padding: 14, marginBottom: 16 }}>
             <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 }}>ASSIGNED RIDE DETAILS</Text>
             <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>
-              👤 {rideDetails.providerId?.name || rideDetails.providerName || 'Campus Commuter'} • 🏫 {rideDetails.college || 'Campus'}
+              🪪 USN: {rideDetails.providerId?.usn || rideDetails.providerUsn || 'Verified Commuter'} • 🏫 {rideDetails.college || 'Campus'}
             </Text>
             <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', marginTop: 4 }}>
               🚘 {rideDetails.vehicleName || 'Vehicle'} ({rideDetails.vehicleNumber || 'Plate Number'})

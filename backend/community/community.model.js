@@ -1,6 +1,5 @@
 // backend/community/community.model.js
-// FIX: Added `college` field so posts are scoped per college and
-//      don't disappear on refresh (the query now filters by it).
+// Scoped per college, supports walk together joined students with USN
 const mongoose = require('mongoose');
 
 const replySchema = new mongoose.Schema({
@@ -11,9 +10,14 @@ const replySchema = new mongoose.Schema({
   createdAt:  { type: Date, default: Date.now },
 });
 
+const joinedUserSchema = new mongoose.Schema({
+  userId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  usn:      { type: String, default: '' },
+  joinedAt: { type: Date, default: Date.now },
+});
+
 const postSchema = new mongoose.Schema({
   author:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  // CRITICAL: Store college so posts can be retrieved without losing them on refresh
   college:     { type: String, required: true, index: true },
   content:     { type: String, required: true, maxlength: 500 },
   type:        { type: String, enum: ['general', 'tip', 'question', 'landmark', 'alert', 'walk'], default: 'general' },
@@ -25,6 +29,7 @@ const postSchema = new mongoose.Schema({
     name: { type: String },
   }],
   replies:     [replySchema],
+  joinedUsers: [joinedUserSchema],
 }, { timestamps: true });
 
 module.exports = mongoose.model('CommunityPost', postSchema);

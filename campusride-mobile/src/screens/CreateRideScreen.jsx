@@ -486,7 +486,7 @@ export default function CreateRideScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="Get a Buddy" subtitle="Offer your ride and split cost" showBack={false} />
+      <TopHeader title="Get a Buddy" subtitle="Offer your ride and split cost" showBack={navigation.canGoBack()} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

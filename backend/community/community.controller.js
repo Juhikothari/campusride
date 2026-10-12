@@ -1,7 +1,6 @@
 // backend/community/community.controller.js
-// FIX: getPosts now fetches by college (same as createPost stores it)
-//      so posts don't disappear on refresh.
-const Post = require('./community.model'); // make sure this path is correct
+// Scoped per college, supports walk joins with USN, deletes, and replies
+const Post = require('./community.model');
 const User = require('../users/users.model');
 
 // GET /api/community  — list posts for logged-in user's college
@@ -13,9 +12,9 @@ exports.getPosts = async (req, res) => {
     const normalizedCollege = user.college.trim().toLowerCase();
 
     const posts = await Post.find({ college: normalizedCollege })
-      .populate('author', 'name college')
+      .populate('author', 'name college usn')
       .sort({ createdAt: -1 })
-      .limit(50);
+      .limit(100);
 
     res.json(posts);
   } catch (err) {
@@ -38,7 +37,7 @@ exports.createPost = async (req, res) => {
 
     const post = new Post({
       author:      req.user.userId,
-      college:     user.college.trim().toLowerCase(), // FIX: always stored
+      college:     user.college.trim().toLowerCase(),
       content:     content.trim(),
       type:        cleanType,
       anonymous:   !!anonymous,
@@ -46,7 +45,7 @@ exports.createPost = async (req, res) => {
     });
 
     await post.save();
-    await post.populate('author', 'name college');
+    await post.populate('author', 'name college usn');
     res.status(201).json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -113,20 +112,61 @@ exports.addReply = async (req, res) => {
   }
 };
 
+// POST /api/community/:id/join-walk  — toggle join walk with USN
+exports.toggleJoinWalk = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Walk request not found' });
+    if (post.type !== 'walk') return res.status(400).json({ message: 'Can only join walk requests' });
+
+    const user = await User.findById(req.user.userId).select('usn college');
+    const userIdStr = req.user.userId.toString();
+
+    if (!post.joinedUsers) post.joinedUsers = [];
+    const existingIndex = post.joinedUsers.findIndex(j => j.userId?.toString() === userIdStr);
+
+    let isJoined = false;
+    if (existingIndex > -1) {
+      post.joinedUsers.splice(existingIndex, 1);
+      isJoined = false;
+    } else {
+      const studentUsn = user?.usn?.trim() || `STU-${userIdStr.slice(-4).toUpperCase()}`;
+      post.joinedUsers.push({
+        userId: req.user.userId,
+        usn: studentUsn,
+        joinedAt: new Date(),
+      });
+      isJoined = true;
+    }
+
+    await post.save();
+    await post.populate('author', 'name college usn');
+
+    res.json({
+      post,
+      isJoined,
+      joinedCount: post.joinedUsers.length,
+      joinedUsers: post.joinedUsers,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // DELETE /api/community/:id  — delete own post
 exports.deletePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Post not found' });
-    const currentUserId = req.user?.userId || req.user?.id;
-    const isOwner = post.author?.toString() === currentUserId?.toString() ||
-                    post.authorId?.toString() === currentUserId?.toString();
+    const currentUserId = (req.user?.userId || req.user?.id || '').toString();
+    const authorId = (post.author?._id || post.author || '').toString();
+    const isOwner = authorId === currentUserId;
     const isAdmin = req.user?.role === 'admin';
     if (!isOwner && !isAdmin) {
       return res.status(403).json({ message: 'You can only delete your own posts' });
     }
     await post.deleteOne();
-    res.json({ message: 'Post deleted successfully' });
+    res.json({ message: 'Post deleted successfully', postId: req.params.id });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

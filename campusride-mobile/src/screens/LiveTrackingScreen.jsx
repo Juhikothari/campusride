@@ -405,8 +405,8 @@ export default function LiveTrackingScreen({ navigation, route }) {
     : (rideInfo?.providerId?._id || rideInfo?.providerId?.id || rideInfo?.providerId);
 
   const targetRevieweeName = isDriver
-    ? (rideInfo?.passengers?.[0]?.seeker?.name || 'Passenger')
-    : (rideInfo?.providerId?.name || 'Driver');
+    ? (rideInfo?.passengers?.[0]?.seeker?.usn ? `Passenger (${rideInfo.passengers[0].seeker.usn})` : 'Passenger')
+    : (rideInfo?.providerId?.usn ? `Driver (${rideInfo.providerId.usn})` : 'Driver');
 
   const handleSubmitRating = async (starsToSubmit) => {
     const stars = starsToSubmit || ratingStars;
@@ -707,11 +707,11 @@ export default function LiveTrackingScreen({ navigation, route }) {
                         <View style={styles.driverRow}>
                           <View style={[styles.driverAvatar, { borderColor: colors.green }]}>
                             <Text style={[styles.driverAvatarText, { color: colors.green }]}>
-                              {p.seeker?.name?.charAt(0) || 'S'}
+                              🪪
                             </Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.driverName}>{p.seeker?.name || 'Passenger'}</Text>
+                            <Text style={styles.driverName}>🪪 USN: {p.seeker?.usn || 'Passenger'}</Text>
                             <Text style={styles.driverVehicleName}>
                               💺 {p.seats || 1} Seat(s) Booked • {p.status?.toUpperCase() || 'CONFIRMED'}
                             </Text>
@@ -758,10 +758,10 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   <Text style={styles.driverSectionTitle}>🚗 ASSIGNED VEHICLE & RIDER</Text>
                   <View style={styles.driverRow}>
                     <View style={styles.driverAvatar}>
-                      <Text style={styles.driverAvatarText}>{rideInfo?.providerId?.name?.charAt(0) || 'P'}</Text>
+                      <Text style={styles.driverAvatarText}>🪪</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.driverName}>{rideInfo?.providerId?.name || 'Campus Provider'}</Text>
+                      <Text style={styles.driverName}>🪪 USN: {rideInfo?.providerId?.usn || 'Campus Provider'}</Text>
                       <Text style={styles.driverVehicleName}>
                         🚘 {rideInfo?.vehicleName || rideInfo?.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(rideInfo?.vehicleType || 'Car').toUpperCase()}
                       </Text>

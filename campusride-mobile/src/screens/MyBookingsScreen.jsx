@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
+import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -92,13 +93,12 @@ export default function MyBookingsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <TopHeader title="My Bookings" subtitle="Track your rides and bookings" showBack={navigation.canGoBack()} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.accent} />}
       >
-        <Text style={styles.title}>My Bookings</Text>
-        <Text style={styles.subtitle}>Track your rides, route, and travel time in real time</Text>
 
         <Alert message={error} />
 
@@ -157,10 +157,10 @@ export default function MyBookingsScreen({ navigation }) {
                     <Text style={styles.providerLabel}>CONFIRMED PROVIDER & VEHICLE</Text>
                     <View style={styles.providerHeaderRow}>
                       <View style={styles.avatarMini}>
-                        <Text style={styles.avatarMiniText}>{provider.name?.charAt(0) || 'P'}</Text>
+                        <Text style={styles.avatarMiniText}>🪪</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.providerNameText}>{provider.name || 'Provider'}</Text>
+                        <Text style={styles.providerNameText}>🪪 USN: {provider.usn || 'Verified Commuter'}</Text>
                         <Text style={styles.vehicleNameBadge}>
                           🚘 {ride?.vehicleName || provider.kycDocuments?.vehicleName || 'Vehicle'} • {(ride?.vehicleType || 'CAR').toUpperCase()}
                         </Text>
@@ -192,7 +192,7 @@ export default function MyBookingsScreen({ navigation }) {
                       <View style={{ flex: 1, marginRight: 10 }}>
                         <Text style={styles.farePayTag}>💰 FARE TO PAY PROVIDER</Text>
                         <Text style={styles.farePaySub}>
-                          Pay directly to {provider?.name ? provider.name.split(' ')[0] : 'driver'} via UPI / Cash
+                          Pay directly to provider (USN: {provider?.usn || 'Commuter'}) via UPI / Cash
                         </Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>
