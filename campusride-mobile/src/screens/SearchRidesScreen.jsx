@@ -457,7 +457,7 @@ export default function SearchRidesScreen({ navigation }) {
         {/* Schedule */}
         <Text style={styles.filterLabel}>When do you need a ride?</Text>
         <TogglePill
-          options={[{ value: 'now', label: '🚗 Leave Now' }, { value: 'later', label: '🗓 Schedule' }]}
+          options={[{ value: 'now', label: '🚗 Ride Now' }, { value: 'later', label: '🗓 Schedule' }]}
           value={schedMode}
           onChange={setSchedMode}
         />

@@ -568,7 +568,7 @@ function CollegeChatTab({ user }) {
 }
 
 // ── Main Screen ───────────────────────────────────────────────────
-export default function CommunityScreen() {
+export default function CommunityScreen({ navigation }) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState(0);
 
@@ -585,7 +585,7 @@ export default function CommunityScreen() {
       <TopHeader 
         title="Campus Community" 
         subtitle={`${user?.college || 'Student Commuters'} Lounge`} 
-        showBack={navigation.canGoBack()} 
+        showBack={navigation?.canGoBack ? navigation.canGoBack() : false} 
       />
 
       {/* Sitcom Hangout Banner - Display name once with catchy stylized aesthetic */}

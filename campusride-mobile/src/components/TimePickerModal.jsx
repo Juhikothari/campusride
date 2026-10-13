@@ -76,12 +76,12 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
           <View style={styles.timePreviewCard}>
             <View style={styles.digitBox}>
               <Text style={styles.digitText}>{selectedHour}</Text>
-              <Text style={styles.digitSub}>HOUR</Text>
+              <Text style={styles.digitSub}>HR</Text>
             </View>
             <Text style={styles.colonText}>:</Text>
             <View style={styles.digitBox}>
               <Text style={styles.digitText}>{selectedMin}</Text>
-              <Text style={styles.digitSub}>MINUTE</Text>
+              <Text style={styles.digitSub}>MIN</Text>
             </View>
             <View style={styles.periodCol}>
               <TouchableOpacity
@@ -97,31 +97,6 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
                 <Text style={[styles.periodBtnText, selectedPeriod === 'PM' && styles.periodBtnTextActive]}>PM</Text>
               </TouchableOpacity>
             </View>
-          </View>
-
-          {/* Quick Presets */}
-          <View style={styles.quickRow}>
-            <TouchableOpacity onPress={() => applyOffset(15)} style={styles.quickChip}>
-              <Text style={styles.quickChipText}>+15 min</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => applyOffset(30)} style={styles.quickChip}>
-              <Text style={styles.quickChipText}>+30 min</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => applyOffset(60)} style={styles.quickChip}>
-              <Text style={styles.quickChipText}>+1 hour</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { setSelectedHour('08'); setSelectedMin('30'); setSelectedPeriod('AM'); }}
-              style={styles.quickChip}
-            >
-              <Text style={styles.quickChipText}>🏫 8:30 AM</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => { setSelectedHour('04'); setSelectedMin('30'); setSelectedPeriod('PM'); }}
-              style={styles.quickChip}
-            >
-              <Text style={styles.quickChipText}>🏠 4:30 PM</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Vertical Order Columns: Hours, Minutes, and AM/PM */}

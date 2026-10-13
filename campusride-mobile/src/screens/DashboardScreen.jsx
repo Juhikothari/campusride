@@ -19,28 +19,24 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAIN_SERVICES = [
   {
     key: 'SearchRides',
-    icon: '🔍',
     title: 'Search Your Buddy',
     sub: 'Match with commuters on your route',
     iconBg: '#1a2233',
   },
   {
     key: 'CreateRide',
-    icon: '🚗',
     title: 'Get a Buddy',
     sub: 'Post your route and split the cost',
     iconBg: '#1c2630',
   },
   {
     key: 'Community',
-    icon: '💬',
     title: 'Community',
     sub: 'Posts, chat and campus alerts',
     iconBg: '#1e2430',
   },
   {
     key: 'WalkTogether',
-    icon: '🚶',
     title: 'Nadi',
     sub: 'Find someone walking the same campus route',
     iconBg: '#222328',
@@ -55,8 +51,9 @@ export default function DashboardScreen({ navigation }) {
 
   // Per-user Testing popup & Onboarding Tour states
   const [showBetaDisclaimer, setShowBetaDisclaimer] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [tourStep, setTourStep] = useState(0);
+  const [showOnboardingPopup, setShowOnboardingPopup] = useState(false);
+  const [isTourActive, setIsTourActive] = useState(false);
+  const [tourStep, setTourStep] = useState(1);
   const [unreadCommunityCount, setUnreadCommunityCount] = useState(getCommunityUnreadCount());
 
   useEffect(() => {
@@ -128,7 +125,7 @@ export default function DashboardScreen({ navigation }) {
         const showOnb = await AsyncStorage.getItem('@show_onboarding_carousel');
         const seenOnb = await AsyncStorage.getItem(onbKey);
         if ((showOnb === 'true' || !seenOnb) && mounted) {
-          setShowOnboarding(true);
+          setShowOnboardingPopup(true);
         }
       } catch {}
     })();
@@ -142,8 +139,23 @@ export default function DashboardScreen({ navigation }) {
     } catch {}
   };
 
-  const dismissOnboarding = async () => {
-    setShowOnboarding(false);
+  const handleSkipOnboarding = async () => {
+    setShowOnboardingPopup(false);
+    setIsTourActive(false);
+    try {
+      await AsyncStorage.setItem(`@has_seen_onboarding_tour_${userKey}`, 'true');
+      await AsyncStorage.setItem('@show_onboarding_carousel', 'false');
+    } catch {}
+  };
+
+  const handleStartTour = () => {
+    setShowOnboardingPopup(false);
+    setIsTourActive(true);
+    setTourStep(1);
+  };
+
+  const finishTour = async () => {
+    setIsTourActive(false);
     try {
       await AsyncStorage.setItem(`@has_seen_onboarding_tour_${userKey}`, 'true');
       await AsyncStorage.setItem('@show_onboarding_carousel', 'false');
@@ -407,8 +419,8 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* ── Image 1 Styled Showcase Onboarding Carousel ── */}
-        {showOnboarding && !showBetaDisclaimer && (
+        {/* ── Guided Onboarding Banner (When Tour is Active) ── */}
+        {isTourActive && !showBetaDisclaimer && (
           <View style={styles.image1CarouselWrapper}>
             {/* Header with Title and Skip */}
             <View style={styles.image1HeaderRow}>
@@ -416,7 +428,7 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={styles.image1SectionTitle}>Featured Features</Text>
                 <Text style={styles.image1SectionSubtitle}>Interactive Guided Tour</Text>
               </View>
-              <TouchableOpacity onPress={dismissOnboarding} style={styles.tourDismissBtn} activeOpacity={0.7}>
+              <TouchableOpacity onPress={handleSkipOnboarding} style={styles.tourDismissBtn} activeOpacity={0.7}>
                 <Text style={styles.tourDismissBtnText}>Skip Tour ✕</Text>
               </TouchableOpacity>
             </View>
@@ -463,7 +475,7 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={styles.image1CostTag}>🏷️ {TOUR_STEPS[tourStep]?.costTag}</Text>
                 </View>
 
-                {/* ── Animated Bike Transit Track Navigation (Replacing simple arrow navigation) ── */}
+                {/* ── Animated Bike Transit Track Navigation ── */}
                 <View style={styles.bikeTransitTrackContainer}>
                   <View style={styles.bikeTransitTrackBackground} />
                   <Animated.View
@@ -485,12 +497,12 @@ export default function DashboardScreen({ navigation }) {
                   </Animated.View>
                 </View>
 
-                {/* Action Buttons: Prev (Bike / Walk) and Next */}
+                {/* Action Buttons: Prev and Next */}
                 <View style={styles.image1ActionRow}>
-                  {tourStep > 0 && (
+                  {tourStep > 1 && (
                     <TouchableOpacity
                       style={styles.image1PrevBtn}
-                      onPress={() => setTourStep(s => Math.max(0, s - 1))}
+                      onPress={() => setTourStep(s => Math.max(1, s - 1))}
                       activeOpacity={0.8}
                     >
                       <Text style={styles.image1PrevText}>‹ Prev</Text>
@@ -503,7 +515,7 @@ export default function DashboardScreen({ navigation }) {
                       if (tourStep < TOUR_STEPS.length - 1) {
                         setTourStep(s => s + 1);
                       } else {
-                        dismissOnboarding();
+                        finishTour();
                       }
                     }}
                     activeOpacity={0.85}
@@ -514,18 +526,21 @@ export default function DashboardScreen({ navigation }) {
                   </TouchableOpacity>
                 </View>
 
-                {/* Pagination Dots (● ○ ○ ○ ○ ○) */}
+                {/* Pagination Dots (● ○ ○ ○ ○) */}
                 <View style={styles.image1DotsRow}>
-                  {TOUR_STEPS.map((_, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => setTourStep(i)}
-                      style={[
-                        styles.image1Dot,
-                        tourStep === i ? styles.image1DotActive : styles.image1DotInactive,
-                      ]}
-                    />
-                  ))}
+                  {TOUR_STEPS.slice(1).map((_, i) => {
+                    const stepIdx = i + 1;
+                    return (
+                      <TouchableOpacity
+                        key={stepIdx}
+                        onPress={() => setTourStep(stepIdx)}
+                        style={[
+                          styles.image1Dot,
+                          tourStep === stepIdx ? styles.image1DotActive : styles.image1DotInactive,
+                        ]}
+                      />
+                    );
+                  })}
                 </View>
               </View>
             </View>
@@ -537,7 +552,7 @@ export default function DashboardScreen({ navigation }) {
 
         <View style={styles.servicesContainer}>
           {MAIN_SERVICES.map((item, idx) => {
-            const isTourTarget = showOnboarding && !showBetaDisclaimer && (tourStep === idx + 1);
+            const isTourTarget = isTourActive && !showBetaDisclaimer && (tourStep === idx + 1);
             return (
               <View key={item.key} style={{ position: 'relative' }}>
                 {isTourTarget && (
@@ -577,9 +592,6 @@ export default function DashboardScreen({ navigation }) {
                   }}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.serviceIconWrap, { backgroundColor: item.iconBg }]}>
-                    <Text style={styles.serviceIcon}>{item.icon}</Text>
-                  </View>
                   <View style={{ flex: 1, paddingRight: 8 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Text style={styles.serviceTitle}>{item.title}</Text>
@@ -615,7 +627,7 @@ export default function DashboardScreen({ navigation }) {
           })}
 
           {/* Stop 5 Tour Pointer: Profile & Safety Card */}
-          {showOnboarding && !showBetaDisclaimer && tourStep === 5 && (
+          {isTourActive && !showBetaDisclaimer && tourStep === 5 && (
             <View style={{ position: 'relative', marginTop: 4 }}>
               <View style={styles.tourPointingRow}>
                 <Animated.View
@@ -642,14 +654,11 @@ export default function DashboardScreen({ navigation }) {
               <TouchableOpacity
                 style={[styles.serviceCard, styles.serviceCardTourActive]}
                 onPress={() => {
-                  dismissOnboarding();
+                  finishTour();
                   navigation.navigate('KYC');
                 }}
                 activeOpacity={0.8}
               >
-                <View style={[styles.serviceIconWrap, { backgroundColor: '#1e2430' }]}>
-                  <Text style={styles.serviceIcon}>🛡️</Text>
-                </View>
                 <View style={{ flex: 1, paddingRight: 8 }}>
                   <Text style={styles.serviceTitle}>Campus Safety & Verification</Text>
                   <Text style={styles.serviceSub}>Upload college student ID, KYC & emergency contact</Text>
@@ -923,6 +932,63 @@ export default function DashboardScreen({ navigation }) {
               onPress={dismissBetaDisclaimer}
               style={{ width: '100%', paddingVertical: 10 }}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Onboarding Welcome Modal Pop-up (Go through or Skip) ── */}
+      <Modal
+        visible={showOnboardingPopup && !showBetaDisclaimer}
+        transparent
+        animationType="slide"
+        onRequestClose={handleSkipOnboarding}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.onboardingPopupCard}>
+            {/* Top Media Area */}
+            <View style={styles.onboardingPopupMedia}>
+              <View style={styles.onboardingPopupBadge}>
+                <Text style={styles.onboardingPopupBadgeText}>CAMPUS EXCLUSIVE</Text>
+              </View>
+              <Text style={{ fontSize: 50 }}>🛵💨</Text>
+              <View style={styles.onboardingPopupLiveBadge}>
+                <Text style={styles.onboardingPopupLiveBadgeText}>5 STOPS TOUR</Text>
+              </View>
+            </View>
+
+            {/* Content Area */}
+            <View style={styles.onboardingPopupBody}>
+              <Text style={styles.onboardingPopupTitle}>Welcome to HOGO CampusRide</Text>
+              
+              <Text style={styles.onboardingPopupHighlight}>
+                • Split daily campus commute costs 50% with verified peers{'\n'}
+                • Find walking companions at night with Nadi{'\n'}
+                • Stay notified with campus alerts & sitcom lounges
+              </Text>
+
+              <Text style={styles.onboardingPopupPrompt}>
+                Would you like a quick interactive tour to navigate each feature with our campus bike?
+              </Text>
+
+              {/* Action Buttons: Go through or Skip */}
+              <View style={styles.onboardingPopupActions}>
+                <TouchableOpacity
+                  style={styles.onboardingSkipBtn}
+                  onPress={handleSkipOnboarding}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.onboardingSkipBtnText}>Skip Tour</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.onboardingGoThroughBtn}
+                  onPress={handleStartTour}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.onboardingGoThroughBtnText}>Go Through Tour 🛵💨</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1687,5 +1753,123 @@ const styles = StyleSheet.create({
   image1DotInactive: {
     width: 8,
     backgroundColor: '#22354e',
+  },
+
+  /* ── Onboarding Pop-up Modal Styles ── */
+  onboardingPopupCard: {
+    backgroundColor: '#0d1522',
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 360,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#1e385c',
+    shadowColor: '#2dd4a0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  onboardingPopupMedia: {
+    backgroundColor: '#122238',
+    height: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  onboardingPopupBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: '#0288d1',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  onboardingPopupBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  onboardingPopupLiveBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  onboardingPopupLiveBadgeText: {
+    color: '#e0e0e0',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  onboardingPopupBody: {
+    padding: 18,
+    backgroundColor: '#0b1320',
+  },
+  onboardingPopupTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 8,
+    letterSpacing: -0.2,
+  },
+  onboardingPopupHighlight: {
+    color: '#94a3b8',
+    fontSize: 12.5,
+    lineHeight: 19,
+    marginBottom: 10,
+  },
+  onboardingPopupPrompt: {
+    color: '#38bdf8',
+    fontSize: 12.5,
+    fontWeight: '700',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  onboardingPopupActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  onboardingSkipBtn: {
+    backgroundColor: '#162235',
+    borderWidth: 1,
+    borderColor: '#2b3e5e',
+    borderRadius: radius.md,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingSkipBtnText: {
+    color: colors.text2,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  onboardingGoThroughBtn: {
+    flex: 1,
+    backgroundColor: '#2dd4a0',
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2dd4a0',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  onboardingGoThroughBtnText: {
+    color: '#000000',
+    fontSize: 13.5,
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
 });

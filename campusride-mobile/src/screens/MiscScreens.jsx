@@ -401,9 +401,8 @@ export function WalkTogetherScreen({ navigation }) {
   const now = Date.now();
   const isWalkActive = (p) => (now - new Date(p.createdAt).getTime()) < 24 * 60 * 60 * 1000;
 
-  const activeWalks  = posts.filter(isWalkActive);
-  const historyWalks = posts.filter(p => !isWalkActive(p));
-  const currentList  = activeTab === 'active' ? activeWalks : historyWalks;
+  // Past rides disappear after 24 hrs - only show active walks within 24h
+  const activeWalks = posts.filter(isWalkActive);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -451,82 +450,48 @@ export function WalkTogetherScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* 24-Hour Expiration Tabs: Active vs. History */}
+        {/* Active Campus Walks Count Header */}
         <View style={{
           flexDirection: 'row',
-          backgroundColor: '#12161f',
-          borderRadius: radius.lg,
-          padding: 4,
-          marginBottom: 14,
-          borderWidth: 1,
-          borderColor: colors.border
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 12,
+          paddingHorizontal: 4,
         }}>
-          <TouchableOpacity
-            onPress={() => setActiveTab('active')}
-            style={[{
-              flex: 1, paddingVertical: 9, borderRadius: radius.md, alignItems: 'center',
-            }, activeTab === 'active' && { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.accent }]}
-          >
-            <Text style={{
-              color: activeTab === 'active' ? colors.accent : colors.text2,
-              fontWeight: '800', fontSize: 12.5
-            }}>
-              🚶 Active Walks ({activeWalks.length})
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setActiveTab('history')}
-            style={[{
-              flex: 1, paddingVertical: 9, borderRadius: radius.md, alignItems: 'center',
-            }, activeTab === 'history' && { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border2 }]}
-          >
-            <Text style={{
-              color: activeTab === 'history' ? colors.text : colors.text3,
-              fontWeight: '700', fontSize: 12.5
-            }}>
-              📜 History (Past 24h) ({historyWalks.length})
-            </Text>
-          </TouchableOpacity>
+          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '800' }}>
+            🚶 Active Campus Walks ({activeWalks.length})
+          </Text>
+          <Text style={{ color: colors.text3, fontSize: 11 }}>
+            Auto-disappears after 24 hrs
+          </Text>
         </View>
 
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 24 }} />
-        ) : currentList.length === 0 ? (
+        ) : activeWalks.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 36 }}>
-            <Text style={{ fontSize: 40, marginBottom: 8 }}>
-              {activeTab === 'active' ? '🚶' : '📜'}
-            </Text>
+            <Text style={{ fontSize: 40, marginBottom: 8 }}>🚶</Text>
             <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center' }}>
-              {activeTab === 'active'
-                ? 'No active walk requests in the last 24h. Post one above!'
-                : 'No expired walk history recorded yet.'}
+              No active walk requests in the last 24h. Post one above!
             </Text>
           </View>
         ) : (
-          currentList.map(post => {
+          activeWalks.map(post => {
             const authorId = (post.author?._id || post.author || post.authorId || '').toString();
             const isMyPost = authorId === currentUserId;
             const joinedList = post.joinedUsers || [];
             const isJoined = joinedList.some(j => (j.userId?._id || j.userId || '').toString() === currentUserId);
-            const isExpired = !isWalkActive(post);
 
             return (
-              <View key={post._id} style={[styles.card, isExpired && { opacity: 0.75 }]}>
+              <View key={post._id} style={styles.card}>
                 {/* Header: Posted Date & Time */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <Text style={{ color: colors.text3, fontSize: 11, fontWeight: '600' }}>
                     📅 Posted: {new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} • {new Date(post.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                   </Text>
-                  {isExpired ? (
-                    <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.sm }}>
-                      <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>24h+ Past</Text>
-                    </View>
-                  ) : (
-                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.sm }}>
-                      <Text style={{ color: colors.green, fontSize: 10, fontWeight: '800' }}>ACTIVE</Text>
-                    </View>
-                  )}
+                  <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.sm }}>
+                    <Text style={{ color: colors.green, fontSize: 10, fontWeight: '800' }}>ACTIVE</Text>
+                  </View>
                 </View>
 
                 {/* Content */}
@@ -577,8 +542,8 @@ export function WalkTogetherScreen({ navigation }) {
                   </TouchableOpacity>
 
                   <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                    {/* Join / Leave button */}
-                    {!isExpired && (
+                    {/* Join / Leave button: The person posting shouldn't have join option */}
+                    {!isMyPost && (
                       <TouchableOpacity
                         onPress={() => toggleJoin(post._id)}
                         activeOpacity={0.8}
@@ -701,21 +666,6 @@ export function WalkTogetherScreen({ navigation }) {
                 ))}
               </ScrollView>
             )}
-
-            <TouchableOpacity
-              onPress={() => setInspectModalPost(null)}
-              style={{
-                backgroundColor: colors.surface2,
-                borderRadius: radius.md,
-                paddingVertical: 10,
-                alignItems: 'center',
-                marginTop: 12,
-                borderWidth: 1,
-                borderColor: colors.border,
-              }}
-            >
-              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>Close</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>

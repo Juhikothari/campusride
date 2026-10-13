@@ -500,51 +500,7 @@ export default function ProfileScreen({ navigation }) {
           </Text>
         )}
 
-        {/* ── RATINGS & 10-RIDE PRIVACY LOCK ── */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Campus Commuter Rating</Text>
-          {completedRidesCount < 10 ? (
-            <View style={styles.lockedRatingBox}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <View style={styles.lockIconCircle}>
-                  <Text style={{ fontSize: 18 }}>🔒</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.lockedRatingTitle}>
-                    Rating Locked ({completedRidesCount}/10 Rides)
-                  </Text>
-                  <Text style={styles.lockedRatingSub}>
-                    Ratings unlock after completing 10 rides to protect student privacy and ensure unbiased averages.
-                  </Text>
-                </View>
-              </View>
-              {/* Progress bar */}
-              <View style={styles.progressBarTrack}>
-                <View style={[styles.progressBarFill, { width: `${Math.min(100, (completedRidesCount / 10) * 100)}%` }]} />
-              </View>
-              <Text style={styles.progressCounterText}>
-                {10 - completedRidesCount} more ride{10 - completedRidesCount !== 1 ? 's' : ''} needed to unlock average rating
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.unlockedRatingBox}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <View>
-                  <Text style={styles.ratingNumber}>
-                    ⭐ {(p?.averageRating || p?.rating || 5.0).toFixed(1)} <Text style={{ fontSize: 13, color: colors.text3 }}>/ 5.0</Text>
-                  </Text>
-                  <Text style={styles.ratingTotalBadge}>{completedRidesCount} verified campus rides</Text>
-                </View>
-                <View style={styles.unlockedBadgePill}>
-                  <Text style={styles.unlockedBadgePillText}>✓ Unlocked</Text>
-                </View>
-              </View>
-              <Text style={styles.anonymousNotice}>
-                🔒 Individual ratings and reviewer identities are completely private and never shown.
-              </Text>
-            </View>
-          )}
-        </View>
+
 
         {/* Actions */}
         <Btn label="Sign Out" onPress={handleLogout} variant="danger" style={{ marginTop: 8, marginBottom: 32 }} />
