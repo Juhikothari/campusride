@@ -142,6 +142,45 @@ exports.toggleJoinWalk = async (req, res) => {
     await post.save();
     await post.populate('author', 'name college usn');
 
+    // Notify walk post author when someone joins
+    const authorId = (post.author?._id || post.author || '').toString();
+    if (isJoined && authorId && authorId !== userIdStr) {
+      const io = req.app.get('io');
+      const studentIdentifier = user?.usn?.trim() || 'A verified student';
+      const notifPayload = {
+        title: '🚶 Someone Joined Your Walk Together!',
+        message: `Student (${studentIdentifier}) just joined your walk companion request!`,
+        type: 'walk-join',
+        postId: post._id,
+        createdAt: new Date(),
+      };
+
+      // Save notification to DB if model is available
+      try {
+        const Notification = require('../notifications/notifications.model');
+        if (Notification) {
+          await Notification.create({
+            userId: authorId,
+            type: 'WALK_JOIN',
+            title: notifPayload.title,
+            body: notifPayload.message,
+            data: { postId: post._id },
+          });
+        }
+      } catch (e) {
+        // notification save is non-blocking
+      }
+
+      if (io) {
+        io.to(`user-${authorId}`).emit('new-notification', notifPayload);
+        io.to(`user-${authorId}`).emit('walk-joined', {
+          postId: post._id,
+          usn: studentIdentifier,
+          joinedCount: post.joinedUsers.length,
+        });
+      }
+    }
+
     res.json({
       post,
       isJoined,

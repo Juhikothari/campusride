@@ -159,6 +159,18 @@ export const getSharedSocket = (userId, userType) => {
       }
     });
 
+    // ── Walk Together (Nadi) Companion Joined ──
+    globalSocket.on('walk-joined', (data) => {
+      notifyAll('walk-joined', data);
+      showPushNotification({
+        title: '🚶 Someone Joined Your Walk Together!',
+        body: data?.usn
+          ? `Student (${data.usn}) joined your walk request. Tap to view joined students.`
+          : 'A verified student has joined your walk companion request!',
+        data,
+      });
+    });
+
     // ── General Notifications ──
     globalSocket.on('new-notification', (data) => {
       notifyAll('new-notification', data);

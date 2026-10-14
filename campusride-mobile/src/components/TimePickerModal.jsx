@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   badge: {
-    color: '#2dd4a0',
+    color: '#38bdf8',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 1,
@@ -263,14 +263,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 14,
     borderWidth: 1.5,
-    borderColor: '#2dd4a0',
+    borderColor: '#f5a623',
   },
   digitBox: {
     alignItems: 'center',
     minWidth: 64,
   },
   digitText: {
-    color: '#2dd4a0',
+    color: '#f5a623',
     fontSize: 34,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   colonText: {
-    color: '#2dd4a0',
+    color: '#f5a623',
     fontSize: 32,
     fontWeight: '900',
     marginHorizontal: 10,
@@ -303,8 +303,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   periodBtnActive: {
-    backgroundColor: '#2dd4a0',
-    borderColor: '#2dd4a0',
+    backgroundColor: '#f5a623',
+    borderColor: '#f5a623',
   },
   periodBtnText: {
     color: '#8b949e',
@@ -352,8 +352,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chipActive: {
-    backgroundColor: 'rgba(45, 212, 160, 0.15)',
-    borderColor: '#2dd4a0',
+    backgroundColor: 'rgba(245, 166, 35, 0.15)',
+    borderColor: '#f5a623',
   },
   chipText: {
     color: '#c9d1d9',
@@ -361,11 +361,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   chipTextActive: {
-    color: '#2dd4a0',
+    color: '#f5a623',
     fontWeight: '800',
   },
   confirmBtn: {
-    backgroundColor: '#2dd4a0',
+    backgroundColor: '#f5a623',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
@@ -424,8 +424,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   vChipActive: {
-    backgroundColor: 'rgba(45, 212, 160, 0.2)',
-    borderColor: '#2dd4a0',
+    backgroundColor: 'rgba(245, 166, 35, 0.2)',
+    borderColor: '#f5a623',
   },
   vChipText: {
     color: '#c9d1d9',
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   vChipTextActive: {
-    color: '#2dd4a0',
+    color: '#f5a623',
     fontWeight: '900',
   },
   vColDivider: {
@@ -457,8 +457,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   periodVBtnActive: {
-    backgroundColor: '#2dd4a0',
-    borderColor: '#2dd4a0',
+    backgroundColor: '#f5a623',
+    borderColor: '#f5a623',
   },
   periodVBtnText: {
     color: '#8b949e',

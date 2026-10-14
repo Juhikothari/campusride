@@ -52,9 +52,14 @@ export default function DashboardScreen({ navigation }) {
   // Per-user Testing popup & Onboarding Tour states
   const [showBetaDisclaimer, setShowBetaDisclaimer] = useState(false);
   const [showOnboardingPopup, setShowOnboardingPopup] = useState(false);
+  const [popupStep, setPopupStep] = useState(0); // 0 to 3 for the 4 options
   const [isTourActive, setIsTourActive] = useState(false);
-  const [tourStep, setTourStep] = useState(1);
+  const [tourStep, setTourStep] = useState(1); // 1 to 4
   const [unreadCommunityCount, setUnreadCommunityCount] = useState(getCommunityUnreadCount());
+
+  // Refs for auto-scrolling to options on dashboard
+  const scrollViewRef = useRef(null);
+  const serviceCardPositions = useRef({});
 
   useEffect(() => {
     const unsub = subscribeToCommunityUnread((cnt) => {
@@ -148,14 +153,9 @@ export default function DashboardScreen({ navigation }) {
     } catch {}
   };
 
-  const handleStartTour = () => {
-    setShowOnboardingPopup(false);
-    setIsTourActive(true);
-    setTourStep(1);
-  };
-
   const finishTour = async () => {
     setIsTourActive(false);
+    setShowOnboardingPopup(false);
     try {
       await AsyncStorage.setItem(`@has_seen_onboarding_tour_${userKey}`, 'true');
       await AsyncStorage.setItem('@show_onboarding_carousel', 'false');
@@ -164,23 +164,9 @@ export default function DashboardScreen({ navigation }) {
 
   const TOUR_STEPS = [
     {
-      step: 0,
-      badge: '✨ DISCOVER HOGO',
-      tag: 'Campus Exclusive',
-      icon: '🎓',
-      iconBg: '#1e3a5f',
-      title: 'Welcome to HOGO CampusRide',
-      desc: 'Go through these 2–3 lines first: HOGO connects verified students from your campus to split commute costs, find walking buddies, and hang out in college hubs safely. Follow the tour below as we guide you through each feature step-by-step!',
-      vehicle: '🛵💨',
-      vehicleName: 'Electric Campus Scooter',
-      costTag: '100% Student Verified',
-      rating: '5.0 ★★★★★',
-      btnLabel: 'Ride To Stop 1 🛵💨',
-    },
-    {
       step: 1,
       targetKey: 'SearchRides',
-      badge: 'STOP 1 OF 5',
+      badge: 'STOP 1 OF 4',
       tag: 'Best Match',
       icon: '🔍',
       iconBg: '#0f382c',
@@ -189,14 +175,14 @@ export default function DashboardScreen({ navigation }) {
       vehicle: '🛵💨',
       vehicleName: 'Daily Campus Carpool',
       costTag: 'Split Fuel Costs 50%',
-      rating: '4.9 ★★★★★',
-      btnLabel: 'Cruise To Stop 2 🚗💨',
+      rating: '★ 4.9 Commuter Match',
+      btnLabel: 'Ride To Option 2 🛵💨',
       route: 'SearchRides',
     },
     {
       step: 2,
       targetKey: 'CreateRide',
-      badge: 'STOP 2 OF 5',
+      badge: 'STOP 2 OF 4',
       tag: 'Provider Hub',
       icon: '🚗',
       iconBg: '#3a2010',
@@ -205,59 +191,72 @@ export default function DashboardScreen({ navigation }) {
       vehicle: '🚗💨',
       vehicleName: 'Student Ride Offer',
       costTag: 'Offset 100% Commute Costs',
-      rating: '4.9 ★★★★★',
-      btnLabel: 'Cruise To Stop 3 🛋️💨',
+      rating: '★ 4.9 Verified Drivers',
+      btnLabel: 'Ride To Option 3 🛵💨',
       route: 'CreateRide',
     },
     {
       step: 3,
       targetKey: 'Community',
-      badge: 'STOP 3 OF 5',
+      badge: 'STOP 3 OF 4',
       tag: 'Campus Lounge',
       icon: '🛋️',
       iconBg: '#2a1a4a',
-      title: 'Campus Community & Chat',
-      desc: 'Hang out in your sitcom-themed college lounge (Central Perk, Dunder Mifflin), get campus transit alerts, and receive instant notifications whenever someone replies!',
+      title: 'Community & Chat',
+      desc: 'Hang out in your sitcom-themed college lounge (Central Perk, Dunder Mifflin), get campus transit alerts, and stay connected with verified classmates.',
       vehicle: '☕💨',
-      vehicleName: 'Sitcom Hubs & Discussions',
+      vehicleName: 'Sitcom Hubs & Chats',
       costTag: 'Instant Reply Alerts',
-      rating: '4.8 ★★★★★',
-      btnLabel: 'Walk To Stop 4 🚶💨',
+      rating: '★ 4.8 Campus Lounge',
+      btnLabel: 'Ride To Option 4 🛵💨',
       route: 'Community',
     },
     {
       step: 4,
       targetKey: 'WalkTogether',
-      badge: 'STOP 4 OF 5',
+      badge: 'STOP 4 OF 4',
       tag: 'Nadi Safety',
       icon: '🚶',
       iconBg: '#103038',
-      title: 'Nadi Walk Together',
+      title: 'Nadi (Walk Together)',
       desc: 'Never walk alone at night or across long campus routes. Partner up with verified classmates for safe company between hostels, libraries, and metro gates.',
       vehicle: '👟💨',
       vehicleName: 'Campus Night Walking Groups',
       costTag: '24h Expiration & USN Tracking',
-      rating: '5.0 ★★★★★',
-      btnLabel: 'Cruise To Stop 5 🛡️💨',
+      rating: '★ 5.0 Night Safety',
+      btnLabel: 'Finish Tour 🚀',
       route: 'WalkTogether',
     },
-    {
-      step: 5,
-      targetKey: 'profile',
-      badge: 'STOP 5 OF 5',
-      tag: 'Student Trust',
-      icon: '🛡️',
-      iconBg: '#331010',
-      title: 'Campus Profile & Safety',
-      desc: 'Student safety is top priority. Complete your college student KYC, verify two-way checklists before every ride, and access 24/7 instant emergency SOS.',
-      vehicle: '🚨💨',
-      vehicleName: 'KYC & 2-Way Checklists',
-      costTag: 'Strict USN Privacy',
-      rating: '5.0 ★★★★★',
-      btnLabel: 'Finish Tour & Start Commuting 🚀',
-      route: 'KYC',
-    },
   ];
+
+  // Navigate to specific option with animated scroll and bike highlighting
+  const navigateToOption = (stepIndex) => {
+    setTourStep(stepIndex);
+    setPopupStep(stepIndex - 1);
+    setIsTourActive(true);
+    setShowOnboardingPopup(false);
+
+    // Trigger bike bounce animation
+    bikeAnim.setValue(0);
+    Animated.timing(bikeAnim, {
+      toValue: 1,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    // Smooth scroll dashboard to the targeted service card
+    const target = TOUR_STEPS[stepIndex - 1];
+    if (target && target.targetKey && serviceCardPositions.current[target.targetKey] != null) {
+      const yPos = serviceCardPositions.current[target.targetKey];
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, yPos - 100),
+          animated: true,
+        });
+      }, 100);
+    }
+  };
 
   // Load active trip status
   useEffect(() => {
@@ -408,7 +407,11 @@ export default function DashboardScreen({ navigation }) {
       {/* Top Header matching Images 2 & 3 */}
       <TopHeader title="HOGO" subtitle="Find Your Match" />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Hey Greeting Hero Card */}
         <View style={styles.heroCard}>
           <View style={styles.heroGlowCircle} />
@@ -419,134 +422,6 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* ── Guided Onboarding Banner (When Tour is Active) ── */}
-        {isTourActive && !showBetaDisclaimer && (
-          <View style={styles.image1CarouselWrapper}>
-            {/* Header with Title and Skip */}
-            <View style={styles.image1HeaderRow}>
-              <View>
-                <Text style={styles.image1SectionTitle}>Featured Features</Text>
-                <Text style={styles.image1SectionSubtitle}>Interactive Guided Tour</Text>
-              </View>
-              <TouchableOpacity onPress={handleSkipOnboarding} style={styles.tourDismissBtn} activeOpacity={0.7}>
-                <Text style={styles.tourDismissBtnText}>Skip Tour ✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Centered Showcase Card (Matching Image 1) */}
-            <View style={styles.image1CardContainer}>
-              {/* Card Illustration / Visual Area */}
-              <View style={[styles.image1CardMedia, { backgroundColor: TOUR_STEPS[tourStep]?.iconBg || '#162235' }]}>
-                {/* Badge top-left */}
-                <View style={styles.image1Badge}>
-                  <Text style={styles.image1BadgeText}>{TOUR_STEPS[tourStep]?.tag || 'Featured'}</Text>
-                </View>
-
-                {/* Big Visual Icon */}
-                <Text style={styles.image1CenterIcon}>{TOUR_STEPS[tourStep]?.icon || '🛵'}</Text>
-
-                {/* Step indicator top-right */}
-                <View style={styles.image1StepBadge}>
-                  <Text style={styles.image1StepBadgeText}>{TOUR_STEPS[tourStep]?.badge}</Text>
-                </View>
-              </View>
-
-              {/* Card Content Details */}
-              <View style={styles.image1CardBody}>
-                <View style={styles.image1TitleRow}>
-                  <Text style={styles.image1Title} numberOfLines={1}>
-                    {TOUR_STEPS[tourStep]?.title}
-                  </Text>
-                </View>
-
-                {/* Rating Stars & Vehicle Name */}
-                <View style={styles.image1RatingRow}>
-                  <Text style={styles.image1RatingText}>{TOUR_STEPS[tourStep]?.rating || '★★★★★'}</Text>
-                  <Text style={styles.image1VehicleSubtitle}>• {TOUR_STEPS[tourStep]?.vehicleName}</Text>
-                </View>
-
-                {/* Description */}
-                <Text style={styles.image1Description}>
-                  {TOUR_STEPS[tourStep]?.desc}
-                </Text>
-
-                {/* Feature highlight cost / trust tag */}
-                <View style={styles.image1TagRow}>
-                  <Text style={styles.image1CostTag}>🏷️ {TOUR_STEPS[tourStep]?.costTag}</Text>
-                </View>
-
-                {/* ── Animated Bike Transit Track Navigation ── */}
-                <View style={styles.bikeTransitTrackContainer}>
-                  <View style={styles.bikeTransitTrackBackground} />
-                  <Animated.View
-                    style={[
-                      styles.bikeAnimatedRunner,
-                      {
-                        transform: [
-                          {
-                            translateX: bikeAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0, 140],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  >
-                    <Text style={styles.bikeTrackIcon}>🏍️💨</Text>
-                  </Animated.View>
-                </View>
-
-                {/* Action Buttons: Prev and Next */}
-                <View style={styles.image1ActionRow}>
-                  {tourStep > 1 && (
-                    <TouchableOpacity
-                      style={styles.image1PrevBtn}
-                      onPress={() => setTourStep(s => Math.max(1, s - 1))}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.image1PrevText}>‹ Prev</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.image1NextBtn}
-                    onPress={() => {
-                      if (tourStep < TOUR_STEPS.length - 1) {
-                        setTourStep(s => s + 1);
-                      } else {
-                        finishTour();
-                      }
-                    }}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.image1NextText}>
-                      {TOUR_STEPS[tourStep]?.btnLabel}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Pagination Dots (● ○ ○ ○ ○) */}
-                <View style={styles.image1DotsRow}>
-                  {TOUR_STEPS.slice(1).map((_, i) => {
-                    const stepIdx = i + 1;
-                    return (
-                      <TouchableOpacity
-                        key={stepIdx}
-                        onPress={() => setTourStep(stepIdx)}
-                        style={[
-                          styles.image1Dot,
-                          tourStep === stepIdx ? styles.image1DotActive : styles.image1DotInactive,
-                        ]}
-                      />
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
         {/* WHAT DO YOU NEED? section */}
         <Text style={styles.sectionLabel}>WHAT DO YOU NEED?</Text>
 
@@ -554,7 +429,13 @@ export default function DashboardScreen({ navigation }) {
           {MAIN_SERVICES.map((item, idx) => {
             const isTourTarget = isTourActive && !showBetaDisclaimer && (tourStep === idx + 1);
             return (
-              <View key={item.key} style={{ position: 'relative' }}>
+              <View
+                key={item.key}
+                style={{ position: 'relative' }}
+                onLayout={(e) => {
+                  serviceCardPositions.current[item.key] = e.nativeEvent.layout.y;
+                }}
+              >
                 {isTourTarget && (
                   <View style={styles.tourPointingRow}>
                     <Animated.View
@@ -572,10 +453,10 @@ export default function DashboardScreen({ navigation }) {
                         },
                       ]}
                     >
-                      <Text style={{ fontSize: 22 }}>{TOUR_STEPS[tourStep]?.vehicle || '🛵💨'}</Text>
+                      <Text style={{ fontSize: 22 }}>🛵💨</Text>
                     </Animated.View>
                     <View style={styles.tourCurrentStopBadge}>
-                      <Text style={styles.tourCurrentStopText}>📍 STOP {tourStep}/5 · TAP TO EXPLORE</Text>
+                      <Text style={styles.tourCurrentStopText}>📍 OPTION {tourStep}/4 · {item.title.toUpperCase()}</Text>
                     </View>
                   </View>
                 )}
@@ -585,8 +466,8 @@ export default function DashboardScreen({ navigation }) {
                     isTourTarget && styles.serviceCardTourActive,
                   ]}
                   onPress={() => {
-                    if (isTourTarget && tourStep < TOUR_STEPS.length - 1) {
-                      setTourStep(s => s + 1);
+                    if (isTourActive && tourStep < 4) {
+                      navigateToOption(tourStep + 1);
                     }
                     navigation.navigate(item.key);
                   }}
@@ -604,84 +485,31 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.serviceSub}>{item.sub}</Text>
                   </View>
                   
-                  {/* Animated bike moving navigation indicator instead of static arrow */}
+                  {/* Clean chevron arrow when idle; animated tour bike ONLY when this card is targeted by tour */}
                   <View style={styles.serviceNavWrap}>
-                    <Animated.View
-                      style={{
-                        transform: [
-                          {
-                            translateX: bikeAnim.interpolate({
-                              inputRange: [0, 0.5, 1],
-                              outputRange: [0, 6, 0],
-                            }),
-                          },
-                        ],
-                      }}
-                    >
-                      <Text style={styles.serviceNavBike}>{isTourTarget ? (TOUR_STEPS[tourStep]?.vehicle || '🛵💨') : '🛵💨'}</Text>
-                    </Animated.View>
+                    {isTourTarget ? (
+                      <Animated.View
+                        style={{
+                          transform: [
+                            {
+                              translateX: bikeAnim.interpolate({
+                                inputRange: [0, 0.5, 1],
+                                outputRange: [0, 6, 0],
+                              }),
+                            },
+                          ],
+                        }}
+                      >
+                        <Text style={styles.serviceNavBike}>🛵💨</Text>
+                      </Animated.View>
+                    ) : (
+                      <Text style={styles.serviceChevron}>›</Text>
+                    )}
                   </View>
                 </TouchableOpacity>
               </View>
             );
           })}
-
-          {/* Stop 5 Tour Pointer: Profile & Safety Card */}
-          {isTourActive && !showBetaDisclaimer && tourStep === 5 && (
-            <View style={{ position: 'relative', marginTop: 4 }}>
-              <View style={styles.tourPointingRow}>
-                <Animated.View
-                  style={[
-                    styles.tourBikeAnimatedBadge,
-                    {
-                      transform: [
-                        {
-                          translateX: bikeAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, 24],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: 22 }}>🚨💨</Text>
-                </Animated.View>
-                <View style={styles.tourCurrentStopBadge}>
-                  <Text style={styles.tourCurrentStopText}>📍 STOP 5/5 · SAFETY & KYC</Text>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={[styles.serviceCard, styles.serviceCardTourActive]}
-                onPress={() => {
-                  finishTour();
-                  navigation.navigate('KYC');
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={styles.serviceTitle}>Campus Safety & Verification</Text>
-                  <Text style={styles.serviceSub}>Upload college student ID, KYC & emergency contact</Text>
-                </View>
-                <View style={styles.serviceNavWrap}>
-                  <Animated.View
-                    style={{
-                      transform: [
-                        {
-                          translateX: bikeAnim.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: [0, 6, 0],
-                          }),
-                        },
-                      ],
-                    }}
-                  >
-                    <Text style={styles.serviceNavBike}>🛡️💨</Text>
-                  </Animated.View>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
         </View>
 
         {/* ACTIVE TRIP STATUS (Matching Image 3) */}
@@ -936,7 +764,7 @@ export default function DashboardScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* ── Onboarding Welcome Modal Pop-up (Go through or Skip) ── */}
+      {/* ── Onboarding Option Pop-up Modal ── */}
       <Modal
         visible={showOnboardingPopup && !showBetaDisclaimer}
         transparent
@@ -945,55 +773,167 @@ export default function DashboardScreen({ navigation }) {
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.onboardingPopupCard}>
-            {/* Top Media Area */}
-            <View style={styles.onboardingPopupMedia}>
+            {/* Top Media Area with Theme and Stop Info */}
+            <View style={[styles.onboardingPopupMedia, { backgroundColor: TOUR_STEPS[popupStep]?.iconBg || '#122238' }]}>
               <View style={styles.onboardingPopupBadge}>
-                <Text style={styles.onboardingPopupBadgeText}>CAMPUS EXCLUSIVE</Text>
+                <Text style={styles.onboardingPopupBadgeText}>{TOUR_STEPS[popupStep]?.tag || 'CAMPUS EXCLUSIVE'}</Text>
               </View>
-              <Text style={{ fontSize: 50 }}>🛵💨</Text>
+              <Text style={{ fontSize: 50 }}>{TOUR_STEPS[popupStep]?.icon || '🛵'}</Text>
               <View style={styles.onboardingPopupLiveBadge}>
-                <Text style={styles.onboardingPopupLiveBadgeText}>5 STOPS TOUR</Text>
+                <Text style={styles.onboardingPopupLiveBadgeText}>OPTION {popupStep + 1} OF 4</Text>
               </View>
             </View>
 
             {/* Content Area */}
             <View style={styles.onboardingPopupBody}>
-              <Text style={styles.onboardingPopupTitle}>Welcome to HOGO CampusRide</Text>
+              <Text style={styles.onboardingPopupTitle}>{TOUR_STEPS[popupStep]?.title}</Text>
               
-              <Text style={styles.onboardingPopupHighlight}>
-                • Split daily campus commute costs 50% with verified peers{'\n'}
-                • Find walking companions at night with Nadi{'\n'}
-                • Stay notified with campus alerts & sitcom lounges
-              </Text>
-
-              <Text style={styles.onboardingPopupPrompt}>
-                Would you like a quick interactive tour to navigate each feature with our campus bike?
-              </Text>
-
-              {/* Action Buttons: Go through or Skip */}
-              <View style={styles.onboardingPopupActions}>
-                <TouchableOpacity
-                  style={styles.onboardingSkipBtn}
-                  onPress={handleSkipOnboarding}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.onboardingSkipBtnText}>Skip Tour</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.onboardingGoThroughBtn}
-                  onPress={handleStartTour}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.onboardingGoThroughBtnText}>Go Through Tour 🛵💨</Text>
-                </TouchableOpacity>
+              <View style={styles.popupRatingRow}>
+                <Text style={styles.popupRatingText}>{TOUR_STEPS[popupStep]?.rating}</Text>
+                <Text style={styles.popupCostTag}>• {TOUR_STEPS[popupStep]?.costTag}</Text>
               </View>
+
+              <Text style={styles.onboardingPopupHighlight}>
+                {TOUR_STEPS[popupStep]?.desc}
+              </Text>
+
+              {/* Bike animation track inside pop-up */}
+              <View style={styles.popupBikeTrack}>
+                <View style={styles.popupBikeTrackLine} />
+                <Animated.View
+                  style={{
+                    transform: [
+                      {
+                        translateX: bikeAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, 160],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  <Text style={{ fontSize: 22 }}>🛵💨</Text>
+                </Animated.View>
+              </View>
+
+              {/* Primary Action: Ride to this option on dashboard */}
+              <TouchableOpacity
+                style={styles.onboardingGoThroughBtn}
+                onPress={() => navigateToOption(popupStep + 1)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.onboardingGoThroughBtnText}>
+                  Ride to Option {popupStep + 1} with Bike 🛵💨
+                </Text>
+              </TouchableOpacity>
+
+              {/* Navigation controls row: Prev, Next, Skip */}
+              <View style={styles.popupNavRow}>
+                {popupStep > 0 ? (
+                  <TouchableOpacity
+                    style={styles.popupNavBtn}
+                    onPress={() => setPopupStep(p => Math.max(0, p - 1))}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.popupNavBtnText}>‹ Prev</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={{ width: 64 }} />
+                )}
+
+                {/* Dots indicator */}
+                <View style={styles.popupDotsRow}>
+                  {TOUR_STEPS.map((_, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setPopupStep(i)}
+                      style={[
+                        styles.popupDot,
+                        popupStep === i ? styles.popupDotActive : styles.popupDotInactive,
+                      ]}
+                    />
+                  ))}
+                </View>
+
+                {popupStep < 3 ? (
+                  <TouchableOpacity
+                    style={styles.popupNavBtn}
+                    onPress={() => setPopupStep(p => Math.min(3, p + 1))}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.popupNavBtnText}>Next ›</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.popupNavBtn, { borderColor: '#f5a623' }]}
+                    onPress={finishTour}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.popupNavBtnText, { color: '#f5a623' }]}>Done ✓</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                onPress={handleSkipOnboarding}
+                style={{ alignSelf: 'center', marginTop: 10, paddingVertical: 4 }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '700' }}>Skip Tour ✕</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
+      {/* ── Floating Guided Tour Bar (On Dashboard when tour is active) ── */}
+      {isTourActive && !showBetaDisclaimer && (
+        <View style={styles.floatingTourGuide}>
+          <View style={styles.floatingGuideHeader}>
+            <View style={styles.floatingGuideBadge}>
+              <Text style={styles.floatingGuideBadgeText}>OPTION {tourStep} OF 4</Text>
+            </View>
+            <Text style={styles.floatingGuideTitle} numberOfLines={1}>
+              {TOUR_STEPS[tourStep - 1]?.title}
+            </Text>
+            <TouchableOpacity onPress={finishTour} style={styles.floatingGuideCloseBtn} activeOpacity={0.7}>
+              <Text style={styles.floatingGuideCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
 
+          <Text style={styles.floatingGuideDesc} numberOfLines={2}>
+            {TOUR_STEPS[tourStep - 1]?.desc}
+          </Text>
+
+          <View style={styles.floatingGuideActions}>
+            {tourStep > 1 && (
+              <TouchableOpacity
+                style={styles.floatingGuidePrevBtn}
+                onPress={() => navigateToOption(tourStep - 1)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.floatingGuidePrevText}>‹ Prev</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={styles.floatingGuideNextBtn}
+              onPress={() => {
+                if (tourStep < 4) {
+                  navigateToOption(tourStep + 1);
+                } else {
+                  finishTour();
+                }
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.floatingGuideNextText}>
+                {tourStep < 4 ? `Ride to Option ${tourStep + 1} 🛵💨` : 'Finish Tour 🚀'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
@@ -1512,20 +1452,28 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   tourCurrentStopText: {
-    color: '#2dd4a0',
+    color: '#f5a623',
     fontSize: 9.5,
     fontWeight: '900',
     letterSpacing: 0.5,
   },
   serviceCardTourActive: {
-    borderColor: '#2dd4a0',
+    borderColor: '#f5a623',
     borderWidth: 2,
     backgroundColor: '#111827',
-    shadowColor: '#2dd4a0',
+    shadowColor: '#f5a623',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 5,
+  },
+
+  /* Sleek chevron arrow next to services when idle */
+  serviceChevron: {
+    color: '#64748b',
+    fontSize: 22,
+    fontWeight: '700',
+    marginLeft: 6,
   },
 
   /* WhatsApp Style Community Unread Badge */
@@ -1544,218 +1492,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  /* ── Image 1 Style Showcase Carousel ── */
-  image1CarouselWrapper: {
-    marginBottom: spacing.lg,
-  },
-  image1HeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-    paddingHorizontal: 4,
-  },
-  image1SectionTitle: {
-    color: '#4fc3f7',
-    fontSize: 19,
-    fontWeight: '900',
-    letterSpacing: -0.3,
-  },
-  image1SectionSubtitle: {
-    color: colors.text3,
-    fontSize: 11.5,
-    fontWeight: '600',
-    marginTop: 1,
-  },
-  image1CardContainer: {
-    backgroundColor: '#0e1626',
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: '#1e385c',
-    shadowColor: '#00d2ff',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  image1CardMedia: {
-    height: 140,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  image1Badge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    backgroundColor: '#0288d1',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  image1BadgeText: {
-    color: '#ffffff',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-  },
-  image1StepBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  image1StepBadgeText: {
-    color: '#e0e0e0',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-  },
-  image1CenterIcon: {
-    fontSize: 54,
-  },
-  image1CardBody: {
-    padding: 16,
-    backgroundColor: '#0b1320',
-  },
-  image1TitleRow: {
-    marginBottom: 4,
-  },
-  image1Title: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: -0.2,
-  },
-  image1RatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  image1RatingText: {
-    color: '#f5a623',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  image1VehicleSubtitle: {
-    color: colors.text3,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  image1Description: {
-    color: '#94a3b8',
-    fontSize: 12.5,
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  image1TagRow: {
-    marginBottom: 12,
-  },
-  image1CostTag: {
-    color: '#2dd4a0',
-    fontSize: 12.5,
-    fontWeight: '800',
-  },
-
-  /* Bike Transit Animation Road / Track */
-  bikeTransitTrackContainer: {
-    height: 36,
-    backgroundColor: '#131e30',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#1f3350',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    marginBottom: 14,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  bikeTransitTrackBackground: {
-    position: 'absolute',
-    left: 10,
-    right: 10,
-    height: 2,
-    backgroundColor: '#23395b',
-    top: 17,
-  },
-  bikeAnimatedRunner: {
-    position: 'absolute',
-    left: 8,
-    top: 4,
-  },
-  bikeTrackIcon: {
-    fontSize: 20,
-  },
-
-  /* Buttons & Dots */
-  image1ActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 14,
-  },
-  image1PrevBtn: {
-    backgroundColor: '#172235',
-    borderWidth: 1,
-    borderColor: '#2b3e5e',
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  image1PrevText: {
-    color: colors.text2,
-    fontSize: 12.5,
-    fontWeight: '800',
-  },
-  image1NextBtn: {
-    flex: 1,
-    backgroundColor: '#2dd4a0',
-    borderRadius: radius.md,
-    paddingVertical: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#2dd4a0',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  image1NextText: {
-    color: '#000000',
-    fontSize: 13.5,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-  },
-  image1DotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-    paddingTop: 2,
-  },
-  image1Dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  image1DotActive: {
-    width: 22,
-    backgroundColor: '#0288d1',
-  },
-  image1DotInactive: {
-    width: 8,
-    backgroundColor: '#22354e',
-  },
-
-  /* ── Onboarding Pop-up Modal Styles ── */
+  /* ── Onboarding Pop-up Modal Styles (Image 1 Aesthetic) ── */
   onboardingPopupCard: {
     backgroundColor: '#0d1522',
     borderRadius: 24,
@@ -1764,15 +1501,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: '#1e385c',
-    shadowColor: '#2dd4a0',
+    shadowColor: '#f5a623',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 18,
     elevation: 8,
   },
   onboardingPopupMedia: {
-    backgroundColor: '#122238',
-    height: 120,
+    height: 125,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -1817,59 +1553,214 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '900',
-    marginBottom: 8,
+    marginBottom: 4,
     letterSpacing: -0.2,
+  },
+  popupRatingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  popupRatingText: {
+    color: '#f5a623',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  popupCostTag: {
+    color: '#38bdf8',
+    fontSize: 12,
+    fontWeight: '800',
   },
   onboardingPopupHighlight: {
     color: '#94a3b8',
     fontSize: 12.5,
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  onboardingPopupPrompt: {
-    color: '#38bdf8',
-    fontSize: 12.5,
-    fontWeight: '700',
     lineHeight: 18,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  onboardingPopupActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  onboardingSkipBtn: {
-    backgroundColor: '#162235',
+
+  /* Pop-up Bike Track Animation */
+  popupBikeTrack: {
+    height: 34,
+    backgroundColor: '#131e30',
+    borderRadius: 17,
     borderWidth: 1,
-    borderColor: '#2b3e5e',
-    borderRadius: radius.md,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
+    borderColor: '#1f3350',
     justifyContent: 'center',
+    paddingHorizontal: 8,
+    marginBottom: 14,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  onboardingSkipBtnText: {
-    color: colors.text2,
-    fontSize: 13,
-    fontWeight: '800',
+  popupBikeTrackLine: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    height: 2,
+    backgroundColor: '#23395b',
+    top: 16,
   },
+
   onboardingGoThroughBtn: {
-    flex: 1,
-    backgroundColor: '#2dd4a0',
+    backgroundColor: '#f5a623',
     borderRadius: radius.md,
     paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2dd4a0',
+    shadowColor: '#f5a623',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 3,
+    marginBottom: 12,
   },
   onboardingGoThroughBtnText: {
     color: '#000000',
     fontSize: 13.5,
     fontWeight: '900',
     letterSpacing: 0.2,
+  },
+
+  popupNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 4,
+  },
+  popupNavBtn: {
+    backgroundColor: '#162235',
+    borderWidth: 1,
+    borderColor: '#2b3e5e',
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    minWidth: 64,
+    alignItems: 'center',
+  },
+  popupNavBtnText: {
+    color: '#c9d1d9',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  popupDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  popupDot: {
+    height: 6,
+    borderRadius: 3,
+  },
+  popupDotActive: {
+    width: 18,
+    backgroundColor: '#f5a623',
+  },
+  popupDotInactive: {
+    width: 6,
+    backgroundColor: '#22354e',
+  },
+
+  /* ── Floating Guided Tour Bar (Docked at bottom of dashboard during tour) ── */
+  floatingTourGuide: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    backgroundColor: '#0d1522',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#f5a623',
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+    zIndex: 99,
+  },
+  floatingGuideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  floatingGuideBadge: {
+    backgroundColor: 'rgba(245, 166, 35, 0.2)',
+    borderWidth: 1,
+    borderColor: '#f5a623',
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginRight: 8,
+  },
+  floatingGuideBadgeText: {
+    color: '#f5a623',
+    fontSize: 9.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  floatingGuideTitle: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  floatingGuideCloseBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#1b2434',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  floatingGuideCloseText: {
+    color: '#8b949e',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  floatingGuideDesc: {
+    color: '#94a3b8',
+    fontSize: 11.5,
+    lineHeight: 16,
+    marginBottom: 10,
+  },
+  floatingGuideActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  floatingGuidePrevBtn: {
+    backgroundColor: '#162235',
+    borderWidth: 1,
+    borderColor: '#2b3e5e',
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingGuidePrevText: {
+    color: colors.text2,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  floatingGuideNextBtn: {
+    flex: 1,
+    backgroundColor: '#f5a623',
+    borderRadius: radius.md,
+    paddingVertical: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#f5a623',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  floatingGuideNextText: {
+    color: '#000000',
+    fontSize: 12.5,
+    fontWeight: '900',
   },
 });
