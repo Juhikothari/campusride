@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from './src/context/AuthContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { addNotificationListener } from './src/services/notificationService';
 
@@ -142,13 +143,15 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ErrorBoundary>
-          <AuthProvider>
-            <NavigationContainer>
-              <StatusBar style="light" backgroundColor="#07090d" />
-              <AppNavigator />
-              <AppNotificationBanner />
-            </NavigationContainer>
-          </AuthProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <NavigationContainer>
+                <StatusBar style="light" backgroundColor="#07090d" />
+                <AppNavigator />
+                <AppNotificationBanner />
+              </NavigationContainer>
+            </AuthProvider>
+          </ThemeProvider>
         </ErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>

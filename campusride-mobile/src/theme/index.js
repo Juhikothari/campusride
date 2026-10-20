@@ -1,5 +1,5 @@
 // Design tokens — mirrors the web app CSS variables exactly
-export const colors = {
+export const darkColors = {
   bg:         '#07090d',
   bg2:        '#0c0f17',
   surface:    '#101520',
@@ -23,6 +23,33 @@ export const colors = {
   text2:      '#8b96b0',
   text3:      '#4e566d',
 };
+
+export const lightColors = {
+  bg:         '#f8fafc',
+  bg2:        '#f1f5f9',
+  surface:    '#ffffff',
+  surface2:   '#f1f5f9',
+  surface3:   '#e2e8f0',
+  border:     '#cbd5e1',
+  border2:    '#94a3b8',
+
+  accent:     '#d97706',
+  accentDim:  'rgba(217,119,6,0.12)',
+  accentGlow: 'rgba(217,119,6,0.25)',
+  accent2:    '#ea580c',
+  green:      '#059669',
+  greenDim:   'rgba(5,150,105,0.12)',
+  blue:       '#2563eb',
+  red:        '#dc2626',
+  redDim:     'rgba(220,38,38,0.12)',
+  pink:       '#db2777',
+
+  text:       '#0f172a',
+  text2:      '#475569',
+  text3:      '#64748b',
+};
+
+export const colors = { ...darkColors };
 
 export const radius = {
   sm:  8,

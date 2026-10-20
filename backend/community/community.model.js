@@ -12,6 +12,7 @@ const replySchema = new mongoose.Schema({
 
 const joinedUserSchema = new mongoose.Schema({
   userId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  name:     { type: String, default: '' },
   usn:      { type: String, default: '' },
   joinedAt: { type: Date, default: Date.now },
 });

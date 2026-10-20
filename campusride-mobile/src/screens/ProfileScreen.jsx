@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Input, Btn, Alert, Card } from '../components/UI';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
@@ -26,6 +27,7 @@ function ProfileRow({ label, value, accent }) {
 
 export default function ProfileScreen({ navigation }) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
   const authUser = user;
   const [profile,      setProfile]      = useState(null);
   const [loading,      setLoading]      = useState(true);
@@ -501,6 +503,37 @@ export default function ProfileScreen({ navigation }) {
         )}
 
 
+
+        {/* Theme Settings Card */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>🎨 APP APPEARANCE</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
+            <View>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>
+                {isDark ? '🌙 Dark Mode' : '☀️ Light Mode'}
+              </Text>
+              <Text style={{ color: colors.text3, fontSize: 11.5, marginTop: 2 }}>
+                {isDark ? 'Easy on the eyes in low light' : 'Bright and crisp daytime theme'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={{
+                backgroundColor: isDark ? colors.surface2 : colors.accent,
+                borderWidth: 1.5,
+                borderColor: colors.accent,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: radius.full,
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: isDark ? colors.accent : '#000', fontSize: 12, fontWeight: '800' }}>
+                Switch to {isDark ? 'Light' : 'Dark'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Actions */}
         <Btn label="Sign Out" onPress={handleLogout} variant="danger" style={{ marginTop: 8, marginBottom: 32 }} />

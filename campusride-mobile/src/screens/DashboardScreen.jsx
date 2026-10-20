@@ -75,6 +75,54 @@ export default function DashboardScreen({ navigation }) {
   // Animation values for vehicle and pointing indicator
   const bikeAnim = useRef(new Animated.Value(0)).current;
   const pointerAnim = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const bikeBounceAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const stepContentAnim = useRef(new Animated.Value(1)).current;
+
+  // Icon pulse animation loop
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.07,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+
+  // Subtle bike riding bounce loop
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bikeBounceAnim, {
+          toValue: -3,
+          duration: 250,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(bikeBounceAnim, {
+          toValue: 0,
+          duration: 250,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [bikeBounceAnim]);
 
   // Continuous vehicle cruising animation
   useEffect(() => {
@@ -162,102 +210,108 @@ export default function DashboardScreen({ navigation }) {
     } catch {}
   };
 
-  const TOUR_STEPS = [
+  const ONBOARDING_STEPS = [
     {
       step: 1,
-      targetKey: 'SearchRides',
-      badge: 'STOP 1 OF 4',
-      tag: 'Best Match',
-      icon: '🔍',
-      iconBg: '#0f382c',
-      title: 'Search Your Buddy',
-      desc: 'Match with verified peers commuting along your exact route within 5km. Calculate commute times, view verified student profiles, and split petrol expenses effortlessly.',
-      vehicle: '🛵💨',
-      vehicleName: 'Daily Campus Carpool',
-      costTag: 'Split Fuel Costs 50%',
-      rating: '★ 4.9 Commuter Match',
-      btnLabel: 'Ride To Option 2 🛵💨',
-      route: 'SearchRides',
+      icon: '🛴',
+      title: 'Welcome to HOGO',
+      desc: "Your daily commute, shared. Let's take a quick ride through everything you can do here.",
+      btnLabel: 'Start →',
+      targetKey: null,
     },
     {
       step: 2,
-      targetKey: 'CreateRide',
-      badge: 'STOP 2 OF 4',
-      tag: 'Provider Hub',
-      icon: '🚗',
-      iconBg: '#3a2010',
-      title: 'Get a Buddy (Offer Ride)',
-      desc: 'Riding or driving to college? Post your daily route, select peers from your campus, and cut your petrol expenses in half while commuting together.',
-      vehicle: '🚗💨',
-      vehicleName: 'Student Ride Offer',
-      costTag: 'Offset 100% Commute Costs',
-      rating: '★ 4.9 Verified Drivers',
-      btnLabel: 'Ride To Option 3 🛵💨',
-      route: 'CreateRide',
+      icon: '🔍',
+      title: 'Search Your Buddy',
+      desc: 'Match with commuters heading along your route and find a travel partner in seconds. Split petrol expenses effortlessly.',
+      btnLabel: 'Next →',
+      targetKey: 'SearchRides',
     },
     {
       step: 3,
-      targetKey: 'Community',
-      badge: 'STOP 3 OF 4',
-      tag: 'Campus Lounge',
-      icon: '🛋️',
-      iconBg: '#2a1a4a',
-      title: 'Community & Chat',
-      desc: 'Hang out in your sitcom-themed college lounge (Central Perk, Dunder Mifflin), get campus transit alerts, and stay connected with verified classmates.',
-      vehicle: '☕💨',
-      vehicleName: 'Sitcom Hubs & Chats',
-      costTag: 'Instant Reply Alerts',
-      rating: '★ 4.8 Campus Lounge',
-      btnLabel: 'Ride To Option 4 🛵💨',
-      route: 'Community',
+      icon: '🚗',
+      title: 'Get a Buddy (Offer Ride)',
+      desc: 'Post your own route, select peers from your campus, and cut your petrol expenses in half while commuting together.',
+      btnLabel: 'Next →',
+      targetKey: 'CreateRide',
     },
     {
       step: 4,
-      targetKey: 'WalkTogether',
-      badge: 'STOP 4 OF 4',
-      tag: 'Nadi Safety',
+      icon: '🛋️',
+      title: 'Community & Chat',
+      desc: 'Hang out in your sitcom-themed college lounge (Central Perk, Dunder Mifflin), get campus transit alerts, and stay connected with verified classmates.',
+      btnLabel: 'Next →',
+      targetKey: 'Community',
+    },
+    {
+      step: 5,
       icon: '🚶',
-      iconBg: '#103038',
       title: 'Nadi (Walk Together)',
-      desc: 'Never walk alone at night or across long campus routes. Partner up with verified classmates for safe company between hostels, libraries, and metro gates.',
-      vehicle: '👟💨',
-      vehicleName: 'Campus Night Walking Groups',
-      costTag: '24h Expiration & USN Tracking',
-      rating: '★ 5.0 Night Safety',
-      btnLabel: 'Finish Tour 🚀',
-      route: 'WalkTogether',
+      desc: 'Walking on campus? Partner up with verified classmates for safe company between hostels, libraries, and metro gates. Auto-disappears after 24 hrs.',
+      btnLabel: 'Next →',
+      targetKey: 'WalkTogether',
+    },
+    {
+      step: 6,
+      icon: '👤',
+      title: 'Profile & Security Hub',
+      desc: 'Manage your student profile, upload & preview KYC verification documents, register vehicles, check ride history, and toggle dark/light theme.',
+      btnLabel: 'Next →',
+      targetKey: 'Profile',
+    },
+    {
+      step: 7,
+      icon: '🎉',
+      title: "You're all set!",
+      desc: "That's HOGO. Find your match, split the cost, walk safe and commute together with your campus peers.",
+      btnLabel: 'Get Started 🚀',
+      targetKey: null,
     },
   ];
 
-  // Navigate to specific option with animated scroll and bike highlighting
-  const navigateToOption = (stepIndex) => {
-    setTourStep(stepIndex);
-    setPopupStep(stepIndex - 1);
-    setIsTourActive(true);
-    setShowOnboardingPopup(false);
+  // Helper for navigating onboarding steps
+  const goToStep = (stepIdx) => {
+    const clamped = Math.max(0, Math.min(ONBOARDING_STEPS.length - 1, stepIdx));
+    setPopupStep(clamped);
 
-    // Trigger bike bounce animation
-    bikeAnim.setValue(0);
-    Animated.timing(bikeAnim, {
-      toValue: 1,
-      duration: 700,
+    // Animate progress fill
+    Animated.timing(progressAnim, {
+      toValue: clamped / (ONBOARDING_STEPS.length - 1),
+      duration: 350,
       easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+
+    // Trigger step content transition
+    stepContentAnim.setValue(0);
+    Animated.spring(stepContentAnim, {
+      toValue: 1,
+      friction: 7,
+      tension: 60,
       useNativeDriver: true,
     }).start();
 
-    // Smooth scroll dashboard to the targeted service card
-    const target = TOUR_STEPS[stepIndex - 1];
-    if (target && target.targetKey && serviceCardPositions.current[target.targetKey] != null) {
-      const yPos = serviceCardPositions.current[target.targetKey];
-      setTimeout(() => {
-        scrollViewRef.current?.scrollTo({
-          y: Math.max(0, yPos - 100),
-          animated: true,
-        });
-      }, 100);
+    // Scroll dashboard to match active feature
+    const target = ONBOARDING_STEPS[clamped];
+    if (target?.targetKey) {
+      if (target.targetKey === 'Profile') {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      } else if (serviceCardPositions.current[target.targetKey] != null) {
+        const yPos = serviceCardPositions.current[target.targetKey];
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({
+            y: Math.max(0, yPos - 120),
+            animated: true,
+          });
+        }, 100);
+      }
     }
   };
 
+  const navigateToOption = (stepIndex) => {
+    goToStep(stepIndex - 1);
+  };
+  const TOUR_STEPS = ONBOARDING_STEPS;
   // Load active trip status
   useEffect(() => {
     let mounted = true;
@@ -405,7 +459,7 @@ export default function DashboardScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Top Header matching Images 2 & 3 */}
-      <TopHeader title="HOGO" subtitle="Find Your Match" />
+      <TopHeader title="HOGO" subtitle="Find Your Match" showBack={false} highlightProfile={showOnboardingPopup && (ONBOARDING_STEPS[popupStep]?.targetKey === 'Profile')} />
 
       <ScrollView
         ref={scrollViewRef}
@@ -427,6 +481,7 @@ export default function DashboardScreen({ navigation }) {
 
         <View style={styles.servicesContainer}>
           {MAIN_SERVICES.map((item, idx) => {
+            const isHighlighted = showOnboardingPopup && (ONBOARDING_STEPS[popupStep]?.targetKey === item.key);
             const isTourTarget = isTourActive && !showBetaDisclaimer && (tourStep === idx + 1);
             return (
               <View
@@ -460,10 +515,18 @@ export default function DashboardScreen({ navigation }) {
                     </View>
                   </View>
                 )}
+                {isHighlighted && (
+                  <View style={styles.onbHighlightCardBanner}>
+                    <Text style={styles.onbHighlightCardBannerText}>
+                      ✨ STEP ${popupStep + 1}: ${item.title.toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <TouchableOpacity
                   style={[
                     styles.serviceCard,
                     isTourTarget && styles.serviceCardTourActive,
+                    isHighlighted && styles.serviceCardOnbHighlighted,
                   ]}
                   onPress={() => {
                     if (isTourActive && tourStep < 4) {
@@ -764,123 +827,127 @@ export default function DashboardScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* ── Onboarding Option Pop-up Modal ── */}
+      {/* ── HOGO Onboarding Pop-up Carousel (HOGO Template) ── */}
       <Modal
         visible={showOnboardingPopup && !showBetaDisclaimer}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={handleSkipOnboarding}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.onboardingPopupCard}>
-            {/* Top Media Area with Theme and Stop Info */}
-            <View style={[styles.onboardingPopupMedia, { backgroundColor: TOUR_STEPS[popupStep]?.iconBg || '#122238' }]}>
-              <View style={styles.onboardingPopupBadge}>
-                <Text style={styles.onboardingPopupBadgeText}>{TOUR_STEPS[popupStep]?.tag || 'CAMPUS EXCLUSIVE'}</Text>
+        <View style={styles.onbOverlay}>
+          <View style={styles.onbPop}>
+            {/* Pulsing Circular Icon Container (.ic) */}
+            <Animated.View style={[styles.onbIconBox, { transform: [{ scale: pulseAnim }] }]}>
+              <Text style={{ fontSize: 44 }}>{ONBOARDING_STEPS[popupStep]?.icon || '🛴'}</Text>
+            </Animated.View>
+
+            {/* Step Label (.step) */}
+            <Text style={styles.onbStepText}>
+              STEP {popupStep + 1} OF {ONBOARDING_STEPS.length}
+            </Text>
+
+            {/* Title & Description with entry spring transition (.ct) */}
+            <Animated.View
+              style={{
+                opacity: stepContentAnim,
+                transform: [
+                  {
+                    translateY: stepContentAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [12, 0],
+                    }),
+                  },
+                ],
+                minHeight: 105,
+                alignItems: 'center',
+                width: '100%',
+              }}
+            >
+              <Text style={styles.onbTitle}>{ONBOARDING_STEPS[popupStep]?.title}</Text>
+              <Text style={styles.onbDesc}>{ONBOARDING_STEPS[popupStep]?.desc}</Text>
+            </Animated.View>
+
+            {/* Animated Bike Runner Track (.bw) */}
+            <View style={styles.onbTrackWrapper}>
+              {/* Track Line (.bar) */}
+              <View style={styles.onbTrackBg}>
+                <Animated.View
+                  style={[
+                    styles.onbTrackFill,
+                    {
+                      width: progressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]}
+                />
               </View>
-              <Text style={{ fontSize: 50 }}>{TOUR_STEPS[popupStep]?.icon || '🛵'}</Text>
-              <View style={styles.onboardingPopupLiveBadge}>
-                <Text style={styles.onboardingPopupLiveBadgeText}>OPTION {popupStep + 1} OF 4</Text>
-              </View>
+
+              {/* Animated Bouncing Bike moving along track (.cy .on) */}
+              <Animated.View
+                style={[
+                  styles.onbBikeRunner,
+                  {
+                    left: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 260],
+                    }),
+                    transform: [{ translateY: bikeBounceAnim }],
+                  },
+                ]}
+              >
+                <Text style={styles.onbBikeText}>🚲</Text>
+              </Animated.View>
             </View>
 
-            {/* Content Area */}
-            <View style={styles.onboardingPopupBody}>
-              <Text style={styles.onboardingPopupTitle}>{TOUR_STEPS[popupStep]?.title}</Text>
-              
-              <View style={styles.popupRatingRow}>
-                <Text style={styles.popupRatingText}>{TOUR_STEPS[popupStep]?.rating}</Text>
-                <Text style={styles.popupCostTag}>• {TOUR_STEPS[popupStep]?.costTag}</Text>
-              </View>
-
-              <Text style={styles.onboardingPopupHighlight}>
-                {TOUR_STEPS[popupStep]?.desc}
-              </Text>
-
-              {/* Bike animation track inside pop-up */}
-              <View style={styles.popupBikeTrack}>
-                <View style={styles.popupBikeTrackLine} />
-                <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        translateX: bikeAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0, 160],
-                        }),
-                      },
-                    ],
-                  }}
-                >
-                  <Text style={{ fontSize: 22 }}>🛵💨</Text>
-                </Animated.View>
-              </View>
-
-              {/* Primary Action: Ride to this option on dashboard */}
+            {/* Controls Row (.ctl) */}
+            <View style={styles.onbControlsRow}>
+              {/* Skip button (or Replay on final step) */}
               <TouchableOpacity
-                style={styles.onboardingGoThroughBtn}
-                onPress={() => navigateToOption(popupStep + 1)}
-                activeOpacity={0.85}
+                onPress={() => {
+                  if (popupStep === ONBOARDING_STEPS.length - 1) {
+                    goToStep(0);
+                  } else {
+                    handleSkipOnboarding();
+                  }
+                }}
+                style={styles.onbSkipBtn}
+                activeOpacity={0.7}
               >
-                <Text style={styles.onboardingGoThroughBtnText}>
-                  Ride to Option {popupStep + 1} with Bike 🛵💨
+                <Text style={styles.onbSkipText}>
+                  {popupStep === ONBOARDING_STEPS.length - 1 ? 'Replay ↻' : 'Skip'}
                 </Text>
               </TouchableOpacity>
 
-              {/* Navigation controls row: Prev, Next, Skip */}
-              <View style={styles.popupNavRow}>
+              {/* Right Button Group: Back and Next/Start */}
+              <View style={styles.onbRightBtns}>
                 {popupStep > 0 ? (
                   <TouchableOpacity
-                    style={styles.popupNavBtn}
-                    onPress={() => setPopupStep(p => Math.max(0, p - 1))}
-                    activeOpacity={0.8}
+                    onPress={() => goToStep(popupStep - 1)}
+                    style={styles.onbBackBtn}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.popupNavBtnText}>‹ Prev</Text>
+                    <Text style={styles.onbBackText}>← Back</Text>
                   </TouchableOpacity>
-                ) : (
-                  <View style={{ width: 64 }} />
-                )}
+                ) : null}
 
-                {/* Dots indicator */}
-                <View style={styles.popupDotsRow}>
-                  {TOUR_STEPS.map((_, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => setPopupStep(i)}
-                      style={[
-                        styles.popupDot,
-                        popupStep === i ? styles.popupDotActive : styles.popupDotInactive,
-                      ]}
-                    />
-                  ))}
-                </View>
-
-                {popupStep < 3 ? (
-                  <TouchableOpacity
-                    style={styles.popupNavBtn}
-                    onPress={() => setPopupStep(p => Math.min(3, p + 1))}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.popupNavBtnText}>Next ›</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.popupNavBtn, { borderColor: '#f5a623' }]}
-                    onPress={finishTour}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.popupNavBtnText, { color: '#f5a623' }]}>Done ✓</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  onPress={() => {
+                    if (popupStep === ONBOARDING_STEPS.length - 1) {
+                      finishTour();
+                    } else {
+                      goToStep(popupStep + 1);
+                    }
+                  }}
+                  style={styles.onbNextPill}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.onbNextPillText}>
+                    {ONBOARDING_STEPS[popupStep]?.btnLabel || 'Next →'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-
-              <TouchableOpacity
-                onPress={handleSkipOnboarding}
-                style={{ alignSelf: 'center', marginTop: 10, paddingVertical: 4 }}
-                activeOpacity={0.7}
-              >
-                <Text style={{ color: '#64748b', fontSize: 12, fontWeight: '700' }}>Skip Tour ✕</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1762,5 +1829,162 @@ const styles = StyleSheet.create({
     color: '#000000',
     fontSize: 12.5,
     fontWeight: '900',
+  },
+  // Onboarding Carousel Styles (HOGO Template)
+  onbOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(2, 4, 8, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  onbPop: {
+    width: '100%',
+    maxWidth: 380,
+    backgroundColor: '#101728',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#1c2638',
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.6,
+    shadowRadius: 30,
+    elevation: 20,
+  },
+  onbIconBox: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(245, 166, 35, 0.12)',
+    borderWidth: 2,
+    borderColor: 'rgba(245, 166, 35, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  onbStepText: {
+    color: '#f5a623',
+    fontSize: 11,
+    letterSpacing: 2,
+    fontWeight: '900',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  onbTitle: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  onbDesc: {
+    color: '#8d98ad',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
+  onbTrackWrapper: {
+    width: '100%',
+    height: 38,
+    justifyContent: 'center',
+    marginTop: 14,
+    position: 'relative',
+  },
+  onbTrackBg: {
+    height: 3,
+    backgroundColor: '#1c2638',
+    borderRadius: 3,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  onbTrackFill: {
+    height: '100%',
+    backgroundColor: '#f5a623',
+  },
+  onbBikeRunner: {
+    position: 'absolute',
+    bottom: 5,
+    pointerEvents: 'none',
+  },
+  onbBikeText: {
+    fontSize: 22,
+    lineHeight: 24,
+  },
+  onbControlsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 16,
+    paddingTop: 6,
+  },
+  onbSkipBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  onbSkipText: {
+    color: '#8d98ad',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  onbRightBtns: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  onbBackBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  onbBackText: {
+    color: '#8d98ad',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  onbNextPill: {
+    backgroundColor: '#f5a623',
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    shadowColor: '#f5a623',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  onbNextPillText: {
+    color: '#111111',
+    fontSize: 13.5,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  onbHighlightCardBanner: {
+    backgroundColor: '#f5a623',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  onbHighlightCardBannerText: {
+    color: '#000000',
+    fontSize: 10.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  serviceCardOnbHighlighted: {
+    borderColor: '#f5a623',
+    borderWidth: 2,
+    shadowColor: '#f5a623',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    elevation: 8,
+    transform: [{ scale: 1.02 }],
   },
 });

@@ -5,7 +5,7 @@ import {
   ActivityIndicator, Alert as RNAlert, Image, Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import TopHeader from '../components/TopHeader';
@@ -95,8 +95,8 @@ function PostsTab({ user }) {
   const [showAttachModal, setShowAttachModal] = useState(false);
 
   useEffect(() => {
-    getCommunityPosts()
-      .then(data => setPosts(Array.isArray(data) ? data : []))
+    getCommunityPosts('community')
+      .then(data => setPosts((Array.isArray(data) ? data : []).filter(p => p.type !== 'walk')))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

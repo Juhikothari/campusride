@@ -152,7 +152,7 @@ export const submitKyc         = (body) => request('/kyc/submit', { method:'POST
 export const getKycStatus      = ()     => request('/kyc/status');
 
 // ── Community ─────────────────────────────────────────
-export const getCommunityPosts   = ()             => request('/community');
+export const getCommunityPosts   = (type)        => request('/community' + (type ? `?type=${encodeURIComponent(type)}` : ''));
 export const createCommunityPost = (body)        => request('/community', { method:'POST', body: JSON.stringify(body) });
 export const toggleCommunityLike = (id)          => request(`/community/${id}/like`, { method:'POST' });
 export const addCommunityReply   = (id, content) => request(`/community/${id}/reply`, { method:'POST', body: JSON.stringify({ content }) });
@@ -168,6 +168,7 @@ export const markNotificationsRead = () => request('/notifications/read-all', { 
 // ── SOS & Safety ──────────────────────────────────────
 export const triggerSOS        = (body) => request('/sos', { method:'POST', body: JSON.stringify(body) });
 export const reportIncident    = (body) => request('/incidents/report', { method:'POST', body: JSON.stringify(body) });
+export const getMyIncidents    = ()     => request('/incidents/my');
 
 // ── Tracking ──────────────────────────────────────────
 export const updateLocation    = (body) => request('/tracking/update', { method:'POST', body: JSON.stringify(body) });

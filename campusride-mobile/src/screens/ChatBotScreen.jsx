@@ -4,9 +4,8 @@ import {
   ScrollView, KeyboardAvoidingView, Platform, StyleSheet,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import TopHeader from '../components/TopHeader';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -47,6 +46,7 @@ function getLocalAnswer(query, user) {
 
 export default function ChatBotScreen({ navigation }) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -97,10 +97,17 @@ export default function ChatBotScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopHeader title="HOGO" subtitle="Find Your Buddy" />
-
+      {/* Unified clean header */}
       <View style={styles.botHeader}>
         <View style={styles.botInfo}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Text style={styles.backBtnText}>←</Text>
+          </TouchableOpacity>
           <View style={styles.botAvatar}>
             <Text style={{ fontSize: 20 }}>🤖</Text>
             <View style={styles.onlineDot} />
@@ -188,7 +195,7 @@ export default function ChatBotScreen({ navigation }) {
           )}
         </ScrollView>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <TextInput
             style={styles.input}
             value={input}
@@ -219,10 +226,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  backBtn: {
+    marginRight: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backBtnText: {
+    color: colors.text,
+    fontSize: 22,
+    fontWeight: '700',
   },
   botInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   botAvatar: {

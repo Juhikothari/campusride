@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert as RNAlert, Image,
+  ActivityIndicator, Alert as RNAlert, Image, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -34,6 +34,50 @@ export default function KYCScreen({ navigation }) {
   const [vehicleNum,  setVehicleNum]  = useState('');
   const [vehicleName, setVehicleName] = useState('');
   const [vehicleType, setVehicleType] = useState('car');
+  const [previewDoc,  setPreviewDoc]  = useState({ title: '', uri: '' });
+  const [previewVisible, setPreviewVisible] = useState(false);
+
+  const openDocPreview = (title, uri) => {
+    if (!uri) return;
+    setPreviewDoc({ title, uri });
+    setPreviewVisible(true);
+  };
+
+  const renderDocPreviewModal = () => (
+    <Modal
+      visible={previewVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setPreviewVisible(false)}
+    >
+      <View style={styles.previewOverlay}>
+        <View style={styles.previewContainer}>
+          <View style={styles.previewHeader}>
+            <View style={{ flex: 1, paddingRight: 8 }}>
+              <Text style={styles.previewBadge}>KYC DOCUMENT PREVIEW</Text>
+              <Text style={styles.previewTitle} numberOfLines={1}>{previewDoc.title || 'Document'}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setPreviewVisible(false)} style={styles.previewCloseBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={styles.previewCloseBtnText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.previewImageWrapper}>
+            {previewDoc.uri ? (
+              <Image source={{ uri: previewDoc.uri }} style={styles.previewImage} resizeMode="contain" />
+            ) : (
+              <Text style={{ color: colors.text3 }}>No preview available</Text>
+            )}
+          </View>
+          <View style={styles.previewFooter}>
+            <Text style={styles.previewFooterText}>🔒 Stored securely for student identity verification</Text>
+            <TouchableOpacity onPress={() => setPreviewVisible(false)} style={styles.previewDoneBtn}>
+              <Text style={styles.previewDoneBtnText}>Close Preview</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   useEffect(() => {
     // Populate docs if already uploaded in registration
@@ -192,10 +236,10 @@ export default function KYCScreen({ navigation }) {
           {(docs_.aadhar || docs_.collegeIdCard || docs_.drivingLicense || docs_.selfie) && (
             <View style={styles.card}>
               <Text style={styles.sectionLabel}>SUBMITTED DOCUMENTS</Text>
-              {docs_.selfie       && <DocRow label="Live Selfie Photo" icon="📸" submitted />}
-              {docs_.aadhar       && <DocRow label="Aadhar Card"      icon="🪪" submitted />}
-              {docs_.collegeIdCard && <DocRow label="College ID"       icon="🎓" submitted />}
-              {docs_.drivingLicense && <DocRow label="Driving License"  icon="🚘" submitted />}
+              {docs_.selfie       && <DocRow label="Live Selfie Photo" icon="📸" uri={docs_.selfie || docs.selfie} submitted onView={() => openDocPreview('Live Selfie Photo', docs_.selfie || docs.selfie)} />}
+              {docs_.aadhar       && <DocRow label="Aadhar Card"      icon="🪪" uri={docs_.aadhar || docs.aadhar} submitted onView={() => openDocPreview('Aadhar Card', docs_.aadhar || docs.aadhar)} />}
+              {docs_.collegeIdCard && <DocRow label="College ID"       icon="🎓" uri={docs_.collegeIdCard || docs.collegeId} submitted onView={() => openDocPreview('College ID Card', docs_.collegeIdCard || docs.collegeId)} />}
+              {docs_.drivingLicense && <DocRow label="Driving License"  icon="🚘" uri={docs_.drivingLicense || docs.license} submitted onView={() => openDocPreview('Driving License', docs_.drivingLicense || docs.license)} />}
             </View>
           )}
 
@@ -203,6 +247,8 @@ export default function KYCScreen({ navigation }) {
             <Btn label="Resubmit KYC" onPress={() => { setSubmitted(false); setDocs({ aadhar: null, collegeId: null, license: null, selfie: null }); }} style={{ marginTop: 8 }} />
           )}
         </ScrollView>
+      {renderDocPreviewModal()}
+        {renderDocPreviewModal()}
       </SafeAreaView>
     );
   }
@@ -218,10 +264,10 @@ export default function KYCScreen({ navigation }) {
 
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>REQUIRED DOCUMENTS</Text>
-          <DocRow label="Live Selfie Photo" icon="📸" onUpload={captureSelfie}            uri={docs.selfie}   required />
-          <DocRow label="Aadhar Card"       icon="🪪" onUpload={() => pickDoc('aadhar')}   uri={docs.aadhar}   required />
-          <DocRow label="College ID"        icon="🎓" onUpload={() => pickDoc('collegeId')} uri={docs.collegeId} required />
-          <DocRow label="Driving License"   icon="🚘" onUpload={() => pickDoc('license')}  uri={docs.license}  />
+          <DocRow label="Live Selfie Photo" icon="📸" onUpload={captureSelfie}            uri={docs.selfie}   onView={() => openDocPreview('Live Selfie Photo', docs.selfie)} required />
+          <DocRow label="Aadhar Card"       icon="🪪" onUpload={() => pickDoc('aadhar')}   uri={docs.aadhar}   onView={() => openDocPreview('Aadhar Card', docs.aadhar)} required />
+          <DocRow label="College ID"        icon="🎓" onUpload={() => pickDoc('collegeId')} uri={docs.collegeId} onView={() => openDocPreview('College ID Card', docs.collegeId)} required />
+          <DocRow label="Driving License"   icon="🚘" onUpload={() => pickDoc('license')}  uri={docs.license}  onView={() => openDocPreview('Driving License', docs.license)} />
           <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>* Required fields</Text>
         </View>
 
@@ -268,17 +314,18 @@ export default function KYCScreen({ navigation }) {
           Documents are reviewed within 24–48 hours
         </Text>
       </ScrollView>
+      {renderDocPreviewModal()}
     </SafeAreaView>
   );
 }
 
-function DocRow({ label, icon, onUpload, uri, submitted, required }) {
+function DocRow({ label, icon, onUpload, uri, submitted, required, onView }) {
   const isAdded = Boolean(uri || submitted);
 
   return (
     <TouchableOpacity
-      onPress={onUpload}
-      disabled={submitted}
+      onPress={() => { if (uri && onView) onView(); else if (onUpload) onUpload(); }}
+
       style={[styles.docRow, isAdded && styles.docRowDone]}
       activeOpacity={0.75}
     >
@@ -301,12 +348,12 @@ function DocRow({ label, icon, onUpload, uri, submitted, required }) {
           )}
         </View>
         <Text style={{ color: isAdded ? colors.green : colors.text3, fontSize: 12, marginTop: 3 }}>
-          {submitted ? '✓ Verified on record' : uri ? '✓ Document attached (tap to change)' : 'Tap to capture / upload'}
+          {submitted ? '✓ Uploaded on record • Tap to view' : uri ? '✓ Document attached • Tap to view' : 'Tap to capture / upload'}
         </Text>
       </View>
-      {!submitted && (
-        <Text style={{ fontSize: 16, color: uri ? colors.green : colors.accent, fontWeight: '700' }}>
-          {uri ? '✎' : '+'}
+      {(uri || !submitted) && (
+        <Text style={{ fontSize: 13, color: uri ? colors.green : colors.accent, fontWeight: '800' }}>
+          {uri ? '👁️ View' : '+'}
         </Text>
       )}
     </TouchableOpacity>
@@ -381,6 +428,95 @@ const styles = StyleSheet.create({
   },
   vTypeChipTextActive: {
     color: colors.accent,
+    fontWeight: '800',
+  },
+  previewOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  previewContainer: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#0f1624',
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    padding: 16,
+    maxHeight: '90%',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1c2638',
+    marginBottom: 12,
+  },
+  previewBadge: {
+    color: colors.accent,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  previewTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  previewCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewCloseBtnText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  previewImageWrapper: {
+    width: '100%',
+    height: 320,
+    backgroundColor: '#060a12',
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#1c2638',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewFooter: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#1c2638',
+    gap: 10,
+  },
+  previewFooterText: {
+    color: colors.text3,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  previewDoneBtn: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  previewDoneBtnText: {
+    color: '#000000',
+    fontSize: 13,
     fontWeight: '800',
   },
 });

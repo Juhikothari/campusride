@@ -10,9 +10,18 @@ exports.getPosts = async (req, res) => {
     if (!user?.college) return res.status(400).json({ message: 'College not found for user' });
 
     const normalizedCollege = user.college.trim().toLowerCase();
+    const queryFilter = { college: normalizedCollege };
 
-    const posts = await Post.find({ college: normalizedCollege })
+    // If 'walk' requested, filter to walk only; if not specified or 'community', exclude walk posts
+    if (req.query.type === 'walk') {
+      queryFilter.type = 'walk';
+    } else if (req.query.type !== 'all') {
+      queryFilter.type = { $ne: 'walk' };
+    }
+
+    const posts = await Post.find(queryFilter)
       .populate('author', 'name college usn')
+      .populate('joinedUsers.userId', 'name college')
       .sort({ createdAt: -1 })
       .limit(100);
 
@@ -119,20 +128,22 @@ exports.toggleJoinWalk = async (req, res) => {
     if (!post) return res.status(404).json({ message: 'Walk request not found' });
     if (post.type !== 'walk') return res.status(400).json({ message: 'Can only join walk requests' });
 
-    const user = await User.findById(req.user.userId).select('usn college');
+    const user = await User.findById(req.user.userId).select('name usn college');
     const userIdStr = req.user.userId.toString();
 
     if (!post.joinedUsers) post.joinedUsers = [];
-    const existingIndex = post.joinedUsers.findIndex(j => j.userId?.toString() === userIdStr);
+    const existingIndex = post.joinedUsers.findIndex(j => (j.userId?.toString() === userIdStr || j.userId?._id?.toString() === userIdStr));
 
     let isJoined = false;
     if (existingIndex > -1) {
       post.joinedUsers.splice(existingIndex, 1);
       isJoined = false;
     } else {
+      const studentName = user?.name?.trim() || 'Verified Student';
       const studentUsn = user?.usn?.trim() || `STU-${userIdStr.slice(-4).toUpperCase()}`;
       post.joinedUsers.push({
         userId: req.user.userId,
+        name: studentName,
         usn: studentUsn,
         joinedAt: new Date(),
       });
@@ -141,15 +152,16 @@ exports.toggleJoinWalk = async (req, res) => {
 
     await post.save();
     await post.populate('author', 'name college usn');
+    await post.populate('joinedUsers.userId', 'name college');
 
     // Notify walk post author when someone joins
     const authorId = (post.author?._id || post.author || '').toString();
     if (isJoined && authorId && authorId !== userIdStr) {
       const io = req.app.get('io');
-      const studentIdentifier = user?.usn?.trim() || 'A verified student';
+      const studentName = user?.name?.trim() || 'A verified student';
       const notifPayload = {
         title: '🚶 Someone Joined Your Walk Together!',
-        message: `Student (${studentIdentifier}) just joined your walk companion request!`,
+        message: `${studentName} just joined your walk companion request!`,
         type: 'walk-join',
         postId: post._id,
         createdAt: new Date(),
@@ -175,7 +187,8 @@ exports.toggleJoinWalk = async (req, res) => {
         io.to(`user-${authorId}`).emit('new-notification', notifPayload);
         io.to(`user-${authorId}`).emit('walk-joined', {
           postId: post._id,
-          usn: studentIdentifier,
+          name: studentName,
+          usn: user?.usn?.trim(),
           joinedCount: post.joinedUsers.length,
         });
       }

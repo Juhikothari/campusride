@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -28,7 +29,7 @@ function getHeaderEmoji(title) {
   return '🛵';
 }
 
-export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack }) {
+export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack, highlightProfile = false }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
@@ -94,8 +95,10 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
     navigation.navigate(screenName, params);
   };
 
+  const { theme, toggleTheme, isDark } = useTheme();
   const initials = (user?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  const canGoBack = showBack !== undefined ? showBack : (navigation?.canGoBack ? navigation.canGoBack() : false);
+  const isDashboard = (title === 'HOGO' || title === 'Dashboard') && subtitle === 'Find Your Match';
+  const canGoBack = showBack === false || isDashboard ? false : (showBack === true ? true : (navigation?.canGoBack ? navigation.canGoBack() : false));
   const emoji = getHeaderEmoji(title);
 
   return (
@@ -142,7 +145,7 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
 
           {/* Profile Avatar Button */}
           <TouchableOpacity
-            style={styles.avatarBtn}
+            style={[styles.avatarBtn, highlightProfile && { borderColor: '#f5a623', borderWidth: 2.5, backgroundColor: 'rgba(245,166,35,0.25)', shadowColor: '#f5a623', shadowRadius: 10, shadowOpacity: 0.8, elevation: 8 }]}
             onPress={() => setModalVisible(true)}
             activeOpacity={0.8}
             accessibilityRole="button"
@@ -192,6 +195,16 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
               <MenuItem icon="📍" label="Track Active Ride" onPress={() => navTo('LiveTracking')} />
               <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} />
               <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} />
+
+              {/* Theme Dark / Light Toggle */}
+              <MenuItem
+                icon={isDark ? "☀️" : "🌙"}
+                label={isDark ? "Light Mode" : "Dark Mode"}
+                onPress={() => {
+                  setModalVisible(false);
+                  toggleTheme();
+                }}
+              />
 
               {isAdmin && (
                 <MenuItem icon="🛡️" label="Admin Dashboard" onPress={() => navTo('AdminDashboard')} highlight />

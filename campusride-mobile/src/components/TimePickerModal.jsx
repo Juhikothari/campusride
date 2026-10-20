@@ -83,19 +83,9 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
               <Text style={styles.digitText}>{selectedMin}</Text>
               <Text style={styles.digitSub}>MIN</Text>
             </View>
-            <View style={styles.periodCol}>
-              <TouchableOpacity
-                style={[styles.periodBtn, selectedPeriod === 'AM' && styles.periodBtnActive]}
-                onPress={() => setSelectedPeriod('AM')}
-              >
-                <Text style={[styles.periodBtnText, selectedPeriod === 'AM' && styles.periodBtnTextActive]}>AM</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.periodBtn, selectedPeriod === 'PM' && styles.periodBtnActive]}
-                onPress={() => setSelectedPeriod('PM')}
-              >
-                <Text style={[styles.periodBtnText, selectedPeriod === 'PM' && styles.periodBtnTextActive]}>PM</Text>
-              </TouchableOpacity>
+            <View style={styles.digitBox}>
+              <Text style={styles.digitText}>{selectedPeriod}</Text>
+              <Text style={styles.digitSub}>PERIOD</Text>
             </View>
           </View>
 

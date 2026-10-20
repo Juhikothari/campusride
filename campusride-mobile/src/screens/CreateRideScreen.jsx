@@ -726,12 +726,12 @@ export default function CreateRideScreen({ navigation }) {
             </TouchableOpacity>
           )}
 
-          {/* ── ESTIMATED FARE CARD DISPLAYED TO PROVIDER BEFORE POSTING ── */}
+          {/* ── ESTIMATED FARE DISPLAYED BEFORE POSTING ── */}
           {distKm > 0 && (
             <View style={styles.fareCard}>
               <View style={styles.fareHeader}>
                 <View>
-                  <Text style={styles.fareBadge}>FARE ESTIMATE FOR THIS TRIP</Text>
+                  <Text style={styles.fareBadge}>ESTIMATED FARE</Text>
                   <Text style={styles.fareTitle}>Total Fare Per Passenger</Text>
                 </View>
                 <View style={styles.farePriceBadge}>
@@ -740,31 +740,6 @@ export default function CreateRideScreen({ navigation }) {
                   <Text style={styles.farePricePer}>/ seat</Text>
                 </View>
               </View>
-
-              <View style={styles.fareDetailsRow}>
-                <View style={styles.fareDetailItem}>
-                  <Text style={styles.fareDetailLabel}>EST. DISTANCE</Text>
-                  <Text style={styles.fareDetailValue}>{distKm.toFixed(1)} km</Text>
-                </View>
-                <View style={styles.fareDetailItem}>
-                  <Text style={styles.fareDetailLabel}>BASE FARE</Text>
-                  <Text style={styles.fareDetailValue}>₹{baseFares[(vehicleType || 'car').toLowerCase()] || 25}</Text>
-                </View>
-                <View style={styles.fareDetailItem}>
-                  <Text style={styles.fareDetailLabel}>RATE / KM</Text>
-                  <Text style={styles.fareDetailValue}>₹{perKmRates[(vehicleType || 'car').toLowerCase()] || 7}/km</Text>
-                </View>
-                <View style={styles.fareDetailItem}>
-                  <Text style={styles.fareDetailLabel}>YOU RECEIVE</Text>
-                  <Text style={[styles.fareDetailValue, { color: colors.accent }]}>
-                    ₹{calcCost(distKm, vehicleType) * (vehicleType === 'motorcycle' ? 1 : 3)}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={styles.fareNotice}>
-                💡 Transparent campus cost-split fare calculated by distance and vehicle type. Passengers will see and pay this exact fare.
-              </Text>
             </View>
           )}
 
