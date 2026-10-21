@@ -502,18 +502,6 @@ export default function SearchRidesScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             </View>
-
-            <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-              {['08:30', '13:00', '17:30', '20:00'].map(tStr => (
-                <TouchableOpacity
-                  key={tStr}
-                  onPress={() => setTime(tStr)}
-                  style={[styles.quickTimePill, time === tStr && styles.quickTimePillActive]}
-                >
-                  <Text style={[styles.quickTimePillText, time === tStr && styles.quickTimePillTextActive]}>{tStr}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
         )}
 

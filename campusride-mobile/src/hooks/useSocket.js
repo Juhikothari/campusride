@@ -133,17 +133,42 @@ export const getSharedSocket = (userId, userType) => {
       });
     });
 
+    // ── Ride Completed ──
+    globalSocket.on('rideCompleted', (data) => {
+      notifyAll('rideCompleted', data);
+      showPushNotification({
+        title: '🎉 Campus Trip Completed',
+        body: 'You have reached your destination safely. Thank you for riding with CampusRide!',
+        data,
+      });
+    });
+
+    // ── Ride Cancelled ──
+    globalSocket.on('rideCancelled', (data) => {
+      notifyAll('rideCancelled', data);
+      showPushNotification({
+        title: '⚠️ Ride Cancelled',
+        body: data?.reason ? `Ride was cancelled: ${data.reason}` : 'A ride you were part of has been cancelled.',
+        data,
+      });
+    });
+
     // ── Community Post Replies ──
     globalSocket.on('community-reply', (data) => {
       notifyAll('community-reply', data);
-      incrementCommunityUnread();
-      showPushNotification({
-        title: '💬 New Reply to Your Post',
-        body: data?.reply?.authorName
-          ? `${data.reply.authorName} replied: "${data.reply.content}"`
-          : 'Someone replied to your community post.',
-        data,
-      });
+      // Only notify the post author, never notify the person commenting
+      const isPostAuthor = !data?.authorId || String(data.authorId) === String(userId);
+      const isSelfCommenter = data?.reply?.authorId && String(data.reply.authorId) === String(userId);
+      if (isPostAuthor && !isSelfCommenter) {
+        incrementCommunityUnread();
+        showPushNotification({
+          title: '💬 New Reply to Your Post',
+          body: data?.reply?.authorName
+            ? `${data.reply.authorName} replied: "${data.reply.content}"`
+            : 'Someone replied to your community post.',
+          data,
+        });
+      }
     });
 
     // ── Community College Chat Messages ──

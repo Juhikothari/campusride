@@ -24,6 +24,7 @@ const postSchema = new mongoose.Schema({
   type:        { type: String, enum: ['general', 'tip', 'question', 'landmark', 'alert', 'walk'], default: 'general' },
   anonymous:   { type: Boolean, default: false },
   likes:       { type: Number, default: 0 },
+  likedBy:     [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   attachments: [{
     url:  { type: String },
     type: { type: String, enum: ['image', 'pdf'] },

@@ -210,64 +210,99 @@ export default function DashboardScreen({ navigation }) {
     } catch {}
   };
 
+  const peekTimeoutRef = useRef(null);
+
   const ONBOARDING_STEPS = [
     {
       step: 1,
-      icon: '🛴',
-      title: 'Welcome to HOGO',
-      desc: "Your daily commute, shared. Let's take a quick ride through everything you can do here.",
-      btnLabel: 'Start →',
+      icon: '🚀',
+      tagline: 'CAMPUS COMMUTE REIMAGINED',
+      title: 'Meet HOGO',
+      desc: 'Ride smart, split fuel bills, walk together, and connect exclusively with verified students from your campus.',
+      btnLabel: 'Take the Tour →',
       targetKey: null,
+      screenName: null,
     },
     {
       step: 2,
       icon: '🔍',
+      tagline: 'NEVER COMMUTE ALONE',
       title: 'Search Your Buddy',
-      desc: 'Match with commuters heading along your route and find a travel partner in seconds. Split petrol expenses effortlessly.',
-      btnLabel: 'Next →',
+      desc: 'Need a ride? Match with peers traveling your exact route in seconds. Hop in, split petrol expenses, and save big daily.',
+      btnLabel: 'Next Feature →',
       targetKey: 'SearchRides',
+      screenName: 'SearchRides',
     },
     {
       step: 3,
-      icon: '🚗',
+      icon: '🏍️',
+      tagline: 'EMPTY SEATS = FREE PETROL',
       title: 'Get a Buddy (Offer Ride)',
-      desc: 'Post your own route, select peers from your campus, and cut your petrol expenses in half while commuting together.',
-      btnLabel: 'Next →',
+      desc: 'Riding or driving to campus? Post your route, pick up verified classmates, and cut your petrol budget straight in half.',
+      btnLabel: 'Next Feature →',
       targetKey: 'CreateRide',
+      screenName: 'CreateRide',
     },
     {
       step: 4,
-      icon: '🛋️',
-      title: 'Community & Chat',
-      desc: 'Hang out in your sitcom-themed college lounge (Central Perk, Dunder Mifflin), get campus transit alerts, and stay connected with verified classmates.',
-      btnLabel: 'Next →',
+      icon: '💬',
+      tagline: 'YOUR CAMPUS PULSE',
+      title: 'College Community',
+      desc: 'Verified student lounge for route updates, transit alerts, question boards, and real-time campus chat.',
+      btnLabel: 'Next Feature →',
       targetKey: 'Community',
+      screenName: 'Community',
     },
     {
       step: 5,
-      icon: '🚶',
+      icon: '🚶‍♀️',
+      tagline: 'SAFETY IN NUMBERS',
       title: 'Nadi (Walk Together)',
-      desc: 'Walking on campus? Partner up with verified classmates for safe company between hostels, libraries, and metro gates. Auto-disappears after 24 hrs.',
-      btnLabel: 'Next →',
+      desc: 'Heading across campus or to the metro? Pair up with verified walking companions anytime. Auto-disappears after 24 hrs.',
+      btnLabel: 'Next Feature →',
       targetKey: 'WalkTogether',
+      screenName: 'WalkTogether',
     },
     {
       step: 6,
-      icon: '👤',
-      title: 'Profile & Security Hub',
-      desc: 'Manage your student profile, upload & preview KYC verification documents, register vehicles, check ride history, and toggle dark/light theme.',
-      btnLabel: 'Next →',
+      icon: '🛡️',
+      tagline: 'VERIFIED & IN CONTROL',
+      title: 'Profile & Security',
+      desc: 'View your uploaded KYC documents, register vehicles, check ride history, and toggle dark/light theme anytime.',
+      btnLabel: 'Next Feature →',
       targetKey: 'Profile',
+      screenName: 'Profile',
     },
     {
       step: 7,
       icon: '🎉',
-      title: "You're all set!",
-      desc: "That's HOGO. Find your match, split the cost, walk safe and commute together with your campus peers.",
-      btnLabel: 'Get Started 🚀',
+      tagline: "YOU'RE READY TO ROLL!",
+      title: 'All Set for HOGO',
+      desc: 'Split costs, travel safe, and make campus commutes fast and fun. Enjoy riding together!',
+      btnLabel: 'Start Exploring 🚀',
       targetKey: null,
+      screenName: null,
     },
   ];
+
+  const peekStepScreen = (stepItem) => {
+    if (!stepItem?.screenName) return;
+    setShowOnboardingPopup(false);
+    navigation.navigate(stepItem.screenName);
+
+    // Auto-return after 4.5 seconds to show the next step of the onboarding carousel
+    if (peekTimeoutRef.current) clearTimeout(peekTimeoutRef.current);
+    peekTimeoutRef.current = setTimeout(() => {
+      try {
+        navigation.navigate('Dashboard');
+        setTimeout(() => {
+          setShowOnboardingPopup(true);
+          const nextIdx = Math.min(ONBOARDING_STEPS.length - 1, popupStep + 1);
+          goToStep(nextIdx);
+        }, 350);
+      } catch (e) {}
+    }, 4500);
+  };
 
   // Helper for navigating onboarding steps
   const goToStep = (stepIdx) => {
@@ -275,7 +310,7 @@ export default function DashboardScreen({ navigation }) {
       const clamped = Math.max(0, Math.min(ONBOARDING_STEPS.length - 1, stepIdx));
       setPopupStep(clamped);
 
-      // Animate progress fill
+      // Animate progress fill with clamp
       Animated.timing(progressAnim, {
         toValue: clamped / (ONBOARDING_STEPS.length - 1),
         duration: 350,
@@ -851,6 +886,23 @@ export default function DashboardScreen({ navigation }) {
               STEP {popupStep + 1} OF {ONBOARDING_STEPS.length}
             </Text>
 
+            {/* Tagline Badge */}
+            {ONBOARDING_STEPS[popupStep]?.tagline ? (
+              <View style={{
+                backgroundColor: 'rgba(245, 166, 35, 0.12)',
+                borderRadius: 6,
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                marginBottom: 6,
+                borderWidth: 1,
+                borderColor: 'rgba(245, 166, 35, 0.3)',
+              }}>
+                <Text style={{ color: '#F5A623', fontSize: 10, fontWeight: '800', letterSpacing: 1 }}>
+                  {ONBOARDING_STEPS[popupStep].tagline}
+                </Text>
+              </View>
+            ) : null}
+
             {/* Title & Description with entry spring transition (.ct) */}
             <Animated.View
               style={{
@@ -860,10 +912,11 @@ export default function DashboardScreen({ navigation }) {
                     translateY: stepContentAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: [12, 0],
+                      extrapolate: 'clamp',
                     }),
                   },
                 ],
-                minHeight: 105,
+                minHeight: 95,
                 alignItems: 'center',
                 width: '100%',
               }}
@@ -871,6 +924,32 @@ export default function DashboardScreen({ navigation }) {
               <Text style={styles.onbTitle}>{ONBOARDING_STEPS[popupStep]?.title}</Text>
               <Text style={styles.onbDesc}>{ONBOARDING_STEPS[popupStep]?.desc}</Text>
             </Animated.View>
+
+            {/* Peek Actual Screen Button (Shows live screen for few seconds) */}
+            {ONBOARDING_STEPS[popupStep]?.screenName ? (
+              <TouchableOpacity
+                onPress={() => peekStepScreen(ONBOARDING_STEPS[popupStep])}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: 'rgba(59, 130, 246, 0.14)',
+                  borderWidth: 1.2,
+                  borderColor: 'rgba(59, 130, 246, 0.45)',
+                  borderRadius: radius.md,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  marginTop: 10,
+                  marginBottom: 4,
+                }}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 13 }}>👀</Text>
+                <Text style={{ color: '#60A5FA', fontSize: 12, fontWeight: '800' }}>
+                  Peek Actual Screen (4s preview) ↗
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Animated Bike Runner Track (.bw) */}
             <View style={styles.onbTrackWrapper}>
@@ -883,6 +962,7 @@ export default function DashboardScreen({ navigation }) {
                       width: progressAnim.interpolate({
                         inputRange: [0, 1],
                         outputRange: ['0%', '100%'],
+                        extrapolate: 'clamp',
                       }),
                     },
                   ]}
@@ -897,6 +977,7 @@ export default function DashboardScreen({ navigation }) {
                     left: progressAnim.interpolate({
                       inputRange: [0, 1],
                       outputRange: [0, 240],
+                      extrapolate: 'clamp',
                     }),
                   },
                 ]}

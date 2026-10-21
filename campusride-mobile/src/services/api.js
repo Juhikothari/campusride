@@ -157,6 +157,7 @@ export const createCommunityPost = (body)        => request('/community', { meth
 export const toggleCommunityLike = (id)          => request(`/community/${id}/like`, { method:'POST' });
 export const addCommunityReply   = (id, content) => request(`/community/${id}/reply`, { method:'POST', body: JSON.stringify({ content }) });
 export const deleteCommunityPost = (id)          => request(`/community/${id}`, { method:'DELETE' });
+export const deleteCommunityReply = (postId, replyId) => request(`/community/${postId}/reply/${replyId}`, { method:'DELETE' });
 export const joinWalkPost        = (id)          => request(`/community/${id}/join-walk`, { method:'POST' });
 export const getChatMessages     = (college)     => request(`/community/chat/${encodeURIComponent(college)}`);
 export const deleteChatMessage   = (id)          => request(`/community/chat/${id}`, { method:'DELETE' });

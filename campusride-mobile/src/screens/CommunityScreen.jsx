@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
-  FlatList, KeyboardAvoidingView, Platform, StyleSheet,
+  FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet,
   ActivityIndicator, Alert as RNAlert, Image, Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,7 +10,7 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
-import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, getChatMessages } from '../services/api';
+import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, deleteCommunityReply, getChatMessages } from '../services/api';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 import { resetCommunityUnreadCount } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
@@ -86,11 +86,35 @@ function PostsTab({ user }) {
       });
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        setAttachment({
+        const newAttachment = {
           uri: asset.uri,
           name: asset.fileName || `post_image_${Date.now()}.jpg`,
           type: 'image',
-        });
+          uploading: true,
+        };
+        setAttachment(newAttachment);
+
+        // Upload immediately upon crop confirmation!
+        uploadToCloudinaryWithRetry(asset.uri, { type: 'image' })
+          .then(uploadedUrl => {
+            if (uploadedUrl) {
+              setAttachment(prev => (prev?.uri === asset.uri ? {
+                ...prev,
+                url: uploadedUrl,
+                uploading: false,
+                uploaded: true,
+              } : prev));
+            }
+          })
+          .catch(uploadErr => {
+            console.log('[Community] Image upload error:', uploadErr);
+            setAttachment(prev => (prev?.uri === asset.uri ? {
+              ...prev,
+              uploading: false,
+              uploaded: false,
+              error: 'Upload failed',
+            } : prev));
+          });
       }
     } catch (err) {
       RNAlert.alert('Error', 'Unable to pick image: ' + err.message);
@@ -110,11 +134,35 @@ function PostsTab({ user }) {
       });
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        setAttachment({
+        const newAttachment = {
           uri: asset.uri,
           name: `camera_${Date.now()}.jpg`,
           type: 'image',
-        });
+          uploading: true,
+        };
+        setAttachment(newAttachment);
+
+        // Upload immediately upon crop confirmation!
+        uploadToCloudinaryWithRetry(asset.uri, { type: 'image' })
+          .then(uploadedUrl => {
+            if (uploadedUrl) {
+              setAttachment(prev => (prev?.uri === asset.uri ? {
+                ...prev,
+                url: uploadedUrl,
+                uploading: false,
+                uploaded: true,
+              } : prev));
+            }
+          })
+          .catch(uploadErr => {
+            console.log('[Community] Camera photo upload error:', uploadErr);
+            setAttachment(prev => (prev?.uri === asset.uri ? {
+              ...prev,
+              uploading: false,
+              uploaded: false,
+              error: 'Upload failed',
+            } : prev));
+          });
       }
     } catch (err) {
       RNAlert.alert('Error', 'Unable to take photo: ' + err.message);
@@ -128,23 +176,26 @@ function PostsTab({ user }) {
     try {
       let attachments = [];
       if (attachment) {
-        setUploadingAttachment(true);
-        try {
-          const uploadedUrl = await uploadToCloudinaryWithRetry(attachment.uri, {
-            type: 'image',
-          });
+        let finalUrl = attachment.url;
+        if (!finalUrl) {
+          setUploadingAttachment(true);
+          try {
+            finalUrl = await uploadToCloudinaryWithRetry(attachment.uri, { type: 'image' });
+          } catch (uploadErr) {
+            setError('Failed to upload image attachment. Check your connection.');
+            setPosting(false);
+            setUploadingAttachment(false);
+            return;
+          } finally {
+            setUploadingAttachment(false);
+          }
+        }
+        if (finalUrl) {
           attachments.push({
-            url: uploadedUrl,
+            url: finalUrl,
             type: 'image',
             name: attachment.name || 'image.jpg',
           });
-        } catch (uploadErr) {
-          setError('Failed to upload image attachment. Check your connection.');
-          setPosting(false);
-          setUploadingAttachment(false);
-          return;
-        } finally {
-          setUploadingAttachment(false);
         }
       }
 
@@ -169,8 +220,37 @@ function PostsTab({ user }) {
   const handleLike = async (postId) => {
     try {
       const updated = await toggleCommunityLike(postId);
-      setPosts(prev => prev.map(p => p._id === postId ? { ...p, likes: updated.likes } : p));
+      setPosts(prev => prev.map(p => {
+        if (p._id !== postId) return p;
+        return {
+          ...p,
+          likes: updated.likes,
+          likedBy: updated.likedBy || p.likedBy,
+          userLiked: updated.liked,
+        };
+      }));
     } catch {}
+  };
+
+  const handleDeleteReply = (postId, replyId) => {
+    RNAlert.alert('Delete Comment', 'Are you sure you want to delete this comment?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setPosts(prev => prev.map(p => {
+              if (p._id !== postId) return p;
+              return { ...p, replies: (p.replies || []).filter(r => r._id !== replyId) };
+            }));
+            await deleteCommunityReply(postId, replyId);
+          } catch (err) {
+            RNAlert.alert('Notice', err.message || 'Failed to delete comment');
+          }
+        }
+      }
+    ]);
   };
 
   const handleReply = async (postId) => {
@@ -241,7 +321,9 @@ function PostsTab({ user }) {
             <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewThumb} />
             <View style={{ flex: 1, paddingHorizontal: 8 }}>
               <Text style={styles.attachmentPreviewName} numberOfLines={1}>{attachment.name}</Text>
-              <Text style={styles.attachmentPreviewSub}>Ready to upload with post</Text>
+              <Text style={[styles.attachmentPreviewSub, attachment.uploaded && { color: colors.green }]}>
+                {attachment.uploading ? '⏳ Uploading cropped image…' : (attachment.uploaded ? '✓ Image uploaded & ready' : 'Ready to post')}
+              </Text>
             </View>
             <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachmentBtn}>
               <Text style={styles.removeAttachmentText}>✕</Text>
@@ -387,10 +469,18 @@ function PostsTab({ user }) {
               </Text>
               
               <View style={{ flexDirection: 'row', gap: 16 }}>
-                <TouchableOpacity onPress={() => handleLike(post._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={{ fontSize: 14 }}>❤️</Text>
-                  <Text style={{ color: colors.text2, fontSize: 12 }}>{post.likes?.length || 0}</Text>
-                </TouchableOpacity>
+                {(() => {
+                  const likeCount = typeof post.likes === 'number' ? post.likes : (Array.isArray(post.likedBy) ? post.likedBy.length : (Array.isArray(post.likes) ? post.likes.length : 0));
+                  const isLiked = post.userLiked || (Array.isArray(post.likedBy) && post.likedBy.some(id => (id._id || id).toString() === (currentUserId || '').toString()));
+                  return (
+                    <TouchableOpacity onPress={() => handleLike(post._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={{ fontSize: 14 }}>{isLiked ? '❤️' : '🤍'}</Text>
+                      <Text style={[{ color: isLiked ? colors.accent : colors.text2, fontSize: 12, fontWeight: isLiked ? '700' : '500' }]}>
+                        {likeCount}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })()}
                 <TouchableOpacity onPress={() => setShowReply(s => ({ ...s, [post._id]: !s[post._id] }))} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={{ fontSize: 14 }}>💬</Text>
                   <Text style={{ color: colors.text2, fontSize: 12 }}>{post.replies?.length || 0}</Text>
@@ -399,25 +489,54 @@ function PostsTab({ user }) {
             </View>
 
             {showReply[post._id] && (
-              <View style={{ marginTop: 10, flexDirection: 'row', gap: 8 }}>
+              <View style={{ marginTop: 10, flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                 <TextInput
-                  style={[styles.replyInput, { flex: 1 }]}
+                  style={[styles.replyInput, {
+                    flex: 1,
+                    maxHeight: 90,
+                    minHeight: 40,
+                    color: isDark ? '#ffffff' : '#0f172a',
+                    backgroundColor: isDark ? '#162235' : '#f1f5f9',
+                    borderColor: isDark ? '#26344d' : '#cbd5e1',
+                    fontSize: 13,
+                  }]}
                   value={replyText[post._id] || ''}
                   onChangeText={t => setReplyText(r => ({ ...r, [post._id]: t }))}
                   placeholder="Write a reply…"
-                  placeholderTextColor={colors.text3}
+                  placeholderTextColor={isDark ? '#8b96b0' : '#94a3b8'}
+                  multiline={true}
+                  scrollEnabled={true}
                 />
                 <TouchableOpacity onPress={() => handleReply(post._id)} style={styles.replyBtn}>
                   <Text style={{ color: '#000', fontWeight: '700', fontSize: 12 }}>Send</Text>
                 </TouchableOpacity>
               </View>
             )}
-            {(post.replies || []).map((r, i) => (
-              <View key={i} style={styles.reply}>
-                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '600' }}>{r.authorName || 'User'}</Text>
-                <Text style={{ color: colors.text, fontSize: 13, marginTop: 2 }}>{r.content}</Text>
-              </View>
-            ))}
+            {(post.replies || []).map((r, i) => {
+              const replyAuthorId = (r.authorId?._id || r.authorId || '').toString();
+              const postAuthorId = (post.author?._id || post.author || '').toString();
+              const myIdStr = (currentUserId || '').toString();
+              const canDeleteReply = replyAuthorId === myIdStr || postAuthorId === myIdStr || user?.role === 'admin';
+
+              return (
+                <View key={r._id || i} style={styles.reply}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>
+                      {r.authorName || 'User'}
+                    </Text>
+                    {canDeleteReply && (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteReply(post._id, r._id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={{ color: colors.red, fontSize: 11, fontWeight: '600' }}>🗑️ Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <Text style={{ color: isDark ? colors.text : '#1e293b', fontSize: 13, marginTop: 3 }}>{r.content}</Text>
+                </View>
+              );
+            })}
           </View>
         );
       })}
@@ -435,6 +554,13 @@ function CollegeChatTab({ user }) {
   const flatRef    = useRef(null);
   const insets     = useSafeAreaInsets();
   const { isDark } = useTheme();
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+    return () => showSub.remove();
+  }, []);
 
   useEffect(() => {
     if (!user?.college) return;
@@ -477,8 +603,8 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />

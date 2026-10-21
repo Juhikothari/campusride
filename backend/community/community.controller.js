@@ -15,6 +15,8 @@ exports.getPosts = async (req, res) => {
     // If 'walk' requested, filter to walk only; if not specified or 'community', exclude walk posts
     if (req.query.type === 'walk') {
       queryFilter.type = 'walk';
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      queryFilter.createdAt = { $gte: twentyFourHoursAgo };
     } else if (req.query.type !== 'all') {
       queryFilter.type = { $ne: 'walk' };
     }
@@ -61,20 +63,35 @@ exports.createPost = async (req, res) => {
   }
 };
 
-// PATCH /api/community/:id/like
+// POST / PATCH /api/community/:id/like - Track likes with toggle support
 exports.toggleLike = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: 'Post not found' });
-    post.likes = (post.likes || 0) + 1;
+
+    if (!post.likedBy) post.likedBy = [];
+    const userIdStr = (req.user?.userId || req.user?.id || '').toString();
+    const existingIdx = post.likedBy.findIndex(id => (id._id || id).toString() === userIdStr);
+    let userLiked = false;
+
+    if (existingIdx >= 0) {
+      post.likedBy.splice(existingIdx, 1);
+      post.likes = Math.max(0, (post.likes || 1) - 1);
+      userLiked = false;
+    } else {
+      if (req.user?.userId) post.likedBy.push(req.user.userId);
+      post.likes = (post.likes || 0) + 1;
+      userLiked = true;
+    }
+
     await post.save();
-    res.json({ likes: post.likes });
+    res.json({ likes: post.likes, liked: userLiked, likedBy: post.likedBy });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// POST /api/community/:id/reply
+// POST /api/community/:id/reply - Only notifies post author (never the commenter)
 exports.addReply = async (req, res) => {
   try {
     const { content, anonymous } = req.body;
@@ -92,29 +109,75 @@ exports.addReply = async (req, res) => {
       createdAt:  new Date(),
     });
     await post.save();
+    await post.populate('author', 'name college usn');
 
-    // Notify post author if replied by someone else
-    const authorId = post.author?.toString();
+    // Notify post author ONLY if replied by someone else
+    const authorId = (post.author?._id || post.author || '').toString();
+    const currentUserId = (req.user?.userId || req.user?.id || '').toString();
     const replierName = anonymous ? 'Someone' : (user?.name || 'A classmate');
-    if (authorId && authorId !== req.user.userId.toString()) {
-      const io = req.app.get('io');
+
+    if (authorId && authorId !== currentUserId) {
+      const snippet = content.trim().length > 60 ? `${content.trim().slice(0, 60)}…` : content.trim();
+
+      // Persist notification in database for post author
+      try {
+        const Notification = require('../notifications/notifications.model');
+        await Notification.create({
+          userId: authorId,
+          userType: 'user',
+          type: 'community-reply',
+          title: '💬 New Reply to Your Post',
+          body: `${replierName} replied: "${snippet}"`,
+          data: { postId: post._id },
+          priority: 'medium',
+          channels: ['in_app', 'push', 'socket'],
+        });
+      } catch (notifErr) {
+        console.log('[Community] Save notification error:', notifErr.message);
+      }
+
+      const io = req.app.get('io') || global.io;
       if (io) {
-        const snippet = content.trim().length > 60 ? `${content.trim().slice(0, 60)}…` : content.trim();
         const notifPayload = {
           title: '💬 New Reply to Your Post',
           message: `${replierName} replied: "${snippet}"`,
           type: 'community-reply',
           postId: post._id,
+          authorId,
           createdAt: new Date(),
         };
+        io.to(`user-${authorId}`).emit('community-reply', notifPayload);
         io.to(`user-${authorId}`).emit('new-notification', notifPayload);
-        io.to(`user-${authorId}`).emit('community-reply', {
-          postId: post._id,
-          reply: { authorName: replierName, content: content.trim() },
-        });
       }
     }
 
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// DELETE /api/community/:id/reply/:replyId - Delete comment on post
+exports.deleteReply = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: 'Post not found' });
+
+    const reply = post.replies.id(req.params.replyId);
+    if (!reply) return res.status(404).json({ message: 'Comment not found' });
+
+    const currentUserId = (req.user?.userId || req.user?.id || '').toString();
+    const isReplyAuthor = (reply.authorId?._id || reply.authorId || '').toString() === currentUserId;
+    const isPostAuthor  = (post.author?._id || post.author || '').toString() === currentUserId;
+    const isAdmin       = req.user?.role === 'admin';
+
+    if (!isReplyAuthor && !isPostAuthor && !isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to delete this comment' });
+    }
+
+    post.replies.pull(req.params.replyId);
+    await post.save();
+    await post.populate('author', 'name college usn');
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });
