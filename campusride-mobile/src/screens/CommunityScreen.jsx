@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
 import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, getChatMessages } from '../services/api';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
@@ -23,37 +24,7 @@ const POST_TYPES = [
   { value: 'alert',     label: '🚨 Alert' },
 ];
 
-export const COLLEGE_SITCOM_MAP = {
-  rnsit:  { sitcom: 'Friends', hangout: 'Central Perk Lounge ☕' },
-  rvce:   { sitcom: 'The Big Bang Theory', hangout: 'Caltech Apartment 4A ⚛️' },
-  bmsce:  { sitcom: 'The Office', hangout: 'Dunder Mifflin Hub 📄' },
-  msrit:  { sitcom: 'Brooklyn Nine-Nine', hangout: 'The 99th Precinct 🚨' },
-  pesu:   { sitcom: 'Silicon Valley', hangout: 'Pied Piper Incubator 💻' },
-  pes:    { sitcom: 'Silicon Valley', hangout: 'Pied Piper Incubator 💻' },
-  dsce:   { sitcom: 'How I Met Your Mother', hangout: "MacLaren's Pub 🍻" },
-  jssate: { sitcom: 'Parks & Recreation', hangout: 'Pawnee Parks Room 🌳' },
-  sjce:   { sitcom: 'Community', hangout: 'Greendale Study Room F 📚' },
-  nie:    { sitcom: 'Modern Family', hangout: 'Dunphy Living Room 🏡' },
-};
-
-export function getSitcomForCollege(collegeName) {
-  if (!collegeName) return { sitcom: 'Sitcom Hub', hangout: 'Central Perk Lounge ☕' };
-  const key = collegeName.toLowerCase().replace(/[^a-z]/g, '');
-  for (const [k, v] of Object.entries(COLLEGE_SITCOM_MAP)) {
-    if (key.includes(k)) return v;
-  }
-  const fallbacks = [
-    { sitcom: 'Friends', hangout: 'Central Perk Lounge ☕' },
-    { sitcom: 'The Office', hangout: 'Dunder Mifflin Hub 📄' },
-    { sitcom: 'Parks & Rec', hangout: 'Pawnee Parks Room 🌳' },
-    { sitcom: 'B99', hangout: 'The 99th Squad Room 🚨' },
-    { sitcom: 'Community', hangout: 'Greendale Study Room 📚' },
-    { sitcom: 'HIMYM', hangout: "MacLaren's Booth 🍻" },
-  ];
-  let hash = 0;
-  for (let i = 0; i < collegeName.length; i++) hash += collegeName.charCodeAt(i);
-  return fallbacks[hash % fallbacks.length];
-}
+// Sitcom lounge removed - clean community hub
 
 export function getCategoryBadge(type) {
   switch ((type || '').toLowerCase()) {
@@ -462,6 +433,8 @@ function CollegeChatTab({ user }) {
   const [anonymous,setAnonymous]= useState(false);
   const socketRef  = useRef(null);
   const flatRef    = useRef(null);
+  const insets     = useSafeAreaInsets();
+  const { isDark } = useTheme();
 
   useEffect(() => {
     if (!user?.college) return;
@@ -505,7 +478,7 @@ function CollegeChatTab({ user }) {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
     >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
@@ -542,7 +515,14 @@ function CollegeChatTab({ user }) {
           }}
         />
       )}
-      <View style={styles.chatInput}>
+      <View style={[
+        styles.chatInput,
+        {
+          backgroundColor: isDark ? '#0c121e' : '#ffffff',
+          borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
+          paddingBottom: Math.max(insets.bottom, 10),
+        }
+      ]}>
         <TouchableOpacity
           onPress={() => setAnonymous(a => !a)}
           style={{ padding: 8, justifyContent: 'center', alignItems: 'center' }}
@@ -551,11 +531,20 @@ function CollegeChatTab({ user }) {
           <Text style={{ fontSize: 20 }}>{anonymous ? '🎭' : '🎓'}</Text>
         </TouchableOpacity>
         <TextInput
-          style={styles.chatTextInput}
+          style={[
+            styles.chatTextInput,
+            {
+              color: isDark ? '#ffffff' : '#0f172a',
+              backgroundColor: isDark ? '#162235' : '#f1f5f9',
+              borderColor: isDark ? '#26344d' : '#cbd5e1',
+            }
+          ]}
           value={input}
           onChangeText={setInput}
           placeholder={anonymous ? 'Send anonymously…' : 'Message your college…'}
-          placeholderTextColor={colors.text3}
+          placeholderTextColor={isDark ? '#8b96b0' : '#94a3b8'}
+          cursorColor="#f5a623"
+          selectionColor="rgba(245,166,35,0.3)"
           onSubmitEditing={sendMsg}
           returnKeyType="send"
         />
@@ -570,45 +559,23 @@ function CollegeChatTab({ user }) {
 // ── Main Screen ───────────────────────────────────────────────────
 export default function CommunityScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     resetCommunityUnreadCount();
   }, []);
 
-  const sitcomInfo = getSitcomForCollege(user?.college);
-  const sitcomTitle = sitcomInfo.hangout.replace(/[☕⚛️📄🚨💻🍻🌳📚🏡]/g, '').trim();
-  const sitcomSubtitle = `${sitcomInfo.sitcom} Hub • ${user?.college || 'Campus'} Community`;
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }} edges={['top', 'bottom']}>
       <TopHeader 
         title="Campus Community" 
-        subtitle={`${user?.college || 'Student Commuters'} Lounge`} 
+        subtitle="Campus Posts & Student Chat" 
         showBack={navigation?.canGoBack ? navigation.canGoBack() : false} 
       />
 
-      {/* Sitcom Hangout Banner - Display name once with catchy stylized aesthetic */}
-      <View style={styles.sitcomBanner}>
-        <View style={styles.sitcomBadgeContainer}>
-          <Text style={styles.sitcomThemeTag}>★ {sitcomInfo.sitcom.toUpperCase()} THEMED LOUNGE</Text>
-          <View style={styles.sitcomLivePill}>
-            <View style={styles.sitcomLiveDot} />
-            <Text style={styles.sitcomLiveText}>COMMUNITY LIVE</Text>
-          </View>
-        </View>
-
-        <View style={styles.sitcomHangoutTitleRow}>
-          <Text style={styles.sitcomHangoutName}>{sitcomInfo.hangout}</Text>
-        </View>
-
-        <Text style={styles.sitcomCatchyTagline}>
-          Exclusive hangout & ride chat for verified {user?.college || 'campus'} peers
-        </Text>
-      </View>
-
       {/* Tabs */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { backgroundColor: isDark ? colors.surface : '#ffffff', borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
         {TABS.map((tab, i) => (
           <TouchableOpacity
             key={tab}
@@ -635,63 +602,7 @@ const styles = StyleSheet.create({
   tabText:   { color: colors.text2, fontSize: 14, fontWeight: '600' },
   tabTextActive: { color: colors.accent },
 
-  sitcomBanner: {
-    backgroundColor: '#0c1421',
-    borderBottomWidth: 1.5,
-    borderBottomColor: 'rgba(0, 229, 255, 0.25)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 229, 255, 0.1)',
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-  },
-  sitcomBadgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  sitcomThemeTag: {
-    color: '#00e5ff',
-    fontSize: 10.5,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  sitcomLivePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(45, 212, 160, 0.15)',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: radius.full,
-    gap: 4,
-  },
-  sitcomLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#2dd4a0',
-  },
-  sitcomLiveText: {
-    color: '#2dd4a0',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  sitcomHangoutTitleRow: {
-    marginBottom: 2,
-  },
-  sitcomHangoutName: {
-    color: '#ffffff',
-    fontSize: 17,
-    fontWeight: '900',
-    letterSpacing: -0.3,
-  },
-  sitcomCatchyTagline: {
-    color: colors.text2,
-    fontSize: 11.5,
-    lineHeight: 16,
-    fontWeight: '500',
-  },
+  // Sitcom styles removed
 
   composeCard: {
     backgroundColor: colors.surface, borderRadius: radius.xl,
@@ -778,14 +689,14 @@ const styles = StyleSheet.create({
 
   chatInput: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border,
-    padding: 10,
+    backgroundColor: '#0c121e', borderTopWidth: 1.5, borderTopColor: '#1c2638',
+    paddingHorizontal: 12, paddingVertical: 10,
   },
   chatTextInput: {
-    flex: 1, backgroundColor: colors.surface2, borderRadius: radius.full,
-    paddingHorizontal: 14, paddingVertical: 10,
-    color: colors.text, fontSize: 14,
-    borderWidth: 1, borderColor: colors.border,
+    flex: 1, backgroundColor: '#162235', borderRadius: radius.full,
+    paddingHorizontal: 16, paddingVertical: 10,
+    color: '#ffffff', fontSize: 15, minHeight: 44,
+    borderWidth: 1.5, borderColor: '#26344d',
   },
   sendBtn: {
     width: 38, height: 38, borderRadius: 19,

@@ -1,3 +1,5 @@
+const { notifyAdmins } = require('../notifications/notifications.helper');
+const User = require('../users/users.model');
 const Incident = require('./incidents.model');
 
 exports.reportIncident = async (req, res) => {
@@ -11,6 +13,24 @@ exports.reportIncident = async (req, res) => {
       type, subject: subject || '', description, severity: severity || 'Medium'
     });
     await incident.save();
+
+    // Notify administrators immediately of reported incident
+    User.findById(req.user.userId).select('name college').then(reporter => {
+      notifyAdmins({
+        title: `⚠️ New Incident Reported (${severity || 'Medium'})`,
+        message: `${reporter?.name || 'A user'} reported an incident: ${subject || type}. "${(description || '').slice(0, 100)}"`,
+        type: 'incident_report',
+        data: {
+          incidentId: incident._id,
+          rideId,
+          type,
+          severity: severity || 'Medium',
+          reportedBy: req.user.userId,
+        },
+        priority: 'critical',
+      }).catch(e => console.log('Admin incident notif error:', e));
+    }).catch(() => {});
+
     res.status(201).json({ message: 'Incident reported', incident });
   } catch (err) { res.status(500).json({ message: err.message }); }
 };

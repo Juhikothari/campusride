@@ -1,3 +1,4 @@
+const { notifyAdmins } = require('../notifications/notifications.helper');
 // backend/users/users.routes.js
 const express = require('express');
 const router  = express.Router();
@@ -128,6 +129,21 @@ router.put('/profile/vehicle', auth, async (req, res) => {
     }
 
     await user.save();
+
+    // Notify administrators of new vehicle submission for 24-hr review
+    notifyAdmins({
+      title: '🚗 New Vehicle Added for Verification',
+      message: `${user.name || 'User'} (${user.college || 'Campus'}) added vehicle ${vn} (${vehicleName.trim()}) for 24-hr review.`,
+      type: 'vehicle_submission',
+      data: {
+        userId: user._id,
+        vehicleNumber: vn,
+        vehicleName: vehicleName.trim(),
+        vehicleType: vehicleType || 'car',
+      },
+      priority: 'high',
+    }).catch(e => console.log('Admin vehicle notif error:', e));
+
     res.json({
       message: 'Vehicle submitted for admin review. Verification will be done in 24 hrs.',
       vehicleNumber: vn,

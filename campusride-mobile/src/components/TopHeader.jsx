@@ -32,6 +32,7 @@ function getHeaderEmoji(title) {
 export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack, highlightProfile = false }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
+  const { isDark, colors: tc } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   const [unreadCount, setUnreadCount]   = useState(0);
 
@@ -95,7 +96,6 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
     navigation.navigate(screenName, params);
   };
 
-  const { theme, toggleTheme, isDark } = useTheme();
   const initials = (user?.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   const isDashboard = (title === 'HOGO' || title === 'Dashboard') && subtitle === 'Find Your Match';
   const canGoBack = showBack === false || isDashboard ? false : (showBack === true ? true : (navigation?.canGoBack ? navigation.canGoBack() : false));
@@ -103,7 +103,7 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
 
   return (
     <>
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: isDark ? colors.surface : "#ffffff", borderBottomColor: isDark ? colors.border : "#e2e8f0" }]}>
         {/* Brand with Back Button */}
         <View style={styles.brandContainer}>
           {canGoBack && (
@@ -168,14 +168,14 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
           activeOpacity={1}
           onPress={() => setModalVisible(false)}
         >
-          <View style={styles.dropdownCard}>
+          <View style={[styles.dropdownCard, { backgroundColor: isDark ? "#101520" : "#ffffff", borderColor: isDark ? colors.border : "#cbd5e1" }]}>
             {/* User Header */}
             <View style={styles.dropdownUser}>
               <View style={styles.largeAvatar}>
                 <Text style={styles.largeAvatarText}>{initials}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.userName} numberOfLines={1}>{user?.name || 'HOGO User'}</Text>
+                <Text style={[styles.userName, { color: isDark ? colors.text : "#0f172a" }]} numberOfLines={1}>{user?.name || 'HOGO User'}</Text>
                 <Text style={styles.userEmail} numberOfLines={1}>{user?.email}</Text>
                 {user?.college && <Text style={styles.userCollege} numberOfLines={1}>🏫 {user.college}</Text>}
               </View>
@@ -196,15 +196,6 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
               <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} />
               <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} />
 
-              {/* Theme Dark / Light Toggle */}
-              <MenuItem
-                icon={isDark ? "☀️" : "🌙"}
-                label={isDark ? "Light Mode" : "Dark Mode"}
-                onPress={() => {
-                  setModalVisible(false);
-                  toggleTheme();
-                }}
-              />
 
               {isAdmin && (
                 <MenuItem icon="🛡️" label="Admin Dashboard" onPress={() => navTo('AdminDashboard')} highlight />

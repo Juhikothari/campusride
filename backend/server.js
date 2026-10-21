@@ -97,6 +97,10 @@ io.on("connection", (socket) => {
         socket.join(`provider-${userId}`);
         socket.join(`seeker-${userId}`);
         if (userType) socket.join(`${userType}s`);
+        if (userType === 'admin') {
+          socket.join('admin');
+          socket.join('admins');
+        }
         console.log(`✅ User ${userId} (${userType}) authenticated in all personal rooms`);
         socket.emit('authenticated', { success: true, userId, userType });
       }

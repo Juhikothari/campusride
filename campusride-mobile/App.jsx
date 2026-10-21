@@ -1,15 +1,15 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { AuthProvider } from './src/context/AuthContext';
-import { ThemeProvider } from './src/context/ThemeContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { addNotificationListener } from './src/services/notificationService';
+import { addNotificationListener, initNotificationService } from './src/services/notificationService';
 
 class ErrorBoundary extends React.Component {
   state = { hasError: false, error: null };
@@ -133,10 +133,48 @@ function AppNotificationBanner() {
   );
 }
 
+const customDarkTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#07090d',
+    card: '#101520',
+    text: '#edf0f7',
+    border: '#212840',
+    primary: '#f5a623',
+  },
+};
+
+const customLightTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: '#f8fafc',
+    card: '#ffffff',
+    text: '#0f172a',
+    border: '#cbd5e1',
+    primary: '#d97706',
+  },
+};
+
+function MainApp() {
+  const { isDark, colors } = useTheme();
+
+  return (
+    <NavigationContainer theme={isDark ? customDarkTheme : customLightTheme}>
+      <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.bg} />
+      <AppNavigator />
+      <AppNotificationBanner />
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   useEffect(() => {
     // Hide native splash screen immediately on mount
     SplashScreen.hideAsync().catch(() => {});
+    // Initialize system notification permissions and Android channels
+    initNotificationService().catch(() => {});
   }, []);
 
   return (
@@ -145,11 +183,7 @@ export default function App() {
         <ErrorBoundary>
           <ThemeProvider>
             <AuthProvider>
-              <NavigationContainer>
-                <StatusBar style="light" backgroundColor="#07090d" />
-                <AppNavigator />
-                <AppNotificationBanner />
-              </NavigationContainer>
+              <MainApp />
             </AuthProvider>
           </ThemeProvider>
         </ErrorBoundary>

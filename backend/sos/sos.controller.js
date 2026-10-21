@@ -1,3 +1,4 @@
+const { notifyAdmins } = require('../notifications/notifications.helper');
 const SOS = require('./sos.model');
 const Ride = require('../rides/rides.model');
 const User = require('../users/users.model');
@@ -88,6 +89,19 @@ exports.triggerSOS = async (req, res) => {
       type: sos.type,
       timestamp: sos.createdAt
     });
+
+    notifyAdmins({
+      title: '🚨 CRITICAL: EMERGENCY SOS ALERT TRIGGERED!',
+      message: `Emergency SOS triggered by ${user.name || 'User'} on ride #${rideId}! Immediate assistance required!`,
+      type: 'emergency_sos',
+      data: {
+        sosId: sos._id,
+        rideId,
+        userId,
+        location: sos.location,
+      },
+      priority: 'critical',
+    }).catch(e => console.log('Admin SOS notif error:', e));
     
     res.status(201).json({
       message: 'SOS triggered successfully',

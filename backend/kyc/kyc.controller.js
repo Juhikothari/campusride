@@ -1,3 +1,4 @@
+const { notifyAdmins } = require('../notifications/notifications.helper');
 const User = require('../users/users.model');
 const path = require('path');
 const fs = require('fs');
@@ -108,6 +109,21 @@ exports.submitKyc = async (req, res) => {
     user.kycSubmittedAt = new Date();
 
     await user.save();
+
+    // Notify administrators of new KYC submission
+    notifyAdmins({
+      title: '🛡️ New KYC Document Submission',
+      message: `${user.name || 'Student'} (${user.college || 'Campus'}) submitted KYC documents for review.`,
+      type: 'kyc_submission',
+      data: {
+        userId: user._id,
+        name: user.name,
+        college: user.college,
+        role: user.role,
+        kycStatus: user.kycStatus,
+      },
+      priority: 'high',
+    }).catch(e => console.log('Admin KYC notif error:', e));
 
     res.json({
       message: "KYC submitted successfully. Waiting for admin approval.",

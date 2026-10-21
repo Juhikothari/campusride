@@ -27,7 +27,7 @@ function ProfileRow({ label, value, accent }) {
 
 export default function ProfileScreen({ navigation }) {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme, isDark } = useTheme();
+  const { theme, toggleTheme, isDark, colors: themeColors } = useTheme();
   const authUser = user;
   const [profile,      setProfile]      = useState(null);
   const [loading,      setLoading]      = useState(true);
@@ -289,7 +289,7 @@ export default function ProfileScreen({ navigation }) {
   };
 
   if (loading) return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: themeColors.bg }]}>
       <ActivityIndicator color={colors.accent} style={{ marginTop: 60 }} />
     </SafeAreaView>
   );
@@ -304,7 +304,7 @@ export default function ProfileScreen({ navigation }) {
         <Alert message={error} />
 
         {/* Avatar hero */}
-        <View style={styles.hero}>
+        <View style={[styles.hero, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
           <View style={{ alignItems: 'center', marginBottom: 12 }}>
             <TouchableOpacity
               onPress={handleCaptureSelfie}
@@ -345,8 +345,8 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* Personal info */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
+        <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Personal Information</Text>
           <Text style={styles.readonlyNote}>ℹ️ Contact support to change name or email.</Text>
 
           <ProfileRow label="Full Name"      value={p?.name} />
@@ -396,8 +396,8 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* Verification */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Verification Status</Text>
+        <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Verification Status</Text>
           <ProfileRow label="KYC Status" value={p?.kycStatus?.replace(/_/g, ' ') || 'Not submitted'} />
           <View style={[styles.kycBadge, { borderColor: kycColor + '55', backgroundColor: kycColor + '15' }]}>
             <Text style={[styles.kycBadgeText, { color: kycColor }]}>
@@ -407,9 +407,9 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         {/* ── VEHICLE DETAILS & 24-HR ADMIN REVIEW ── */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <Text style={styles.sectionTitle}>Vehicle Details</Text>
+            <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Vehicle Details</Text>
             <TouchableOpacity onPress={() => setShowVehicleModal(true)} style={styles.addVehicleBadgeBtn}>
               <Text style={styles.addVehicleBadgeText}>
                 {(userVehicles.length > 0 || p?.kycDocuments?.vehicleNumber) ? '+ Add Another' : '+ Add Vehicle'}
@@ -450,13 +450,13 @@ export default function ProfileScreen({ navigation }) {
                 {list.map((veh, idx) => {
                   const isPending = veh.status === 'pending' || p?.kycDocuments?.vehicleStatus === 'pending';
                   return (
-                    <View key={idx} style={[styles.registeredVehicleCard, idx > 0 && { marginTop: 10 }]}>
+                    <View key={idx} style={[styles.registeredVehicleCard, { backgroundColor: isDark ? "#0c1017" : "#f8fafc", borderColor: themeColors.border }, idx > 0 && { marginTop: 10 }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                         <View style={styles.vehicleIconCircle}>
                           <Text style={{ fontSize: 22 }}>{veh.vehicleType === 'motorcycle' ? '🏍️' : '🚗'}</Text>
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.vehicleNameHead}>
+                          <Text style={[styles.vehicleNameHead, { color: themeColors.text }]}>
                             {veh.vehicleName || 'Vehicle'} • {(veh.vehicleType || 'Car').toUpperCase()}
                           </Text>
                           <Text style={styles.vehiclePlateHead}>{veh.vehicleNumber}</Text>
@@ -505,31 +505,31 @@ export default function ProfileScreen({ navigation }) {
 
 
         {/* Theme Settings Card */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🎨 APP APPEARANCE</Text>
+        <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>🎨 APP APPEARANCE</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
             <View>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>
-                {isDark ? '🌙 Dark Mode' : '☀️ Light Mode'}
+              <Text style={{ color: themeColors.text, fontSize: 14, fontWeight: '700' }}>
+                {isDark ? '🌙 Dark Mode Active' : '☀️ Light Mode Active'}
               </Text>
-              <Text style={{ color: colors.text3, fontSize: 11.5, marginTop: 2 }}>
+              <Text style={{ color: themeColors.text3, fontSize: 11.5, marginTop: 2 }}>
                 {isDark ? 'Easy on the eyes in low light' : 'Bright and crisp daytime theme'}
               </Text>
             </View>
             <TouchableOpacity
               onPress={toggleTheme}
               style={{
-                backgroundColor: isDark ? colors.surface2 : colors.accent,
+                backgroundColor: isDark ? themeColors.surface2 : themeColors.accent,
                 borderWidth: 1.5,
-                borderColor: colors.accent,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
+                borderColor: themeColors.accent,
+                paddingHorizontal: 16,
+                paddingVertical: 9,
                 borderRadius: radius.full,
               }}
               activeOpacity={0.8}
             >
-              <Text style={{ color: isDark ? colors.accent : '#000', fontSize: 12, fontWeight: '800' }}>
-                Switch to {isDark ? 'Light' : 'Dark'}
+              <Text style={{ color: isDark ? themeColors.accent : '#000000', fontSize: 12.5, fontWeight: '800' }}>
+                Switch to {isDark ? '☀️ Light' : '🌙 Dark'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -545,9 +545,9 @@ export default function ProfileScreen({ navigation }) {
       {/* Modal: Add Vehicle with 24-hr Admin Review Notice */}
       <Modal visible={showVehicleModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>🚗 Add Vehicle</Text>
-            <Text style={styles.modalSub}>
+          <View style={[styles.modalContent, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+            <Text style={[styles.modalTitle, { color: themeColors.text }]}>🚗 Add Vehicle</Text>
+            <Text style={[styles.modalSub, { color: themeColors.text2 }]}>
               Enter your vehicle details. Campus admin will verify your vehicle within 24 hours.
             </Text>
 

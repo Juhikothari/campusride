@@ -88,13 +88,13 @@ export default function DashboardScreen({ navigation }) {
           toValue: 1.07,
           duration: 900,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(pulseAnim, {
           toValue: 1,
           duration: 900,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -110,13 +110,13 @@ export default function DashboardScreen({ navigation }) {
           toValue: -3,
           duration: 250,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(bikeBounceAnim, {
           toValue: 0,
           duration: 250,
           easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -271,40 +271,45 @@ export default function DashboardScreen({ navigation }) {
 
   // Helper for navigating onboarding steps
   const goToStep = (stepIdx) => {
-    const clamped = Math.max(0, Math.min(ONBOARDING_STEPS.length - 1, stepIdx));
-    setPopupStep(clamped);
+    try {
+      const clamped = Math.max(0, Math.min(ONBOARDING_STEPS.length - 1, stepIdx));
+      setPopupStep(clamped);
 
-    // Animate progress fill
-    Animated.timing(progressAnim, {
-      toValue: clamped / (ONBOARDING_STEPS.length - 1),
-      duration: 350,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
+      // Animate progress fill
+      Animated.timing(progressAnim, {
+        toValue: clamped / (ONBOARDING_STEPS.length - 1),
+        duration: 350,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
 
-    // Trigger step content transition
-    stepContentAnim.setValue(0);
-    Animated.spring(stepContentAnim, {
-      toValue: 1,
-      friction: 7,
-      tension: 60,
-      useNativeDriver: true,
-    }).start();
+      // Trigger step content transition safely with JS driver
+      stepContentAnim.setValue(0);
+      Animated.timing(stepContentAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: false,
+      }).start();
 
-    // Scroll dashboard to match active feature
-    const target = ONBOARDING_STEPS[clamped];
-    if (target?.targetKey) {
-      if (target.targetKey === 'Profile') {
-        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-      } else if (serviceCardPositions.current[target.targetKey] != null) {
-        const yPos = serviceCardPositions.current[target.targetKey];
-        setTimeout(() => {
-          scrollViewRef.current?.scrollTo({
-            y: Math.max(0, yPos - 120),
-            animated: true,
-          });
-        }, 100);
+      // Scroll dashboard to match active feature
+      const target = ONBOARDING_STEPS[clamped];
+      if (target?.targetKey) {
+        if (target.targetKey === 'Profile') {
+          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        } else if (serviceCardPositions.current?.[target.targetKey] != null) {
+          const yPos = serviceCardPositions.current[target.targetKey];
+          setTimeout(() => {
+            try {
+              scrollViewRef.current?.scrollTo({
+                y: Math.max(0, yPos - 120),
+                animated: true,
+              });
+            } catch (e) {}
+          }, 100);
+        }
       }
+    } catch (err) {
+      console.log('goToStep error:', err);
     }
   };
 
@@ -518,7 +523,7 @@ export default function DashboardScreen({ navigation }) {
                 {isHighlighted && (
                   <View style={styles.onbHighlightCardBanner}>
                     <Text style={styles.onbHighlightCardBannerText}>
-                      ✨ STEP ${popupStep + 1}: ${item.title.toUpperCase()}
+                      ✨ STEP {popupStep + 1}: {item.title.toUpperCase()}
                     </Text>
                   </View>
                 )}
@@ -891,13 +896,14 @@ export default function DashboardScreen({ navigation }) {
                   {
                     left: progressAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 260],
+                      outputRange: [0, 240],
                     }),
-                    transform: [{ translateY: bikeBounceAnim }],
                   },
                 ]}
               >
-                <Text style={styles.onbBikeText}>🚲</Text>
+                <Animated.View style={{ transform: [{ translateY: bikeBounceAnim }] }}>
+                  <Text style={styles.onbBikeText}>🚲</Text>
+                </Animated.View>
               </Animated.View>
             </View>
 
@@ -1909,7 +1915,6 @@ const styles = StyleSheet.create({
   onbBikeRunner: {
     position: 'absolute',
     bottom: 5,
-    pointerEvents: 'none',
   },
   onbBikeText: {
     fontSize: 22,

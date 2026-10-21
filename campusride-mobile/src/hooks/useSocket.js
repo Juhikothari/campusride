@@ -186,6 +186,52 @@ export const getSharedSocket = (userId, userType) => {
 
     globalSocket.on('booking-update', (data) => notifyAll('booking-update', data));
     globalSocket.on('ride-update', (data) => notifyAll('ride-update', data));
+
+    // ── Admin Alerts & Operational Notifications ──
+    globalSocket.on('admin-notification', (data) => {
+      notifyAll('admin-notification', data);
+      showPushNotification({
+        title: data?.title || '🛡️ Admin Alert',
+        body: data?.message || data?.body || 'New administrative event received.',
+        data,
+      });
+    });
+
+    globalSocket.on('adminSOSAlert', (data) => {
+      notifyAll('adminSOSAlert', data);
+      showPushNotification({
+        title: '🚨 EMERGENCY SOS ALERT!',
+        body: data?.message || data?.body || `Emergency SOS triggered on Ride #${data?.rideId || ''}!`,
+        data: { ...data, priority: 'critical', type: 'emergency_sos' },
+      });
+    });
+
+    globalSocket.on('newKYCSubmission', (data) => {
+      notifyAll('newKYCSubmission', data);
+      showPushNotification({
+        title: '🛡️ New KYC Document Submitted',
+        body: data?.message || data?.body || `${data?.name || 'A student'} submitted documents for admin review.`,
+        data,
+      });
+    });
+
+    globalSocket.on('newIncidentReport', (data) => {
+      notifyAll('newIncidentReport', data);
+      showPushNotification({
+        title: `⚠️ New Incident Reported (${data?.severity || 'Medium'})`,
+        body: data?.message || data?.body || 'A new incident requires immediate administrator attention.',
+        data: { ...data, priority: 'critical', type: 'incident_report' },
+      });
+    });
+
+    globalSocket.on('newVehicleSubmission', (data) => {
+      notifyAll('newVehicleSubmission', data);
+      showPushNotification({
+        title: '🚗 New Vehicle Pending Review',
+        body: data?.message || data?.body || `Vehicle ${data?.vehicleNumber || ''} submitted for 24-hr verification.`,
+        data,
+      });
+    });
   } else if (globalSocket && userId) {
     globalSocket.emit('authenticate', { userId, userType });
   }

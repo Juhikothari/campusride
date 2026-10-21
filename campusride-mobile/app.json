@@ -55,6 +55,13 @@
           "cameraPermission": "HOGO needs camera access for KYC documents."
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#f5a623"
+        }
+      ],
       "expo-font"
     ],
     "extra": {
