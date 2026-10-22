@@ -70,7 +70,8 @@ exports.toggleLike = async (req, res) => {
     if (!post) return res.status(404).json({ message: 'Post not found' });
 
     if (!post.likedBy) post.likedBy = [];
-    const userIdStr = (req.user?.userId || req.user?.id || '').toString();
+    const uid = req.user?.userId || req.user?.id || req.user?._id;
+    const userIdStr = (uid || '').toString();
     const existingIdx = post.likedBy.findIndex(id => (id._id || id).toString() === userIdStr);
     let userLiked = false;
 
@@ -79,7 +80,7 @@ exports.toggleLike = async (req, res) => {
       post.likes = Math.max(0, (post.likes || 1) - 1);
       userLiked = false;
     } else {
-      if (req.user?.userId) post.likedBy.push(req.user.userId);
+      if (uid) post.likedBy.push(uid);
       post.likes = (post.likes || 0) + 1;
       userLiked = true;
     }

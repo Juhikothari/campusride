@@ -7,6 +7,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { subscribeToCommunityUnread, getCommunityUnreadCount } from '../hooks/useSocket';
@@ -26,7 +27,7 @@ const MAIN_SERVICES = [
   {
     key: 'CreateRide',
     title: 'Get a Buddy',
-    sub: 'Post your route and split the cost',
+    sub: 'Offer a ride and travel together',
     iconBg: '#1c2630',
   },
   {
@@ -45,6 +46,7 @@ const MAIN_SERVICES = [
 
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const [activeTrip, setActiveTrip] = useState(null);
   const [tripRole,   setTripRole]   = useState('driver'); // 'driver' | 'rider'
   const [loading,    setLoading]    = useState(false);
@@ -218,8 +220,8 @@ export default function DashboardScreen({ navigation }) {
       icon: '🚀',
       tagline: 'CAMPUS COMMUTE REIMAGINED',
       title: 'Meet HOGO',
-      desc: 'Ride smart, split fuel bills, walk together, and connect exclusively with verified students from your campus.',
-      btnLabel: 'Take the Tour →',
+      desc: 'Find verified classmates, travel together across campus, walk safer in groups, and stay connected!',
+      btnLabel: 'Start →',
       targetKey: null,
       screenName: null,
     },
@@ -228,18 +230,18 @@ export default function DashboardScreen({ navigation }) {
       icon: '🔍',
       tagline: 'NEVER COMMUTE ALONE',
       title: 'Search Your Buddy',
-      desc: 'Need a ride? Match with peers traveling your exact route in seconds. Hop in, split petrol expenses, and save big daily.',
-      btnLabel: 'Next Feature →',
+      desc: 'Need a ride? Connect with verified peers heading along your exact route in seconds. Commute together effortlessly.',
+      btnLabel: 'Next →',
       targetKey: 'SearchRides',
       screenName: 'SearchRides',
     },
     {
       step: 3,
       icon: '🏍️',
-      tagline: 'EMPTY SEATS = FREE PETROL',
+      tagline: 'EMPTY SEATS? SHARE THE RIDE',
       title: 'Get a Buddy (Offer Ride)',
-      desc: 'Riding or driving to campus? Post your route, pick up verified classmates, and cut your petrol budget straight in half.',
-      btnLabel: 'Next Feature →',
+      desc: 'Riding or driving to campus? Post your route, pick up verified classmates, and travel to college together with ease.',
+      btnLabel: 'Next →',
       targetKey: 'CreateRide',
       screenName: 'CreateRide',
     },
@@ -249,7 +251,7 @@ export default function DashboardScreen({ navigation }) {
       tagline: 'YOUR CAMPUS PULSE',
       title: 'College Community',
       desc: 'Verified student lounge for route updates, transit alerts, question boards, and real-time campus chat.',
-      btnLabel: 'Next Feature →',
+      btnLabel: 'Next →',
       targetKey: 'Community',
       screenName: 'Community',
     },
@@ -259,7 +261,7 @@ export default function DashboardScreen({ navigation }) {
       tagline: 'SAFETY IN NUMBERS',
       title: 'Nadi (Walk Together)',
       desc: 'Heading across campus or to the metro? Pair up with verified walking companions anytime. Auto-disappears after 24 hrs.',
-      btnLabel: 'Next Feature →',
+      btnLabel: 'Next →',
       targetKey: 'WalkTogether',
       screenName: 'WalkTogether',
     },
@@ -269,7 +271,7 @@ export default function DashboardScreen({ navigation }) {
       tagline: 'VERIFIED & IN CONTROL',
       title: 'Profile & Security',
       desc: 'View your uploaded KYC documents, register vehicles, check ride history, and toggle dark/light theme anytime.',
-      btnLabel: 'Next Feature →',
+      btnLabel: 'Next →',
       targetKey: 'Profile',
       screenName: 'Profile',
     },
@@ -278,30 +280,48 @@ export default function DashboardScreen({ navigation }) {
       icon: '🎉',
       tagline: "YOU'RE READY TO ROLL!",
       title: 'All Set for HOGO',
-      desc: 'Split costs, travel safe, and make campus commutes fast and fun. Enjoy riding together!',
-      btnLabel: 'Start Exploring 🚀',
+      desc: 'Connect with peers, travel safe, and make campus commutes fast and fun. Enjoy riding together!',
+      btnLabel: "Let's Ride 🚀",
       targetKey: null,
       screenName: null,
     },
   ];
 
-  const peekStepScreen = (stepItem) => {
-    if (!stepItem?.screenName) return;
-    setShowOnboardingPopup(false);
-    navigation.navigate(stepItem.screenName);
-
-    // Auto-return after 4.5 seconds to show the next step of the onboarding carousel
-    if (peekTimeoutRef.current) clearTimeout(peekTimeoutRef.current);
-    peekTimeoutRef.current = setTimeout(() => {
+  const handleNextOnboarding = () => {
+    if (popupStep === ONBOARDING_STEPS.length - 1) {
+      finishTour();
+      return;
+    }
+    const currentTarget = ONBOARDING_STEPS[popupStep]?.screenName;
+    const nextIdx = popupStep + 1;
+    if (currentTarget) {
+      // Automatically navigate to that actual screen for preview, then return to next step
+      setShowOnboardingPopup(false);
       try {
-        navigation.navigate('Dashboard');
-        setTimeout(() => {
+        navigation.navigate(currentTarget);
+      } catch (navErr) {
+        console.log('Nav preview error:', navErr);
+      }
+      if (peekTimeoutRef.current) clearTimeout(peekTimeoutRef.current);
+      peekTimeoutRef.current = setTimeout(() => {
+        try {
+          if (navigation.canGoBack()) {
+            navigation.goBack();
+          } else {
+            navigation.navigate('Home');
+          }
+          setTimeout(() => {
+            setShowOnboardingPopup(true);
+            goToStep(nextIdx);
+          }, 300);
+        } catch (e) {
           setShowOnboardingPopup(true);
-          const nextIdx = Math.min(ONBOARDING_STEPS.length - 1, popupStep + 1);
           goToStep(nextIdx);
-        }, 350);
-      } catch (e) {}
-    }, 4500);
+        }
+      }, 3500);
+    } else {
+      goToStep(nextIdx);
+    }
   };
 
   // Helper for navigating onboarding steps
@@ -497,7 +517,7 @@ export default function DashboardScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       {/* Top Header matching Images 2 & 3 */}
       <TopHeader title="HOGO" subtitle="Find Your Match" showBack={false} highlightProfile={showOnboardingPopup && (ONBOARDING_STEPS[popupStep]?.targetKey === 'Profile')} />
 
@@ -507,17 +527,17 @@ export default function DashboardScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {/* Hey Greeting Hero Card */}
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, { backgroundColor: isDark ? '#0e1218' : '#ffffff', borderColor: isDark ? '#1e2430' : '#e2e8f0' }]}>
           <View style={styles.heroGlowCircle} />
-          <Text style={styles.heroGreeting}>Hey, {firstName} 👋</Text>
+          <Text style={[styles.heroGreeting, { color: isDark ? colors.text : '#0f172a' }]}>Hey, {firstName} 👋</Text>
           <View style={styles.collegeRow}>
             <Text style={{ fontSize: 13, marginRight: 4 }}>🏫</Text>
-            <Text style={styles.heroCollege}>{collegeName}</Text>
+            <Text style={[styles.heroCollege, { color: isDark ? colors.text2 : '#475569' }]}>{collegeName}</Text>
           </View>
         </View>
 
         {/* WHAT DO YOU NEED? section */}
-        <Text style={styles.sectionLabel}>WHAT DO YOU NEED?</Text>
+        <Text style={[styles.sectionLabel, { color: isDark ? colors.text2 : '#475569' }]}>WHAT DO YOU NEED?</Text>
 
         <View style={styles.servicesContainer}>
           {MAIN_SERVICES.map((item, idx) => {
@@ -565,6 +585,7 @@ export default function DashboardScreen({ navigation }) {
                 <TouchableOpacity
                   style={[
                     styles.serviceCard,
+                    { backgroundColor: isDark ? '#0e1218' : '#ffffff', borderColor: isDark ? '#1e2533' : '#e2e8f0' },
                     isTourTarget && styles.serviceCardTourActive,
                     isHighlighted && styles.serviceCardOnbHighlighted,
                   ]}
@@ -578,14 +599,14 @@ export default function DashboardScreen({ navigation }) {
                 >
                   <View style={{ flex: 1, paddingRight: 8 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={styles.serviceTitle}>{item.title}</Text>
+                      <Text style={[styles.serviceTitle, { color: isDark ? colors.text : '#0f172a' }]}>{item.title}</Text>
                       {item.key === 'Community' && unreadCommunityCount > 0 && (
                         <View style={styles.whatsappBadge}>
                           <Text style={styles.whatsappBadgeText}>{unreadCommunityCount}</Text>
                         </View>
                       )}
                     </View>
-                    <Text style={styles.serviceSub}>{item.sub}</Text>
+                    <Text style={[styles.serviceSub, { color: isDark ? colors.text2 : '#475569' }]}>{item.sub}</Text>
                   </View>
                   
                   {/* Clean chevron arrow when idle; animated tour bike ONLY when this card is targeted by tour */}
@@ -606,7 +627,7 @@ export default function DashboardScreen({ navigation }) {
                         <Text style={styles.serviceNavBike}>🛵💨</Text>
                       </Animated.View>
                     ) : (
-                      <Text style={styles.serviceChevron}>›</Text>
+                      <Text style={[styles.serviceChevron, { color: isDark ? '#8d98ad' : '#64748b' }]}>›</Text>
                     )}
                   </View>
                 </TouchableOpacity>
@@ -618,8 +639,8 @@ export default function DashboardScreen({ navigation }) {
         {/* ACTIVE TRIP STATUS (Matching Image 3) */}
         {activeTrip && (
           <View style={styles.activeTripSection}>
-            <Text style={styles.sectionLabel}>ACTIVE TRIP STATUS</Text>
-            <View style={styles.activeTripCard}>
+            <Text style={[styles.sectionLabel, { color: isDark ? colors.text2 : '#475569' }]}>ACTIVE TRIP STATUS</Text>
+            <View style={[styles.activeTripCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: isDark ? colors.accent : '#f5a623' }]}>
               {/* Trip Header */}
               <View style={styles.tripHeaderRow}>
                 <View style={styles.tripStatusIndicator}>
@@ -638,23 +659,23 @@ export default function DashboardScreen({ navigation }) {
               </View>
 
               {activeTrip.date && (
-                <Text style={styles.tripDateSub}>
+                <Text style={[styles.tripDateSub, { color: isDark ? colors.text3 : '#64748b' }]}>
                   {activeTrip.date} {activeTrip.time ? `• ${activeTrip.time}` : ''}
                 </Text>
               )}
 
               {/* Driver & Vehicle Box / Passenger Box */}
-              <View style={styles.driverBox}>
+              <View style={[styles.driverBox, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}>
                 <View style={[styles.driverIconCircle, tripRole === 'driver' && { backgroundColor: 'rgba(33,150,243,0.15)', borderColor: colors.blue }]}>
                   <Text style={{ fontSize: 18 }}>{tripRole === 'driver' ? '👤' : '🚗'}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.driverTitle}>
+                  <Text style={[styles.driverTitle, { color: isDark ? colors.text : '#0f172a' }]}>
                     {tripRole === 'driver'
                       ? `Passenger: ${activeTrip.matchedPassengerName || 'Matched Passenger'}`
                       : (activeTrip.providerId?.name || 'Assigned Driver')}
                   </Text>
-                  <Text style={styles.driverVehicle}>
+                  <Text style={[styles.driverVehicle, { color: isDark ? colors.text2 : '#475569' }]}>
                     {tripRole === 'driver'
                       ? `🎓 ${activeTrip.matchedPassengerCollege || 'Campus Commuter'}`
                       : `${activeTrip.vehicleName || 'Vehicle'} • ${activeTrip.vehicleNumber || 'Plate Number'}`}
@@ -690,24 +711,24 @@ export default function DashboardScreen({ navigation }) {
               <View style={styles.routeBox}>
                 <View style={styles.routePointRow}>
                   <View style={[styles.routeDot, { backgroundColor: colors.green }]} />
-                  <Text style={styles.routeAddressText} numberOfLines={2}>
+                  <Text style={[styles.routeAddressText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
                     {getAddress(activeTrip.pickup)}
                   </Text>
                 </View>
                 <View style={styles.routeConnectingLine} />
                 <View style={styles.routePointRow}>
                   <View style={[styles.routeDot, { backgroundColor: colors.red }]} />
-                  <Text style={styles.routeAddressText} numberOfLines={2}>
+                  <Text style={[styles.routeAddressText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
                     {getAddress(activeTrip.drop)}
                   </Text>
                 </View>
               </View>
 
               {/* Seats & Cost */}
-              <View style={styles.tripMetaRow}>
+              <View style={[styles.tripMetaRow, { borderTopColor: isDark ? '#1e2636' : '#e2e8f0' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ fontSize: 14 }}>👥</Text>
-                  <Text style={styles.tripMetaText}>
+                  <Text style={[styles.tripMetaText, { color: isDark ? colors.text2 : '#475569' }]}>
                     {(() => {
                       const avail = (activeTrip.seatsAvailable !== undefined && activeTrip.seatsAvailable !== null)
                         ? Number(activeTrip.seatsAvailable)
@@ -817,17 +838,17 @@ export default function DashboardScreen({ navigation }) {
                 )}
 
                 <TouchableOpacity
-                  style={styles.secondaryBtn}
+                  style={[styles.secondaryBtn, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}
                   onPress={() => navigation.navigate(tripRole === 'driver' ? 'ProviderBookings' : 'MyBookings')}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.secondaryBtnText}>
+                  <Text style={[styles.secondaryBtnText, { color: isDark ? colors.text2 : '#475569' }]}>
                     {tripRole === 'driver' ? 'Requests' : 'Bookings'}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.secondaryBtn, { borderColor: colors.red + '66' }]}
+                  style={[styles.secondaryBtn, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: colors.red + '66' }]}
                   onPress={handleCancelTrip}
                   activeOpacity={0.8}
                 >
@@ -875,7 +896,7 @@ export default function DashboardScreen({ navigation }) {
         onRequestClose={handleSkipOnboarding}
       >
         <View style={styles.onbOverlay}>
-          <View style={styles.onbPop}>
+          <View style={[styles.onbPop, { backgroundColor: isDark ? '#101728' : '#ffffff', borderColor: isDark ? '#1c2638' : '#e2e8f0' }]}>
             {/* Pulsing Circular Icon Container (.ic) */}
             <Animated.View style={[styles.onbIconBox, { transform: [{ scale: pulseAnim }] }]}>
               <Text style={{ fontSize: 44 }}>{ONBOARDING_STEPS[popupStep]?.icon || '🛴'}</Text>
@@ -921,40 +942,14 @@ export default function DashboardScreen({ navigation }) {
                 width: '100%',
               }}
             >
-              <Text style={styles.onbTitle}>{ONBOARDING_STEPS[popupStep]?.title}</Text>
-              <Text style={styles.onbDesc}>{ONBOARDING_STEPS[popupStep]?.desc}</Text>
+              <Text style={[styles.onbTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>{ONBOARDING_STEPS[popupStep]?.title}</Text>
+              <Text style={[styles.onbDesc, { color: isDark ? '#8d98ad' : '#475569' }]}>{ONBOARDING_STEPS[popupStep]?.desc}</Text>
             </Animated.View>
 
-            {/* Peek Actual Screen Button (Shows live screen for few seconds) */}
-            {ONBOARDING_STEPS[popupStep]?.screenName ? (
-              <TouchableOpacity
-                onPress={() => peekStepScreen(ONBOARDING_STEPS[popupStep])}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  backgroundColor: 'rgba(59, 130, 246, 0.14)',
-                  borderWidth: 1.2,
-                  borderColor: 'rgba(59, 130, 246, 0.45)',
-                  borderRadius: radius.md,
-                  paddingHorizontal: 12,
-                  paddingVertical: 7,
-                  marginTop: 10,
-                  marginBottom: 4,
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={{ fontSize: 13 }}>👀</Text>
-                <Text style={{ color: '#60A5FA', fontSize: 12, fontWeight: '800' }}>
-                  Peek Actual Screen (4s preview) ↗
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-
-            {/* Animated Bike Runner Track (.bw) */}
+            {/* Animated Bike Runner Track (.bw) - moves across to the very end on final step */}
             <View style={styles.onbTrackWrapper}>
               {/* Track Line (.bar) */}
-              <View style={styles.onbTrackBg}>
+              <View style={[styles.onbTrackBg, { backgroundColor: isDark ? '#1c2638' : '#e2e8f0' }]}>
                 <Animated.View
                   style={[
                     styles.onbTrackFill,
@@ -969,14 +964,14 @@ export default function DashboardScreen({ navigation }) {
                 />
               </View>
 
-              {/* Animated Bouncing Bike moving along track (.cy .on) */}
+              {/* Animated Bouncing Bike reaching 88% (end of track) on final step */}
               <Animated.View
                 style={[
                   styles.onbBikeRunner,
                   {
                     left: progressAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 240],
+                      outputRange: ['0%', '88%'],
                       extrapolate: 'clamp',
                     }),
                   },
@@ -1002,31 +997,25 @@ export default function DashboardScreen({ navigation }) {
                 style={styles.onbSkipBtn}
                 activeOpacity={0.7}
               >
-                <Text style={styles.onbSkipText}>
+                <Text style={[styles.onbSkipText, { color: isDark ? '#8d98ad' : '#64748b' }]}>
                   {popupStep === ONBOARDING_STEPS.length - 1 ? 'Replay ↻' : 'Skip'}
                 </Text>
               </TouchableOpacity>
 
-              {/* Right Button Group: Back and Next/Start */}
+              {/* Right Button Group: Back and Next/Let's Ride */}
               <View style={styles.onbRightBtns}>
                 {popupStep > 0 ? (
                   <TouchableOpacity
                     onPress={() => goToStep(popupStep - 1)}
-                    style={styles.onbBackBtn}
+                    style={[styles.onbBackBtn, { backgroundColor: isDark ? '#1a2233' : '#f1f5f9', borderColor: isDark ? '#26334a' : '#cbd5e1' }]}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.onbBackText}>← Back</Text>
+                    <Text style={[styles.onbBackText, { color: isDark ? '#c8d4e6' : '#334155' }]}>← Back</Text>
                   </TouchableOpacity>
                 ) : null}
 
                 <TouchableOpacity
-                  onPress={() => {
-                    if (popupStep === ONBOARDING_STEPS.length - 1) {
-                      finishTour();
-                    } else {
-                      goToStep(popupStep + 1);
-                    }
-                  }}
+                  onPress={handleNextOnboarding}
                   style={styles.onbNextPill}
                   activeOpacity={0.85}
                 >

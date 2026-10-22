@@ -52,6 +52,8 @@ function timeAgo(dateStr) {
 
 // ── Posts Tab ─────────────────────────────────────────────────────
 function PostsTab({ user }) {
+  const { isDark } = useTheme();
+  const scrollRef = useRef(null);
   const [posts,     setPosts]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [content,   setContent]   = useState('');
@@ -61,7 +63,7 @@ function PostsTab({ user }) {
   const [error,     setError]     = useState('');
   const [replyText, setReplyText] = useState({});
   const [showReply, setShowReply] = useState({});
-  const [attachment, setAttachment] = useState(null); // { uri, name, type }
+  const [attachment, setAttachment] = useState(null); // { uri, name, type, uploaded, uploading, url }
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [showAttachModal, setShowAttachModal] = useState(false);
 
@@ -86,35 +88,14 @@ function PostsTab({ user }) {
       });
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        const newAttachment = {
+        // Crop confirmed: attach locally WITHOUT auto-uploading immediately
+        setAttachment({
           uri: asset.uri,
           name: asset.fileName || `post_image_${Date.now()}.jpg`,
           type: 'image',
-          uploading: true,
-        };
-        setAttachment(newAttachment);
-
-        // Upload immediately upon crop confirmation!
-        uploadToCloudinaryWithRetry(asset.uri, { type: 'image' })
-          .then(uploadedUrl => {
-            if (uploadedUrl) {
-              setAttachment(prev => (prev?.uri === asset.uri ? {
-                ...prev,
-                url: uploadedUrl,
-                uploading: false,
-                uploaded: true,
-              } : prev));
-            }
-          })
-          .catch(uploadErr => {
-            console.log('[Community] Image upload error:', uploadErr);
-            setAttachment(prev => (prev?.uri === asset.uri ? {
-              ...prev,
-              uploading: false,
-              uploaded: false,
-              error: 'Upload failed',
-            } : prev));
-          });
+          uploading: false,
+          uploaded: false,
+        });
       }
     } catch (err) {
       RNAlert.alert('Error', 'Unable to pick image: ' + err.message);
@@ -134,38 +115,44 @@ function PostsTab({ user }) {
       });
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        const newAttachment = {
+        // Crop confirmed: attach locally WITHOUT auto-uploading immediately
+        setAttachment({
           uri: asset.uri,
           name: `camera_${Date.now()}.jpg`,
           type: 'image',
-          uploading: true,
-        };
-        setAttachment(newAttachment);
-
-        // Upload immediately upon crop confirmation!
-        uploadToCloudinaryWithRetry(asset.uri, { type: 'image' })
-          .then(uploadedUrl => {
-            if (uploadedUrl) {
-              setAttachment(prev => (prev?.uri === asset.uri ? {
-                ...prev,
-                url: uploadedUrl,
-                uploading: false,
-                uploaded: true,
-              } : prev));
-            }
-          })
-          .catch(uploadErr => {
-            console.log('[Community] Camera photo upload error:', uploadErr);
-            setAttachment(prev => (prev?.uri === asset.uri ? {
-              ...prev,
-              uploading: false,
-              uploaded: false,
-              error: 'Upload failed',
-            } : prev));
-          });
+          uploading: false,
+          uploaded: false,
+        });
       }
     } catch (err) {
       RNAlert.alert('Error', 'Unable to take photo: ' + err.message);
+    }
+  };
+
+  const handleUploadCurrentAttachment = async () => {
+    if (!attachment || attachment.uploaded || attachment.uploading) return;
+    setAttachment(prev => ({ ...prev, uploading: true, error: null }));
+    try {
+      const uploadedUrl = await uploadToCloudinaryWithRetry(attachment.uri, { type: 'image' });
+      if (uploadedUrl) {
+        setAttachment(prev => ({
+          ...prev,
+          url: uploadedUrl,
+          uploading: false,
+          uploaded: true,
+        }));
+      } else {
+        throw new Error('Upload returned empty URL');
+      }
+    } catch (err) {
+      console.log('[Community] Manual upload error:', err);
+      setAttachment(prev => ({
+        ...prev,
+        uploading: false,
+        uploaded: false,
+        error: 'Upload failed',
+      }));
+      RNAlert.alert('Upload Failed', 'Could not upload image to server. Tap Post to retry or remove image.');
     }
   };
 
@@ -290,74 +277,113 @@ function PostsTab({ user }) {
   const currentUserId = user?._id || user?.id || user?.userId;
 
   return (
-    <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
-      {/* Compose */}
-      <View style={styles.composeCard}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            {POST_TYPES.map(t => (
-              <TouchableOpacity
-                key={t.value}
-                onPress={() => setPostType(t.value)}
-                style={[styles.typeChip, postType === t.value && styles.typeChipActive]}
-              >
-                <Text style={[styles.typeChipText, postType === t.value && styles.typeChipTextActive]}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-        <TextInput
-          style={styles.composeInput}
-          value={content}
-          onChangeText={setContent}
-          placeholder="Share something with your campus community…"
-          placeholderTextColor={colors.text3}
-          multiline
-          maxLength={500}
-        />
-        {/* Attachment preview if an image is selected */}
-        {attachment && (
-          <View style={styles.attachmentPreviewRow}>
-            <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewThumb} />
-            <View style={{ flex: 1, paddingHorizontal: 8 }}>
-              <Text style={styles.attachmentPreviewName} numberOfLines={1}>{attachment.name}</Text>
-              <Text style={[styles.attachmentPreviewSub, attachment.uploaded && { color: colors.green }]}>
-                {attachment.uploading ? '⏳ Uploading cropped image…' : (attachment.uploaded ? '✓ Image uploaded & ready' : 'Ready to post')}
-              </Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
+    >
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
+      >
+        {/* Compose */}
+        <View style={[styles.composeCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {POST_TYPES.map(t => (
+                <TouchableOpacity
+                  key={t.value}
+                  onPress={() => setPostType(t.value)}
+                  style={[styles.typeChip, postType === t.value && styles.typeChipActive]}
+                >
+                  <Text style={[styles.typeChipText, postType === t.value && styles.typeChipTextActive]}>{t.label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
-            <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachmentBtn}>
-              <Text style={styles.removeAttachmentText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <View style={styles.composeToolbar}>
-          {/* Single Attach button with Photo & Upload options */}
-          <TouchableOpacity
-            onPress={() => setShowAttachModal(true)}
-            style={styles.attachMainBtn}
-            activeOpacity={0.75}
-          >
-            <Text style={styles.attachMainIcon}>📎</Text>
-            <Text style={styles.attachMainText}>Attach</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => setAnonymous(a => !a)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <View style={[styles.checkbox, anonymous && styles.checkboxActive]}>
-              {anonymous && <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>✓</Text>}
-            </View>
-            <Text style={{ color: colors.text2, fontSize: 12 }}>Anonymous</Text>
-          </TouchableOpacity>
-
-          <Btn
-            label={posting ? 'Posting…' : 'Post'}
-            onPress={handlePost}
-            loading={posting || uploadingAttachment}
-            style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+          </ScrollView>
+          <TextInput
+            style={[styles.composeInput, {
+              color: isDark ? '#ffffff' : '#0f172a',
+              backgroundColor: isDark ? colors.surface2 : '#f8fafc',
+              borderColor: isDark ? colors.border : '#cbd5e1',
+            }]}
+            value={content}
+            onChangeText={setContent}
+            placeholder="Share something with your campus community…"
+            placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
+            cursorColor="#f5a623"
+            selectionColor="rgba(245,166,35,0.3)"
+            multiline
+            maxLength={500}
           />
+          {/* Attachment preview if an image is selected */}
+          {attachment && (
+            <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' }]}>
+              <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewThumb} />
+              <View style={{ flex: 1, paddingHorizontal: 8 }}>
+                <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{attachment.name}</Text>
+                <Text style={[styles.attachmentPreviewSub, attachment.uploaded ? { color: colors.green } : { color: isDark ? '#8b96b0' : '#64748b' }]}>
+                  {attachment.uploading ? '⏳ Uploading image…' : (attachment.uploaded ? '✓ Image uploaded & ready' : '📷 Image cropped & ready')}
+                </Text>
+              </View>
+
+              {/* Dedicated Upload Option Button */}
+              {!attachment.uploaded && (
+                <TouchableOpacity
+                  onPress={handleUploadCurrentAttachment}
+                  disabled={attachment.uploading}
+                  style={{
+                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+                    borderWidth: 1,
+                    borderColor: '#38bdf8',
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: radius.md,
+                    marginRight: 6,
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>
+                    {attachment.uploading ? 'Uploading…' : '☁️ Upload'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachmentBtn}>
+                <Text style={styles.removeAttachmentText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.composeToolbar}>
+            {/* Single Attach button with Photo & Gallery options */}
+            <TouchableOpacity
+              onPress={() => setShowAttachModal(true)}
+              style={styles.attachMainBtn}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.attachMainIcon}>📎</Text>
+              <Text style={styles.attachMainText}>Attach</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => setAnonymous(a => !a)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={[styles.checkbox, anonymous && styles.checkboxActive]}>
+                {anonymous && <Text style={{ color: '#000', fontSize: 10, fontWeight: '800' }}>✓</Text>}
+              </View>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12 }}>Anonymous</Text>
+            </TouchableOpacity>
+
+            <Btn
+              label={posting ? 'Posting…' : 'Post'}
+              onPress={handlePost}
+              loading={posting || uploadingAttachment}
+              style={{ paddingHorizontal: 16, paddingVertical: 8 }}
+            />
+          </View>
+          <Alert message={error} />
         </View>
-        <Alert message={error} />
-      </View>
 
       {/* Attach Modal with Take Photo or Upload options */}
       <Modal
@@ -433,7 +459,7 @@ function PostsTab({ user }) {
         const badge = getCategoryBadge(post.displayType || post.type);
 
         return (
-          <View key={post._id} style={styles.postCard}>
+          <View key={post._id} style={[styles.postCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
             {/* Top Category Badge Displayed Prominently Above Post Content */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <View style={[styles.postCategoryBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
@@ -452,7 +478,7 @@ function PostsTab({ user }) {
               )}
             </View>
 
-            <Text style={{ color: colors.text, fontSize: 14.5, lineHeight: 21, marginBottom: 10 }}>{post.content}</Text>
+            <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14.5, lineHeight: 21, marginBottom: 10 }}>{post.content}</Text>
             
             {Array.isArray(post.attachments) && post.attachments.map((att, attIdx) => att?.url ? (
               <Image
@@ -464,18 +490,20 @@ function PostsTab({ user }) {
             ) : null)}
 
             <View style={styles.postFooterRow}>
-              <Text style={{ color: colors.text3, fontSize: 11 }}>
+              <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11 }}>
                 👤 {post.anonymous ? 'Anonymous Commuter' : (post.author?.name || post.authorName || 'Campus Commuter')} · {timeAgo(post.createdAt)}
               </Text>
               
               <View style={{ flexDirection: 'row', gap: 16 }}>
                 {(() => {
                   const likeCount = typeof post.likes === 'number' ? post.likes : (Array.isArray(post.likedBy) ? post.likedBy.length : (Array.isArray(post.likes) ? post.likes.length : 0));
-                  const isLiked = post.userLiked || (Array.isArray(post.likedBy) && post.likedBy.some(id => (id._id || id).toString() === (currentUserId || '').toString()));
+                  const isLiked = post.userLiked !== undefined
+                    ? post.userLiked
+                    : (Array.isArray(post.likedBy) && post.likedBy.some(id => (id._id || id).toString() === (currentUserId || '').toString()));
                   return (
                     <TouchableOpacity onPress={() => handleLike(post._id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Text style={{ fontSize: 14 }}>{isLiked ? '❤️' : '🤍'}</Text>
-                      <Text style={[{ color: isLiked ? colors.accent : colors.text2, fontSize: 12, fontWeight: isLiked ? '700' : '500' }]}>
+                      <Text style={[{ color: isLiked ? colors.accent : (isDark ? colors.text2 : '#475569'), fontSize: 12, fontWeight: isLiked ? '700' : '500' }]}>
                         {likeCount}
                       </Text>
                     </TouchableOpacity>
@@ -483,7 +511,7 @@ function PostsTab({ user }) {
                 })()}
                 <TouchableOpacity onPress={() => setShowReply(s => ({ ...s, [post._id]: !s[post._id] }))} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={{ fontSize: 14 }}>💬</Text>
-                  <Text style={{ color: colors.text2, fontSize: 12 }}>{post.replies?.length || 0}</Text>
+                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12 }}>{post.replies?.length || 0}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -493,19 +521,28 @@ function PostsTab({ user }) {
                 <TextInput
                   style={[styles.replyInput, {
                     flex: 1,
-                    maxHeight: 90,
-                    minHeight: 40,
+                    maxHeight: 110,
+                    minHeight: 44,
                     color: isDark ? '#ffffff' : '#0f172a',
                     backgroundColor: isDark ? '#162235' : '#f1f5f9',
                     borderColor: isDark ? '#26344d' : '#cbd5e1',
-                    fontSize: 13,
+                    fontSize: 14,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
                   }]}
                   value={replyText[post._id] || ''}
                   onChangeText={t => setReplyText(r => ({ ...r, [post._id]: t }))}
                   placeholder="Write a reply…"
-                  placeholderTextColor={isDark ? '#8b96b0' : '#94a3b8'}
+                  placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
+                  cursorColor="#f5a623"
+                  selectionColor="rgba(245,166,35,0.3)"
                   multiline={true}
                   scrollEnabled={true}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollRef.current?.scrollToEnd({ animated: true });
+                    }, 250);
+                  }}
                 />
                 <TouchableOpacity onPress={() => handleReply(post._id)} style={styles.replyBtn}>
                   <Text style={{ color: '#000', fontWeight: '700', fontSize: 12 }}>Send</Text>
@@ -519,7 +556,7 @@ function PostsTab({ user }) {
               const canDeleteReply = replyAuthorId === myIdStr || postAuthorId === myIdStr || user?.role === 'admin';
 
               return (
-                <View key={r._id || i} style={styles.reply}>
+                <View key={r._id || i} style={[styles.reply, { backgroundColor: isDark ? colors.surface2 : '#f8fafc', borderColor: isDark ? colors.border : '#e2e8f0', borderWidth: 1 }]}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>
                       {r.authorName || 'User'}
@@ -540,7 +577,8 @@ function PostsTab({ user }) {
           </View>
         );
       })}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -550,6 +588,7 @@ function CollegeChatTab({ user }) {
   const [input,    setInput]    = useState('');
   const [loading,  setLoading]  = useState(true);
   const [anonymous,setAnonymous]= useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const socketRef  = useRef(null);
   const flatRef    = useRef(null);
   const insets     = useSafeAreaInsets();
@@ -557,9 +596,16 @@ function CollegeChatTab({ user }) {
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     });
-    return () => showSub.remove();
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -603,8 +649,8 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
     >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
@@ -622,14 +668,17 @@ function CollegeChatTab({ user }) {
             const isMe = item.senderId === myId;
             return (
               <View style={[styles.msgRow, isMe && styles.msgRowMe]}>
-                <View style={[styles.msgBubble, isMe && styles.msgBubbleMe]}>
+                <View style={[
+                  styles.msgBubble,
+                  isMe ? styles.msgBubbleMe : { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#e2e8f0', borderWidth: 1 }
+                ]}>
                   {!isMe && (
                     <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', marginBottom: 2 }}>
                       {item.anonymous ? 'Anonymous' : item.senderName}
                       {item.senderUsn ? ` · ${item.senderUsn}` : ''}
                     </Text>
                   )}
-                  <Text style={[styles.msgText, isMe && styles.msgTextMe]}>{item.message}</Text>
+                  <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
                   {isMe && (
                     <TouchableOpacity onPress={() => deleteMsg(item._id)} style={{ marginTop: 4, alignSelf: 'flex-end' }}>
                       <Text style={{ color: 'rgba(0,0,0,0.4)', fontSize: 10 }}>Delete</Text>
@@ -646,7 +695,7 @@ function CollegeChatTab({ user }) {
         {
           backgroundColor: isDark ? '#0c121e' : '#ffffff',
           borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
-          paddingBottom: Math.max(insets.bottom, 10),
+          paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 10),
         }
       ]}>
         <TouchableOpacity
@@ -668,7 +717,7 @@ function CollegeChatTab({ user }) {
           value={input}
           onChangeText={setInput}
           placeholder={anonymous ? 'Send anonymously…' : 'Message your college…'}
-          placeholderTextColor={isDark ? '#8b96b0' : '#94a3b8'}
+          placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
           cursorColor="#f5a623"
           selectionColor="rgba(245,166,35,0.3)"
           onSubmitEditing={sendMsg}
@@ -693,7 +742,7 @@ export default function CommunityScreen({ navigation }) {
   }, []);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }} edges={['top']}>
       <TopHeader 
         title="Campus Community" 
         subtitle="Campus Posts & Student Chat" 

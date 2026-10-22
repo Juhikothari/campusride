@@ -120,8 +120,8 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
           )}
           <Text style={styles.brandLogo}>{emoji}</Text>
           <View style={{ flexShrink: 1 }}>
-            <Text style={styles.brandTitle} numberOfLines={1}>{title}</Text>
-            {subtitle ? <Text style={styles.brandSub} numberOfLines={1}>{subtitle}</Text> : null}
+            <Text style={[styles.brandTitle, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{title}</Text>
+            {subtitle ? <Text style={[styles.brandSub, { color: isDark ? '#8b96b0' : '#475569' }]} numberOfLines={1}>{subtitle}</Text> : null}
           </View>
         </View>
 
@@ -176,34 +176,33 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.userName, { color: isDark ? colors.text : "#0f172a" }]} numberOfLines={1}>{user?.name || 'HOGO User'}</Text>
-                <Text style={styles.userEmail} numberOfLines={1}>{user?.email}</Text>
-                {user?.college && <Text style={styles.userCollege} numberOfLines={1}>🏫 {user.college}</Text>}
+                <Text style={[styles.userEmail, { color: isDark ? colors.text3 : '#64748b' }]} numberOfLines={1}>{user?.email}</Text>
+                {user?.college && <Text style={[styles.userCollege, { color: isDark ? colors.text2 : '#475569' }]} numberOfLines={1}>🏫 {user.college}</Text>}
               </View>
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, { backgroundColor: isDark ? colors.border : '#e2e8f0' }]} />
 
             {/* Quick Access Menu Items */}
             <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.menuHeader}>QUICK ACCESS</Text>
+              <Text style={[styles.menuHeader, { color: isDark ? colors.text3 : '#64748b' }]}>QUICK ACCESS</Text>
 
-              <MenuItem icon="👤" label="My Profile" onPress={() => navTo('Profile')} />
-              <MenuItem icon="📋" label="My Bookings" onPress={() => navTo('MyBookings')} />
+              <MenuItem icon="👤" label="My Profile" onPress={() => navTo('Profile')} isDark={isDark} />
+              <MenuItem icon="📋" label="My Bookings" onPress={() => navTo('MyBookings')} isDark={isDark} />
               {isProvider && (
-                <MenuItem icon="📬" label="Ride Requests" onPress={() => navTo('ProviderBookings')} />
+                <MenuItem icon="📬" label="Ride Requests" onPress={() => navTo('ProviderBookings')} isDark={isDark} />
               )}
-              <MenuItem icon="📍" label="Track Active Ride" onPress={() => navTo('LiveTracking')} />
-              <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} />
-              <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} />
-
+              <MenuItem icon="📍" label="Track Active Ride" onPress={() => navTo('LiveTracking')} isDark={isDark} />
+              <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} isDark={isDark} />
+              <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} isDark={isDark} />
 
               {isAdmin && (
-                <MenuItem icon="🛡️" label="Admin Dashboard" onPress={() => navTo('AdminDashboard')} highlight />
+                <MenuItem icon="🛡️" label="Admin Dashboard" onPress={() => navTo('AdminDashboard')} highlight isDark={isDark} />
               )}
 
-              <MenuItem icon="📞" label="Contact Support" onPress={() => navTo('ContactSupport')} />
+              <MenuItem icon="📞" label="Contact Support" onPress={() => navTo('ContactSupport')} isDark={isDark} />
 
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: isDark ? colors.border : '#e2e8f0' }]} />
 
               <TouchableOpacity style={styles.logoutItem} onPress={handleLogout}>
                 <Text style={{ fontSize: 18 }}>🚪</Text>
@@ -217,7 +216,9 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
   );
 }
 
-function MenuItem({ icon, label, onPress, highlight }) {
+function MenuItem({ icon, label, onPress, highlight, isDark }) {
+  const textColor = highlight ? colors.accent : (isDark ? '#edf0f7' : '#0f172a');
+  const arrowColor = isDark ? '#4e566d' : '#94a3b8';
   return (
     <TouchableOpacity
       style={[styles.menuItem, highlight && styles.menuItemHighlight]}
@@ -225,10 +226,10 @@ function MenuItem({ icon, label, onPress, highlight }) {
       activeOpacity={0.7}
     >
       <Text style={styles.menuIcon}>{icon}</Text>
-      <Text style={[styles.menuLabel, highlight && { color: colors.accent, fontWeight: '700' }]}>
+      <Text style={[styles.menuLabel, { color: textColor }, highlight && { color: colors.accent, fontWeight: '700' }]}>
         {label}
       </Text>
-      <Text style={styles.menuArrow}>›</Text>
+      <Text style={[styles.menuArrow, { color: arrowColor }]}>›</Text>
     </TouchableOpacity>
   );
 }
