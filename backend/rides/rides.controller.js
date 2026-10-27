@@ -757,8 +757,8 @@ exports.arrivedAtSeeker = async (req, res) => {
           userId: b.seekerId._id,
           userType: 'seeker',
           type: 'RIDER_ARRIVED',
-          title: '📍 Your Rider Has Arrived!',
-          body: `Your rider has arrived at your pickup spot. Please verify your pre-ride safety checklist so departure can begin.`,
+          title: '📍 Your Buddy Has Arrived!',
+          body: `Your buddy has arrived at your pickup spot! Please meet them and complete your safety checklist so departure can begin.`,
           data: {
             rideId: ride._id,
             bookingId: b._id,
@@ -766,7 +766,7 @@ exports.arrivedAtSeeker = async (req, res) => {
             arrivedAt: ride.riderReachedSeekerAt
           },
           priority: 'high',
-          channels: ['in_app', 'socket']
+          channels: ['in_app', 'push', 'socket']
         });
         await notif.save();
 

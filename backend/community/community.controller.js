@@ -112,23 +112,37 @@ exports.addReply = async (req, res) => {
     await post.save();
     await post.populate('author', 'name college usn');
 
-    // Notify post author ONLY if replied by someone else
+    // Notify post author and prior commenters
     const authorId = (post.author?._id || post.author || '').toString();
     const currentUserId = (req.user?.userId || req.user?.id || '').toString();
     const replierName = anonymous ? 'Someone' : (user?.name || 'A classmate');
+    const snippet = content.trim().length > 60 ? `${content.trim().slice(0, 60)}…` : content.trim();
 
+    const usersToNotify = new Map(); // userId -> { isAuthor: boolean }
     if (authorId && authorId !== currentUserId) {
-      const snippet = content.trim().length > 60 ? `${content.trim().slice(0, 60)}…` : content.trim();
+      usersToNotify.set(authorId, { isAuthor: true });
+    }
+    (post.replies || []).forEach(r => {
+      const commenterId = (r.authorId?._id || r.authorId || '').toString();
+      if (commenterId && commenterId !== currentUserId && !usersToNotify.has(commenterId)) {
+        usersToNotify.set(commenterId, { isAuthor: false });
+      }
+    });
 
-      // Persist notification in database for post author
+    const Notification = require('../notifications/notifications.model');
+    const io = req.app.get('io') || global.io;
+
+    for (const [targetUserId, info] of usersToNotify.entries()) {
+      const title = info.isAuthor ? '💬 New Reply to Your Post' : '💬 New Reply in Conversation';
+      const body = `${replierName} replied: "${snippet}"`;
+
       try {
-        const Notification = require('../notifications/notifications.model');
         await Notification.create({
-          userId: authorId,
+          userId: targetUserId,
           userType: 'user',
           type: 'community-reply',
-          title: '💬 New Reply to Your Post',
-          body: `${replierName} replied: "${snippet}"`,
+          title,
+          body,
           data: { postId: post._id },
           priority: 'medium',
           channels: ['in_app', 'push', 'socket'],
@@ -137,18 +151,17 @@ exports.addReply = async (req, res) => {
         console.log('[Community] Save notification error:', notifErr.message);
       }
 
-      const io = req.app.get('io') || global.io;
       if (io) {
         const notifPayload = {
-          title: '💬 New Reply to Your Post',
-          message: `${replierName} replied: "${snippet}"`,
+          title,
+          message: body,
           type: 'community-reply',
           postId: post._id,
-          authorId,
+          authorId: targetUserId,
           createdAt: new Date(),
         };
-        io.to(`user-${authorId}`).emit('community-reply', notifPayload);
-        io.to(`user-${authorId}`).emit('new-notification', notifPayload);
+        // Emit only community-reply to avoid duplicate notifications on client
+        io.to(`user-${targetUserId}`).emit('community-reply', notifPayload);
       }
     }
 

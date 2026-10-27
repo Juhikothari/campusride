@@ -1,15 +1,59 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, Animated } from 'react-native';
-import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Notifications from 'expo-notifications';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { addNotificationListener, initNotificationService } from './src/services/notificationService';
+
+export const navigationRef = createNavigationContainerRef();
+
+export function navigateFromNotification(name, params) {
+  if (navigationRef.isReady()) {
+    navigationRef.navigate(name, params);
+  } else {
+    setTimeout(() => {
+      if (navigationRef.isReady()) navigationRef.navigate(name, params);
+    }, 600);
+  }
+}
+
+export function handleNotificationResponse(response) {
+  try {
+    const data = response?.notification?.request?.content?.data || response?.data;
+    if (!data) return;
+
+    if (data.rideId) {
+      if (data.type === 'new-booking') {
+        navigateFromNotification('ProviderBookings');
+      } else if (data.type === 'rider-reached' || data.type === 'RIDER_ARRIVED') {
+        navigateFromNotification('LiveTracking', { rideId: data.rideId });
+      } else {
+        navigateFromNotification('LiveTracking', { rideId: data.rideId });
+      }
+    } else if (data.postId || data.type === 'community-reply') {
+      navigateFromNotification('Community');
+    } else if (data.type === 'walk-joined') {
+      navigateFromNotification('WalkTogether');
+    } else if (data.type === 'adminSOSAlert' || data.type === 'emergency_sos') {
+      navigateFromNotification('AdminLiveSOS');
+    } else if (data.type === 'newIncidentReport') {
+      navigateFromNotification('AdminIncidents');
+    } else if (data.type === 'newKYCSubmission' || data.type === 'newVehicleSubmission') {
+      navigateFromNotification('AdminKYC');
+    } else {
+      navigateFromNotification('Notifications');
+    }
+  } catch (err) {
+    console.log('[NotificationResponse] Error:', err?.message);
+  }
+}
 
 class ErrorBoundary extends React.Component {
   state = { hasError: false, error: null };
@@ -96,26 +140,41 @@ function AppNotificationBanner() {
         gap: 10,
       }}
     >
-      <View
-        style={{
-          width: 38,
-          height: 38,
-          borderRadius: 19,
-          backgroundColor: 'rgba(45,212,160,0.15)',
-          justifyContent: 'center',
-          alignItems: 'center',
+      <TouchableOpacity
+        onPress={() => {
+          Animated.timing(translateY, {
+            toValue: -120,
+            duration: 200,
+            useNativeDriver: true,
+          }).start(() => setCurrentNotif(null));
+          if (currentNotif?.data) {
+            handleNotificationResponse({ data: currentNotif.data });
+          }
         }}
+        activeOpacity={0.85}
+        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}
       >
-        <Text style={{ fontSize: 20 }}>🔔</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: '#2dd4a0', fontWeight: '800', fontSize: 13, marginBottom: 2 }}>
-          {currentNotif.title}
-        </Text>
-        <Text style={{ color: '#e6edf3', fontSize: 12, lineHeight: 16 }} numberOfLines={2}>
-          {currentNotif.body}
-        </Text>
-      </View>
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 19,
+            backgroundColor: 'rgba(45,212,160,0.15)',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <Text style={{ fontSize: 20 }}>🔔</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: '#2dd4a0', fontWeight: '800', fontSize: 13, marginBottom: 2 }}>
+            {currentNotif.title}
+          </Text>
+          <Text style={{ color: '#e6edf3', fontSize: 12, lineHeight: 16 }} numberOfLines={2}>
+            {currentNotif.body}
+          </Text>
+        </View>
+      </TouchableOpacity>
       <TouchableOpacity
         onPress={() => {
           Animated.timing(translateY, {
@@ -161,7 +220,7 @@ function MainApp() {
   const { isDark, colors } = useTheme();
 
   return (
-    <NavigationContainer theme={isDark ? customDarkTheme : customLightTheme}>
+    <NavigationContainer ref={navigationRef} theme={isDark ? customDarkTheme : customLightTheme}>
       <StatusBar style={isDark ? 'light' : 'dark'} backgroundColor={colors.bg} />
       <AppNavigator />
       <AppNotificationBanner />
@@ -175,6 +234,20 @@ export default function App() {
     SplashScreen.hideAsync().catch(() => {});
     // Initialize system notification permissions and Android channels
     initNotificationService().catch(() => {});
+
+    // Handle outside notification tap when app opened from killed/cold state
+    Notifications.getLastNotificationResponseAsync().then(resp => {
+      if (resp) {
+        setTimeout(() => handleNotificationResponse(resp), 900);
+      }
+    }).catch(() => {});
+
+    // Listen for notification taps when app is backgrounded / active outside
+    const sub = Notifications.addNotificationResponseReceivedListener(resp => {
+      handleNotificationResponse(resp);
+    });
+
+    return () => sub.remove();
   }, []);
 
   return (

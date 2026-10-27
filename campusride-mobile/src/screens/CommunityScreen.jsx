@@ -430,8 +430,8 @@ function PostsTab({ user }) {
                 <Text style={{ fontSize: 20 }}>🖼️</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.attachOptionTitle}>Upload from Gallery</Text>
-                <Text style={styles.attachOptionSub}>Select photo or image file from library</Text>
+                <Text style={styles.attachOptionTitle}>Choose from Gallery</Text>
+                <Text style={styles.attachOptionSub}>Select and crop photo from library</Text>
               </View>
             </TouchableOpacity>
 
@@ -720,8 +720,10 @@ function CollegeChatTab({ user }) {
           placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
           cursorColor="#f5a623"
           selectionColor="rgba(245,166,35,0.3)"
-          onSubmitEditing={sendMsg}
-          returnKeyType="send"
+          multiline={true}
+          scrollEnabled={true}
+          textAlignVertical="center"
+          returnKeyType="default"
         />
         <TouchableOpacity style={styles.sendBtn} onPress={sendMsg} activeOpacity={0.8}>
           <Text style={{ color: '#000', fontSize: 16, fontWeight: '800' }}>➤</Text>
@@ -868,9 +870,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10,
   },
   chatTextInput: {
-    flex: 1, backgroundColor: '#162235', borderRadius: radius.full,
+    flex: 1, backgroundColor: '#162235', borderRadius: 22,
     paddingHorizontal: 16, paddingVertical: 10,
-    color: '#ffffff', fontSize: 15, minHeight: 44,
+    color: '#ffffff', fontSize: 15, minHeight: 44, maxHeight: 110,
     borderWidth: 1.5, borderColor: '#26344d',
   },
   sendBtn: {

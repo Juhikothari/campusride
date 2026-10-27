@@ -46,7 +46,7 @@ const MAIN_SERVICES = [
 
 export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
-  const { isDark } = useTheme();
+  const { isDark, toggleTheme } = useTheme();
   const [activeTrip, setActiveTrip] = useState(null);
   const [tripRole,   setTripRole]   = useState('driver'); // 'driver' | 'rider'
   const [loading,    setLoading]    = useState(false);
@@ -217,10 +217,10 @@ export default function DashboardScreen({ navigation }) {
   const ONBOARDING_STEPS = [
     {
       step: 1,
-      icon: '🚀',
+      icon: '🤝',
       tagline: 'CAMPUS COMMUTE REIMAGINED',
       title: 'Meet HOGO',
-      desc: 'Find verified classmates, travel together across campus, walk safer in groups, and stay connected!',
+      desc: 'Find matching buddy, travel together across campus, walk safer in groups, and stay connected!',
       btnLabel: 'Start →',
       targetKey: null,
       screenName: null,
@@ -292,36 +292,8 @@ export default function DashboardScreen({ navigation }) {
       finishTour();
       return;
     }
-    const currentTarget = ONBOARDING_STEPS[popupStep]?.screenName;
     const nextIdx = popupStep + 1;
-    if (currentTarget) {
-      // Automatically navigate to that actual screen for preview, then return to next step
-      setShowOnboardingPopup(false);
-      try {
-        navigation.navigate(currentTarget);
-      } catch (navErr) {
-        console.log('Nav preview error:', navErr);
-      }
-      if (peekTimeoutRef.current) clearTimeout(peekTimeoutRef.current);
-      peekTimeoutRef.current = setTimeout(() => {
-        try {
-          if (navigation.canGoBack()) {
-            navigation.goBack();
-          } else {
-            navigation.navigate('Home');
-          }
-          setTimeout(() => {
-            setShowOnboardingPopup(true);
-            goToStep(nextIdx);
-          }, 300);
-        } catch (e) {
-          setShowOnboardingPopup(true);
-          goToStep(nextIdx);
-        }
-      }, 3500);
-    } else {
-      goToStep(nextIdx);
-    }
+    goToStep(nextIdx);
   };
 
   // Helper for navigating onboarding steps
@@ -390,6 +362,7 @@ export default function DashboardScreen({ navigation }) {
 
         // Check if user is provider of an in-progress ride, OR an active ride that has at least one accepted passenger!
         const activeDriverRide = rides.find(r => {
+          if (r.status === 'completed' || r.status === 'cancelled') return false;
           if (r.status === 'in-progress') return true;
           if (r.status === 'active') {
             return requests.some(b => (b.rideId === r._id || b.rideId?._id === r._id) && b.status === 'accepted');
@@ -404,6 +377,15 @@ export default function DashboardScreen({ navigation }) {
           const passengerPhones = matchedBookings.map(b => b.seekerId?.phone).filter(Boolean);
           const isChecklistDone = activeDriverRide.seekerChecklistCompleted || matchedBookings.some(b => b.checklistCompleted);
 
+          const passengersList = matchedBookings.map(b => ({
+            name: b.seekerId?.name || 'Passenger',
+            usn: b.seekerId?.usn && b.seekerId.usn.toUpperCase() !== 'STUDENT' ? b.seekerId.usn : null,
+            college: b.seekerId?.college || activeDriverRide.college || 'Campus Commuter',
+            phone: b.seekerId?.phone || null,
+            seats: b.seats || 1,
+            bookingId: b._id,
+          }));
+
           let passengerPhone = passengerPhones[0] || null;
           if (!passengerPhone && activeDriverRide.passengers?.length > 0) {
             passengerPhone = activeDriverRide.passengers[0]?.seeker?.phone || null;
@@ -411,6 +393,7 @@ export default function DashboardScreen({ navigation }) {
 
           setActiveTrip({
             ...activeDriverRide,
+            passengersList,
             matchedPassengerName: passengerNames[0] || (passengerNames.length > 0 ? passengerNames.join(', ') : 'Passenger'),
             matchedPassengerCollege: passengerColleges[0] || activeDriverRide.college || 'Campus Commuter',
             matchedPassengerPhone: passengerPhone,
@@ -423,7 +406,10 @@ export default function DashboardScreen({ navigation }) {
 
         // Check if user is passenger with an accepted booking
         const activeSeekerBooking = bookings.find(b =>
-          b.status === 'accepted' && (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
+          b.status === 'accepted' &&
+          b.rideId?.status !== 'completed' &&
+          b.rideId?.status !== 'cancelled' &&
+          (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
         );
         if (activeSeekerBooking?.rideId) {
           setActiveTrip({
@@ -529,10 +515,34 @@ export default function DashboardScreen({ navigation }) {
         {/* Hey Greeting Hero Card */}
         <View style={[styles.heroCard, { backgroundColor: isDark ? '#0e1218' : '#ffffff', borderColor: isDark ? '#1e2430' : '#e2e8f0' }]}>
           <View style={styles.heroGlowCircle} />
-          <Text style={[styles.heroGreeting, { color: isDark ? colors.text : '#0f172a' }]}>Hey, {firstName} 👋</Text>
-          <View style={styles.collegeRow}>
-            <Text style={{ fontSize: 13, marginRight: 4 }}>🏫</Text>
-            <Text style={[styles.heroCollege, { color: isDark ? colors.text2 : '#475569' }]}>{collegeName}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.heroGreeting, { color: isDark ? colors.text : '#0f172a' }]}>Hey, {firstName} 👋</Text>
+              <View style={styles.collegeRow}>
+                <Text style={{ fontSize: 13, marginRight: 4 }}>🏫</Text>
+                <Text style={[styles.heroCollege, { color: isDark ? colors.text2 : '#475569' }]} numberOfLines={1}>{collegeName}</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: isDark ? '#1a2234' : '#f1f5f9',
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: isDark ? '#2e3a52' : '#cbd5e1',
+                gap: 6,
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 14 }}>{isDark ? '☀️' : '🌙'}</Text>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a' }}>
+                {isDark ? 'Light' : 'Dark'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -637,7 +647,8 @@ export default function DashboardScreen({ navigation }) {
         </View>
 
         {/* ACTIVE TRIP STATUS (Matching Image 3) */}
-        {activeTrip && (
+        {/* Active Trip Live Card (Hidden after completed or cancelled) */}
+        {activeTrip && activeTrip.status !== 'completed' && activeTrip.status !== 'cancelled' && (
           <View style={styles.activeTripSection}>
             <Text style={[styles.sectionLabel, { color: isDark ? colors.text2 : '#475569' }]}>ACTIVE TRIP STATUS</Text>
             <View style={[styles.activeTripCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: isDark ? colors.accent : '#f5a623' }]}>
@@ -664,48 +675,96 @@ export default function DashboardScreen({ navigation }) {
                 </Text>
               )}
 
-              {/* Driver & Vehicle Box / Passenger Box */}
-              <View style={[styles.driverBox, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}>
-                <View style={[styles.driverIconCircle, tripRole === 'driver' && { backgroundColor: 'rgba(33,150,243,0.15)', borderColor: colors.blue }]}>
-                  <Text style={{ fontSize: 18 }}>{tripRole === 'driver' ? '👤' : '🚗'}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.driverTitle, { color: isDark ? colors.text : '#0f172a' }]}>
-                    {tripRole === 'driver'
-                      ? `Passenger: ${activeTrip.matchedPassengerName || 'Matched Passenger'}`
-                      : (activeTrip.providerId?.name || 'Assigned Driver')}
+              {/* Driver & Vehicle Box / Passenger Box (supports multiple passengers in horizontal scroll) */}
+              {tripRole === 'driver' && activeTrip.passengersList && activeTrip.passengersList.length > 1 ? (
+                <View style={{ marginBottom: 10 }}>
+                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, fontWeight: '800', marginBottom: 6, letterSpacing: 0.5 }}>
+                    👥 PASSENGERS ({activeTrip.passengersList.length})
                   </Text>
-                  <Text style={[styles.driverVehicle, { color: isDark ? colors.text2 : '#475569' }]}>
-                    {tripRole === 'driver'
-                      ? `🎓 ${activeTrip.matchedPassengerCollege || 'Campus Commuter'}`
-                      : `${activeTrip.vehicleName || 'Vehicle'} • ${activeTrip.vehicleNumber || 'Plate Number'}`}
-                  </Text>
-                  {tripRole === 'driver' && activeTrip.matchedPassengerPhone ? (
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(`tel:${activeTrip.matchedPassengerPhone}`)}
-                      style={styles.phoneContactRow}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.phoneContactText}>📞 {activeTrip.matchedPassengerPhone}</Text>
-                      <View style={styles.phoneCallBadge}>
-                        <Text style={styles.phoneCallBadgeText}>Call</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                    {activeTrip.passengersList.map((p, pIdx) => (
+                      <View
+                        key={p.bookingId || pIdx}
+                        style={[
+                          styles.driverBox,
+                          {
+                            width: 250,
+                            backgroundColor: isDark ? '#131822' : '#f1f5f9',
+                            borderColor: isDark ? '#1e2636' : '#cbd5e1',
+                            marginBottom: 0,
+                          }
+                        ]}
+                      >
+                        <View style={[styles.driverIconCircle, { backgroundColor: 'rgba(33,150,243,0.15)', borderColor: colors.blue }]}>
+                          <Text style={{ fontSize: 16 }}>👤</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.driverTitle, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>
+                            {p.usn ? `🪪 ${p.usn}` : p.name}
+                          </Text>
+                          <Text style={[styles.driverVehicle, { color: isDark ? colors.text2 : '#475569' }]} numberOfLines={1}>
+                            💺 {p.seats} seat(s) • {p.college}
+                          </Text>
+                          {p.phone ? (
+                            <TouchableOpacity
+                              onPress={() => Linking.openURL(`tel:${p.phone}`)}
+                              style={styles.phoneContactRow}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.phoneContactText}>📞 {p.phone}</Text>
+                              <View style={styles.phoneCallBadge}>
+                                <Text style={styles.phoneCallBadgeText}>Call</Text>
+                              </View>
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
                       </View>
-                    </TouchableOpacity>
-                  ) : null}
-                  {tripRole === 'rider' && activeTrip.providerId?.phone ? (
-                    <TouchableOpacity
-                      onPress={() => Linking.openURL(`tel:${activeTrip.providerId.phone}`)}
-                      style={styles.phoneContactRow}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.phoneContactText}>📞 {activeTrip.providerId.phone}</Text>
-                      <View style={styles.phoneCallBadge}>
-                        <Text style={styles.phoneCallBadgeText}>Call Driver</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ) : null}
+                    ))}
+                  </ScrollView>
                 </View>
-              </View>
+              ) : (
+                <View style={[styles.driverBox, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}>
+                  <View style={[styles.driverIconCircle, tripRole === 'driver' && { backgroundColor: 'rgba(33,150,243,0.15)', borderColor: colors.blue }]}>
+                    <Text style={{ fontSize: 18 }}>{tripRole === 'driver' ? '👤' : '🚗'}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.driverTitle, { color: isDark ? colors.text : '#0f172a' }]}>
+                      {tripRole === 'driver'
+                        ? `Passenger: ${activeTrip.matchedPassengerName || 'Matched Passenger'}`
+                        : (activeTrip.providerId?.name || 'Assigned Driver')}
+                    </Text>
+                    <Text style={[styles.driverVehicle, { color: isDark ? colors.text2 : '#475569' }]}>
+                      {tripRole === 'driver'
+                        ? `🎓 ${activeTrip.matchedPassengerCollege || 'Campus Commuter'}`
+                        : `${activeTrip.vehicleName || activeTrip.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • ${activeTrip.vehicleNumber || activeTrip.providerId?.kycDocuments?.vehicleNumber || activeTrip.providerId?.vehicleNumber || activeTrip.vehicleType || 'Verified Vehicle'}`}
+                    </Text>
+                    {tripRole === 'driver' && activeTrip.matchedPassengerPhone ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(`tel:${activeTrip.matchedPassengerPhone}`)}
+                        style={styles.phoneContactRow}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.phoneContactText}>📞 {activeTrip.matchedPassengerPhone}</Text>
+                        <View style={styles.phoneCallBadge}>
+                          <Text style={styles.phoneCallBadgeText}>Call</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ) : null}
+                    {tripRole === 'rider' && activeTrip.providerId?.phone ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(`tel:${activeTrip.providerId.phone}`)}
+                        style={styles.phoneContactRow}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.phoneContactText}>📞 {activeTrip.providerId.phone}</Text>
+                        <View style={styles.phoneCallBadge}>
+                          <Text style={styles.phoneCallBadgeText}>Call Driver</Text>
+                        </View>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              )}
 
               {/* Route Points — Full address display */}
               <View style={styles.routeBox}>

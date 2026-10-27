@@ -19,29 +19,98 @@ const SUGGESTIONS = [
 ];
 
 function getLocalAnswer(query, user) {
-  const q = query.toLowerCase();
-  if (q.includes('vehicle') || q.includes('change vehicle') || q.includes('edit vehicle') || q.includes('update vehicle') || q.includes('new vehicle') || q.includes('rc')) {
-    return "🚗 Vehicle Policy & Changing Vehicle:\n• For campus safety and verification integrity, registered vehicle details (number and model) cannot be edited directly by users.\n• If you have changed your vehicle or acquired a new one, you cannot edit it directly in the app.\n• Please tap 'Contact Support' from the app menu or email campus support with your new vehicle RC and college ID. Our admin team will verify and update it for you!";
+  const q = (query || '').toLowerCase().trim();
+
+  // 1. Ride History & Past Trips
+  if (q.includes('history') || q.includes('past ride') || q.includes('past booking') || q.includes('previous ride') || q.includes('completed ride') || q.includes('old ride') || q.includes('my trips')) {
+    return "📜 Accessing Ride History:\n• Top Menu (☰) > 'My Bookings': Tap the 'History / Completed' tab to view all completed, past, or cancelled rides.\n• Profile Screen: Navigate to 'My Profile' and tap 'Ride History' to inspect your full trip receipts, dates, route logs, and matched buddy USNs.\n• Note: Active ongoing trips are shown separately on your Dashboard active trip card.";
   }
-  if (q.includes('offer') || q.includes('create ride') || q.includes('post ride')) {
-    return "To offer a ride:\n1. Switch to the Offer Ride tab.\n2. Enter your pickup & drop locations.\n3. Choose your vehicle and departure time.\n4. If you are female, you can optionally toggle Women Only.\n5. Tap Post Ride! Students from your college can then view and request seats.";
+
+  // 2. Cancellation Policy & How to Cancel
+  if (q.includes('cancel') || q.includes('cancellation') || q.includes('refund') || q.includes('withdraw') || q.includes('delete ride')) {
+    return "❌ Ride Cancellation Policy:\n• How to cancel: Open your active ride from the Dashboard or Live Tracking screen, scroll down and tap 'Cancel Ride' (for drivers) or 'Cancel Booking' (for passengers).\n• Free campus cancellation: You can cancel anytime before departure. Matched peers will receive an instant notification so they can arrange alternative transit.\n• No cancellation fees or penalties apply on campus.";
   }
-  if (q.includes('search') || q.includes('find') || q.includes('match') || q.includes('book')) {
-    return "To search and match with rides:\n1. Go to Search Your Buddy.\n2. Enter your pickup and drop areas (or use GPS auto-detect).\n3. Tap Find My Route to see distance & travel time.\n4. Tap Search Rides to view available verified rides from your college mates!\n5. Tap Book Seat to send a request.";
+
+  // 3. Pre-Ride Safety Checklist
+  if (q.includes('checklist') || q.includes('safety check') || q.includes('pre-ride') || q.includes('verification check')) {
+    return "📋 Pre-Ride Safety Checklist:\n• Both driver and passenger verify a 4-point safety checklist before departure (driver photo, vehicle plate, USN, and route confirmation).\n• The checklist unlocks once the driver reaches the pickup spot and the request is accepted.\n• Once all checks are verified, the driver taps Start Ride and live destination navigation activates.";
   }
-  if (q.includes('kyc') || q.includes('verify') || q.includes('document')) {
-    return "KYC Verification ensures campus safety:\n• Providers must submit College ID, Driving License, and Vehicle info.\n• You can complete KYC anytime from Top Menu > KYC Verification.\n• Once approved by campus admins, you can immediately post rides.";
+
+  // 4. Walk Together (Nadi) Companion
+  if (q.includes('walk') || q.includes('nadi') || q.includes('walking') || q.includes('companion') || q.includes('foot') || q.includes('pedestrian')) {
+    return "🚶 Walk Together (Nadi):\n• Tap 'Walk Together' on the Dashboard.\n• Enter your campus pickup and destination points, choose departure time, and tap 'Post Walk Request'.\n• Walk posts stay active for 24 hours. Classmates can tap 'Join Walk', and you will be notified when a buddy joins!";
   }
-  if (q.includes('women') || q.includes('female') || q.includes('safety')) {
-    return "Women-Only Rides Feature:\n• Female providers can enable the Women Only option when offering a ride.\n• Only verified female students can see and book these rides for enhanced safety and comfort.";
+
+  // 5. Community & Student Chat
+  if (q.includes('chat') || q.includes('community') || q.includes('post') || q.includes('lounge') || q.includes('comment') || q.includes('reply') || q.includes('message')) {
+    return "💬 Campus Community & Student Chat:\n• Go to the 'Community' tab on the bottom bar to see campus posts and join college discussions.\n• Switch to 'Campus Chat' to message peers across your institution in real-time.\n• You can post transit alerts, questions, tips, and choose to post with your student USN or anonymously.";
   }
-  if (q.includes('sos') || q.includes('emergency') || q.includes('help')) {
-    return "SOS Emergency Protocol:\n• During any active ride, a prominent red SOS Emergency button is available.\n• Tapping it immediately alerts campus safety, contacts, and broadcasts emergency coordinates.";
+
+  // 6. Pricing, Fare & Cost Splitting
+  if (q.includes('price') || q.includes('fare') || q.includes('cost') || q.includes('petrol') || q.includes('payment') || q.includes('pay') || q.includes('money') || q.includes('rupee') || q.includes('split')) {
+    return "💰 Estimated Fare & Cost Sharing:\n• Estimated fare is calculated automatically based on route distance to help students split petrol costs fairly.\n• No surge pricing or hidden app commissions — you split actual travel costs directly with your verified college buddy.\n• You can review the estimated fare before booking.";
   }
-  if (q.includes('track') || q.includes('live tracking') || q.includes('gps')) {
-    return "Live Tracking:\n• Once your ride starts, an Active Ride Banner appears on your dashboard.\n• Tap it to open live map tracking with route polyline, driver location, and emergency controls.";
+
+  // 7. Arrival & Pickup
+  if (q.includes('reach') || q.includes('arrived') || q.includes('pickup') || q.includes('meeting') || q.includes('spot') || q.includes('where is driver')) {
+    return "📍 Pickup & Buddy Arrival:\n• As the driver approaches your pickup point, live GPS telemetry displays their ETA.\n• When the driver taps 'I Have Reached Seeker Location', you will receive an instant notification: 'Your buddy has arrived at pickup location!'.\n• Meet at the designated spot and complete your pre-ride checklist to begin.";
   }
-  return `Hi ${user?.name || 'there'}! I am RideBot, your HOGO campus assistant. You can ask me anything about finding campus rides, KYC verification, offering rides, safety protocols, or route previews!`;
+
+  // 8. Vehicle Policy & Changing Vehicle
+  if (q.includes('vehicle') || q.includes('car') || q.includes('bike') || q.includes('plate') || q.includes('rc') || q.includes('edit vehicle') || q.includes('change vehicle') || q.includes('add vehicle')) {
+    return "🚗 Vehicle Policy & Adding Vehicles:\n• You can register a new vehicle anytime in My Profile > 'Add Vehicle'. It will be reviewed by admin within 24 hours.\n• For campus safety and verification integrity, already approved vehicle numbers cannot be altered directly by users.\n• To update an existing vehicle number or plate, tap 'Contact Support' with your RC copy and student ID.";
+  }
+
+  // 9. Offering a Ride
+  if (q.includes('offer') || q.includes('create ride') || q.includes('post ride') || q.includes('driver') || q.includes('provide ride')) {
+    return "🚗 How to Offer a Ride:\n1. Switch to the 'Offer Ride' tab on the dashboard.\n2. Enter your pickup & drop locations.\n3. Choose your vehicle and departure time.\n4. If you are female, you can optionally toggle 'Women Only'.\n5. Tap 'Post Ride'! Students from your college heading along your route can then request seats.";
+  }
+
+  // 10. Search & Match Rides
+  if (q.includes('search') || q.includes('find') || q.includes('match') || q.includes('book') || q.includes('seeker')) {
+    return "🔍 Search Your Buddy:\n1. Tap 'Search Your Buddy' on the Dashboard.\n2. Enter your pickup and drop areas (or use GPS auto-detect).\n3. Tap 'Search Your Buddy' to view available verified rides from classmates along your route.\n4. Tap 'Book This Ride' to send a request to the provider.";
+  }
+
+  // 11. KYC Verification & Documents
+  if (q.includes('kyc') || q.includes('verify') || q.includes('document') || q.includes('aadhar') || q.includes('license') || q.includes('usn') || q.includes('selfie')) {
+    return "🛡️ KYC Verification:\n• Ensures 100% verified campus safety. Every student submits College ID, Aadhar card, live front-camera selfie, and USN.\n• Drivers also upload Driving License and vehicle RC details.\n• You can complete or check verification anytime from Top Menu (☰) > KYC Verification. Admins review submissions within 24–48 hours.";
+  }
+
+  // 12. Women-Only Rides
+  if (q.includes('women') || q.includes('female') || q.includes('ladies') || q.includes('gender')) {
+    return "👩 Women-Only Rides Feature:\n• Female providers can toggle 'Women Only' when offering a ride.\n• Only verified female students can view and book these rides for enhanced comfort and peace of mind.";
+  }
+
+  // 13. SOS Emergency Protocol
+  if (q.includes('sos') || q.includes('emergency') || q.includes('help') || q.includes('panic') || q.includes('police')) {
+    return "🆘 SOS Emergency Protocol:\n• During any active ride, a prominent red SOS Emergency button is available on the Live Tracking screen.\n• Tapping it immediately alerts campus safety, dials emergency contacts, and broadcasts your live GPS coordinates.";
+  }
+
+  // 14. Live GPS Tracking
+  if (q.includes('track') || q.includes('live tracking') || q.includes('gps') || q.includes('map') || q.includes('location')) {
+    return "📍 Live GPS Tracking:\n• Once your ride starts, an Active Ride banner appears on your dashboard.\n• Tap it to open live map tracking with route polyline, driver location, ETA, and emergency controls.";
+  }
+
+  // 15. Support, Incident Reporting & Glitches
+  if (q.includes('support') || q.includes('incident') || q.includes('report') || q.includes('admin') || q.includes('glitch') || q.includes('bug') || q.includes('problem') || q.includes('issue')) {
+    return "🛠️ Support & Incident Reporting:\n• Report an incident or safety concern: Tap Top Menu (☰) > 'Report Incident'. Admins investigate all reports promptly.\n• For general support or bug reports, tap Top Menu (☰) > 'Contact Support'.\n• For live ride emergencies, use the SOS button.";
+  }
+
+  // 16. Dark & Light Theme
+  if (q.includes('theme') || q.includes('dark') || q.includes('light') || q.includes('mode')) {
+    return "🌓 Dark & Light Mode:\n• You can easily switch between Dark and Light mode using the toggle button located directly on your Dashboard greeting hero card (next to your name)!\n• It instantly adapts all screens, maps, and menus to your preferred appearance.";
+  }
+
+  // 17. Intelligent Generalized Fallback with Comprehensive Guides
+  return `🤖 Hi ${user?.name ? user.name.split(' ')[0] : 'there'}! I am RideBot, your HOGO assistant. Here is how I can help:\n\n` +
+    `• 📜 **Ride History**: View completed trips in Menu (☰) > My Bookings > History or Profile.\n` +
+    `• 🔍 **Search Your Buddy**: Match with peers heading your way in Search Your Buddy.\n` +
+    `• 🚗 **Offer a Ride**: Share seats with verified classmates in Offer Ride.\n` +
+    `• 🚶 **Walk Together**: Join or post walking groups across campus.\n` +
+    `• ❌ **Cancellations**: Cancel trips easily from the Dashboard before departure.\n` +
+    `• 🛡️ **KYC & Verification**: Check verification status in Menu (☰) > KYC.\n` +
+    `• 🆘 **SOS Emergency**: 24/7 emergency coordinates & contact broadcast.\n\n` +
+    `Feel free to ask me anything specific about your campus commute!`;
 }
 
 export default function ChatBotScreen({ navigation }) {

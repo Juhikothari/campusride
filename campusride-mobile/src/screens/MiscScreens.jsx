@@ -8,7 +8,9 @@ import {
   KeyboardAvoidingView, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Btn, Alert, Badge } from '../components/UI';
 import TopHeader from '../components/TopHeader';
 import TimePickerModal from '../components/TimePickerModal';
@@ -212,9 +214,11 @@ export function RideDetailScreen({ navigation, route }) {
 // ═══════════════════════════════════════════════════════════════
 export function NotificationsScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const [bookings,  setBookings]  = useState([]);
   const [myRides,   setMyRides]   = useState([]);
   const [loading,   setLoading]   = useState(true);
+  const [readIds,   setReadIds]   = useState(new Set());
 
   const isSeeker   = user?.role === 'seeker'   || user?.role === 'both';
   const isProvider = user?.role === 'provider' || user?.role === 'both';
@@ -222,6 +226,12 @@ export function NotificationsScreen({ navigation }) {
   const [serverNotifs, setServerNotifs] = useState([]);
 
   useEffect(() => {
+    AsyncStorage.getItem('@read_notif_ids').then(raw => {
+      if (raw) {
+        try { setReadIds(new Set(JSON.parse(raw))); } catch {}
+      }
+    });
+
     const promises = [];
     if (isSeeker)   promises.push(api.getMyBookings().then(setBookings).catch(() => {}));
     if (isProvider) promises.push(api.getMyRides().then(setMyRides).catch(() => {}));
@@ -230,13 +240,27 @@ export function NotificationsScreen({ navigation }) {
         .then(res => {
           const list = Array.isArray(res) ? res : res?.notifications || [];
           setServerNotifs(list);
-          // Mark all notifications as read when opening notifications screen
-          api.markNotificationsRead().catch(() => {});
         })
         .catch(() => {})
     );
     Promise.all(promises).finally(() => setLoading(false));
   }, []);
+
+  const markAllAsRead = () => {
+    const allIds = new Set([...readIds, ...allNotifs.map(n => n.id)]);
+    setReadIds(allIds);
+    AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...allIds])).catch(() => {});
+    api.markNotificationsRead().catch(() => {});
+  };
+
+  const handleNotifPress = (item) => {
+    setReadIds(prev => {
+      const next = new Set(prev).add(item.id);
+      AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
+    if (item.onPress) item.onPress();
+  };
 
   const NOTIF_TYPE = {
     pending:     { icon: '📬', color: colors.blue,  label: 'Booking Request' },
@@ -249,6 +273,7 @@ export function NotificationsScreen({ navigation }) {
 
   const directNotifs = serverNotifs.map(n => ({
     id: n._id || n.id,
+    isRead: Boolean(n.read),
     icon: n.type?.includes('PICKUP') ? '🚗' : n.type?.includes('DROP') ? '📍' : '🔔',
     color: colors.accent,
     label: n.type?.replace(/_/g, ' ') || 'Notification',
@@ -263,6 +288,7 @@ export function NotificationsScreen({ navigation }) {
 
   const seekerNotifs = bookings.map(b => ({
     id: b._id,
+    isRead: false,
     icon:  (NOTIF_TYPE[b.status] || NOTIF_TYPE.pending).icon,
     color: (NOTIF_TYPE[b.status] || NOTIF_TYPE.pending).color,
     label: (NOTIF_TYPE[b.status] || NOTIF_TYPE.pending).label,
@@ -275,6 +301,7 @@ export function NotificationsScreen({ navigation }) {
   const providerNotifs = myRides.flatMap(r =>
     (r.bookings || []).filter(b => b.status === 'pending').map(b => ({
       id: b._id,
+      isRead: false,
       icon: '📬', color: colors.accent,
       label: 'New Request',
       title: 'New booking request',
@@ -295,31 +322,74 @@ export function NotificationsScreen({ navigation }) {
     return `${Math.floor(m / 1440)}d ago`;
   }
 
+  const unreadCount = allNotifs.filter(n => !readIds.has(n.id) && !n.isRead).length;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="Notifications" subtitle="Alerts & ride updates" showBack={navigation.canGoBack()} />
       <ScrollView contentContainerStyle={styles.scroll}>
+        {allNotifs.length > 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingHorizontal: 4 }}>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, fontWeight: '800', letterSpacing: 0.5 }}>
+              {unreadCount > 0 ? `${unreadCount} UNREAD ALERTS` : 'ALL ALERTS READ'}
+            </Text>
+            {unreadCount > 0 && (
+              <TouchableOpacity onPress={markAllAsRead} activeOpacity={0.7} style={{ paddingVertical: 2, paddingHorizontal: 6 }}>
+                <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Mark all as read ✓</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {loading ? <ActivityIndicator color={colors.accent} /> : allNotifs.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 40 }}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-            <Text style={{ color: colors.text2, fontSize: 16 }}>No notifications yet</Text>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 16 }}>No notifications yet</Text>
           </View>
         ) : (
-          allNotifs.map(n => (
-            <TouchableOpacity key={n.id} style={[styles.card, { flexDirection: 'row', gap: 12 }]} onPress={n.onPress} activeOpacity={0.8}>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: n.color + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 16 }}>{n.icon}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: n.color, fontSize: 11, fontWeight: '700' }}>{n.label}</Text>
-                  <Text style={{ color: colors.text3, fontSize: 11 }}>{timeAgo(n.time)}</Text>
+          allNotifs.map(n => {
+            const isUnread = !readIds.has(n.id) && !n.isRead;
+            return (
+              <TouchableOpacity
+                key={n.id}
+                style={[
+                  styles.card,
+                  {
+                    flexDirection: 'row',
+                    gap: 12,
+                    backgroundColor: isUnread
+                      ? (isDark ? 'rgba(245, 166, 35, 0.14)' : 'rgba(245, 166, 35, 0.10)')
+                      : (isDark ? colors.surface : '#ffffff'),
+                    borderColor: isUnread
+                      ? '#f5a623'
+                      : (isDark ? colors.border : '#e2e8f0'),
+                    borderWidth: isUnread ? 1.5 : 1,
+                  }
+                ]}
+                onPress={() => handleNotifPress(n)}
+                activeOpacity={0.8}
+              >
+                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: n.color + '22', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 18 }}>{n.icon}</Text>
                 </View>
-                <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600', marginTop: 3 }}>{n.title}</Text>
-                <Text style={{ color: colors.text2, fontSize: 12, marginTop: 2 }}>{n.body}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={{ color: n.color, fontSize: 11, fontWeight: '800' }}>{n.label}</Text>
+                      {isUnread && (
+                        <View style={{ backgroundColor: '#f5a623', paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 3 }}>
+                          <Text style={{ color: '#000000', fontSize: 9, fontWeight: '900' }}>NEW</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11 }}>{timeAgo(n.time)}</Text>
+                  </View>
+                  <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14.5, fontWeight: isUnread ? '800' : '600', marginTop: 3 }}>{n.title}</Text>
+                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12.5, marginTop: 2, lineHeight: 17 }}>{n.body}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
     </SafeAreaView>
@@ -331,6 +401,7 @@ export function NotificationsScreen({ navigation }) {
 // ═══════════════════════════════════════════════════════════════
 export function WalkTogetherScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const [posts,   setPosts]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [from,    setFrom]    = useState('');
@@ -406,16 +477,16 @@ export function WalkTogetherScreen({ navigation }) {
   const activeWalks = posts.filter(isWalkActive);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="Walk Together" subtitle="Find a walking companion on campus" showBack={navigation.canGoBack()} />
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Post new walk card */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
           <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }}>
             📢 POST A WALK COMPANION REQUEST
           </Text>
-          {renderWalkInputs(from, setFrom, to, setTo, time, () => setShowTimePicker(true))}
+          {renderWalkInputs(from, setFrom, to, setTo, time, () => setShowTimePicker(true), isDark)}
 
           <TimePickerModal
             visible={showTimePicker}
@@ -430,14 +501,14 @@ export function WalkTogetherScreen({ navigation }) {
               style={[{
                 flexDirection: 'row', alignItems: 'center', gap: 10,
                 borderRadius: radius.md, borderWidth: 1.5, padding: 12, marginBottom: 12
-              }, womenOnly ? { borderColor: colors.pink, backgroundColor: 'rgba(233,30,140,0.08)' } : { borderColor: colors.border }]}
+              }, womenOnly ? { borderColor: colors.pink, backgroundColor: 'rgba(233,30,140,0.08)' } : { borderColor: isDark ? colors.border : '#cbd5e1' }]}
             >
               <Text style={{ fontSize: 18 }}>{womenOnly ? '🔒' : '♀'}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: womenOnly ? colors.pink : colors.text2, fontSize: 13, fontWeight: '700' }}>
+                <Text style={{ color: womenOnly ? colors.pink : (isDark ? colors.text2 : '#475569'), fontSize: 13, fontWeight: '700' }}>
                   {womenOnly ? 'Women Only 🔒' : 'Open to everyone'}
                 </Text>
-                <Text style={{ color: colors.text3, fontSize: 11 }}>Tap to toggle women-only</Text>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11 }}>Tap to toggle women-only</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -459,10 +530,10 @@ export function WalkTogetherScreen({ navigation }) {
           marginBottom: 12,
           paddingHorizontal: 4,
         }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '800' }}>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14, fontWeight: '800' }}>
             🚶 Active Campus Walks ({activeWalks.length})
           </Text>
-          <Text style={{ color: colors.text3, fontSize: 11 }}>
+          <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11 }}>
             Auto-disappears after 24 hrs
           </Text>
         </View>
@@ -472,7 +543,7 @@ export function WalkTogetherScreen({ navigation }) {
         ) : activeWalks.length === 0 ? (
           <View style={{ alignItems: 'center', paddingVertical: 36 }}>
             <Text style={{ fontSize: 40, marginBottom: 8 }}>🚶</Text>
-            <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center' }}>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 14, textAlign: 'center' }}>
               No active walk requests in the last 24h. Post one above!
             </Text>
           </View>
@@ -484,10 +555,10 @@ export function WalkTogetherScreen({ navigation }) {
             const isJoined = joinedList.some(j => (j.userId?._id || j.userId || '').toString() === currentUserId);
 
             return (
-              <View key={post._id} style={styles.card}>
+              <View key={post._id} style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
                 {/* Header: Posted Date & Time */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <Text style={{ color: colors.text3, fontSize: 11, fontWeight: '600' }}>
+                  <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11, fontWeight: '600' }}>
                     📅 Posted: {new Date(post.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} • {new Date(post.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </Text>
                   <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.sm }}>
@@ -496,20 +567,20 @@ export function WalkTogetherScreen({ navigation }) {
                 </View>
 
                 {/* Content */}
-                <Text style={{ color: colors.text, fontSize: 14.5, lineHeight: 21, marginBottom: 10 }}>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14.5, lineHeight: 21, marginBottom: 10 }}>
                   {post.content}
                 </Text>
 
                 {/* Author name & college badge (constrained to never overflow card) */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                  <Text style={{ color: colors.text2, fontSize: 12, flexShrink: 1 }}>
+                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, flexShrink: 1 }}>
                     👤 Posted by: <Text style={{ color: colors.accent, fontWeight: '700' }}>
                       {post.author?.name || post.authorName || 'Verified Student'}
                     </Text>
                   </Text>
                   {(post.college || post.author?.college) && (
                     <View style={{
-                      backgroundColor: 'rgba(255,255,255,0.06)',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#e2e8f0',
                       paddingHorizontal: 8,
                       paddingVertical: 2,
                       borderRadius: radius.sm,
@@ -517,7 +588,7 @@ export function WalkTogetherScreen({ navigation }) {
                       flexShrink: 1,
                     }}>
                       <Text
-                        style={{ color: colors.text3, fontSize: 11, fontWeight: '600' }}
+                        style={{ color: isDark ? colors.text3 : '#475569', fontSize: 11, fontWeight: '600' }}
                         numberOfLines={1}
                         ellipsizeMode="tail"
                       >
@@ -706,25 +777,69 @@ const formatTime12 = (t) => {
   return t;
 };
 
-function renderWalkInputs(from, setFrom, to, setTo, time, onOpenTimePicker) {
+function renderWalkInputs(from, setFrom, to, setTo, time, onOpenTimePicker, isDark = true) {
   const { TextInput, StyleSheet: RNStyleSheet } = require('react-native');
   const s = RNStyleSheet.create({
-    inp: { backgroundColor: colors.surface2, borderWidth:1, borderColor:colors.border, borderRadius:radius.md, color:colors.text, paddingHorizontal:14, paddingVertical:12, fontSize:14, marginBottom:10 },
-    timeBtn: { backgroundColor: colors.surface2, borderWidth:1, borderColor: time ? colors.accent : colors.border, borderRadius:radius.md, paddingHorizontal:14, paddingVertical:13, marginBottom:12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    inp: {
+      backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+      borderWidth: 1,
+      borderColor: isDark ? colors.border : '#cbd5e1',
+      borderRadius: radius.md,
+      color: isDark ? colors.text : '#0f172a',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 14,
+      marginBottom: 10,
+    },
+    timeBtn: {
+      backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+      borderWidth: 1,
+      borderColor: time ? colors.accent : (isDark ? colors.border : '#cbd5e1'),
+      borderRadius: radius.md,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      marginBottom: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
   });
 
   return (
     <>
-      <TextInput style={s.inp} value={from} onChangeText={setFrom} placeholder="From (e.g. Gate 1, Hostel)" placeholderTextColor={colors.text3} />
-      <TextInput style={s.inp} value={to}   onChangeText={setTo}   placeholder="To (e.g. Library, Canteen)" placeholderTextColor={colors.text3} />
+      <TextInput
+        style={s.inp}
+        value={from}
+        onChangeText={setFrom}
+        placeholder="From (e.g. Gate 1, Hostel)"
+        placeholderTextColor={isDark ? colors.text3 : '#64748b'}
+      />
+      <TextInput
+        style={s.inp}
+        value={to}
+        onChangeText={setTo}
+        placeholder="To (e.g. Library, Canteen)"
+        placeholderTextColor={isDark ? colors.text3 : '#64748b'}
+      />
       <TouchableOpacity style={s.timeBtn} onPress={onOpenTimePicker} activeOpacity={0.8}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 }}>
           <Text style={{ fontSize: 16 }}>⏰</Text>
-          <Text style={{ color: time ? colors.text : colors.text3, fontSize: 14, fontWeight: time ? '700' : '400' }}>
-            {time ? `Departure Time: ${formatTime12(time)}` : 'Select Time (Hour & Min AM/PM)'}
+          <Text
+            style={{
+              color: time ? (isDark ? colors.text : '#0f172a') : (isDark ? colors.text3 : '#64748b'),
+              fontSize: 13.5,
+              fontWeight: time ? '700' : '500',
+              flex: 1,
+            }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {time ? `Departure: ${formatTime12(time)}` : 'Select Departure Time'}
           </Text>
         </View>
-        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>{time ? 'Change' : 'Pick Time ▾'}</Text>
+        <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '700' }}>
+          {time ? 'Change' : 'Pick Time ▾'}
+        </Text>
       </TouchableOpacity>
     </>
   );

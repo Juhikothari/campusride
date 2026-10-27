@@ -628,17 +628,6 @@ export default function CreateRideScreen({ navigation }) {
                   </TouchableOpacity>
                 </View>
               </View>
-
-              <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                {['+15 min', '+30 min', '+1 hr', '+2 hr'].map((offset, idx) => {
-                  const mins = [15, 30, 60, 120][idx];
-                  return (
-                    <TouchableOpacity key={offset} onPress={() => setPresetTime(mins)} style={styles.quickTimeBtn}>
-                      <Text style={styles.quickTimeText}>{offset}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
             </View>
           )}
 

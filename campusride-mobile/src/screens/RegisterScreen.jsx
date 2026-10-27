@@ -198,6 +198,7 @@ export default function RegisterScreen({ navigation }) {
     if (password.length < 6) return 'Password must be at least 6 characters';
     if (password !== confirm) return 'Passwords do not match';
     if (!gender)          return 'Please select your gender';
+    if (emergency.trim() && emergency.trim().length !== 10) return 'Emergency contact must be exactly 10 digits';
     if (role === 'admin' && adminKey !== 'freewheel') return 'Invalid admin key';
     if (role !== 'admin') {
       if (!selfieUri)      return 'Selfie capture is compulsory. Please take a live selfie using front camera.';
@@ -381,10 +382,11 @@ export default function RegisterScreen({ navigation }) {
               <TextInput
                 style={styles.textInput}
                 value={emergency}
-                onChangeText={t => setEmergency(t.replace(/\D/g, ''))}
-                placeholder="Emergency contact number"
+                onChangeText={t => setEmergency(t.replace(/\D/g, '').slice(0, 10))}
+                placeholder="10-digit emergency number"
                 placeholderTextColor={colors.text3}
                 keyboardType="phone-pad"
+                maxLength={10}
               />
             </View>
           </View>

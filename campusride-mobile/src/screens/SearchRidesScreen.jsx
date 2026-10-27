@@ -372,7 +372,7 @@ export default function SearchRidesScreen({ navigation }) {
           showsVerticalScrollIndicator={true}
         >
           {/* Section divider */}
-          <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH & MATCH RIDES</Text>
+          <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH YOUR BUDDY</Text>
 
         {/* Pickup */}
         <LocationSearch

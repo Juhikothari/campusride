@@ -37,6 +37,10 @@ export default function ProfileScreen({ navigation }) {
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [phoneMsg,     setPhoneMsg]     = useState('');
   const [phoneError,   setPhoneError]   = useState('');
+  const [editingEmergency, setEditingEmergency] = useState(false);
+  const [newEmergency,     setNewEmergency]     = useState('');
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
+  const [emergencyError,   setEmergencyError]   = useState('');
   const [photoUri,     setPhotoUri]     = useState(user?.profilePhoto || null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -281,6 +285,25 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const handleEmergencySave = async () => {
+    setEmergencyError('');
+    const cleaned = newEmergency.replace(/\D/g, '').slice(0, 10);
+    if (cleaned && cleaned.length !== 10) {
+      setEmergencyError('Emergency contact must be exactly 10 digits.');
+      return;
+    }
+    setEmergencyLoading(true);
+    try {
+      await api.updateProfile({ emergencyContact: cleaned });
+      setProfile(p => ({ ...p, emergencyContact: cleaned }));
+      setEditingEmergency(false);
+    } catch (e) {
+      setEmergencyError(e.message || 'Failed to update emergency contact.');
+    } finally {
+      setEmergencyLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     RNAlert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
@@ -354,7 +377,36 @@ export default function ProfileScreen({ navigation }) {
           <ProfileRow label="USN"            value={p?.usn} />
           <ProfileRow label="College"        value={p?.college} />
           <ProfileRow label="Gender"         value={p?.gender?.replace(/_/g, ' ')} />
-          <ProfileRow label="Emergency"      value={p?.emergencyContact} />
+          {/* Emergency Contact — editable with strict 10-digit limit */}
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>Emergency Contact</Text>
+            <View style={{ flex: 1 }}>
+              {editingEmergency ? (
+                <View style={{ gap: 8 }}>
+                  <Input
+                    value={newEmergency}
+                    onChangeText={t => { setNewEmergency(t.replace(/\D/g, '').slice(0, 10)); setEmergencyError(''); }}
+                    placeholder="10-digit number"
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Btn label="Save" onPress={handleEmergencySave} loading={emergencyLoading} style={{ flex: 1 }} />
+                    <Btn label="Cancel" onPress={() => { setEditingEmergency(false); setEmergencyError(''); }} variant="outline" style={{ flex: 1 }} />
+                  </View>
+                  {emergencyError ? <Text style={{ color: colors.red, fontSize: 12 }}>{emergencyError}</Text> : null}
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={styles.profileValue}>{p?.emergencyContact || '—'}</Text>
+                  <TouchableOpacity onPress={() => { setNewEmergency(p?.emergencyContact || ''); setEditingEmergency(true); }}>
+                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
 
           {/* Phone — editable once per 90 days */}
           <View style={styles.profileRow}>
@@ -503,37 +555,6 @@ export default function ProfileScreen({ navigation }) {
         )}
 
 
-
-        {/* Theme Settings Card */}
-        <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-          <Text style={[styles.sectionTitle, { color: themeColors.text }]}>🎨 APP APPEARANCE</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}>
-            <View>
-              <Text style={{ color: themeColors.text, fontSize: 14, fontWeight: '700' }}>
-                {isDark ? '🌙 Dark Mode Active' : '☀️ Light Mode Active'}
-              </Text>
-              <Text style={{ color: themeColors.text3, fontSize: 11.5, marginTop: 2 }}>
-                {isDark ? 'Easy on the eyes in low light' : 'Bright and crisp daytime theme'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={toggleTheme}
-              style={{
-                backgroundColor: isDark ? themeColors.surface2 : themeColors.accent,
-                borderWidth: 1.5,
-                borderColor: themeColors.accent,
-                paddingHorizontal: 16,
-                paddingVertical: 9,
-                borderRadius: radius.full,
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: isDark ? themeColors.accent : '#000000', fontSize: 12.5, fontWeight: '800' }}>
-                Switch to {isDark ? '☀️ Light' : '🌙 Dark'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
 
         {/* Actions */}
         <Btn label="Sign Out" onPress={handleLogout} variant="danger" style={{ marginTop: 8, marginBottom: 32 }} />

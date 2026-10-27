@@ -663,7 +663,12 @@ export default function LiveTrackingScreen({ navigation, route }) {
               <View style={styles.telemetryDivider} />
               <View style={styles.telemetryItem}>
                 <Text style={styles.telemetryLabel}>STATUS</Text>
-                <Text style={[styles.telemetryVal, { color: isTripToDestination ? colors.green : colors.accent }]}>
+                <Text
+                  style={[styles.telemetryVal, { color: isTripToDestination ? colors.green : colors.accent, fontSize: 11.5 }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit={true}
+                  minimumFontScale={0.75}
+                >
                   {isTripToDestination ? 'TRIP LIVE' : (rideInfo?.riderReachedSeeker ? 'AT PICKUP' : 'APPROACHING')}
                 </Text>
               </View>
@@ -695,56 +700,58 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* ── DETAILS CARD: SHOW PASSENGER DETAILS TO DRIVER, DRIVER DETAILS TO SEEKER ── */}
-          {rideInfo && (
+          {/* ── DETAILS CARD: SHOW PASSENGER DETAILS TO DRIVER, DRIVER DETAILS TO SEEKER (HIDDEN ONCE COMPLETED/CANCELLED) ── */}
+          {rideInfo && rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
             <View style={styles.driverCard}>
               {isDriver ? (
                 <>
-                  <Text style={styles.driverSectionTitle}>👥 ASSIGNED PASSENGER DETAILS</Text>
+                  <Text style={styles.driverSectionTitle}>👥 ASSIGNED PASSENGER DETAILS ({rideInfo.passengers?.length || 0})</Text>
                   {rideInfo.passengers && rideInfo.passengers.length > 0 ? (
-                    rideInfo.passengers.map((p, pIdx) => (
-                      <View key={p.bookingId || pIdx} style={{ marginBottom: pIdx < rideInfo.passengers.length - 1 ? 12 : 0 }}>
-                        <View style={styles.driverRow}>
-                          <View style={[styles.driverAvatar, { borderColor: colors.green }]}>
-                            <Text style={[styles.driverAvatarText, { color: colors.green }]}>
-                              🪪
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.driverName}>🪪 USN: {p.seeker?.usn || 'Passenger'}</Text>
-                            <Text style={styles.driverVehicleName}>
-                              💺 {p.seats || 1} Seat(s) Booked • {p.status?.toUpperCase() || 'CONFIRMED'}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.driverDetailsGrid}>
-                          {p.seeker?.usn && (
-                            <View style={styles.driverGridItem}>
-                              <Text style={styles.driverGridLabel}>USN</Text>
-                              <Text style={styles.driverGridVal}>{p.seeker.usn}</Text>
-                            </View>
-                          )}
-                          {p.seeker?.phone && (
-                            <TouchableOpacity
-                              style={styles.driverGridItem}
-                              onPress={() => Linking.openURL(`tel:${p.seeker.phone}`)}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={styles.driverGridLabel}>PHONE (TAP TO CALL)</Text>
-                              <Text style={[styles.driverGridVal, { color: colors.accent, textDecorationLine: 'underline' }]}>
-                                📞 {p.seeker.phone}
+                    <ScrollView horizontal={rideInfo.passengers.length > 1} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
+                      {rideInfo.passengers.map((p, pIdx) => (
+                        <View key={p.bookingId || pIdx} style={[rideInfo.passengers.length > 1 ? { width: 280, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: colors.border } : { marginBottom: pIdx < rideInfo.passengers.length - 1 ? 12 : 0 }]}>
+                          <View style={styles.driverRow}>
+                            <View style={[styles.driverAvatar, { borderColor: colors.green }]}>
+                              <Text style={[styles.driverAvatarText, { color: colors.green }]}>
+                                🪪
                               </Text>
-                            </TouchableOpacity>
-                          )}
-                          {p.seeker?.college && (
-                            <View style={styles.driverGridItem}>
-                              <Text style={styles.driverGridLabel}>CAMPUS</Text>
-                              <Text style={styles.driverGridVal}>{p.seeker.college}</Text>
                             </View>
-                          )}
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.driverName}>🪪 USN: {p.seeker?.usn && p.seeker.usn.toUpperCase() !== 'STUDENT' ? p.seeker.usn : (p.seeker?.name || 'Passenger')}</Text>
+                              <Text style={styles.driverVehicleName}>
+                                💺 {p.seats || 1} Seat(s) Booked • {p.status?.toUpperCase() || 'CONFIRMED'}
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={styles.driverDetailsGrid}>
+                            {p.seeker?.usn && p.seeker.usn.toUpperCase() !== 'STUDENT' && (
+                              <View style={styles.driverGridItem}>
+                                <Text style={styles.driverGridLabel}>USN</Text>
+                                <Text style={styles.driverGridVal}>{p.seeker.usn}</Text>
+                              </View>
+                            )}
+                            {p.seeker?.phone && (
+                              <TouchableOpacity
+                                style={styles.driverGridItem}
+                                onPress={() => Linking.openURL(`tel:${p.seeker.phone}`)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.driverGridLabel}>PHONE (TAP TO CALL)</Text>
+                                <Text style={[styles.driverGridVal, { color: colors.accent, textDecorationLine: 'underline' }]}>
+                                  📞 {p.seeker.phone}
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                            {p.seeker?.college && (
+                              <View style={styles.driverGridItem}>
+                                <Text style={styles.driverGridLabel}>CAMPUS</Text>
+                                <Text style={styles.driverGridVal}>{p.seeker.college}</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
-                      </View>
-                    ))
+                      ))}
+                    </ScrollView>
                   ) : (
                     <View style={{ paddingVertical: 8 }}>
                       <Text style={{ color: colors.text2, fontSize: 13 }}>
@@ -761,22 +768,22 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       <Text style={styles.driverAvatarText}>🪪</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.driverName}>🪪 USN: {rideInfo?.providerId?.usn || 'Campus Provider'}</Text>
+                      <Text style={styles.driverName}>🪪 USN: {rideInfo?.providerId?.usn && rideInfo.providerId.usn.toUpperCase() !== 'STUDENT' ? rideInfo.providerId.usn : (rideInfo?.providerId?.name || 'Campus Provider')}</Text>
                       <Text style={styles.driverVehicleName}>
                         🚘 {rideInfo?.vehicleName || rideInfo?.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(rideInfo?.vehicleType || 'Car').toUpperCase()}
                       </Text>
                     </View>
-                    {(rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber) && (
+                    {(rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber || rideInfo?.providerId?.vehicleNumber) ? (
                       <View style={styles.plateContainer}>
                         <Text style={styles.plateText}>
-                          {rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber}
+                          {rideInfo?.vehicleNumber || rideInfo?.providerId?.kycDocuments?.vehicleNumber || rideInfo?.providerId?.vehicleNumber}
                         </Text>
                       </View>
-                    )}
+                    ) : null}
                   </View>
 
                   <View style={styles.driverDetailsGrid}>
-                    {rideInfo?.providerId?.usn && (
+                    {rideInfo?.providerId?.usn && rideInfo.providerId.usn.toUpperCase() !== 'STUDENT' && (
                       <View style={styles.driverGridItem}>
                         <Text style={styles.driverGridLabel}>USN</Text>
                         <Text style={styles.driverGridVal}>{rideInfo.providerId.usn}</Text>

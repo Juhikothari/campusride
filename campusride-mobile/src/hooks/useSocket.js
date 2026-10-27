@@ -99,9 +99,9 @@ export const getSharedSocket = (userId, userType) => {
     globalSocket.on('rider-arrived', (data) => {
       notifyAll('rider-arrived', data);
       showPushNotification({
-        title: '📍 Driver / Rider Reached Your Location!',
-        body: 'Your ride partner has reached your pickup spot. Please meet them now!',
-        data,
+        title: '📍 Your Buddy Has Arrived!',
+        body: 'Your buddy has arrived at your pickup location! Please meet them now.',
+        data: { ...data, type: 'rider-reached' },
       });
     });
     globalSocket.on('riderArrivedAtSeeker', (data) => {
@@ -201,10 +201,14 @@ export const getSharedSocket = (userId, userType) => {
       notifyAll('new-notification', data);
       if (data?.type === 'community-reply') {
         incrementCommunityUnread();
+        return; // Suppress duplicate push (handled by community-reply listener)
+      }
+      if (data?.type === 'RIDER_ARRIVED' || data?.type === 'rider-arrived') {
+        return; // Suppress duplicate push (handled by rider-arrived listener)
       }
       showPushNotification({
-        title: data?.title || 'CampusRide Notification',
-        body: data?.message || 'New activity on your account.',
+        title: data?.title || 'HOGO Notification',
+        body: data?.body || data?.message || 'New activity on your account.',
         data,
       });
     });

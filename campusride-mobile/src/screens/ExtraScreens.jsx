@@ -1027,6 +1027,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
   const { user } = useAuth();
   const [checks, setChecks] = useState(Object.fromEntries(CHECKS.map(c => [c.key, false])));
   const [rideDetails, setRideDetails] = useState(null);
+  const [bookingStatus, setBookingStatus] = useState('checking'); // 'accepted' | 'pending' | 'rejected' | 'none'
   const [starting, setStarting] = useState(false);
   const done    = Object.values(checks).filter(Boolean).length;
   const allDone = done === CHECKS.length;
@@ -1053,10 +1054,25 @@ export function PreRideChecklistScreen({ route, navigation }) {
   useEffect(() => {
     if (rideId) {
       api.getRideById(rideId).then(r => setRideDetails(r)).catch(() => {});
+      api.getMyBookings().then(bookings => {
+        const bList = Array.isArray(bookings) ? bookings : bookings?.bookings || [];
+        const myB = bList.find(b => String(b.rideId?._id || b.rideId) === String(rideId));
+        if (myB) {
+          setBookingStatus(myB.status);
+        } else {
+          setBookingStatus('none');
+        }
+      }).catch(() => {
+        setBookingStatus('none');
+      });
     }
   }, [rideId]);
 
   const handleProceed = async () => {
+    if (!isDriver && bookingStatus !== 'accepted') {
+      RNAlert.alert('Cannot Proceed', bookingStatus === 'rejected' ? 'This ride request was declined by the provider.' : 'Please wait for the provider to accept your booking request first.');
+      return;
+    }
     if (!allDone) return;
     if (!rideId) { navigation.goBack(); return; }
 
@@ -1098,6 +1114,8 @@ export function PreRideChecklistScreen({ route, navigation }) {
   };
 
   const getButtonLabel = () => {
+    if (!isDriver && bookingStatus === 'rejected') return '❌ Request Declined by Provider';
+    if (!isDriver && bookingStatus === 'pending') return '⏳ Waiting for Provider Acceptance';
     if (!allDone) return `${done}/${CHECKS.length} checked — please verify all`;
     if (isDriver) return '🚀 Everything Checked — Start Ride Now →';
     if (rideDetails?.status === 'in-progress') return '📍 Driver Started Ride — Open Live Map →';
@@ -1149,15 +1167,35 @@ export function PreRideChecklistScreen({ route, navigation }) {
             : 'Verify your assigned ride details and safety checks before departure.'}
         </Text>
 
-        {/* Assigned Ride & Driver Info Card */}
-        {rideDetails && (
+        {/* If Seeker's booking was rejected */}
+        {!isDriver && bookingStatus === 'rejected' && (
+          <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.12)', borderWidth: 1.5, borderColor: colors.red, borderRadius: radius.md, padding: 14, marginBottom: 16 }}>
+            <Text style={{ color: colors.red, fontWeight: '800', fontSize: 13 }}>❌ Ride Request Declined</Text>
+            <Text style={{ color: colors.text, fontSize: 12, marginTop: 4 }}>
+              The provider has declined your booking request for this ride. You cannot complete the safety checklist.
+            </Text>
+          </View>
+        )}
+
+        {/* If Seeker's booking is still pending */}
+        {!isDriver && bookingStatus === 'pending' && (
+          <View style={{ backgroundColor: 'rgba(245, 166, 35, 0.12)', borderWidth: 1.5, borderColor: colors.accent, borderRadius: radius.md, padding: 14, marginBottom: 16 }}>
+            <Text style={{ color: colors.accent, fontWeight: '800', fontSize: 13 }}>⏳ Request Pending Acceptance</Text>
+            <Text style={{ color: colors.text, fontSize: 12, marginTop: 4 }}>
+              Please wait until the provider accepts your request. Vehicle details and checklist verification will unlock once accepted.
+            </Text>
+          </View>
+        )}
+
+        {/* Assigned Ride & Driver Info Card — Revealed ONLY when provider accepted (or if user is driver) */}
+        {rideDetails && (isDriver || bookingStatus === 'accepted') && (
           <View style={{ backgroundColor: '#10141e', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.lg, padding: 14, marginBottom: 16 }}>
             <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 }}>ASSIGNED RIDE DETAILS</Text>
             <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>
-              🪪 USN: {rideDetails.providerId?.usn || rideDetails.providerUsn || 'Verified Commuter'} • 🏫 {rideDetails.college || 'Campus'}
+              🪪 USN: {rideDetails.providerId?.usn && rideDetails.providerId.usn.toUpperCase() !== 'STUDENT' ? rideDetails.providerId.usn : (rideDetails.providerId?.name || rideDetails.providerUsn || 'Verified Commuter')} • 🏫 {rideDetails.college || 'Campus'}
             </Text>
             <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', marginTop: 4 }}>
-              🚘 {rideDetails.vehicleName || 'Vehicle'} ({rideDetails.vehicleNumber || 'Plate Number'})
+              🚘 {rideDetails.vehicleName || 'Vehicle'} ({rideDetails.vehicleNumber || rideDetails.providerId?.kycDocuments?.vehicleNumber || rideDetails.providerId?.vehicleNumber || 'Verified Vehicle'})
             </Text>
             <Text style={{ color: colors.text3, fontSize: 12, marginTop: 4 }}>
               Status: <Text style={{ color: rideDetails.status === 'in-progress' ? colors.green : colors.accent, fontWeight: '700' }}>
@@ -1189,7 +1227,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
         <Btn
           label={getButtonLabel()}
           onPress={handleProceed}
-          disabled={!allDone || starting}
+          disabled={!allDone || starting || (!isDriver && bookingStatus !== 'accepted')}
           loading={starting}
           style={{ marginTop: spacing.md }}
         />

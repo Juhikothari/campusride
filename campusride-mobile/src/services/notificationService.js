@@ -3,6 +3,7 @@ import { Platform, Vibration } from 'react-native';
 import * as Notifications from 'expo-notifications';
 
 const listeners = new Set();
+const recentPushMap = new Map();
 
 // Configure how notifications should be handled when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -57,6 +58,19 @@ export async function initNotificationService() {
 
 export async function showPushNotification({ title, body, data = {} }) {
   try {
+    // 0. Deduplicate: Prevent scheduling identical notification within 3.5 seconds
+    const notifKey = `${title || ''}:::${body || ''}`;
+    const now = Date.now();
+    if (recentPushMap.has(notifKey) && (now - recentPushMap.get(notifKey)) < 3500) {
+      return;
+    }
+    recentPushMap.set(notifKey, now);
+    if (recentPushMap.size > 50) {
+      for (const [k, ts] of recentPushMap.entries()) {
+        if (now - ts > 10000) recentPushMap.delete(k);
+      }
+    }
+
     // 1. Physically vibrate device
     try {
       Vibration.vibrate([0, 250, 120, 250]);
