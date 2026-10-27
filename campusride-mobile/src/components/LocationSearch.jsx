@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import { colors, radius, spacing } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import * as api from '../services/api';
 import MapPickerModal from './MapPickerModal';
 
@@ -18,6 +19,7 @@ function getCompleteAddress(item) {
 }
 
 export default function LocationSearch({ value, onChange, placeholder, label }) {
+  const { isDark, colors: themeColors } = useTheme();
   const [query,       setQuery]       = useState(value || '');
   const [results,     setResults]     = useState([]);
   const [loading,     setLoading]     = useState(false);
@@ -98,15 +100,17 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
 
   return (
     <View style={{ marginBottom: spacing.md }}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && <Text style={[styles.label, { color: isDark ? colors.text2 : '#475569' }]}>{label}</Text>}
       
-      <View style={styles.inputWrap}>
+      <View style={[styles.inputWrap, { backgroundColor: isDark ? colors.surface2 : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: isDark ? '#edf0f7' : '#0f172a' }]}
           value={query}
           onChangeText={search}
           placeholder={placeholder || 'Search area, landmark, campus…'}
-          placeholderTextColor={colors.text3}
+          placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
+          cursorColor="#f5a623"
+          selectionColor="rgba(245,166,35,0.3)"
           autoCorrect={false}
           autoCapitalize="none"
           onFocus={() => query.length >= 2 && setShowResults(true)}
@@ -115,7 +119,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
         {/* Clear Button */}
         {query.length > 0 && !loading && (
           <TouchableOpacity onPress={clear} style={styles.iconBtn} activeOpacity={0.7}>
-            <Text style={{ color: colors.text3, fontSize: 15 }}>✕</Text>
+            <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 15 }}>✕</Text>
           </TouchableOpacity>
         )}
 
@@ -126,7 +130,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
         <TouchableOpacity
           onPress={handleDetectLocation}
           disabled={detecting}
-          style={[styles.actionBtn, detecting && { opacity: 0.6 }]}
+          style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }, detecting && { opacity: 0.6 }]}
           title="Detect location automatically"
           activeOpacity={0.7}
         >
@@ -140,7 +144,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
         {/* 🗺️ Pin on Map Button */}
         <TouchableOpacity
           onPress={() => setShowMap(true)}
-          style={styles.actionBtn}
+          style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}
           title="Drop pin on map"
           activeOpacity={0.7}
         >
@@ -150,13 +154,13 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
 
       {/* Autocomplete Results Dropdown */}
       {showResults && results.length > 0 && (
-        <View style={styles.dropdown}>
+        <View style={[styles.dropdown, { backgroundColor: isDark ? colors.surface2 : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
           {results.map((item, idx) => {
             const displayName = getCompleteAddress(item);
             return (
               <TouchableOpacity key={idx} style={[styles.resultItem, idx < results.length - 1 && styles.resultBorder]} onPress={() => select(item)}>
                 <Text style={styles.resultIcon}>📍</Text>
-                <Text style={styles.resultText} numberOfLines={3}>{displayName}</Text>
+                <Text style={[styles.resultText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={3}>{displayName}</Text>
               </TouchableOpacity>
             );
           })}

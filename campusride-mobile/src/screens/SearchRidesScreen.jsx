@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
 import LocationSearch from '../components/LocationSearch';
 import RideCard from '../components/RideCard';
@@ -75,6 +76,7 @@ function formatTimeInput(text) {
 
 export default function SearchRidesScreen({ navigation }) {
   const { user, refreshUser } = useAuth();
+  const { isDark } = useTheme();
   const isSeeker  = user?.role === 'seeker' || user?.role === 'both';
   const isFemale  = user?.gender === 'female';
 
@@ -357,50 +359,53 @@ export default function SearchRidesScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="Search Your Buddy" subtitle="Find verified campus commuters" showBack={navigation.canGoBack()} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
       >
+        {/* Pinned Location Inputs: Always visible when scrolling or typing */}
+        <View style={[styles.pinnedSearchHeader, { backgroundColor: isDark ? colors.bg : '#f8fafc', borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
+          <Text style={[styles.sectionTitle, { marginTop: spacing.xs, color: isDark ? colors.text3 : '#64748b' }]}>SEARCH YOUR BUDDY</Text>
+
+          {/* Pickup */}
+          <LocationSearch
+            label="Pickup Location"
+            value={pickup.label}
+            onChange={(label, lat, lng) => {
+              const newLabel = label || '';
+              setPickup({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              if (isLocCollege(newLabel) && isLocCollege(drop.label)) {
+                setDrop({ label: '', lat: '', lng: '' });
+              }
+            }}
+            placeholder="Where are you starting from?"
+          />
+
+          {/* Drop */}
+          <LocationSearch
+            label="Drop Location"
+            value={drop.label}
+            onChange={(label, lat, lng) => {
+              const newLabel = label || '';
+              setDrop({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              if (isLocCollege(newLabel) && isLocCollege(pickup.label)) {
+                setPickup({ label: '', lat: '', lng: '' });
+              }
+            }}
+            placeholder="Where do you want to go?"
+          />
+        </View>
+
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: 280 }]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={true}
         >
-          {/* Section divider */}
-          <Text style={[styles.sectionTitle, { marginTop: spacing.xs }]}>SEARCH YOUR BUDDY</Text>
-
-        {/* Pickup */}
-        <LocationSearch
-          label="Pickup Location"
-          value={pickup.label}
-          onChange={(label, lat, lng) => {
-            const newLabel = label || '';
-            setPickup({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
-            if (isLocCollege(newLabel) && isLocCollege(drop.label)) {
-              setDrop({ label: '', lat: '', lng: '' });
-            }
-          }}
-          placeholder="Where are you starting from?"
-        />
-
-        {/* Drop */}
-        <LocationSearch
-          label="Drop Location"
-          value={drop.label}
-          onChange={(label, lat, lng) => {
-            const newLabel = label || '';
-            setDrop({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
-            if (isLocCollege(newLabel) && isLocCollege(pickup.label)) {
-              setPickup({ label: '', lat: '', lng: '' });
-            }
-          }}
-          placeholder="Where do you want to go?"
-        />
 
         {/* Quick Campus Shortcuts */}
         {Boolean(user?.college) && (
@@ -608,6 +613,14 @@ export default function SearchRidesScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe:      { flex: 1, backgroundColor: colors.bg },
+  pinnedSearchHeader: {
+    paddingHorizontal: spacing.md,
+    paddingTop: 4,
+    paddingBottom: 2,
+    borderBottomWidth: 1,
+    zIndex: 99,
+    elevation: 3,
+  },
   scroll:    { padding: spacing.md, paddingBottom: 48 },
   timeSelectBtn: {
     backgroundColor: colors.surface2,

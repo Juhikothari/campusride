@@ -33,14 +33,19 @@ export function Btn({ label, onPress, variant = 'primary', loading = false, disa
       ) : (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {icon && <Text style={{ fontSize: 16 }}>{icon}</Text>}
-          <Text style={[
-            styles.btnText,
-            isPrimary && styles.btnPrimaryText,
-            isOutline && styles.btnOutlineText,
-            isGhost   && styles.btnGhostText,
-            isDanger  && styles.btnDangerText,
-            textStyle,
-          ]}>
+          <Text
+            style={[
+              styles.btnText,
+              isPrimary && styles.btnPrimaryText,
+              isOutline && styles.btnOutlineText,
+              isGhost   && styles.btnGhostText,
+              isDanger  && styles.btnDangerText,
+              textStyle,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit={true}
+            minimumFontScale={0.78}
+          >
             {label}
           </Text>
         </View>

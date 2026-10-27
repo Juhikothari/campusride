@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, TextInput, Image, Modal, Alert as RNAlert,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -166,6 +166,7 @@ export function AdminDashboardScreen({ navigation }) {
   const [search,       setSearch]       = useState('');
   const [roleFilter,   setRoleFilter]   = useState('all');
   const [previewDoc,   setPreviewDoc]   = useState(null);
+  const [selectedUserDetail, setSelectedUserDetail] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   const loadData = () => {
@@ -588,7 +589,12 @@ export function AdminDashboardScreen({ navigation }) {
                     const isExpanded = !!expandedUserDocs[u._id];
 
                     return (
-                      <View key={u._id} style={[styles.userCard, { flexDirection: 'column', alignItems: 'stretch' }]}>
+                      <TouchableOpacity
+                        key={u._id}
+                        onPress={() => setSelectedUserDetail(u)}
+                        activeOpacity={0.85}
+                        style={[styles.userCard, { flexDirection: 'column', alignItems: 'stretch' }]}
+                      >
                         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                           <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -605,10 +611,12 @@ export function AdminDashboardScreen({ navigation }) {
                             <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2 }}>{u.email} • {u.phone || 'No phone'}</Text>
                             <Text style={{ color: colors.text3, fontSize: 11 }}>{u.college || 'Campus Commuter'} · {u.role?.toUpperCase()}</Text>
                             {u.usn ? <Text style={{ color: colors.text3, fontSize: 11 }}>USN: {u.usn}</Text> : null}
+                            <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', marginTop: 4 }}>Tap to view full user details →</Text>
                           </View>
 
                           <TouchableOpacity
-                            onPress={() => {
+                            onPress={(e) => {
+                              e?.stopPropagation?.();
                               const isBlk = u.isBlocked || u.blocked;
                               RNAlert.alert(
                                 isBlk ? 'Unblock User' : 'Block User',
@@ -719,7 +727,7 @@ export function AdminDashboardScreen({ navigation }) {
                             )}
                           </View>
                         )}
-                      </View>
+                      </TouchableOpacity>
                     );
                   })
                 )}
@@ -908,6 +916,273 @@ export function AdminDashboardScreen({ navigation }) {
               style={styles.previewCloseBtn}
             >
               <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>Close Preview</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── USER FULL DETAILS MODAL ── */}
+      <Modal
+        visible={!!selectedUserDetail}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedUserDetail(null)}
+      >
+        <View style={styles.previewBackdrop}>
+          <View style={[styles.previewCard, { maxHeight: '90%', padding: 0, overflow: 'hidden' }]}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface2 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accentDim, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: colors.accent }}>
+                  <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '800' }}>
+                    {selectedUserDetail?.name ? selectedUserDetail.name.charAt(0).toUpperCase() : 'U'}
+                  </Text>
+                </View>
+                <View>
+                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>{selectedUserDetail?.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <View style={{ backgroundColor: selectedUserDetail?.kycStatus === 'approved' ? 'rgba(0,230,118,0.15)' : 'rgba(255,160,0,0.15)', paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 4 }}>
+                      <Text style={{ color: selectedUserDetail?.kycStatus === 'approved' ? colors.green : colors.accent, fontSize: 10, fontWeight: '800' }}>
+                        {selectedUserDetail?.kycStatus === 'approved' ? '✓ Verified' : 'KYC: ' + (selectedUserDetail?.kycStatus || 'none')}
+                      </Text>
+                    </View>
+                    <View style={{ backgroundColor: (selectedUserDetail?.isBlocked || selectedUserDetail?.blocked) ? 'rgba(255,82,82,0.15)' : 'rgba(0,230,118,0.15)', paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 4 }}>
+                      <Text style={{ color: (selectedUserDetail?.isBlocked || selectedUserDetail?.blocked) ? colors.red : colors.green, fontSize: 10, fontWeight: '800' }}>
+                        {(selectedUserDetail?.isBlocked || selectedUserDetail?.blocked) ? '🚫 Blocked' : 'Active'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedUserDetail(null)} style={{ padding: 6 }}>
+                <Text style={{ color: colors.text2, fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+              {/* Quick Actions Bar */}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {selectedUserDetail?.phone ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(`tel:${selectedUserDetail.phone}`)}
+                    style={{ flex: 1, backgroundColor: 'rgba(45,212,160,0.15)', borderWidth: 1, borderColor: colors.green, paddingVertical: 10, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={{ fontSize: 14 }}>📞</Text>
+                    <Text style={{ color: colors.green, fontSize: 12, fontWeight: '800' }}>Call</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {selectedUserDetail?.email ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(`mailto:${selectedUserDetail.email}`)}
+                    style={{ flex: 1, backgroundColor: 'rgba(79,163,224,0.15)', borderWidth: 1, borderColor: colors.blue, paddingVertical: 10, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={{ fontSize: 14 }}>✉️</Text>
+                    <Text style={{ color: colors.blue, fontSize: 12, fontWeight: '800' }}>Email</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                  onPress={() => {
+                    const isBlk = selectedUserDetail?.isBlocked || selectedUserDetail?.blocked;
+                    RNAlert.alert(
+                      isBlk ? 'Unblock User' : 'Block User',
+                      `Are you sure you want to ${isBlk ? 'unblock' : 'block'} ${selectedUserDetail.name}?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                          text: isBlk ? 'Unblock' : 'Block',
+                          style: isBlk ? 'default' : 'destructive',
+                          onPress: async () => {
+                            await act(selectedUserDetail._id, isBlk ? 'unblock' : 'block', 'Admin action');
+                            setSelectedUserDetail(prev => prev ? ({ ...prev, isBlocked: !isBlk, blocked: !isBlk }) : null);
+                          }
+                        },
+                      ]
+                    );
+                  }}
+                  disabled={acting[selectedUserDetail?._id]}
+                  style={{ flex: 1, backgroundColor: (selectedUserDetail?.isBlocked || selectedUserDetail?.blocked) ? 'rgba(45,212,160,0.15)' : 'rgba(255,82,82,0.15)', borderWidth: 1, borderColor: (selectedUserDetail?.isBlocked || selectedUserDetail?.blocked) ? colors.green : colors.red, paddingVertical: 10, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
+                  activeOpacity={0.75}
+                >
+                  <Text style={{ color: (selectedUserDetail?.isBlocked || selectedUserDetail?.blocked) ? colors.green : colors.red, fontSize: 12, fontWeight: '800' }}>
+                    {acting[selectedUserDetail?._id] ? '…' : ((selectedUserDetail?.isBlocked || selectedUserDetail?.blocked) ? 'Unblock' : 'Block')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Personal & Campus Details */}
+              <View style={{ backgroundColor: colors.surface2, borderRadius: radius.md, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }}>STUDENT & CAMPUS PROFILE</Text>
+                
+                <View style={{ gap: 8 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text3, fontSize: 12 }}>College / Uni</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{selectedUserDetail?.college || 'Campus Commuter'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text3, fontSize: 12 }}>USN</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{selectedUserDetail?.usn || 'Not Provided'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text3, fontSize: 12 }}>Role</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' }}>{selectedUserDetail?.role || 'Seeker'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text3, fontSize: 12 }}>Gender</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700', textTransform: 'capitalize' }}>{selectedUserDetail?.gender || 'Not specified'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text3, fontSize: 12 }}>Email</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{selectedUserDetail?.email}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text3, fontSize: 12 }}>Phone</Text>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{selectedUserDetail?.phone || 'Not provided'}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text3, fontSize: 12 }}>Emergency Contact</Text>
+                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>{selectedUserDetail?.emergencyContact || 'Not set'}</Text>
+                  </View>
+                  {selectedUserDetail?.createdAt ? (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ color: colors.text3, fontSize: 12 }}>Joined On</Text>
+                      <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{new Date(selectedUserDetail.createdAt).toLocaleDateString()}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
+              {/* Registered Vehicles */}
+              <View style={{ backgroundColor: colors.surface2, borderRadius: radius.md, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 }}>🚗 REGISTERED VEHICLES</Text>
+                {((selectedUserDetail?.vehicles && selectedUserDetail.vehicles.length > 0) || selectedUserDetail?.kycDocuments?.vehicleNumber) ? (
+                  (selectedUserDetail.vehicles && selectedUserDetail.vehicles.length > 0 ? selectedUserDetail.vehicles : [{
+                    vehicleNumber: selectedUserDetail.kycDocuments?.vehicleNumber,
+                    vehicleName: selectedUserDetail.kycDocuments?.vehicleName || 'Vehicle',
+                    vehicleType: selectedUserDetail.kycDocuments?.vehicleType || 'car',
+                    status: selectedUserDetail.kycDocuments?.vehicleStatus || 'pending'
+                  }]).map((v, idx) => (
+                    <View key={idx} style={{ backgroundColor: colors.surface, padding: 10, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: '800' }}>
+                          {v.vehicleNumber} ({v.vehicleName || 'Vehicle'})
+                        </Text>
+                        <View style={{ backgroundColor: v.status === 'approved' ? 'rgba(0,230,118,0.15)' : 'rgba(255,160,0,0.15)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                          <Text style={{ color: v.status === 'approved' ? colors.green : colors.accent, fontSize: 10, fontWeight: '800' }}>
+                            {v.status?.toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ color: colors.text3, fontSize: 11, marginTop: 2 }}>Type: {v.vehicleType?.toUpperCase() || 'CAR'}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={{ color: colors.text3, fontSize: 12 }}>No vehicles registered for this user.</Text>
+                )}
+              </View>
+
+              {/* Uploaded KYC Documents */}
+              <View style={{ backgroundColor: colors.surface2, borderRadius: radius.md, padding: 14, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }}>🪪 VERIFICATION DOCUMENTS</Text>
+                
+                <View style={{ gap: 8 }}>
+                  {/* Selfie */}
+                  {selectedUserDetail?.kycDocuments?.selfie || selectedUserDetail?.profilePhoto ? (
+                    <TouchableOpacity
+                      onPress={() => setPreviewDoc({ title: `Live Selfie — ${selectedUserDetail.name}`, url: selectedUserDetail.kycDocuments?.selfie || selectedUserDetail.profilePhoto })}
+                      style={styles.docInspectBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 15 }}>🤳</Text>
+                      <Text style={styles.docInspectText}>Live Front-Camera Selfie</Text>
+                      <Text style={styles.docInspectAction}>Tap to view ↗</Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* College ID Card */}
+                  {selectedUserDetail?.kycDocuments?.collegeIdCard ? (
+                    <TouchableOpacity
+                      onPress={() => setPreviewDoc({ title: `College ID Card — ${selectedUserDetail.name}`, url: selectedUserDetail.kycDocuments.collegeIdCard })}
+                      style={styles.docInspectBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 15 }}>🎓</Text>
+                      <Text style={styles.docInspectText}>College ID Card</Text>
+                      <Text style={styles.docInspectAction}>Tap to view ↗</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.docInspectBtn, { opacity: 0.5 }]}>
+                      <Text style={{ fontSize: 15 }}>🎓</Text>
+                      <Text style={styles.docInspectText}>College ID: Not uploaded</Text>
+                    </View>
+                  )}
+
+                  {/* Aadhar Card */}
+                  {selectedUserDetail?.kycDocuments?.aadhar ? (
+                    <TouchableOpacity
+                      onPress={() => setPreviewDoc({ title: `Aadhar Card — ${selectedUserDetail.name}`, url: selectedUserDetail.kycDocuments.aadhar })}
+                      style={styles.docInspectBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 15 }}>🆔</Text>
+                      <Text style={styles.docInspectText}>Aadhar Card</Text>
+                      <Text style={styles.docInspectAction}>Tap to view ↗</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={[styles.docInspectBtn, { opacity: 0.5 }]}>
+                      <Text style={{ fontSize: 15 }}>🆔</Text>
+                      <Text style={styles.docInspectText}>Aadhar: Not uploaded</Text>
+                    </View>
+                  )}
+
+                  {/* Driving License */}
+                  {selectedUserDetail?.kycDocuments?.drivingLicense ? (
+                    <TouchableOpacity
+                      onPress={() => setPreviewDoc({ title: `Driving License — ${selectedUserDetail.name}`, url: selectedUserDetail.kycDocuments.drivingLicense })}
+                      style={styles.docInspectBtn}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 15 }}>🚘</Text>
+                      <Text style={styles.docInspectText}>Driving License</Text>
+                      <Text style={styles.docInspectAction}>Tap to view ↗</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                {/* KYC Actions */}
+                {selectedUserDetail?.kycStatus !== 'approved' && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        await act(selectedUserDetail._id, 'approveKyc');
+                        setSelectedUserDetail(prev => prev ? ({ ...prev, kycStatus: 'approved' }) : null);
+                      }}
+                      style={{ flex: 1, backgroundColor: colors.green, paddingVertical: 10, borderRadius: radius.md, alignItems: 'center' }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#000', fontSize: 12, fontWeight: '800' }}>✓ Approve KYC</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        await act(selectedUserDetail._id, 'rejectKyc');
+                        setSelectedUserDetail(prev => prev ? ({ ...prev, kycStatus: 'rejected' }) : null);
+                      }}
+                      style={{ flex: 1, backgroundColor: colors.red, paddingVertical: 10, borderRadius: radius.md, alignItems: 'center' }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>✕ Reject KYC</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setSelectedUserDetail(null)}
+              style={styles.previewCloseBtn}
+            >
+              <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>Close Details</Text>
             </TouchableOpacity>
           </View>
         </View>

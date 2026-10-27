@@ -63,7 +63,8 @@ function PostsTab({ user }) {
   const [error,     setError]     = useState('');
   const [replyText, setReplyText] = useState({});
   const [showReply, setShowReply] = useState({});
-  const [attachment, setAttachment] = useState(null); // { uri, name, type, uploaded, uploading, url }
+  const [attachment, setAttachment] = useState(null); // { uri, name, type, uploaded, url }
+  const [stagedAttachment, setStagedAttachment] = useState(null); // { uri, name, type } - cropped but not yet attached
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [showAttachModal, setShowAttachModal] = useState(false);
 
@@ -88,13 +89,11 @@ function PostsTab({ user }) {
       });
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        // Crop confirmed: attach locally WITHOUT auto-uploading immediately
-        setAttachment({
+        // Cropping an image only crops — stages it locally, does NOT attach until tick mark is clicked
+        setStagedAttachment({
           uri: asset.uri,
           name: asset.fileName || `post_image_${Date.now()}.jpg`,
           type: 'image',
-          uploading: false,
-          uploaded: false,
         });
       }
     } catch (err) {
@@ -115,13 +114,11 @@ function PostsTab({ user }) {
       });
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        // Crop confirmed: attach locally WITHOUT auto-uploading immediately
-        setAttachment({
+        // Cropping an image only crops — stages it locally, does NOT attach until tick mark is clicked
+        setStagedAttachment({
           uri: asset.uri,
           name: `camera_${Date.now()}.jpg`,
           type: 'image',
-          uploading: false,
-          uploaded: false,
         });
       }
     } catch (err) {
@@ -129,45 +126,71 @@ function PostsTab({ user }) {
     }
   };
 
-  const handleUploadCurrentAttachment = async () => {
-    if (!attachment || attachment.uploaded || attachment.uploading) return;
-    setAttachment(prev => ({ ...prev, uploading: true, error: null }));
+  const handleConfirmAndUploadAttachment = async () => {
+    if (!stagedAttachment || uploadingAttachment) return;
+    setUploadingAttachment(true);
+    setError('');
     try {
-      const uploadedUrl = await uploadToCloudinaryWithRetry(attachment.uri, { type: 'image' });
+      const uploadedUrl = await uploadToCloudinaryWithRetry(stagedAttachment.uri, { type: 'image' });
       if (uploadedUrl) {
-        setAttachment(prev => ({
-          ...prev,
+        setAttachment({
+          uri: stagedAttachment.uri,
+          name: stagedAttachment.name,
+          type: 'image',
           url: uploadedUrl,
-          uploading: false,
           uploaded: true,
-        }));
+        });
+        setStagedAttachment(null);
       } else {
         throw new Error('Upload returned empty URL');
       }
     } catch (err) {
-      console.log('[Community] Manual upload error:', err);
-      setAttachment(prev => ({
-        ...prev,
-        uploading: false,
-        uploaded: false,
-        error: 'Upload failed',
-      }));
-      RNAlert.alert('Upload Failed', 'Could not upload image to server. Tap Post to retry or remove image.');
+      console.log('[Community] Image upload error:', err);
+      RNAlert.alert('Upload Failed', 'Could not upload image. Please check your internet connection and try again.');
+    } finally {
+      setUploadingAttachment(false);
     }
   };
 
   const handlePost = async () => {
-    if (!content.trim() && !attachment) return;
+    if (!content.trim() && !attachment && !stagedAttachment) return;
     setPosting(true);
     setError('');
     try {
       let attachments = [];
-      if (attachment) {
-        let finalUrl = attachment.url;
+      let finalAttachment = attachment;
+
+      // If user cropped an image and didn't tap tick mark, attach & upload now
+      if (!finalAttachment && stagedAttachment) {
+        setUploadingAttachment(true);
+        try {
+          const uploadedUrl = await uploadToCloudinaryWithRetry(stagedAttachment.uri, { type: 'image' });
+          if (uploadedUrl) {
+            finalAttachment = {
+              uri: stagedAttachment.uri,
+              url: uploadedUrl,
+              uploaded: true,
+              name: stagedAttachment.name,
+            };
+            setAttachment(finalAttachment);
+            setStagedAttachment(null);
+          }
+        } catch (uploadErr) {
+          setError('Failed to upload image attachment. Check your connection.');
+          setPosting(false);
+          setUploadingAttachment(false);
+          return;
+        } finally {
+          setUploadingAttachment(false);
+        }
+      }
+
+      if (finalAttachment) {
+        let finalUrl = finalAttachment.url;
         if (!finalUrl) {
           setUploadingAttachment(true);
           try {
-            finalUrl = await uploadToCloudinaryWithRetry(attachment.uri, { type: 'image' });
+            finalUrl = await uploadToCloudinaryWithRetry(finalAttachment.uri, { type: 'image' });
           } catch (uploadErr) {
             setError('Failed to upload image attachment. Check your connection.');
             setPosting(false);
@@ -181,7 +204,7 @@ function PostsTab({ user }) {
           attachments.push({
             url: finalUrl,
             type: 'image',
-            name: attachment.name || 'image.jpg',
+            name: finalAttachment.name || 'image.jpg',
           });
         }
       }
@@ -197,6 +220,7 @@ function PostsTab({ user }) {
       setPosts(prev => [{ ...post, displayType: postType }, ...prev]);
       setContent('');
       setAttachment(null);
+      setStagedAttachment(null);
     } catch (e) {
       setError(e.message || 'Failed to post');
     } finally {
@@ -279,8 +303,8 @@ function PostsTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 20}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
       <ScrollView
         ref={scrollRef}
@@ -318,38 +342,52 @@ function PostsTab({ user }) {
             multiline
             maxLength={500}
           />
-          {/* Attachment preview if an image is selected */}
-          {attachment && (
-            <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' }]}>
-              <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewThumb} />
+          {/* Staged Cropped Image Preview: Cropping only crops — tap ✓ to attach & upload */}
+          {stagedAttachment && !attachment && (
+            <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.accent, borderWidth: 1.5 }]}>
+              <Image source={{ uri: stagedAttachment.uri }} style={styles.attachmentPreviewThumb} />
               <View style={{ flex: 1, paddingHorizontal: 8 }}>
-                <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{attachment.name}</Text>
-                <Text style={[styles.attachmentPreviewSub, attachment.uploaded ? { color: colors.green } : { color: isDark ? '#8b96b0' : '#64748b' }]}>
-                  {attachment.uploading ? '⏳ Uploading image…' : (attachment.uploaded ? '✓ Image uploaded & ready' : '📷 Image cropped & ready')}
+                <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{stagedAttachment.name}</Text>
+                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>
+                  {uploadingAttachment ? '⏳ Attaching & uploading…' : '📷 Image cropped — tap ✓ to attach'}
                 </Text>
               </View>
 
-              {/* Dedicated Upload Option Button */}
-              {!attachment.uploaded && (
-                <TouchableOpacity
-                  onPress={handleUploadCurrentAttachment}
-                  disabled={attachment.uploading}
-                  style={{
-                    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-                    borderWidth: 1,
-                    borderColor: '#38bdf8',
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: radius.md,
-                    marginRight: 6,
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>
-                    {attachment.uploading ? 'Uploading…' : '☁️ Upload'}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* Tick Mark Button to Attach: when clicked, it uploads & attaches */}
+              <TouchableOpacity
+                onPress={handleConfirmAndUploadAttachment}
+                disabled={uploadingAttachment}
+                style={styles.attachTickBtn}
+                activeOpacity={0.8}
+              >
+                {uploadingAttachment ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={{ color: '#000', fontSize: 16, fontWeight: '900' }}>✓</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Discard cropped image */}
+              <TouchableOpacity
+                onPress={() => setStagedAttachment(null)}
+                disabled={uploadingAttachment}
+                style={styles.removeAttachmentBtn}
+              >
+                <Text style={styles.removeAttachmentText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Attached Image Preview (once confirmed & uploaded) */}
+          {attachment && (
+            <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.green, borderWidth: 1.5 }]}>
+              <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewThumb} />
+              <View style={{ flex: 1, paddingHorizontal: 8 }}>
+                <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{attachment.name}</Text>
+                <Text style={{ color: colors.green, fontSize: 11, fontWeight: '700' }}>
+                  ✓ Image attached & ready
+                </Text>
+              </View>
 
               <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachmentBtn}>
                 <Text style={styles.removeAttachmentText}>✕</Text>
@@ -649,8 +687,8 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
@@ -904,6 +942,15 @@ const styles = StyleSheet.create({
     color: '#8b949e',
     fontSize: 10,
     marginTop: 2,
+  },
+  attachTickBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.green,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   removeAttachmentBtn: {
     width: 26,
