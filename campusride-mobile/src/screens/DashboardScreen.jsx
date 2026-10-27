@@ -372,14 +372,18 @@ export default function DashboardScreen({ navigation }) {
 
         if (activeDriverRide) {
           const matchedBookings = requests.filter(b => (b.rideId === activeDriverRide._id || b.rideId?._id === activeDriverRide._id) && b.status === 'accepted');
-          const passengerNames = matchedBookings.map(b => b.seekerId?.name || 'Passenger').filter(Boolean);
+          const passengerNames = matchedBookings.map(b => {
+            const raw = b.seekerId?.usn || b.seekerId?.name;
+            if (!raw || raw.toUpperCase() === 'STUDENT') return 'Buddy';
+            return raw.length > 3 ? raw.slice(-3).toUpperCase() : raw.toUpperCase();
+          }).filter(Boolean);
           const passengerColleges = matchedBookings.map(b => b.seekerId?.college).filter(Boolean);
           const passengerPhones = matchedBookings.map(b => b.seekerId?.phone).filter(Boolean);
           const isChecklistDone = activeDriverRide.seekerChecklistCompleted || matchedBookings.some(b => b.checklistCompleted);
 
           const passengersList = matchedBookings.map(b => ({
-            name: b.seekerId?.name || 'Passenger',
-            usn: b.seekerId?.usn && b.seekerId.usn.toUpperCase() !== 'STUDENT' ? b.seekerId.usn : null,
+            name: 'Buddy',
+            usn: b.seekerId?.usn && b.seekerId.usn.toUpperCase() !== 'STUDENT' ? (b.seekerId.usn.length > 3 ? b.seekerId.usn.slice(-3).toUpperCase() : b.seekerId.usn.toUpperCase()) : 'Buddy',
             college: b.seekerId?.college || activeDriverRide.college || 'Campus Commuter',
             phone: b.seekerId?.phone || null,
             seats: b.seats || 1,
@@ -675,11 +679,11 @@ export default function DashboardScreen({ navigation }) {
                 </Text>
               )}
 
-              {/* Driver & Vehicle Box / Passenger Box (supports multiple passengers in horizontal scroll) */}
+              {/* Driver & Vehicle Box / Buddy Box */}
               {tripRole === 'driver' && activeTrip.passengersList && activeTrip.passengersList.length > 1 ? (
                 <View style={{ marginBottom: 10 }}>
                   <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, fontWeight: '800', marginBottom: 6, letterSpacing: 0.5 }}>
-                    👥 PASSENGERS ({activeTrip.passengersList.length})
+                    👥 BUDDIES ({activeTrip.passengersList.length})
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                     {activeTrip.passengersList.map((p, pIdx) => (
@@ -730,7 +734,7 @@ export default function DashboardScreen({ navigation }) {
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.driverTitle, { color: isDark ? colors.text : '#0f172a' }]}>
                       {tripRole === 'driver'
-                        ? `Passenger: ${activeTrip.matchedPassengerName || 'Matched Passenger'}`
+                        ? `Buddy: ${activeTrip.matchedPassengerName && activeTrip.matchedPassengerName.toUpperCase() !== 'STUDENT' ? activeTrip.matchedPassengerName : 'Buddy'}`
                         : (activeTrip.providerId?.name || 'Assigned Driver')}
                     </Text>
                     <Text style={[styles.driverVehicle, { color: isDark ? colors.text2 : '#475569' }]}>
@@ -750,6 +754,42 @@ export default function DashboardScreen({ navigation }) {
                         </View>
                       </TouchableOpacity>
                     ) : null}
+                    {tripRole === 'driver' && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const loc = activeTrip.pickup;
+                          const coords = loc?.coordinates;
+                          const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
+                          const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
+                          const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
+                          const url = Platform.select({
+                            ios: `maps:0,0?q=${query}`,
+                            android: `geo:0,0?q=${query}(Buddy+Pickup)`,
+                            default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+                          });
+                          Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                        }}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: 'rgba(0,229,255,0.12)',
+                          borderWidth: 1,
+                          borderColor: '#00E5FF',
+                          borderRadius: radius.md,
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          alignSelf: 'flex-start',
+                          marginTop: 6,
+                          gap: 6,
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={{ fontSize: 13 }}>🗺️</Text>
+                        <Text style={{ color: '#00E5FF', fontSize: 11, fontWeight: '800' }}>
+                          Seeker Location Map →
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                     {tripRole === 'rider' && activeTrip.providerId?.phone ? (
                       <TouchableOpacity
                         onPress={() => Linking.openURL(`tel:${activeTrip.providerId.phone}`)}
@@ -848,7 +888,7 @@ export default function DashboardScreen({ navigation }) {
                         </Text>
                       </TouchableOpacity>
                       <Text style={{ color: colors.green, fontSize: 11.5, textAlign: 'center', fontWeight: '600' }}>
-                        ✓ Passenger verified safety checklist! Ready to depart.
+                        ✓ Buddy verified safety checklist! Ready to depart.
                       </Text>
                     </>
                   ) : (

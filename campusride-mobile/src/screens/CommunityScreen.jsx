@@ -126,6 +126,26 @@ function PostsTab({ user }) {
     }
   };
 
+    const handleRecropStagedImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        setStagedAttachment({
+          uri: asset.uri,
+          name: asset.fileName || `cropped_${Date.now()}.jpg`,
+          type: 'image',
+        });
+      }
+    } catch (err) {
+      RNAlert.alert('Crop Error', err.message);
+    }
+  };
+
   const handleConfirmAndUploadAttachment = async () => {
     if (!stagedAttachment || uploadingAttachment) return;
     setUploadingAttachment(true);
@@ -342,18 +362,28 @@ function PostsTab({ user }) {
             multiline
             maxLength={500}
           />
-          {/* Staged Cropped Image Preview: Cropping only crops — tap ✓ to attach & upload */}
+          {/* Staged Cropped Image: Crop only crops without attaching; tick mark next to crop attaches */}
           {stagedAttachment && !attachment && (
             <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.accent, borderWidth: 1.5 }]}>
               <Image source={{ uri: stagedAttachment.uri }} style={styles.attachmentPreviewThumb} />
               <View style={{ flex: 1, paddingHorizontal: 8 }}>
                 <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{stagedAttachment.name}</Text>
                 <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>
-                  {uploadingAttachment ? '⏳ Attaching & uploading…' : '📷 Image cropped — tap ✓ to attach'}
+                  {uploadingAttachment ? '⏳ Attaching & uploading…' : '📷 Image staged — tap ✓ to attach'}
                 </Text>
               </View>
 
-              {/* Tick Mark Button to Attach: when clicked, it uploads & attaches */}
+              {/* Crop button: opens cropper without attaching (no rotation button on left) */}
+              <TouchableOpacity
+                onPress={handleRecropStagedImage}
+                disabled={uploadingAttachment}
+                style={styles.cropActionBtn}
+                activeOpacity={0.75}
+              >
+                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>✂️ Crop</Text>
+              </TouchableOpacity>
+
+              {/* Tick Mark Button to Attach: positioned next to Crop */}
               <TouchableOpacity
                 onPress={handleConfirmAndUploadAttachment}
                 disabled={uploadingAttachment}
@@ -627,19 +657,28 @@ function CollegeChatTab({ user }) {
   const [loading,  setLoading]  = useState(true);
   const [anonymous,setAnonymous]= useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const socketRef  = useRef(null);
   const flatRef    = useRef(null);
   const insets     = useSafeAreaInsets();
   const { isDark } = useTheme();
 
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
-      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
-    });
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
-    });
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates?.height || 0);
+        setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -734,6 +773,7 @@ function CollegeChatTab({ user }) {
           backgroundColor: isDark ? '#0c121e' : '#ffffff',
           borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
           paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 10),
+          marginBottom: Platform.OS === 'android' && keyboardHeight > 0 ? keyboardHeight : 0,
         }
       ]}>
         <TouchableOpacity
@@ -942,6 +982,15 @@ const styles = StyleSheet.create({
     color: '#8b949e',
     fontSize: 10,
     marginTop: 2,
+  },
+  cropActionBtn: {
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderWidth: 1,
+    borderColor: colors.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: radius.md,
+    marginRight: 6,
   },
   attachTickBtn: {
     width: 28,

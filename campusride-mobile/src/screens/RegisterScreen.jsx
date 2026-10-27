@@ -348,18 +348,32 @@ export default function RegisterScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Row 2: College Email */}
-          <View style={styles.fieldBlock}>
-            <Text style={styles.label}>COLLEGE EMAIL *</Text>
-            <TextInput
-              style={styles.textInput}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@college.edu"
-              placeholderTextColor={colors.text3}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+          {/* Row 2: College Email & College USN */}
+          <View style={styles.twoColRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>COLLEGE EMAIL *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@college.edu"
+                placeholderTextColor={colors.text3}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>COLLEGE USN *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={usn}
+                onChangeText={t => setUsn(t.toUpperCase().replace(/\s/g, ''))}
+                placeholder="e.g. 1RN21CS045"
+                placeholderTextColor={colors.text3}
+                autoCapitalize="characters"
+                maxLength={15}
+              />
+            </View>
           </View>
 
           {/* Row 3: College / University Dropdown & Emergency Contact */}

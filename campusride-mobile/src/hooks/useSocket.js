@@ -78,8 +78,8 @@ export const getSharedSocket = (userId, userType) => {
     globalSocket.on('new-booking', (data) => {
       notifyAll('new-booking', data);
       showPushNotification({
-        title: '🚗 New Ride Request Received!',
-        body: data?.seekerName ? `${data.seekerName} requested ${data.seats || 1} seat(s) on your ride.` : 'A verified student has requested to join your ride.',
+        title: '🚗 New Ride Request!',
+        body: 'A buddy has requested to join your ride.',
         data,
       });
     });
@@ -87,10 +87,11 @@ export const getSharedSocket = (userId, userType) => {
     // ── Booking Accepted / Declined ──
     globalSocket.on('booking-response', (data) => {
       notifyAll('booking-response', data);
-      const isAccepted = data?.status === 'accepted';
+      const status = data?.status || data?.booking?.status;
+      const isAccepted = status === 'accepted';
       showPushNotification({
-        title: isAccepted ? '✅ Ride Booking Confirmed!' : '❌ Ride Request Declined',
-        body: isAccepted ? 'Your driver accepted your booking request! Get ready for pickup.' : 'Your ride request was declined.',
+        title: isAccepted ? '✅ Booking Accepted!' : '❌ Ride Request Declined',
+        body: isAccepted ? 'Your buddy accepted your booking request! Get ready for pickup.' : 'Your ride request was declined.',
         data,
       });
     });
@@ -108,7 +109,7 @@ export const getSharedSocket = (userId, userType) => {
       notifyAll('riderArrivedAtSeeker', data);
       showPushNotification({
         title: '📍 Rider Reached Your Location!',
-        body: 'Your passenger has arrived at the pickup location.',
+        body: 'Your buddy has arrived at the pickup location.',
         data,
       });
     });
@@ -205,6 +206,9 @@ export const getSharedSocket = (userId, userType) => {
       }
       if (data?.type === 'RIDER_ARRIVED' || data?.type === 'rider-arrived') {
         return; // Suppress duplicate push (handled by rider-arrived listener)
+      }
+      if (data?.type === 'BOOKING_REQUEST' || data?.type === 'BOOKING_CONFIRMED' || data?.type === 'BOOKING_CANCELLED') {
+        return; // Suppress duplicate push (handled by dedicated new-booking & booking-response listeners)
       }
       showPushNotification({
         title: data?.title || 'HOGO Notification',

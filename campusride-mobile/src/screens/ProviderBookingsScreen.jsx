@@ -30,6 +30,9 @@ function fmtDate(d) {
 }
 
 export default function ProviderBookingsScreen({ navigation }) {
+  const { isDark } = useTheme();
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingTarget, setRatingTarget] = useState(null);
   const { user } = useAuth();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
@@ -244,7 +247,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                   <View style={{ marginBottom: spacing.md }}>
                     <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
                       <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                        ⏳ Waiting for Passenger: Accept a booking request below before starting.
+                        ⏳ Waiting for Buddy: Accept a booking request below before starting.
                       </Text>
                     </View>
                     <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" />
@@ -257,7 +260,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                   <View style={{ marginBottom: spacing.md }}>
                     <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
                       <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                        ⏳ Passenger Checklist Pending: Passenger must complete pre-ride safety checklist before departure.
+                        ⏳ Buddy Checklist Pending: Buddy must complete pre-ride safety checklist before departure.
                       </Text>
                     </View>
                     <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" />
@@ -305,7 +308,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                 <View style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface2, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full }}>
                   <Text style={{ fontSize: 12 }}>🟢</Text>
                   <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
-                    {resolved.filter(b => b.status === 'accepted').length} Passenger{(resolved.filter(b => b.status === 'accepted').length === 1 ? '' : 's')} Completed
+                    {resolved.filter(b => b.status === 'accepted').length} Buddy Completed
                   </Text>
                 </View>
               </View>
@@ -331,9 +334,47 @@ export default function ProviderBookingsScreen({ navigation }) {
                             <Text style={styles.avatarText}>🪪</Text>
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.seekerName}>🪪 USN: {seeker?.usn || 'Seeker Student'}</Text>
+                            <Text style={[styles.seekerName, { color: isDark ? colors.text : '#0f172a' }]}>
+                                🪪 USN: {seeker?.usn && seeker.usn.toUpperCase() !== 'STUDENT' ? (seeker.usn.length > 3 ? seeker.usn.slice(-3).toUpperCase() : seeker.usn.toUpperCase()) : 'Buddy'}
+                              </Text>
                             <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
-                            {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
+                            {seeker?.college && <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>🏫 {seeker.college}</Text>}
+                              {isAccepted && (
+                                <TouchableOpacity
+                                  style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    backgroundColor: 'rgba(0,229,255,0.12)',
+                                    borderWidth: 1,
+                                    borderColor: '#00E5FF',
+                                    borderRadius: radius.md,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 6,
+                                    alignSelf: 'flex-start',
+                                    marginTop: 6,
+                                    gap: 6,
+                                  }}
+                                  onPress={() => {
+                                    const loc = selectedRide?.pickup;
+                                    const coords = loc?.coordinates;
+                                    const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
+                                    const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
+                                    const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
+                                    const url = Platform.select({
+                                      ios: `maps:0,0?q=${query}`,
+                                      android: `geo:0,0?q=${query}(Buddy+Pickup)`,
+                                      default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+                                    });
+                                    Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                                  }}
+                                  activeOpacity={0.75}
+                                >
+                                  <Text style={{ fontSize: 13 }}>🗺️</Text>
+                                  <Text style={{ color: '#00E5FF', fontSize: 11, fontWeight: '800' }}>
+                                    Seeker Location Map →
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
                             <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 2 }]}>
                               🔒 Phone revealed after accepting
                             </Text>
@@ -371,11 +412,49 @@ export default function ProviderBookingsScreen({ navigation }) {
                               <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>🪪</Text>
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.seekerName}>🪪 USN: {seeker?.usn || 'Seeker Student'}</Text>
+                              <Text style={[styles.seekerName, { color: isDark ? colors.text : '#0f172a' }]}>
+                                🪪 USN: {seeker?.usn && seeker.usn.toUpperCase() !== 'STUDENT' ? (seeker.usn.length > 3 ? seeker.usn.slice(-3).toUpperCase() : seeker.usn.toUpperCase()) : 'Buddy'}
+                              </Text>
                               {isAccepted && seeker?.phone ? (
                                 <Text style={styles.seekerMeta}>📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text></Text>
                               ) : null}
-                              {seeker?.college && <Text style={[styles.seekerMeta, { color: colors.text3 }]}>🏫 {seeker.college}</Text>}
+                              {seeker?.college && <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>🏫 {seeker.college}</Text>}
+                              {isAccepted && (
+                                <TouchableOpacity
+                                  style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    backgroundColor: 'rgba(0,229,255,0.12)',
+                                    borderWidth: 1,
+                                    borderColor: '#00E5FF',
+                                    borderRadius: radius.md,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 6,
+                                    alignSelf: 'flex-start',
+                                    marginTop: 6,
+                                    gap: 6,
+                                  }}
+                                  onPress={() => {
+                                    const loc = selectedRide?.pickup;
+                                    const coords = loc?.coordinates;
+                                    const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
+                                    const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
+                                    const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
+                                    const url = Platform.select({
+                                      ios: `maps:0,0?q=${query}`,
+                                      android: `geo:0,0?q=${query}(Buddy+Pickup)`,
+                                      default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+                                    });
+                                    Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                                  }}
+                                  activeOpacity={0.75}
+                                >
+                                  <Text style={{ fontSize: 13 }}>🗺️</Text>
+                                  <Text style={{ color: '#00E5FF', fontSize: 11, fontWeight: '800' }}>
+                                    Seeker Location Map →
+                                  </Text>
+                                </TouchableOpacity>
+                              )}
                             </View>
                             <Text style={[styles.statusBadge, {
                               color: isAccepted ? colors.green : colors.red,
@@ -392,6 +471,14 @@ export default function ProviderBookingsScreen({ navigation }) {
           </>
         )}
       </ScrollView>
+      <RatingModal
+        visible={showRatingModal}
+        rideId={selectedRide?._id}
+        targetUser={ratingTarget}
+        targetRole="buddy"
+        onClose={() => setShowRatingModal(false)}
+        onSubmitted={() => { setShowRatingModal(false); }}
+      />
     </SafeAreaView>
   );
 }

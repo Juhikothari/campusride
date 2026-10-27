@@ -53,6 +53,10 @@ export default function ProfileScreen({ navigation }) {
   const [vSaving,          setVSaving]          = useState(false);
   const [vErr,             setVErr]             = useState('');
   const [completedRidesCount, setCompletedRidesCount] = useState(0);
+  const [ratingsList, setRatingsList] = useState([]);
+  const [editingUsn, setEditingUsn] = useState(false);
+  const [newUsn, setNewUsn] = useState('');
+  const [usnLoading, setUsnLoading] = useState(false);
 
   const VEHICLES_STORAGE_KEY = '@user_registered_vehicles_list';
 
@@ -61,12 +65,16 @@ export default function ProfileScreen({ navigation }) {
       const cachedVehiclesStr = await AsyncStorage.getItem(VEHICLES_STORAGE_KEY).catch(() => null);
       const cachedVehicles = cachedVehiclesStr ? JSON.parse(cachedVehiclesStr) : [];
 
-      const [pRes, vRes, bRes, rRes] = await Promise.allSettled([
+      const [pRes, vRes, bRes, rRes, ratRes] = await Promise.allSettled([
         api.getProfile(),
         api.getUserVehicles(),
         api.getMyBookings(),
         api.getMyRides(),
+        api.getMyRatings(),
       ]);
+      if (ratRes.status === 'fulfilled' && Array.isArray(ratRes.value)) {
+        setRatingsList(ratRes.value);
+      }
 
       const p = pRes.status === 'fulfilled' ? pRes.value : null;
       if (p) {
@@ -285,6 +293,27 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
+  const handleUsnSave = async () => {
+    if (!newUsn.trim()) {
+      RNAlert.alert('Error', 'Please enter a valid USN');
+      return;
+    }
+    setUsnLoading(true);
+    try {
+      const cleanUsn = newUsn.trim().toUpperCase();
+      await api.updateProfile({ usn: cleanUsn });
+      setProfile(prev => ({ ...prev, usn: cleanUsn }));
+      const stored = await api.getUser();
+      if (stored) await api.setUser({ ...stored, usn: cleanUsn });
+      setEditingUsn(false);
+      RNAlert.alert('✅ USN Updated', 'Your college USN has been saved.');
+    } catch (e) {
+      RNAlert.alert('Error', e.message || 'Failed to update USN');
+    } finally {
+      setUsnLoading(false);
+    }
+  };
+
   const handleEmergencySave = async () => {
     setEmergencyError('');
     const cleaned = newEmergency.replace(/\D/g, '').slice(0, 10);
@@ -365,6 +394,20 @@ export default function ProfileScreen({ navigation }) {
 
           <Text style={styles.name}>{p?.name}</Text>
           {p?.college && <Text style={styles.college}>🏫 {p.college}</Text>}
+          {completedRidesCount >= 10 && (
+            <View style={styles.ratingBadgeBelowCollege}>
+              <Text style={{ fontSize: 13, marginRight: 4 }}>⭐</Text>
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>
+                {ratingsList.length > 0
+                  ? (ratingsList.reduce((acc, r) => acc + (r.rating || 5), 0) / ratingsList.length).toFixed(1)
+                  : (p?.rating ? Number(p.rating).toFixed(1) : '5.0')}
+                {' / 5.0'}
+              </Text>
+              <Text style={{ color: isDark ? colors.text2 : '#64748b', fontSize: 12, marginLeft: 6 }}>
+                ({completedRidesCount} rides completed)
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Personal info */}
@@ -374,7 +417,38 @@ export default function ProfileScreen({ navigation }) {
 
           <ProfileRow label="Full Name"      value={p?.name} />
           <ProfileRow label="Email"          value={p?.email} />
-          <ProfileRow label="USN"            value={p?.usn} />
+          <View style={styles.profileRow}>
+            <Text style={styles.profileLabel}>USN</Text>
+            <View style={{ flex: 1 }}>
+              {editingUsn ? (
+                <View style={{ gap: 8 }}>
+                  <Input
+                    value={newUsn}
+                    onChangeText={t => setNewUsn(t.toUpperCase().replace(/\s/g, ''))}
+                    placeholder="e.g. 1RN21CS045"
+                    autoCapitalize="characters"
+                    maxLength={15}
+                    containerStyle={{ marginBottom: 0 }}
+                  />
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Btn label="Save" onPress={handleUsnSave} loading={usnLoading} style={{ flex: 1 }} />
+                    <Btn label="Cancel" onPress={() => setEditingUsn(false)} variant="outline" style={{ flex: 1 }} />
+                  </View>
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <Text style={styles.profileValue}>
+                    {p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? p.usn : 'Not Set'}
+                  </Text>
+                  <TouchableOpacity onPress={() => { setNewUsn(p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? p.usn : ''); setEditingUsn(true); }}>
+                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                      {p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? 'Edit' : 'Set USN'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
           <ProfileRow label="College"        value={p?.college} />
           <ProfileRow label="Gender"         value={p?.gender?.replace(/_/g, ' ')} />
           {/* Emergency Contact — editable with strict 10-digit limit */}

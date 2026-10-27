@@ -112,8 +112,8 @@ await ride.save();
         userId: ride.providerId._id,
         userType: 'provider',
         type: 'BOOKING_REQUEST',
-        title: '🎉 New Booking Request!',
-        body: `${req.user.name || 'A seeker'} requested to book your ride from ${ride.pickup?.name || 'pickup'} to ${ride.drop?.name || 'drop'}`,
+        title: '🚗 New Ride Request!',
+        body: `A buddy has requested to join your ride from ${ride.pickup?.name || 'pickup'} to ${ride.drop?.name || 'drop'}`,
         data: {
           bookingId: booking._id,
           rideId: ride._id,
@@ -362,7 +362,7 @@ exports.respondBooking = async (req, res) => {
         type: status === 'accepted' ? 'BOOKING_CONFIRMED' : 'BOOKING_CANCELLED',
         title: status === 'accepted' ? '✅ Booking Accepted!' : '❌ Booking Declined',
         body: status === 'accepted' 
-          ? `Your booking for ${booking.rideId.pickup?.name || 'pickup'} to ${booking.rideId.drop?.name || 'drop'} has been accepted by ${req.user.name || 'the provider'}.`
+          ? `Your booking for ${booking.rideId.pickup?.name || 'pickup'} to ${booking.rideId.drop?.name || 'drop'} has been accepted by your buddy.`
           : `Your booking request was declined. ${booking.rideId.seatsAvailable > 0 ? 'Seats are still available - try booking again.' : 'No seats available.'}`,
         data: {
           bookingId: booking._id,
@@ -382,6 +382,7 @@ exports.respondBooking = async (req, res) => {
         const notifObj = seekerNotification.toObject();
         io.to(`user-${booking.seekerId._id}`).to(`seeker-${booking.seekerId._id}`).emit('new-notification', notifObj);
         io.to(`user-${booking.seekerId._id}`).emit('booking-response', {
+          status: status,
           notification: notifObj,
           booking: {
             _id: booking._id,
@@ -473,7 +474,9 @@ exports.getRideRequests = async (req, res) => {
         bObj.seekerId.phone = null;
       }
       if (bObj.seekerId) {
-        bObj.seekerId.name = bObj.seekerId.usn || 'Student Seeker';
+        const rawUsn = bObj.seekerId.usn && bObj.seekerId.usn.toUpperCase() !== 'STUDENT' ? bObj.seekerId.usn.trim() : null;
+        bObj.seekerId.usn = rawUsn ? (rawUsn.length > 3 ? rawUsn.slice(-3).toUpperCase() : rawUsn.toUpperCase()) : 'Buddy';
+        bObj.seekerId.name = bObj.seekerId.usn;
       }
       return bObj;
     });
@@ -510,7 +513,9 @@ exports.getBookingsForRide = async (req, res) => {
         bObj.seekerId.phone = null;
       }
       if (bObj.seekerId) {
-        bObj.seekerId.name = bObj.seekerId.usn || 'Student Seeker';
+        const rawUsn = bObj.seekerId.usn && bObj.seekerId.usn.toUpperCase() !== 'STUDENT' ? bObj.seekerId.usn.trim() : null;
+        bObj.seekerId.usn = rawUsn ? (rawUsn.length > 3 ? rawUsn.slice(-3).toUpperCase() : rawUsn.toUpperCase()) : 'Buddy';
+        bObj.seekerId.name = bObj.seekerId.usn;
       }
       return bObj;
     });

@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Btn, Alert, Card } from '../components/UI';
 import FloatingChatBot from '../components/FloatingChatBot';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,6 +16,95 @@ import * as api from '../services/api';
 // ════════════════════════════════════════════════════════════════
 //  RATINGS SCREEN
 // ════════════════════════════════════════════════════════════════
+
+export function RatingModal({ visible, rideId, targetUser, targetRole = 'buddy', onClose, onSubmitted }) {
+  const { isDark } = useTheme();
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!visible) return null;
+
+  const handleSubmit = async () => {
+    if (rating < 1) {
+      setError('Please select at least 1 star');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await api.submitRating({
+        rideId,
+        reviewee: targetUser?._id || targetUser?.userId || targetUser,
+        rating,
+        comment: comment.trim(),
+      });
+      onSubmitted?.();
+      onClose();
+    } catch (e) {
+      setError(e.message || 'Failed to submit rating');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <View style={{ width: '100%', maxWidth: 360, backgroundColor: isDark ? '#101520' : '#ffffff', borderRadius: radius.xl, borderWidth: 1, borderColor: isDark ? '#1e2430' : '#e2e8f0', padding: 24, alignItems: 'center' }}>
+          <Text style={{ fontSize: 36, marginBottom: 8 }}>⭐</Text>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 4 }}>
+            Rate Your {targetRole === 'driver' ? 'Rider' : 'Buddy'}
+          </Text>
+          <Text style={{ color: isDark ? colors.text2 : '#64748b', fontSize: 13, textAlign: 'center', marginBottom: 16 }}>
+            How was your campus commute with {targetUser?.usn && targetUser.usn.toUpperCase() !== 'STUDENT' ? targetUser.usn.slice(-3).toUpperCase() : (targetUser?.name || 'your buddy')}?
+          </Text>
+
+          {/* Star selector */}
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+            {[1, 2, 3, 4, 5].map(n => (
+              <TouchableOpacity key={n} onPress={() => setRating(n)} activeOpacity={0.7}>
+                <Text style={{ fontSize: 36, color: n <= rating ? colors.accent : (isDark ? '#26344d' : '#cbd5e1') }}>★</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {error ? <Alert message={error} /> : null}
+
+          <TextInput
+            style={{
+              width: '100%',
+              backgroundColor: isDark ? '#161c2a' : '#f1f5f9',
+              borderWidth: 1,
+              borderColor: isDark ? '#26344d' : '#cbd5e1',
+              borderRadius: radius.md,
+              color: isDark ? '#ffffff' : '#0f172a',
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              fontSize: 13,
+              height: 70,
+              textAlignVertical: 'top',
+              marginBottom: 16,
+            }}
+            value={comment}
+            onChangeText={setComment}
+            placeholder="Optional feedback (punctual, safe driving, etc.)"
+            placeholderTextColor={isDark ? '#8b96b0' : '#94a3b8'}
+            multiline
+            maxLength={300}
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+            <Btn label="Later" onPress={onClose} variant="outline" style={{ flex: 1 }} />
+            <Btn label={submitting ? 'Submitting…' : 'Submit ⭐'} onPress={handleSubmit} loading={submitting} style={{ flex: 1.4 }} />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function StarRow({ value, onChange }) {
   return (
     <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -1545,6 +1635,7 @@ const FAQS = [
 
 export function ContactSupportScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const [openFaq,  setOpenFaq]  = useState(null);
   const [subject,  setSubject]  = useState('');
   const [message,  setMessage]  = useState('');
@@ -1556,7 +1647,6 @@ export function ContactSupportScreen({ navigation }) {
     if (!subject.trim() || !message.trim()) { setError('Fill in subject and message'); return; }
     setSending(true); setError('');
     try {
-      // hits /api/auth/contact-support on backend
       const token = await api.getToken();
       await fetch(`${api.API_BASE}/api/auth/contact-support`, {
         method: 'POST',
@@ -1574,13 +1664,23 @@ export function ContactSupportScreen({ navigation }) {
     finally { setSending(false); }
   };
 
-  const inp = { backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border, borderRadius:radius.md, color:colors.text, paddingHorizontal:14, paddingVertical:12, fontSize:14, marginBottom:12 };
+  const inp = {
+    backgroundColor: isDark ? '#141a26' : '#ffffff',
+    borderWidth: 1,
+    borderColor: isDark ? '#222b3e' : '#cbd5e1',
+    borderRadius: radius.md,
+    color: isDark ? '#ffffff' : '#0f172a',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    marginBottom: 12,
+  };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }} edges={['top']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
@@ -1589,30 +1689,57 @@ export function ContactSupportScreen({ navigation }) {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={true}
         >
-          <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>📞 Contact Support</Text>
-          <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.lg }}>We typically respond within 24 hours</Text>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 22, fontWeight: '800', marginBottom: 4 }}>📞 Contact Support</Text>
+          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: spacing.lg }}>We typically respond within 24 hours</Text>
 
           {/* FAQ */}
-          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 10 }}>FREQUENTLY ASKED QUESTIONS</Text>
+          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, fontWeight: '700', marginBottom: 10 }}>FREQUENTLY ASKED QUESTIONS</Text>
           {FAQS.map((f, i) => (
-            <TouchableOpacity key={i} style={styles.faqRow} onPress={() => setOpenFaq(openFaq === i ? null : i)}>
-              <Text style={{ color: colors.text, fontSize: 13, flex: 1, fontWeight: '600' }}>{f.q}</Text>
-              <Text style={{ color: colors.text3, fontSize: 16 }}>{openFaq === i ? '▲' : '▼'}</Text>
+            <TouchableOpacity
+              key={i}
+              style={[
+                styles.faqRow,
+                {
+                  backgroundColor: isDark ? '#101520' : '#ffffff',
+                  borderColor: isDark ? '#1e2430' : '#e2e8f0',
+                  borderWidth: 1,
+                }
+              ]}
+              onPress={() => setOpenFaq(openFaq === i ? null : i)}
+            >
+              <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, flex: 1, fontWeight: '600' }}>{f.q}</Text>
+              <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 16 }}>{openFaq === i ? '▲' : '▼'}</Text>
               {openFaq === i && (
-                <Text style={{ color: colors.text2, fontSize: 13, marginTop: 8, lineHeight: 19, width: '100%' }}>{f.a}</Text>
+                <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginTop: 8, lineHeight: 19, width: '100%' }}>{f.a}</Text>
               )}
             </TouchableOpacity>
           ))}
 
           {/* Contact form */}
-          <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginTop: spacing.lg, marginBottom: 10 }}>SEND A MESSAGE</Text>
+          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, fontWeight: '700', marginTop: spacing.lg, marginBottom: 10 }}>SEND A MESSAGE</Text>
           <Alert message={error} />
           {sent ? (
             <Alert message="Message sent! We'll get back to you within 24 hours." type="success" />
           ) : (
             <>
-              <TextInput style={inp} value={subject} onChangeText={setSubject} placeholder="Subject" placeholderTextColor={colors.text3} />
-              <TextInput style={[inp, { height: 100, textAlignVertical: 'top' }]} value={message} onChangeText={setMessage} placeholder="Describe your issue in detail…" placeholderTextColor={colors.text3} multiline maxLength={1000} />
+              <TextInput
+                style={inp}
+                value={subject}
+                onChangeText={setSubject}
+                placeholder="Subject"
+                placeholderTextColor={isDark ? '#8b96b0' : '#94a3b8'}
+                cursorColor="#f5a623"
+              />
+              <TextInput
+                style={[inp, { height: 100, textAlignVertical: 'top' }]}
+                value={message}
+                onChangeText={setMessage}
+                placeholder="Describe your issue in detail…"
+                placeholderTextColor={isDark ? '#8b96b0' : '#94a3b8'}
+                cursorColor="#f5a623"
+                multiline
+                maxLength={1000}
+              />
               <Btn label={sending ? 'Sending…' : '📩 Send Message'} onPress={send} loading={sending} />
             </>
           )}

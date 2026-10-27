@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
 import LiveMapView from '../components/LiveMapView';
 import FloatingChatBot from '../components/FloatingChatBot';
@@ -23,6 +24,7 @@ function fmt(s) {
 export default function LiveTrackingScreen({ navigation, route }) {
   const { rideId: paramRideId } = route?.params || {};
   const { user } = useAuth();
+  const { isDark } = useTheme();
 
   const [activeRideId,     setActiveRideId]     = useState(paramRideId || null);
   const [tracking,         setTracking]         = useState(true);
@@ -535,6 +537,42 @@ export default function LiveTrackingScreen({ navigation, route }) {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* If ride is completed or cancelled, show clean summary card (no live map, elapsed timers, or active controls) */}
+          {(rideInfo.status === 'completed' || rideInfo.status === 'cancelled') ? (
+            <View style={[styles.terminalStatusCard, { backgroundColor: isDark ? '#101520' : '#ffffff', borderColor: isDark ? '#1e2430' : '#e2e8f0' }]}>
+              <Text style={{ fontSize: 44, marginBottom: 10, textAlign: 'center' }}>
+                {rideInfo.status === 'completed' ? '🏁' : '🔴'}
+              </Text>
+              <Text style={[styles.terminalStatusTitle, { color: isDark ? colors.text : '#0f172a' }]}>
+                {rideInfo.status === 'completed' ? 'Ride Completed' : 'Ride Cancelled'}
+              </Text>
+              <Text style={[styles.terminalStatusSub, { color: isDark ? colors.text2 : '#475569' }]}>
+                {rideInfo.status === 'completed'
+                  ? 'This campus ride has ended successfully. Thank you for commuting together!'
+                  : (rideInfo.cancelReason ? `Ride was cancelled: ${rideInfo.cancelReason}` : 'This ride was cancelled.')}
+              </Text>
+
+              <View style={[styles.terminalRouteBox, { backgroundColor: isDark ? '#161c2a' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13 }}>🟢</Text>
+                  <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                    {rideInfo.pickup?.name || rideInfo.pickup?.address || 'Pickup'}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: 13 }}>🔴</Text>
+                  <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '700', flex: 1 }} numberOfLines={1}>
+                    {rideInfo.drop?.name || rideInfo.drop?.address || 'Drop Destination'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ width: '100%', marginTop: 18 }}>
+                <Btn label="← Return to Dashboard" onPress={() => navigation.navigate('Home')} />
+              </View>
+            </View>
+          ) : (
+            <>
           {/* Interactive Route Map with Eye-Catching Points — Always Shown in Track Ride */}
           <View style={styles.radarCard}>
             <View style={styles.radarHeader}>
@@ -705,7 +743,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
             <View style={styles.driverCard}>
               {isDriver ? (
                 <>
-                  <Text style={styles.driverSectionTitle}>👥 ASSIGNED PASSENGER DETAILS ({rideInfo.passengers?.length || 0})</Text>
+                  <Text style={styles.driverSectionTitle}>👥 ASSIGNED BUDDY DETAILS ({rideInfo.passengers?.length || 0})</Text>
                   {rideInfo.passengers && rideInfo.passengers.length > 0 ? (
                     <ScrollView horizontal={rideInfo.passengers.length > 1} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
                       {rideInfo.passengers.map((p, pIdx) => (
@@ -717,19 +755,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
                               </Text>
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.driverName}>🪪 USN: {p.seeker?.usn && p.seeker.usn.toUpperCase() !== 'STUDENT' ? p.seeker.usn : (p.seeker?.name || 'Passenger')}</Text>
+                              <Text style={styles.driverName}>🪪 USN: {p.seeker?.usn && p.seeker.usn.toUpperCase() !== 'STUDENT' ? (p.seeker.usn.length > 3 ? p.seeker.usn.slice(-3).toUpperCase() : p.seeker.usn.toUpperCase()) : 'Buddy'}</Text>
                               <Text style={styles.driverVehicleName}>
                                 💺 {p.seats || 1} Seat(s) Booked • {p.status?.toUpperCase() || 'CONFIRMED'}
                               </Text>
                             </View>
                           </View>
                           <View style={styles.driverDetailsGrid}>
-                            {p.seeker?.usn && p.seeker.usn.toUpperCase() !== 'STUDENT' && (
-                              <View style={styles.driverGridItem}>
-                                <Text style={styles.driverGridLabel}>USN</Text>
-                                <Text style={styles.driverGridVal}>{p.seeker.usn}</Text>
-                              </View>
-                            )}
+                            
                             {p.seeker?.phone && (
                               <TouchableOpacity
                                 style={styles.driverGridItem}
@@ -1018,7 +1051,11 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* Emergency & Action Buttons */}
+          </>
+          )}
+
+          {/* Emergency & Action Buttons (only for active rides) */}
+          {rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.sosBtn, sosSent && { opacity: 0.5 }]}
@@ -1049,6 +1086,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
               <Text style={styles.detailsBtnText}>Ride Details →</Text>
             </TouchableOpacity>
           </View>
+          )}
         </ScrollView>
       )}
 
@@ -1347,6 +1385,8 @@ const styles = StyleSheet.create({
   },
   telemetryDivider: {
     width: 1,
+    height: 24,
+    alignSelf: 'center',
     backgroundColor: colors.border,
   },
 
@@ -1401,9 +1441,9 @@ const styles = StyleSheet.create({
   },
   sosBtnText: {
     color: '#fff',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontSize: 12.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
   detailsBtn: {
     flex: 1,
@@ -1585,5 +1625,31 @@ const styles = StyleSheet.create({
     color: colors.red,
     fontSize: 13,
     fontWeight: '900',
+  },
+  terminalStatusCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1.5,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  terminalStatusTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  terminalStatusSub: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 300,
+    marginBottom: 16,
+  },
+  terminalRouteBox: {
+    width: '100%',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 14,
   },
 });

@@ -43,8 +43,8 @@ export function Btn({ label, onPress, variant = 'primary', loading = false, disa
               textStyle,
             ]}
             numberOfLines={1}
-            adjustsFontSizeToFit={true}
-            minimumFontScale={0.78}
+            adjustsFontSizeToFit={Platform.OS === 'ios'}
+            minimumFontScale={0.85}
           >
             {label}
           </Text>
