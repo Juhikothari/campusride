@@ -215,17 +215,61 @@ router.get('/route', auth, async (req, res) => {
     const lat2 = parseFloat(toLat), lng2 = parseFloat(toLng);
 
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson&steps=true`;
       const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
       if (resp.ok) {
         const data = await resp.json();
         if (data.code === 'Ok' && data.routes?.length) {
           const route = data.routes[0];
+          const rawSteps = route.legs?.[0]?.steps || [];
+          const steps = rawSteps.map(step => {
+            const type = step.maneuver?.type || 'turn';
+            const modifier = (step.maneuver?.modifier || '').toLowerCase();
+            const name = step.name ? step.name.trim() : 'Campus Road';
+            let instruction = '';
+            let icon = '⬆️';
+
+            if (type === 'depart') {
+              instruction = `Head out towards ${name}`;
+              icon = '🚗';
+            } else if (type === 'arrive') {
+              instruction = 'Arrive at destination';
+              icon = '📍';
+            } else if (modifier.includes('u-turn') || modifier.includes('uturn')) {
+              instruction = `Make a U-Turn onto ${name}`;
+              icon = '🔄';
+            } else if (modifier.includes('left')) {
+              instruction = modifier.includes('slight') ? `Keep slight left onto ${name}` : `Turn left onto ${name}`;
+              icon = '⬅️';
+            } else if (modifier.includes('right')) {
+              instruction = modifier.includes('slight') ? `Keep slight right onto ${name}` : `Turn right onto ${name}`;
+              icon = '➡️';
+            } else {
+              instruction = `Continue straight on ${name}`;
+              icon = '⬆️';
+            }
+
+            return {
+              instruction,
+              icon,
+              type,
+              modifier,
+              name,
+              distanceMeters: Math.round(step.distance || 0),
+              durationSec: Math.round(step.duration || 0),
+            };
+          });
+
           return res.json({
             coordinates: route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
             distanceKm: (route.distance / 1000).toFixed(1),
             durationMin: Math.ceil(route.duration / 60),
-            summary: `Optimal route (${(route.distance / 1000).toFixed(1)} km, ~${Math.ceil(route.duration / 60)} min)`
+            summary: `Optimal route (${(route.distance / 1000).toFixed(1)} km, ~${Math.ceil(route.duration / 60)} min)`,
+            steps: steps.length ? steps : [
+              { instruction: 'Head out on campus route', icon: '🚗', distanceMeters: 500 },
+              { instruction: 'Continue straight towards destination', icon: '⬆️', distanceMeters: 1200 },
+              { instruction: 'Arrive at destination', icon: '📍', distanceMeters: 0 }
+            ]
           });
         }
       }
@@ -250,7 +294,12 @@ router.get('/route', auth, async (req, res) => {
       ],
       distanceKm,
       durationMin,
-      summary: `Estimated route (${distanceKm} km, ~${durationMin} min)`
+      summary: `Estimated route (${distanceKm} km, ~${durationMin} min)`,
+      steps: [
+        { instruction: 'Head out on route', icon: '🚗', distanceMeters: 400 },
+        { instruction: 'Continue straight towards destination', icon: '⬆️', distanceMeters: Math.round(dist * 1000) },
+        { instruction: 'Arrive at destination', icon: '📍', distanceMeters: 0 }
+      ]
     });
   } catch (err) {
     res.status(500).json({ message: 'Route calculation failed' });

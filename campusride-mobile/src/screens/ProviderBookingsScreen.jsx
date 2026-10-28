@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
 import TopHeader from '../components/TopHeader';
 import { useSocket } from '../hooks/useSocket';
@@ -121,7 +122,7 @@ export default function ProviderBookingsScreen({ navigation }) {
   const resolved = bookings.filter(b => b.status !== 'pending');
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="Ride Requests" subtitle="Manage incoming passenger requests" showBack={navigation.canGoBack()} />
       <ScrollView
         contentContainerStyle={styles.scroll}

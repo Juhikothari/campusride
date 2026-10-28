@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, radius, spacing } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import { Badge } from './UI';
 
 const STATUS_COLOR = {

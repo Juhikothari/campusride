@@ -57,12 +57,19 @@ export function Btn({ label, onPress, variant = 'primary', loading = false, disa
 // ── Input ─────────────────────────────────────────────
 export function Input({ label, error, icon, rightIcon, isPassword, style, containerStyle, secureTextEntry, ...props }) {
   const [showPassword, setShowPassword] = useState(false);
+  const { isDark } = useTheme();
   const isSecure = isPassword ? !showPassword : secureTextEntry;
 
   return (
     <View style={[{ marginBottom: spacing.md }, containerStyle]}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      <View style={[styles.inputWrap, error && { borderColor: colors.red }]}>
+      {label && <Text style={[styles.label, { color: isDark ? colors.text2 : '#475569' }]}>{label}</Text>}
+      <View style={[
+        styles.inputWrap,
+        {
+          backgroundColor: isDark ? '#161c2a' : '#ffffff',
+          borderColor: error ? colors.red : (isDark ? '#26344d' : '#cbd5e1'),
+        }
+      ]}>
         {icon && <Text style={styles.inputIcon}>{icon}</Text>}
         <TextInput
           style={[
@@ -102,14 +109,19 @@ export function Input({ label, error, icon, rightIcon, isPassword, style, contai
 
 // ── Card ──────────────────────────────────────────────
 export function Card({ children, style, onPress }) {
+  const { isDark } = useTheme();
+  const cardTheme = {
+    backgroundColor: isDark ? '#101520' : '#ffffff',
+    borderColor: isDark ? '#212840' : '#e2e8f0',
+  };
   if (onPress) {
     return (
-      <TouchableOpacity style={[styles.card, style]} onPress={onPress} activeOpacity={0.8}>
+      <TouchableOpacity style={[styles.card, cardTheme, style]} onPress={onPress} activeOpacity={0.8}>
         {children}
       </TouchableOpacity>
     );
   }
-  return <View style={[styles.card, style]}>{children}</View>;
+  return <View style={[styles.card, cardTheme, style]}>{children}</View>;
 }
 
 // ── Badge ─────────────────────────────────────────────
@@ -171,16 +183,28 @@ export function EmptyState({ icon, title, subtitle, action, actionLabel }) {
 
 // ── Toggle pill ───────────────────────────────────────
 export function TogglePill({ options, value, onChange }) {
+  const { isDark, colors: themeColors } = useTheme();
   return (
-    <View style={styles.toggleRow}>
+    <View style={[
+      styles.toggleRow,
+      {
+        backgroundColor: isDark ? '#161c2a' : '#e2e8f0',
+        borderColor: isDark ? '#26344d' : '#cbd5e1',
+        borderWidth: 1,
+      }
+    ]}>
       {options.map(opt => (
         <TouchableOpacity
           key={opt.value}
           onPress={() => onChange(opt.value)}
-          style={[styles.togglePill, value === opt.value && styles.togglePillActive]}
+          style={[styles.togglePill, value === opt.value && { backgroundColor: themeColors.accent }]}
         >
           {opt.icon && <Text style={{ fontSize: 13, marginRight: 4 }}>{opt.icon}</Text>}
-          <Text style={[styles.togglePillText, value === opt.value && styles.togglePillTextActive]}>
+          <Text style={[
+            styles.togglePillText,
+            { color: isDark ? '#8b96b0' : '#475569' },
+            value === opt.value && { color: '#000000', fontWeight: '800' }
+          ]}>
             {opt.label}
           </Text>
         </TouchableOpacity>

@@ -26,8 +26,12 @@ export function navigateFromNotification(name, params) {
 
 export function handleNotificationResponse(response) {
   try {
+    const notifId = response?.notification?.request?.identifier || String(response?.notification?.date || Date.now());
     const data = response?.notification?.request?.content?.data || response?.data;
     if (!data) return;
+
+    // Mark as handled so it won't re-trigger on subsequent cold starts
+    AsyncStorage.setItem('@last_handled_notif_response_id', notifId).catch(() => {});
 
     if (data.rideId) {
       if (data.type === 'new-booking') {
@@ -47,9 +51,8 @@ export function handleNotificationResponse(response) {
       navigateFromNotification('AdminIncidents');
     } else if (data.type === 'newKYCSubmission' || data.type === 'newVehicleSubmission') {
       navigateFromNotification('AdminKYC');
-    } else {
-      navigateFromNotification('Notifications');
     }
+    // Note: Do NOT fallback to 'Notifications' here; if there is no explicit target route, stay on Home/Dashboard
   } catch (err) {
     console.log('[NotificationResponse] Error:', err?.message);
   }
@@ -236,10 +239,19 @@ export default function App() {
     initNotificationService().catch(() => {});
 
     // Handle outside notification tap when app opened from killed/cold state
-    Notifications.getLastNotificationResponseAsync().then(resp => {
-      if (resp) {
+    Notifications.getLastNotificationResponseAsync().then(async (resp) => {
+      if (!resp) return;
+      try {
+        const notifId = resp.notification?.request?.identifier || String(resp.notification?.date || '');
+        const notifDate = resp.notification?.date ? resp.notification.date * 1000 : null;
+        const lastHandled = await AsyncStorage.getItem('@last_handled_notif_response_id');
+
+        // If notification is already handled or older than 20 seconds, ignore stale cold-start cache
+        if (lastHandled && lastHandled === notifId) return;
+        if (notifDate && (Date.now() - notifDate > 20000)) return;
+
         setTimeout(() => handleNotificationResponse(resp), 900);
-      }
+      } catch {}
     }).catch(() => {});
 
     // Listen for notification taps when app is backgrounded / active outside

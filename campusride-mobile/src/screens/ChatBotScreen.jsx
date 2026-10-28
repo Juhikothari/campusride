@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
@@ -115,6 +116,7 @@ function getLocalAnswer(query, user) {
 
 export default function ChatBotScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([
     {
@@ -165,7 +167,7 @@ export default function ChatBotScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       {/* Unified clean header */}
       <View style={styles.botHeader}>
         <View style={styles.botInfo}>
@@ -238,7 +240,7 @@ export default function ChatBotScreen({ navigation }) {
               <View style={styles.bubbleAvatar}>
                 <Text style={{ fontSize: 13 }}>🤖</Text>
               </View>
-              <View style={[styles.bubble, styles.bubbleAssistant, { flexDirection: 'row', gap: 6, alignItems: 'center' }]}>
+              <View style={[styles.bubble, styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, { flexDirection: 'row', gap: 6, alignItems: 'center' }]}>
                 <ActivityIndicator color={colors.accent} size="small" />
                 <Text style={{ color: colors.text3, fontSize: 12 }}>RideBot is thinking…</Text>
               </View>
@@ -266,7 +268,7 @@ export default function ChatBotScreen({ navigation }) {
 
         <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
             value={input}
             onChangeText={setInput}
             placeholder="Ask about rides, KYC, routes..."

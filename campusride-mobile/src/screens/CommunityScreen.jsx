@@ -5,6 +5,7 @@ import {
   ActivityIndicator, Alert as RNAlert, Image, Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
@@ -143,6 +144,25 @@ function PostsTab({ user }) {
       }
     } catch (err) {
       RNAlert.alert('Crop Error', err.message);
+    }
+  };
+
+  const handleRotateStagedImage = async () => {
+    if (!stagedAttachment?.uri || uploadingAttachment) return;
+    try {
+      const manipResult = await ImageManipulator.manipulateAsync(
+        stagedAttachment.uri,
+        [{ rotate: 90 }],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      if (manipResult && manipResult.uri) {
+        setStagedAttachment(prev => ({
+          ...prev,
+          uri: manipResult.uri,
+        }));
+      }
+    } catch (err) {
+      console.log('Rotate error:', err);
     }
   };
 
@@ -362,18 +382,28 @@ function PostsTab({ user }) {
             multiline
             maxLength={500}
           />
-          {/* Staged Cropped Image: Crop only crops without attaching; tick mark next to crop attaches */}
+          {/* Staged Image Card (Before Attachment: Rotate, Crop, Attach tick, and Discard cross) */}
           {stagedAttachment && !attachment && (
             <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.accent, borderWidth: 1.5 }]}>
               <Image source={{ uri: stagedAttachment.uri }} style={styles.attachmentPreviewThumb} />
               <View style={{ flex: 1, paddingHorizontal: 8 }}>
                 <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{stagedAttachment.name}</Text>
                 <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>
-                  {uploadingAttachment ? '⏳ Attaching & uploading…' : '📷 Image staged — tap ✓ to attach'}
+                  {uploadingAttachment ? '⏳ Attaching…' : '📷 Staged — tap ✓ to attach'}
                 </Text>
               </View>
 
-              {/* Crop button: opens cropper without attaching (no rotation button on left) */}
+              {/* 1 Rotate Button */}
+              <TouchableOpacity
+                onPress={handleRotateStagedImage}
+                disabled={uploadingAttachment}
+                style={styles.cropActionBtn}
+                activeOpacity={0.75}
+              >
+                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>⟳ Rotate</Text>
+              </TouchableOpacity>
+
+              {/* Crop Button (crops without attaching) */}
               <TouchableOpacity
                 onPress={handleRecropStagedImage}
                 disabled={uploadingAttachment}
@@ -383,7 +413,7 @@ function PostsTab({ user }) {
                 <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>✂️ Crop</Text>
               </TouchableOpacity>
 
-              {/* Tick Mark Button to Attach: positioned next to Crop */}
+              {/* Tick Mark Button to Attach */}
               <TouchableOpacity
                 onPress={handleConfirmAndUploadAttachment}
                 disabled={uploadingAttachment}
@@ -397,7 +427,7 @@ function PostsTab({ user }) {
                 )}
               </TouchableOpacity>
 
-              {/* Discard cropped image */}
+              {/* Discard staged image */}
               <TouchableOpacity
                 onPress={() => setStagedAttachment(null)}
                 disabled={uploadingAttachment}
@@ -408,22 +438,23 @@ function PostsTab({ user }) {
             </View>
           )}
 
-          {/* Attached Image Preview (once confirmed & uploaded) */}
+          {/* Attached Image Preview (After Attachment: Rotate, Crop, and Attach options REMOVED) */}
           {attachment && (
             <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.green, borderWidth: 1.5 }]}>
               <Image source={{ uri: attachment.uri }} style={styles.attachmentPreviewThumb} />
               <View style={{ flex: 1, paddingHorizontal: 8 }}>
                 <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{attachment.name}</Text>
                 <Text style={{ color: colors.green, fontSize: 11, fontWeight: '700' }}>
-                  ✓ Image attached & ready
+                  ✓ Image attached
                 </Text>
               </View>
 
+              {/* Only Remove button after attached */}
               <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachmentBtn}>
                 <Text style={styles.removeAttachmentText}>✕</Text>
               </TouchableOpacity>
             </View>
-          )}
+          )}}
 
           <View style={styles.composeToolbar}>
             {/* Single Attach button with Photo & Gallery options */}

@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TopHeader from '../components/TopHeader';
 import { Input, Btn, Alert } from '../components/UI';
@@ -217,7 +218,7 @@ export default function KYCScreen({ navigation }) {
     const docs_   = kycStatus?.documents || {};
 
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
         <TopHeader title="KYC Verification" subtitle="Student & Vehicle Verification" showBack={true} />
         <ScrollView contentContainerStyle={styles.scroll}>
 
@@ -326,7 +327,7 @@ function DocRow({ label, icon, onUpload, uri, submitted, required, onView }) {
     <TouchableOpacity
       onPress={() => { if (uri && onView) onView(); else if (onUpload) onUpload(); }}
 
-      style={[styles.docRow, isAdded && styles.docRowDone]}
+      style={[styles.docRow, { backgroundColor: isDark ? colors.surface2 : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }, isAdded && styles.docRowDone]}
       activeOpacity={0.75}
     >
       {uri ? (

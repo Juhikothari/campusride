@@ -39,6 +39,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [routeCoordinates, setRouteCoordinates] = useState([]);
   const [leg1Coords,       setLeg1Coords]       = useState([]);
   const [leg2Coords,       setLeg2Coords]       = useState([]);
+  const [leg1Steps,        setLeg1Steps]        = useState([]);
+  const [leg2Steps,        setLeg2Steps]        = useState([]);
+  const [showAllSteps,     setShowAllSteps]     = useState(false);
   const [leg1Distance,     setLeg1Distance]     = useState('');
   const [leg1Duration,     setLeg1Duration]     = useState('');
   const [leg2Distance,     setLeg2Distance]     = useState('');
@@ -288,6 +291,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
       if (Array.isArray(data.coordinates) && data.coordinates.length > 0) {
         setLeg1Coords(data.coordinates);
       }
+      if (Array.isArray(data.steps) && data.steps.length > 0) {
+        setLeg1Steps(data.steps);
+      }
     }).catch(() => {});
     return () => { isMounted = false; };
   }, [effectiveDriverCoords?.latitude, effectiveDriverCoords?.longitude, pickupCoords?.latitude, pickupCoords?.longitude]);
@@ -308,6 +314,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
       if (Array.isArray(data.coordinates) && data.coordinates.length > 0) {
         setLeg2Coords(data.coordinates);
         setRouteCoordinates(data.coordinates);
+      }
+      if (Array.isArray(data.steps) && data.steps.length > 0) {
+        setLeg2Steps(data.steps);
       }
     }).catch(() => {});
     return () => { isMounted = false; };
@@ -395,25 +404,70 @@ export default function LiveTrackingScreen({ navigation, route }) {
     }
   };
 
-  // Seeker auto-trigger: when rideInfo.status becomes completed, show rating modal
+  // Read persisted rating state on mount
+  useEffect(() => {
+    if (!activeRideId) return;
+    AsyncStorage.getItem(`@has_rated_ride_${activeRideId}`).then(val => {
+      if (val === 'true') {
+        setHasRated(true);
+        setShowRatingModal(false);
+      }
+    }).catch(() => {});
+  }, [activeRideId]);
+
+  // Seeker auto-trigger: when rideInfo.status becomes completed, show rating modal only if not rated before
   useEffect(() => {
     if (rideInfo?.status === 'completed' && !showRatingModal && !hasRated) {
-      setShowRatingModal(true);
+      AsyncStorage.getItem(`@has_rated_ride_${activeRideId}`).then(val => {
+        if (val === 'true') {
+          setHasRated(true);
+        } else {
+          setShowRatingModal(true);
+        }
+      }).catch(() => {
+        setShowRatingModal(true);
+      });
     }
-  }, [rideInfo?.status, showRatingModal, hasRated]);
+  }, [rideInfo?.status, showRatingModal, hasRated, activeRideId]);
+
+  const openExternalNavigation = (destLat, destLng, label = 'Destination') => {
+    if (!destLat || !destLng) return;
+    const url = Platform.OS === 'android'
+      ? `google.navigation:q=${destLat},${destLng}&mode=d`
+      : `maps://?daddr=${destLat},${destLng}`;
+
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`);
+      }
+    }).catch(() => {
+      Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`);
+    });
+  };
+
+  const getCleanBuddyName = (rawUsn, fallback) => {
+    if (!rawUsn || rawUsn.toUpperCase() === 'STUDENT') return fallback || 'Buddy';
+    const last3 = rawUsn.length > 3 ? rawUsn.slice(-3).toUpperCase() : rawUsn.toUpperCase();
+    return `Buddy (${last3})`;
+  };
 
   const targetRevieweeId = isDriver
     ? (rideInfo?.passengers?.[0]?.seeker?._id || rideInfo?.passengers?.[0]?.seeker?.id || rideInfo?.passengers?.[0]?.seeker)
     : (rideInfo?.providerId?._id || rideInfo?.providerId?.id || rideInfo?.providerId);
 
   const targetRevieweeName = isDriver
-    ? (rideInfo?.passengers?.[0]?.seeker?.usn ? `Passenger (${rideInfo.passengers[0].seeker.usn})` : 'Passenger')
-    : (rideInfo?.providerId?.usn ? `Driver (${rideInfo.providerId.usn})` : 'Driver');
+    ? getCleanBuddyName(rideInfo?.passengers?.[0]?.seeker?.usn, 'Buddy')
+    : getCleanBuddyName(rideInfo?.providerId?.usn, 'Buddy');
 
   const handleSubmitRating = async (starsToSubmit) => {
     const stars = starsToSubmit || ratingStars;
     setSubmittingRating(true);
     setHasRated(true);
+    if (activeRideId) {
+      AsyncStorage.setItem(`@has_rated_ride_${activeRideId}`, 'true').catch(() => {});
+    }
     try {
       if (targetRevieweeId && activeRideId) {
         await api.submitRating({
@@ -429,6 +483,15 @@ export default function LiveTrackingScreen({ navigation, route }) {
       setShowRatingModal(false);
       navigation.navigate('Home');
     }
+  };
+
+  const handleSkipRating = () => {
+    if (activeRideId) {
+      AsyncStorage.setItem(`@has_rated_ride_${activeRideId}`, 'true').catch(() => {});
+    }
+    setHasRated(true);
+    setShowRatingModal(false);
+    navigation.navigate('Home');
   };
 
   const handleCompleteRide = () => {
@@ -575,6 +638,117 @@ export default function LiveTrackingScreen({ navigation, route }) {
             <>
           {/* Interactive Route Map with Eye-Catching Points — Always Shown in Track Ride */}
           <View style={styles.radarCard}>
+            {/* External Navigation Button (Opens Turn-by-Turn in Google Maps) */}
+            <View style={{ marginBottom: 12 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  if (!isTripToDestination && pickupCoords?.latitude && pickupCoords?.longitude) {
+                    openExternalNavigation(pickupCoords.latitude, pickupCoords.longitude, 'Buddy Pickup Point');
+                  } else if (dropCoords?.latitude && dropCoords?.longitude) {
+                    openExternalNavigation(dropCoords.latitude, dropCoords.longitude, 'Drop Destination');
+                  }
+                }}
+                style={{
+                  backgroundColor: colors.accent,
+                  borderRadius: radius.md,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontSize: 18 }}>🧭</Text>
+                <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>
+                  {!isTripToDestination
+                    ? "Navigate to Buddy's Pickup (Google Maps)"
+                    : 'Open Turn-by-Turn Directions (Google Maps)'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* In-App Turn-by-Turn Guidance Bar */}
+            {(() => {
+              const activeSteps = isTripToDestination ? (leg2Steps.length ? leg2Steps : leg1Steps) : leg1Steps;
+              const nextStep = activeSteps[0] || {
+                instruction: isTripToDestination ? 'Continue along route to drop destination' : "Head towards buddy's pickup location",
+                icon: '⬆️',
+                distanceMeters: 500,
+              };
+              return (
+                <View style={{
+                  backgroundColor: isDark ? '#141c2b' : '#f1f5f9',
+                  borderRadius: radius.md,
+                  borderWidth: 1.5,
+                  borderColor: isDark ? '#26344d' : '#cbd5e1',
+                  padding: 12,
+                  marginBottom: 12,
+                }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      backgroundColor: colors.accent + '22',
+                      alignItems: 'center', justifyContent: 'center',
+                      borderWidth: 1, borderColor: colors.accent,
+                    }}>
+                      <Text style={{ fontSize: 20 }}>{nextStep.icon || '⬆️'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>
+                        NEXT DIRECTION
+                      </Text>
+                      <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13.5, fontWeight: '700' }} numberOfLines={2}>
+                        {nextStep.instruction}
+                      </Text>
+                      {nextStep.distanceMeters > 0 && (
+                        <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, marginTop: 2 }}>
+                          In {nextStep.distanceMeters > 1000 ? (nextStep.distanceMeters/1000).toFixed(1) + ' km' : nextStep.distanceMeters + ' meters'}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Expandable Step Directions List */}
+                  {activeSteps.length > 1 && (
+                    <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: isDark ? '#212c40' : '#e2e8f0', paddingTop: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => setShowAllSteps(prev => !prev)}
+                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                          📋 {showAllSteps ? 'Hide Full Turn-by-Turn Route' : `View All ${activeSteps.length} Route Turns ▾`}
+                        </Text>
+                        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>
+                          {showAllSteps ? '▲' : '▼'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {showAllSteps && (
+                        <View style={{ marginTop: 8, gap: 8 }}>
+                          {activeSteps.map((step, sIdx) => (
+                            <View key={sIdx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <Text style={{ fontSize: 15 }}>{step.icon || '•'}</Text>
+                              <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 12, flex: 1 }}>
+                                {step.instruction}
+                              </Text>
+                              {step.distanceMeters > 0 && (
+                                <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11 }}>
+                                  {step.distanceMeters > 1000 ? (step.distanceMeters/1000).toFixed(1) + 'km' : step.distanceMeters + 'm'}
+                                </Text>
+                              )}
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
+
             <View style={styles.radarHeader}>
               <View style={[styles.livePulseDot, !isTripToDestination && { backgroundColor: colors.accent }]} />
               <Text style={styles.radarTitle}>
@@ -1105,17 +1279,31 @@ export default function LiveTrackingScreen({ navigation, route }) {
               How was your campus commute with <Text style={{ color: colors.accent, fontWeight: '700' }}>{targetRevieweeName}</Text>?
             </Text>
 
-            {/* Interactive Stars */}
+            <Text style={{ color: colors.text3, fontSize: 12, textAlign: 'center', marginBottom: 10 }}>
+              Tap any star to select rating (1 to 5)
+            </Text>
+            {/* Interactive Stars 1 to 5 */}
             <View style={styles.ratingStarRow}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity
                   key={star}
                   onPress={() => setRatingStars(star)}
                   activeOpacity={0.7}
-                  style={{ padding: 6 }}
+                  style={{
+                    alignItems: 'center',
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: radius.md,
+                    backgroundColor: star === ratingStars ? 'rgba(245,166,35,0.15)' : 'transparent',
+                    borderWidth: 1,
+                    borderColor: star === ratingStars ? colors.accent : 'transparent',
+                  }}
                 >
-                  <Text style={{ fontSize: 36, color: star <= ratingStars ? '#f5a623' : '#30363d' }}>
+                  <Text style={{ fontSize: 34, color: star <= ratingStars ? '#f5a623' : '#30363d' }}>
                     ★
+                  </Text>
+                  <Text style={{ color: star <= ratingStars ? colors.accent : colors.text3, fontSize: 11, fontWeight: '800', marginTop: 2 }}>
+                    {star}★
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1123,7 +1311,11 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
             <View style={styles.ratingScorePill}>
               <Text style={styles.ratingScorePillText}>
-                {ratingStars === 5 ? '🌟 Excellent Ride' : ratingStars === 4 ? '👍 Very Good' : ratingStars === 3 ? '👌 Average' : '⚠️ Below Expectations'}
+                {ratingStars === 5 ? '🌟 5 Stars — Excellent Ride' :
+                 ratingStars === 4 ? '👍 4 Stars — Very Good' :
+                 ratingStars === 3 ? '👌 3 Stars — Average' :
+                 ratingStars === 2 ? '😐 2 Stars — Fair' :
+                 '⚠️ 1 Star — Below Expectations'}
               </Text>
             </View>
 
@@ -1135,7 +1327,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
             />
 
             <TouchableOpacity
-              onPress={() => { setShowRatingModal(false); navigation.navigate('Home'); }}
+              onPress={handleSkipRating}
               style={{ paddingVertical: 12, alignItems: 'center' }}
             >
               <Text style={{ color: colors.text3, fontSize: 13, fontWeight: '600' }}>Skip for now</Text>

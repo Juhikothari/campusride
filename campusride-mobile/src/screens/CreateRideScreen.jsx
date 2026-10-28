@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
 import LocationSearch from '../components/LocationSearch';
 import FloatingChatBot from '../components/FloatingChatBot';
@@ -87,6 +88,7 @@ function formatTimeInput(text) {
 
 export default function CreateRideScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
   const [pickupFrom,    setPickupFrom]    = useState('college'); // 'college' | 'home'
@@ -485,7 +487,7 @@ export default function CreateRideScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="Get a Buddy" subtitle="Offer your ride and split cost" showBack={navigation.canGoBack()} />
 
       <KeyboardAvoidingView

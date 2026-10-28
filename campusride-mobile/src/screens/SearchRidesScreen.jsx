@@ -411,18 +411,18 @@ export default function SearchRidesScreen({ navigation }) {
         {Boolean(user?.college) && (
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 }}>
             <TouchableOpacity
-              style={styles.campusChip}
+              style={[styles.campusChip, { backgroundColor: isDark ? '#161c2a' : '#ffffff', borderColor: isDark ? '#26344d' : '#cbd5e1' }]}
               onPress={() => fillCollegeLocation('pickup')}
               activeOpacity={0.7}
             >
-              <Text style={styles.campusChipText}>🏫 Start at {user.college.split(' ')[0]}</Text>
+              <Text style={[styles.campusChipText, { color: isDark ? '#edf0f7' : '#0f172a' }]}>🏫 Start at {user.college.split(' ')[0]}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.campusChip}
+              style={[styles.campusChip, { backgroundColor: isDark ? '#161c2a' : '#ffffff', borderColor: isDark ? '#26344d' : '#cbd5e1' }]}
               onPress={() => fillCollegeLocation('drop')}
               activeOpacity={0.7}
             >
-              <Text style={styles.campusChipText}>🏫 Drop at {user.college.split(' ')[0]}</Text>
+              <Text style={[styles.campusChipText, { color: isDark ? '#edf0f7' : '#0f172a' }]}>🏫 Drop at {user.college.split(' ')[0]}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -430,7 +430,7 @@ export default function SearchRidesScreen({ navigation }) {
         {/* ── Recent Search History Chips ── */}
         {searchHistory.length > 0 && (
           <View style={styles.historySection}>
-            <Text style={styles.historyLabel}>🕒 RECENT SEARCHES</Text>
+            <Text style={[styles.historyLabel, { color: isDark ? colors.text2 : '#475569' }]}>🕒 RECENT SEARCHES</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {searchHistory.map((item, i) => {
@@ -439,17 +439,23 @@ export default function SearchRidesScreen({ navigation }) {
                   return (
                     <TouchableOpacity
                       key={i}
-                      style={styles.historyCard}
+                      style={[
+                        styles.historyCard,
+                        {
+                          backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                          borderColor: isDark ? '#26344d' : '#cbd5e1',
+                        }
+                      ]}
                       onPress={() => applyHistorySearch(item)}
                       activeOpacity={0.75}
                     >
                       <View style={styles.historyBulletRow}>
                         <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900' }}>•</Text>
-                        <Text style={styles.historyBulletText} numberOfLines={1}>{pName}</Text>
+                        <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{pName}</Text>
                       </View>
                       <View style={styles.historyBulletRow}>
                         <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900' }}>•</Text>
-                        <Text style={styles.historyBulletText} numberOfLines={1}>{dName}</Text>
+                        <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{dName}</Text>
                       </View>
                     </TouchableOpacity>
                   );
@@ -460,7 +466,7 @@ export default function SearchRidesScreen({ navigation }) {
         )}
 
         {/* Schedule */}
-        <Text style={styles.filterLabel}>When do you need a ride?</Text>
+        <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569' }]}>When do you need a ride?</Text>
         <TogglePill
           options={[{ value: 'now', label: '🚗 Ride Now' }, { value: 'later', label: '🗓 Schedule' }]}
           value={schedMode}
@@ -468,20 +474,36 @@ export default function SearchRidesScreen({ navigation }) {
         />
 
         {schedMode === 'later' && (
-          <View style={styles.scheduleBox}>
-            <Text style={styles.scheduleTitle}>🗓 SELECT DATE & TIME</Text>
+          <View style={[styles.scheduleBox, { backgroundColor: isDark ? '#101520' : '#ffffff', borderColor: isDark ? '#212840' : '#e2e8f0' }]}>
+            <Text style={[styles.scheduleTitle, { color: isDark ? colors.text2 : '#475569' }]}>🗓 SELECT DATE & TIME</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
               <TouchableOpacity
-                style={[styles.dateChip, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipActive]}
+                style={[
+                  styles.dateChip,
+                  { backgroundColor: isDark ? '#161c2a' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' },
+                  (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipActive
+                ]}
                 onPress={() => setDate(new Date().toISOString().split('T')[0])}
               >
-                <Text style={[styles.dateChipText, (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipTextActive]}>Today</Text>
+                <Text style={[
+                  styles.dateChipText,
+                  { color: isDark ? '#8b96b0' : '#475569' },
+                  (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipTextActive
+                ]}>Today</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.dateChip, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipActive]}
+                style={[
+                  styles.dateChip,
+                  { backgroundColor: isDark ? '#161c2a' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' },
+                  date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipActive
+                ]}
                 onPress={() => setDate(new Date(Date.now() + 86400000).toISOString().split('T')[0])}
               >
-                <Text style={[styles.dateChipText, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipTextActive]}>Tomorrow</Text>
+                <Text style={[
+                  styles.dateChipText,
+                  { color: isDark ? '#8b96b0' : '#475569' },
+                  date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipTextActive
+                ]}>Tomorrow</Text>
               </TouchableOpacity>
             </View>
 
@@ -498,11 +520,17 @@ export default function SearchRidesScreen({ navigation }) {
               <View style={{ flex: 1, marginBottom: 12 }}>
                 <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' }}>TIME *</Text>
                 <TouchableOpacity
-                  style={styles.timeSelectBtn}
+                  style={[
+                    styles.timeSelectBtn,
+                    {
+                      backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                      borderColor: isDark ? '#26344d' : '#cbd5e1',
+                    }
+                  ]}
                   onPress={() => setShowTimePicker(true)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.timeSelectBtnText}>{formatDisplayTime(time)}</Text>
+                  <Text style={[styles.timeSelectBtnText, { color: isDark ? '#edf0f7' : '#0f172a' }]}>{formatDisplayTime(time)}</Text>
                   <Text style={{ fontSize: 14 }}>🕒 ▼</Text>
                 </TouchableOpacity>
               </View>
@@ -511,17 +539,28 @@ export default function SearchRidesScreen({ navigation }) {
         )}
 
         {/* Vehicle filter */}
-        <Text style={[styles.filterLabel, { marginTop: spacing.md }]}>Vehicle Type</Text>
+        <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569', marginTop: spacing.md }]}>Vehicle Type</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             {VEHICLE_FILTERS.map(v => (
               <TouchableOpacity
                 key={v.value}
                 onPress={() => setVehicle(v.value)}
-                style={[styles.vehicleChip, vehicle === v.value && styles.vehicleChipActive]}
+                style={[
+                  styles.vehicleChip,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#ffffff',
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1',
+                  },
+                  vehicle === v.value && styles.vehicleChipActive
+                ]}
               >
                 <Text style={{ fontSize: 14 }}>{v.icon}</Text>
-                <Text style={[styles.vehicleChipText, vehicle === v.value && styles.vehicleChipTextActive]}>{v.label}</Text>
+                <Text style={[
+                  styles.vehicleChipText,
+                  { color: isDark ? '#8b96b0' : '#475569' },
+                  vehicle === v.value && styles.vehicleChipTextActive
+                ]}>{v.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -555,18 +594,30 @@ export default function SearchRidesScreen({ navigation }) {
               <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Searching rides along your route within 5km…</Text>
             </View>
           ) : !searched ? (
-            <View style={styles.preSearchCard}>
+            <View style={[
+              styles.preSearchCard,
+              {
+                backgroundColor: isDark ? '#101520' : '#ffffff',
+                borderColor: isDark ? '#212840' : '#e2e8f0',
+              }
+            ]}>
               <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>🧭</Text>
-              <Text style={styles.preSearchTitle}>Ready to Find a Buddy?</Text>
-              <Text style={styles.preSearchSub}>
+              <Text style={[styles.preSearchTitle, { color: isDark ? '#edf0f7' : '#0f172a' }]}>Ready to Find a Buddy?</Text>
+              <Text style={[styles.preSearchSub, { color: isDark ? '#8b96b0' : '#475569' }]}>
                 Enter your pickup & drop locations above, then tap "Search Your Buddy" to find verified rides along your route within 5km.
               </Text>
             </View>
           ) : rides.length === 0 ? (
-            <View style={styles.noRidesCard}>
+            <View style={[
+              styles.noRidesCard,
+              {
+                backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                borderColor: isDark ? '#26344d' : '#cbd5e1',
+              }
+            ]}>
               <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🚗</Text>
-              <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No rides along your route</Text>
-              <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 16 }}>
+              <Text style={{ color: isDark ? '#edf0f7' : '#0f172a', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No rides along your route</Text>
+              <Text style={{ color: isDark ? '#8b96b0' : '#475569', fontSize: 13, textAlign: 'center', marginBottom: 16 }}>
                 No providers are currently offering rides within 5km of your route. You can post a ride request in the campus Community or check back shortly.
               </Text>
               <Btn label="💬 Post in Community" onPress={() => navigation.navigate('Community')} variant="outline" />

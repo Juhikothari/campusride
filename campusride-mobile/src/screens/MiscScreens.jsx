@@ -30,6 +30,7 @@ function getAddr(field) {
 export function RideDetailScreen({ navigation, route }) {
   const { rideId } = route.params || {};
   const { user }   = useAuth();
+  const { isDark } = useTheme();
 
   const [ride,    setRide]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -76,18 +77,43 @@ export function RideDetailScreen({ navigation, route }) {
 
         <Alert message={error} />
 
-        {ride && (
+        {ride && (ride.status === 'completed' || ride.status === 'cancelled') ? (
+          <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0', alignItems: 'center', padding: 24 }]}>
+            <Text style={{ fontSize: 48, marginBottom: 12 }}>
+              {ride.status === 'completed' ? '🏁' : '🔴'}
+            </Text>
+            <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 20, fontWeight: '800', marginBottom: 6 }}>
+              {ride.status === 'completed' ? 'Ride Completed' : 'Ride Cancelled'}
+            </Text>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>
+              {ride.status === 'completed'
+                ? 'This ride was completed successfully. Thank you for commuting with your campus buddy!'
+                : (ride.cancelReason ? `This ride was cancelled: ${ride.cancelReason}` : 'This ride has been cancelled.')}
+            </Text>
+            <View style={{ width: '100%', backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderRadius: radius.md, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: isDark ? colors.border : '#cbd5e1' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Text>🟢</Text>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>{getAddr(ride.pickup)}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text>🔴</Text>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>{getAddr(ride.drop)}</Text>
+              </View>
+            </View>
+            <Btn label="← Back to Dashboard" onPress={() => navigation.navigate('Home')} style={{ width: '100%' }} />
+          </View>
+        ) : ride && (
           <>
             {/* Header */}
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <Text style={{ fontSize: 28 }}>{VEHICLE_ICON[ride.vehicleType] || '🚗'}</Text>
                   <View>
-                    <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800' }}>
+                    <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 18, fontWeight: '800' }}>
                       {ride.vehicleName || ride.vehicleType}
                     </Text>
-                    <Text style={{ color: colors.text2, fontSize: 13, marginTop: 2 }}>
+                    <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginTop: 2 }}>
                       🪪 USN: {ride.providerId?.usn || ride.provider?.usn || 'Verified Commuter'}
                     </Text>
                   </View>
@@ -98,21 +124,21 @@ export function RideDetailScreen({ navigation, route }) {
             </View>
 
             {/* Route */}
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
               <Text style={{ color: colors.text3, fontSize: 11, fontWeight: '700', marginBottom: 12 }}>ROUTE</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.green }} />
-                <Text style={{ color: colors.text, fontSize: 14, flex: 1 }}>{getAddr(ride.pickup)}</Text>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14, flex: 1 }}>{getAddr(ride.pickup)}</Text>
               </View>
               <View style={{ width: 2, height: 20, backgroundColor: colors.border, marginLeft: 4, marginBottom: 8 }} />
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.red }} />
-                <Text style={{ color: colors.text, fontSize: 14, flex: 1 }}>{getAddr(ride.drop)}</Text>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14, flex: 1 }}>{getAddr(ride.drop)}</Text>
               </View>
             </View>
 
             {/* Details */}
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
               <Text style={{ color: colors.text3, fontSize: 11, fontWeight: '700', marginBottom: 12 }}>DETAILS</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
                 {[

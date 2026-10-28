@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
 import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
@@ -38,6 +39,7 @@ function fmtDate(d) {
 
 export default function MyBookingsScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const isSeeker = user?.role === 'seeker' || user?.role === 'both';
 
   const [bookings,    setBookings]    = useState([]);
@@ -92,7 +94,7 @@ export default function MyBookingsScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="My Bookings" subtitle="Track your rides and bookings" showBack={navigation.canGoBack()} />
       <ScrollView
         contentContainerStyle={styles.scroll}
