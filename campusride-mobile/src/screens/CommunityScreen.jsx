@@ -11,6 +11,8 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
+import CropView from '../components/CropView';
+import { DarkScope } from '../theme/themed';
 import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, deleteCommunityReply, getChatMessages } from '../services/api';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 import { resetCommunityUnreadCount } from '../hooks/useSocket';
@@ -56,6 +58,7 @@ function timeAgo(dateStr) {
 function PostsTab({ user }) {
   const { isDark } = useTheme();
   const scrollRef = useRef(null);
+  const cropRef = useRef(null);
   const [posts,     setPosts]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [content,   setContent]   = useState('');
@@ -139,89 +142,13 @@ function PostsTab({ user }) {
   const handleRecropStagedImage = async () => {
     if (!stagedAttachment?.uri || uploadingAttachment) return;
     try {
-      const sourceUri = stagedAttachment.originalUri || stagedAttachment.uri;
-      const currentIdx = stagedAttachment.cropIndex || 0;
-      const nextIdx = (currentIdx + 1) % 4; // 0: Original, 1: 1:1 Square, 2: 16:9 Landscape/4:5 Portrait, 3: 4:3
-
-      Image.getSize(sourceUri, async (origWidth, origHeight) => {
-        try {
-          if (nextIdx === 0) {
-            setStagedAttachment(prev => ({
-              ...prev,
-              uri: sourceUri,
-              cropIndex: 0,
-            }));
-            return;
-          }
-
-          let cropAction = null;
-          if (nextIdx === 1) {
-            // 1:1 Square center crop
-            const size = Math.min(origWidth, origHeight);
-            cropAction = {
-              crop: {
-                originX: Math.floor((origWidth - size) / 2),
-                originY: Math.floor((origHeight - size) / 2),
-                width: size,
-                height: size,
-              }
-            };
-          } else if (nextIdx === 2) {
-            // 16:9 Landscape or 4:5 Portrait center crop
-            if (origWidth >= origHeight) {
-              const targetH = Math.min(origHeight, Math.floor(origWidth * 9 / 16));
-              cropAction = {
-                crop: {
-                  originX: 0,
-                  originY: Math.floor((origHeight - targetH) / 2),
-                  width: origWidth,
-                  height: targetH,
-                }
-              };
-            } else {
-              const targetW = Math.min(origWidth, Math.floor(origHeight * 4 / 5));
-              cropAction = {
-                crop: {
-                  originX: Math.floor((origWidth - targetW) / 2),
-                  originY: 0,
-                  width: targetW,
-                  height: origHeight,
-                }
-              };
-            }
-          } else if (nextIdx === 3) {
-            // 4:3 Crop
-            const targetH = Math.min(origHeight, Math.floor(origWidth * 3 / 4));
-            cropAction = {
-              crop: {
-                originX: 0,
-                originY: Math.floor((origHeight - targetH) / 2),
-                width: origWidth,
-                height: targetH,
-              }
-            };
-          }
-
-          if (cropAction) {
-            const manipResult = await ImageManipulator.manipulateAsync(
-              sourceUri,
-              [cropAction],
-              { compress: 0.88, format: ImageManipulator.SaveFormat.JPEG }
-            );
-            if (manipResult?.uri) {
-              setStagedAttachment(prev => ({
-                ...prev,
-                uri: manipResult.uri,
-                cropIndex: nextIdx,
-              }));
-            }
-          }
-        } catch (cropErr) {
-          console.log('[InPlaceCrop] error:', cropErr);
-        }
-      }, (err) => {
-        console.log('[InPlaceCrop] getSize error:', err);
-      });
+      const res = await cropRef.current?.getCropped();
+      if (res?.uri) {
+        setStagedAttachment(prev => ({
+          ...prev,
+          uri: res.uri,
+        }));
+      }
     } catch (err) {
       console.log('[Crop] error:', err);
     }
@@ -251,10 +178,17 @@ function PostsTab({ user }) {
     setUploadingAttachment(true);
     setError('');
     try {
-      const uploadedUrl = await uploadToCloudinaryWithRetry(stagedAttachment.uri, { type: 'image' });
+      let finalUri = stagedAttachment.uri;
+      try {
+        const res = await cropRef.current?.getCropped();
+        if (res?.uri) finalUri = res.uri;
+      } catch (cropErr) {
+        console.log('[Crop] error:', cropErr);
+      }
+      const uploadedUrl = await uploadToCloudinaryWithRetry(finalUri, { type: 'image' });
       if (uploadedUrl) {
         setAttachment({
-          uri: stagedAttachment.uri,
+          uri: finalUri,
           name: stagedAttachment.name,
           type: 'image',
           url: uploadedUrl,
@@ -692,6 +626,7 @@ function PostsTab({ user }) {
           }
         }}
       >
+        <DarkScope>
         <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
           {/* Clean Top Bar: Back Arrow & Title */}
           <View style={{
@@ -721,30 +656,9 @@ function PostsTab({ user }) {
             </View>
           </View>
 
-          {/* Full Screen Image Preview with 3x3 Grid Overlay */}
-          <View style={{ flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', padding: 12 }}>
-            <View style={{ width: '100%', height: '88%', position: 'relative', justifyContent: 'center', alignItems: 'center' }}>
-              {stagedAttachment?.uri ? (
-                <Image
-                  source={{ uri: stagedAttachment.uri }}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="contain"
-                />
-              ) : null}
-
-              {/* Crop Grid Lines (3x3 grid) */}
-              <View pointerEvents="none" style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                borderWidth: 1.5,
-                borderColor: 'rgba(255, 255, 255, 0.45)',
-              }}>
-                <View style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-                <View style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-                <View style={{ position: 'absolute', left: '33.33%', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-                <View style={{ position: 'absolute', left: '66.66%', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-              </View>
-            </View>
+          {/* Interactive crop editor: drag the box / corners, pick a ratio */}
+          <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            <CropView ref={cropRef} uri={stagedAttachment?.uri} accent={colors.accent} />
           </View>
 
           {/* Bottom Floating Staging Bar with ONLY the 4 options: Rotate, Crop, Attach ✓, Cancel ✕ */}
@@ -864,6 +778,7 @@ function PostsTab({ user }) {
             </TouchableOpacity>
           </View>
         </SafeAreaView>
+        </DarkScope>
       </Modal>
 
       {/* Full-Screen Image Viewer Modal for Post Photos */}
