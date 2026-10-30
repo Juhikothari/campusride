@@ -875,6 +875,7 @@ function renderWalkInputs(from, setFrom, to, setTo, time, onOpenTimePicker, isDa
 //  ROUTE ALERTS SCREEN
 // ═══════════════════════════════════════════════════════════════
 export function RouteAlertsScreen({ navigation }) {
+  const { isDark } = useTheme();
   const [alerts,  setAlerts]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
@@ -1784,6 +1785,7 @@ export function IncidentReportScreen({ navigation }) {
 //  FORGOT PASSWORD / OTP RESET SCREEN
 // ═══════════════════════════════════════════════════════════════
 export function ForgotPasswordScreen({ navigation }) {
+  const { isDark } = useTheme();
   const [step,        setStep]        = useState(1); // 1: Email, 2: OTP & New Password, 3: Success
   const [email,       setEmail]       = useState('');
   const [otp,         setOtp]         = useState('');

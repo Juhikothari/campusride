@@ -24,6 +24,7 @@ const KYC_COLOR = {
 
 export default function KYCScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
   const [kycStatus,   setKycStatus]   = useState(null);

@@ -22,6 +22,7 @@ const POPULAR_CAMPUS_SPOTS = [
 ];
 
 export default function MapPickerModal({ visible, onClose, onSelect, initialLocation, title = 'Pick Campus Location' }) {
+  const { isDark } = useTheme();
   const [addressLabel,  setAddressLabel]  = useState('');
   const [coords,        setCoords]        = useState(null);
   const [locating,      setLocating]      = useState(false);

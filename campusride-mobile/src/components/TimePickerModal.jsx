@@ -152,28 +152,67 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
             {/* Period Column */}
             <View style={[styles.verticalCol, { flex: 0.8 }]}>
               <Text style={styles.colHeaderLabel}>AM / PM</Text>
-              <View style={[styles.colScrollWrapper, { justifyContent: 'center', gap: 10, paddingVertical: 10 }]}>
+              <View style={[
+                styles.colScrollWrapper,
+                {
+                  backgroundColor: isDark ? '#0d1117' : '#ffffff',
+                  borderColor: isDark ? '#21262d' : '#cbd5e1',
+                  justifyContent: 'center',
+                  gap: 10,
+                  paddingVertical: 10,
+                }
+              ]}>
                 <TouchableOpacity
-                  style={[styles.periodVBtn, selectedPeriod === 'AM' && styles.periodVBtnActive]}
+                  style={[
+                    styles.periodVBtn,
+                    {
+                      backgroundColor: isDark ? '#161b22' : '#f8fafc',
+                      borderColor: isDark ? '#30363d' : '#e2e8f0',
+                    },
+                    selectedPeriod === 'AM' && styles.periodVBtnActive
+                  ]}
                   onPress={() => setSelectedPeriod('AM')}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.periodVBtnText, selectedPeriod === 'AM' && styles.periodVBtnTextActive]}>
+                  <Text style={[
+                    styles.periodVBtnText,
+                    { color: isDark ? '#c9d1d9' : '#0f172a' },
+                    selectedPeriod === 'AM' && styles.periodVBtnTextActive
+                  ]}>
                     AM
                   </Text>
-                  <Text style={[styles.periodSubText, selectedPeriod === 'AM' && styles.periodSubTextActive]}>
+                  <Text style={[
+                    styles.periodSubText,
+                    { color: isDark ? '#8b949e' : '#64748b' },
+                    selectedPeriod === 'AM' && styles.periodSubTextActive
+                  ]}>
                     Morning
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.periodVBtn, selectedPeriod === 'PM' && styles.periodVBtnActive]}
+                  style={[
+                    styles.periodVBtn,
+                    {
+                      backgroundColor: isDark ? '#161b22' : '#f8fafc',
+                      borderColor: isDark ? '#30363d' : '#e2e8f0',
+                    },
+                    selectedPeriod === 'PM' && styles.periodVBtnActive
+                  ]}
                   onPress={() => setSelectedPeriod('PM')}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.periodVBtnText, selectedPeriod === 'PM' && styles.periodVBtnTextActive]}>
+                  <Text style={[
+                    styles.periodVBtnText,
+                    { color: isDark ? '#c9d1d9' : '#0f172a' },
+                    selectedPeriod === 'PM' && styles.periodVBtnTextActive
+                  ]}>
                     PM
                   </Text>
-                  <Text style={[styles.periodSubText, selectedPeriod === 'PM' && styles.periodSubTextActive]}>
+                  <Text style={[
+                    styles.periodSubText,
+                    { color: isDark ? '#8b949e' : '#64748b' },
+                    selectedPeriod === 'PM' && styles.periodSubTextActive
+                  ]}>
                     Evening
                   </Text>
                 </TouchableOpacity>

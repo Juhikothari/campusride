@@ -86,7 +86,7 @@ function PostsTab({ user }) {
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.8,
       });
       if (!result.canceled && result.assets && result.assets[0]) {
@@ -112,7 +112,7 @@ function PostsTab({ user }) {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.8,
       });
       if (!result.canceled && result.assets && result.assets[0]) {
@@ -493,11 +493,12 @@ function PostsTab({ user }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Image Editor & Staging Modal (Those 4 options inside before attaching) ── */}
+      {/* ── Full-Screen Photo Editor & Cropper Modal (Matching Image 5) ── */}
       <Modal
         visible={showImageEditorModal && Boolean(stagedAttachment)}
-        transparent
-        animationType="slide"
+        transparent={false}
+        animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => {
           if (!uploadingAttachment) {
             setShowImageEditorModal(false);
@@ -505,96 +506,155 @@ function PostsTab({ user }) {
           }
         }}
       >
-        <View style={styles.editorModalBackdrop}>
-          <View style={[styles.editorModalCard, { backgroundColor: isDark ? '#101520' : '#ffffff', borderColor: isDark ? '#212840' : '#e2e8f0' }]}>
-            {/* Header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.editorModalTitle, { color: isDark ? colors.text : '#0f172a' }]}>📷 Edit & Preview Photo</Text>
-                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 12, marginTop: 2 }}>
-                  Rotate or crop before attaching to your post
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => {
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
+          {/* Top Bar: Left Back Arrow, Right 4 Controls (Rotate, Crop, Checkmark Attach, Cross Discard) */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: '#1c2638',
+            backgroundColor: '#0a0e17',
+          }}>
+            <TouchableOpacity
+              onPress={() => {
+                if (!uploadingAttachment) {
                   setShowImageEditorModal(false);
                   setStagedAttachment(null);
-                }}
-                disabled={uploadingAttachment}
-                style={[styles.editorCloseBtn, { backgroundColor: isDark ? '#1a2233' : '#f1f5f9' }]}
-              >
-                <Text style={{ color: isDark ? '#c8d4e6' : '#334155', fontSize: 16, fontWeight: '800' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
+                }
+              }}
+              style={{ padding: 6 }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: '700' }}>←</Text>
+            </TouchableOpacity>
 
-            {/* Large Preview */}
-            <View style={[styles.editorPreviewBox, { backgroundColor: isDark ? '#07090d' : '#f8fafc', borderColor: isDark ? '#212840' : '#cbd5e1' }]}>
-              {stagedAttachment?.uri ? (
-                <Image
-                  source={{ uri: stagedAttachment.uri }}
-                  style={{ width: '100%', height: 260, borderRadius: 8 }}
-                  resizeMode="contain"
-                />
-              ) : null}
-            </View>
-
-            {/* 4 Options Inside Before Attaching: Rotate, Crop, Attach (✓), and Discard (✕) */}
-            <View style={styles.editorButtonsRow}>
+            {/* The 4 options placed at the top right as requested in Image 5 */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {/* 1. Rotate */}
               <TouchableOpacity
                 onPress={handleRotateStagedImage}
                 disabled={uploadingAttachment}
-                style={[styles.editorBtn, { backgroundColor: isDark ? '#1a2233' : '#f1f5f9', borderColor: colors.accent }]}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: '#162235',
+                  borderWidth: 1.5,
+                  borderColor: colors.accent,
+                  borderRadius: radius.md,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                }}
                 activeOpacity={0.75}
               >
-                <Text style={{ fontSize: 16 }}>⟳</Text>
-                <Text style={[styles.editorBtnText, { color: colors.accent }]}>Rotate</Text>
+                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>⟳ Rotate</Text>
               </TouchableOpacity>
 
               {/* 2. Crop */}
               <TouchableOpacity
                 onPress={handleRecropStagedImage}
                 disabled={uploadingAttachment}
-                style={[styles.editorBtn, { backgroundColor: isDark ? '#1a2233' : '#f1f5f9', borderColor: colors.accent }]}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: '#162235',
+                  borderWidth: 1.5,
+                  borderColor: colors.accent,
+                  borderRadius: radius.md,
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                }}
                 activeOpacity={0.75}
               >
-                <Text style={{ fontSize: 16 }}>✂️</Text>
-                <Text style={[styles.editorBtnText, { color: colors.accent }]}>Crop</Text>
+                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>✂️ Crop</Text>
               </TouchableOpacity>
 
               {/* 3. Attach (✓) */}
               <TouchableOpacity
                 onPress={handleConfirmAndUploadAttachment}
                 disabled={uploadingAttachment}
-                style={[styles.editorBtn, styles.editorConfirmBtn]}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: '#2dd4a0',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
                 activeOpacity={0.8}
               >
                 {uploadingAttachment ? (
-                  <ActivityIndicator size="small" color="#000000" />
+                  <ActivityIndicator size="small" color="#000" />
                 ) : (
-                  <>
-                    <Text style={{ fontSize: 16, color: '#000000', fontWeight: '900' }}>✓</Text>
-                    <Text style={[styles.editorBtnText, { color: '#000000', fontWeight: '900' }]}>Attach</Text>
-                  </>
+                  <Text style={{ color: '#000', fontSize: 18, fontWeight: '900' }}>✓</Text>
                 )}
               </TouchableOpacity>
 
               {/* 4. Discard (✕) */}
               <TouchableOpacity
                 onPress={() => {
-                  setShowImageEditorModal(false);
-                  setStagedAttachment(null);
+                  if (!uploadingAttachment) {
+                    setShowImageEditorModal(false);
+                    setStagedAttachment(null);
+                  }
                 }}
                 disabled={uploadingAttachment}
-                style={[styles.editorBtn, { backgroundColor: isDark ? '#2a1a1a' : '#fee2e2', borderColor: colors.red }]}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: 'rgba(255, 82, 82, 0.2)',
+                  borderWidth: 1,
+                  borderColor: colors.red,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
                 activeOpacity={0.75}
               >
-                <Text style={{ fontSize: 16, color: colors.red, fontWeight: '800' }}>✕</Text>
-                <Text style={[styles.editorBtnText, { color: colors.red }]}>Discard</Text>
+                <Text style={{ color: colors.red, fontSize: 16, fontWeight: '900' }}>✕</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+
+          {/* Full Screen Image Preview with 3x3 Grid Overlay (as seen in Image 5) */}
+          <View style={{ flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', padding: 12 }}>
+            <View style={{ width: '100%', height: '85%', position: 'relative', justifyContent: 'center', alignItems: 'center' }}>
+              {stagedAttachment?.uri ? (
+                <Image
+                  source={{ uri: stagedAttachment.uri }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="contain"
+                />
+              ) : null}
+
+              {/* Crop Grid Lines (3x3 grid) */}
+              <View pointerEvents="none" style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0, bottom: 0,
+                borderWidth: 1.5,
+                borderColor: 'rgba(255, 255, 255, 0.45)',
+              }}>
+                {/* Horizontal grid lines */}
+                <View style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
+                <View style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
+                {/* Vertical grid lines */}
+                <View style={{ position: 'absolute', left: '33.33%', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
+                <View style={{ position: 'absolute', left: '66.66%', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
+              </View>
+            </View>
+          </View>
+
+          {/* Bottom helper label */}
+          <View style={{ paddingVertical: 12, alignItems: 'center', backgroundColor: '#0a0e17' }}>
+            <Text style={{ color: '#8b96b0', fontSize: 12 }}>
+              {uploadingAttachment ? '⏳ Uploading & attaching photo…' : 'Tap ✂️ Crop to adjust, ⟳ Rotate to turn, or ✓ to attach to your post'}
+            </Text>
+          </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Posts */}

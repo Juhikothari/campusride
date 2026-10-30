@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert as RNAlert, RefreshControl,
+  Linking, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
 import TopHeader from '../components/TopHeader';
+import { RatingModal } from './ExtraScreens';
 import { useSocket } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -328,6 +330,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                   pending.map(b => {
                     const am = actionMap[b._id] || {};
                     const seeker = b.seekerId;
+                    const isAccepted = b.status === 'accepted';
                     return (
                       <View key={b._id} style={[styles.bookingCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
                         <View style={styles.seekerRow}>

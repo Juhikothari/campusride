@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ActivityIndicator,
+  StyleSheet, ActivityIndicator, Alert as RNAlert,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { colors, radius, spacing } from '../theme';
@@ -66,7 +66,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        alert('Location permission is required to detect your location.');
+        RNAlert.alert('Location permission is required to detect your location.');
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -78,7 +78,7 @@ export default function LocationSearch({ value, onChange, placeholder, label }) 
       setShowResults(false);
       onChange(lbl, lat.toString(), lng.toString());
     } catch {
-      alert('Could not detect location. Please check GPS permissions or search manually.');
+      RNAlert.alert('Could not detect location. Please check GPS permissions or search manually.');
     } finally {
       setDetecting(false);
     }

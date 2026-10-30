@@ -613,16 +613,38 @@ export default function CreateRideScreen({ navigation }) {
               <Text style={[styles.fieldLabel, { marginTop: 8 }]}>SELECT DATE & TIME</Text>
               <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
                 <TouchableOpacity
-                  style={[styles.timeChip, date === new Date().toISOString().split('T')[0] && styles.timeChipActive]}
+                  style={[
+                    styles.timeChip,
+                    {
+                      backgroundColor: isDark ? '#161c2a' : '#f1f5f9',
+                      borderColor: isDark ? '#26344d' : '#cbd5e1',
+                    },
+                    date === new Date().toISOString().split('T')[0] && styles.timeChipActive
+                  ]}
                   onPress={() => setDate(new Date().toISOString().split('T')[0])}
                 >
-                  <Text style={[styles.timeChipText, date === new Date().toISOString().split('T')[0] && styles.timeChipTextActive]}>Today</Text>
+                  <Text style={[
+                    styles.timeChipText,
+                    { color: isDark ? '#8b96b0' : '#475569' },
+                    date === new Date().toISOString().split('T')[0] && styles.timeChipTextActive
+                  ]}>Today</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.timeChip, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.timeChipActive]}
+                  style={[
+                    styles.timeChip,
+                    {
+                      backgroundColor: isDark ? '#161c2a' : '#f1f5f9',
+                      borderColor: isDark ? '#26344d' : '#cbd5e1',
+                    },
+                    date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.timeChipActive
+                  ]}
                   onPress={() => setDate(new Date(Date.now() + 86400000).toISOString().split('T')[0])}
                 >
-                  <Text style={[styles.timeChipText, date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.timeChipTextActive]}>Tomorrow</Text>
+                  <Text style={[
+                    styles.timeChipText,
+                    { color: isDark ? '#8b96b0' : '#475569' },
+                    date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.timeChipTextActive
+                  ]}>Tomorrow</Text>
                 </TouchableOpacity>
               </View>
 
@@ -712,6 +734,10 @@ export default function CreateRideScreen({ navigation }) {
                       key={v.vehicleNumber || idx}
                       style={[
                         styles.vehicleSelectChip,
+                        {
+                          backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                          borderColor: isDark ? '#26344d' : '#cbd5e1',
+                        },
                         isSel && styles.vehicleSelectChipActive
                       ]}
                       onPress={() => handleSelectVehicle(v, idx)}
@@ -719,10 +745,10 @@ export default function CreateRideScreen({ navigation }) {
                     >
                       <Text style={{ fontSize: 16 }}>{v.vehicleType === 'motorcycle' ? '🏍️' : '🚗'}</Text>
                       <View>
-                        <Text style={[styles.vehicleSelectName, isSel && { color: colors.accent }]}>
+                        <Text style={[styles.vehicleSelectName, { color: isDark ? '#edf0f7' : '#0f172a' }, isSel && { color: colors.accent, fontWeight: '800' }]}>
                           {v.vehicleName || 'Vehicle'}
                         </Text>
-                        <Text style={styles.vehicleSelectNum}>{v.vehicleNumber}</Text>
+                        <Text style={[styles.vehicleSelectNum, { color: isDark ? colors.text3 : '#64748b' }]}>{v.vehicleNumber}</Text>
                       </View>
                     </TouchableOpacity>
                   );
@@ -758,13 +784,13 @@ export default function CreateRideScreen({ navigation }) {
             ]}>
               <View style={styles.fareHeader}>
                 <View>
-                  <Text style={styles.fareBadge}>ESTIMATED FARE</Text>
-                  <Text style={styles.fareTitle}>Total Fare Per Passenger</Text>
+                  <Text style={[styles.fareBadge, { color: isDark ? '#2dd4a0' : '#059669' }]}>ESTIMATED FARE</Text>
+                  <Text style={[styles.fareTitle, { color: isDark ? '#f0f6fc' : '#0f172a' }]}>Total Fare Per Passenger</Text>
                 </View>
                 <View style={styles.farePriceBadge}>
                   <Text style={styles.farePriceCurrency}>₹</Text>
                   <Text style={styles.farePriceAmount}>{calcCost(distKm, vehicleType)}</Text>
-                  <Text style={styles.farePricePer}>/ seat</Text>
+                  <Text style={[styles.farePricePer, { color: isDark ? '#8b949e' : '#475569' }]}>/ seat</Text>
                 </View>
               </View>
             </View>
