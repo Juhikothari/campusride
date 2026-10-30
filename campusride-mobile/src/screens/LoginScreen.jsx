@@ -89,6 +89,7 @@ export default function LoginScreen({ navigation }) {
               placeholder="you@college.edu.in"
               keyboardType="email-address"
               autoCapitalize="none"
+              forceDark={true}
               containerStyle={{ marginTop: spacing.md }}
             />
 
@@ -99,6 +100,7 @@ export default function LoginScreen({ navigation }) {
               onChangeText={setPassword}
               placeholder="Your password"
               isPassword
+              forceDark={true}
             />
 
             <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={{ alignSelf: 'flex-end', marginTop: -8, marginBottom: spacing.md }}>
@@ -128,39 +130,39 @@ export default function LoginScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: colors.bg },
+  safe:   { flex: 1, backgroundColor: '#07090d' },
   scroll: { flexGrow: 1, padding: spacing.lg, paddingBottom: 140 },
   logoWrap: { alignItems: 'center', marginBottom: 28 },
   badgeWrap: {
     width: 50, height: 50, borderRadius: 25,
-    backgroundColor: colors.accentDim, borderWidth: 1.5, borderColor: colors.accent,
+    backgroundColor: 'rgba(245,166,35,0.1)', borderWidth: 1.5, borderColor: '#f5a623',
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
   logoBadge: { fontSize: 24 },
   logo: {
     fontSize: 36,
     fontWeight: '900',
-    color: colors.text,
+    color: '#edf0f7',
     letterSpacing: 2,
   },
   tagline: {
-    color: colors.text2,
+    color: '#8b96b0',
     fontSize: 13,
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18,
   },
   card: {
-    backgroundColor: colors.surface,
+    backgroundColor: '#101520',
     borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#212840',
     padding: spacing.xl,
   },
-  title:    { color: colors.text,  fontSize: 24, fontWeight: '800', marginBottom: 4 },
-  subtitle: { color: colors.text2, fontSize: 14, marginBottom: spacing.lg },
-  forgotLink: { color: colors.accent, fontSize: 13 },
+  title:    { color: '#edf0f7',  fontSize: 24, fontWeight: '800', marginBottom: 4 },
+  subtitle: { color: '#8b96b0', fontSize: 14, marginBottom: spacing.lg },
+  forgotLink: { color: '#f5a623', fontSize: 13 },
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: spacing.md, gap: 10 },
-  dividerLine:  { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerLabel: { color: colors.text3, fontSize: 13 },
+  dividerLine:  { flex: 1, height: 1, backgroundColor: '#212840' },
+  dividerLabel: { color: '#4e566d', fontSize: 13 },
 });

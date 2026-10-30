@@ -714,10 +714,10 @@ function DocUploadRow({ label, icon, onUpload, uri }) {
 }
 
 const styles = StyleSheet.create({
-  safe:   { flex: 1, backgroundColor: colors.bg },
+  safe:   { flex: 1, backgroundColor: '#07090d' },
   scroll: { flexGrow: 1, padding: spacing.lg, paddingBottom: 48 },
-  title:    { color: colors.text,  fontSize: 28, fontWeight: '900', marginBottom: 4 },
-  subtitle: { color: colors.text2, fontSize: 14, marginBottom: spacing.lg },
+  title:    { color: '#edf0f7',  fontSize: 28, fontWeight: '900', marginBottom: 4 },
+  subtitle: { color: '#8b96b0', fontSize: 14, marginBottom: spacing.lg },
 
   label: {
     color: colors.text2,

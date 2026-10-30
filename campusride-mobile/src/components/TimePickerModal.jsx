@@ -95,7 +95,7 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
           <View style={[styles.verticalColumnsContainer, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#21262d' : '#cbd5e1' }]}>
             {/* Hours Column */}
             <View style={styles.verticalCol}>
-              <Text style={styles.colHeaderLabel}>HOURS</Text>
+              <Text style={[styles.colHeaderLabel, { color: isDark ? '#8b949e' : '#475569' }]}>HOURS</Text>
               <View style={[styles.colScrollWrapper, { backgroundColor: isDark ? '#0d1117' : '#ffffff', borderColor: isDark ? '#21262d' : '#cbd5e1' }]}>
                 <ScrollView
                   nestedScrollEnabled
@@ -125,7 +125,7 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
 
             {/* Minutes Column */}
             <View style={styles.verticalCol}>
-              <Text style={styles.colHeaderLabel}>MINUTES</Text>
+              <Text style={[styles.colHeaderLabel, { color: isDark ? '#8b949e' : '#475569' }]}>MINUTES</Text>
               <View style={[styles.colScrollWrapper, { backgroundColor: isDark ? '#0d1117' : '#ffffff', borderColor: isDark ? '#21262d' : '#cbd5e1' }]}>
                 <ScrollView
                   nestedScrollEnabled
@@ -151,7 +151,7 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
 
             {/* Period Column */}
             <View style={[styles.verticalCol, { flex: 0.8 }]}>
-              <Text style={styles.colHeaderLabel}>AM / PM</Text>
+              <Text style={[styles.colHeaderLabel, { color: isDark ? '#8b949e' : '#475569' }]}>AM / PM</Text>
               <View style={[
                 styles.colScrollWrapper,
                 {

@@ -23,39 +23,53 @@ router.delete('/:id',         auth, deletePost);
 router.delete('/posts/:id',   auth, deletePost);
 
 // ── Chat messages (college-scoped) ────────────────────────────────
-router.get('/chat/messages', auth, async (req, res) => {
+const handleGetChatMessages = async (req, res) => {
   try {
     const User    = require('../users/users.model');
     const ChatMsg = require('./chatmsg.model');
 
     const user = await User.findById(req.user.userId).select('college role');
-    if (!user?.college) return res.status(400).json({ message: 'College not found' });
+    const collegeParam = req.params?.college ? decodeURIComponent(req.params.college).trim().toLowerCase() : (user?.college || '').trim().toLowerCase();
+    if (!collegeParam) return res.status(400).json({ message: 'College not found' });
 
     const messages = await ChatMsg
-      .find({ college: user.college.trim().toLowerCase() })
+      .find({ college: collegeParam })
       .populate('sender', 'name usn role')
       .sort({ createdAt: 1 })
       .limit(100);
 
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user?.role === 'admin';
     const result = messages.map(m => {
       const obj = m.toObject();
-      if (isAdmin) obj._adminSenderInfo = `${obj.sender?.name} (${obj.sender?.usn || 'no USN'})`;
-      return obj;
+      const isAnon = !!obj.anonymous;
+      return {
+        _id: obj._id,
+        senderId: isAnon ? null : (obj.sender?._id || obj.sender),
+        senderName: isAnon ? 'Anonymous' : (obj.sender?.name || 'User'),
+        senderUsn: isAnon ? '' : (obj.sender?.usn || ''),
+        college: obj.college,
+        message: obj.message,
+        anonymous: isAnon,
+        createdAt: obj.createdAt,
+        ...(isAdmin ? { _adminSenderInfo: `${obj.sender?.name} (${obj.sender?.usn || 'no USN'})` } : {}),
+      };
     });
 
     res.json(result);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
+};
 
-router.delete('/chat/messages/:id', auth, async (req, res) => {
+router.get('/chat/messages', auth, handleGetChatMessages);
+router.get('/chat/:college', auth, handleGetChatMessages);
+
+const handleDeleteChatMessage = async (req, res) => {
   try {
     const ChatMsg = require('./chatmsg.model');
     const msg = await ChatMsg.findById(req.params.id);
     if (!msg) return res.status(404).json({ message: 'Message not found' });
-    if (msg.sender.toString() !== req.user.userId) {
+    if (msg.sender.toString() !== req.user.userId && req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Can only delete your own messages' });
     }
     await msg.deleteOne();
@@ -63,6 +77,9 @@ router.delete('/chat/messages/:id', auth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
-});
+};
+
+router.delete('/chat/messages/:id', auth, handleDeleteChatMessage);
+router.delete('/chat/:id', auth, handleDeleteChatMessage);
 
 module.exports = router;

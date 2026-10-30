@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert as RNAlert, Dimensions, Linking, Modal,
+  ActivityIndicator, Alert as RNAlert, Dimensions, Linking, Modal, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -915,14 +915,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
           {/* ── DETAILS CARD: SHOW PASSENGER DETAILS TO DRIVER, DRIVER DETAILS TO SEEKER (HIDDEN ONCE COMPLETED/CANCELLED) ── */}
           {rideInfo && rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
-            <View style={styles.driverCard}>
+            <View style={[styles.driverCard, { backgroundColor: isDark ? 'rgba(245,166,35,0.07)' : '#ffffff', borderColor: isDark ? 'rgba(245,166,35,0.25)' : '#e2e8f0' }]}>
               {isDriver ? (
                 <>
                   <Text style={styles.driverSectionTitle}>👥 ASSIGNED BUDDY DETAILS ({rideInfo.passengers?.length || 0})</Text>
                   {rideInfo.passengers && rideInfo.passengers.length > 0 ? (
                     <ScrollView horizontal={rideInfo.passengers.length > 1} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingVertical: 4 }}>
                       {rideInfo.passengers.map((p, pIdx) => (
-                        <View key={p.bookingId || pIdx} style={[rideInfo.passengers.length > 1 ? { width: 280, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: colors.border } : { marginBottom: pIdx < rideInfo.passengers.length - 1 ? 12 : 0 }]}>
+                        <View key={p.bookingId || pIdx} style={[rideInfo.passengers.length > 1 ? { width: 280, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#f8fafc', borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: isDark ? colors.border : '#e2e8f0' } : { marginBottom: pIdx < rideInfo.passengers.length - 1 ? 12 : 0 }]}>
                           <View style={styles.driverRow}>
                             <View style={[styles.driverAvatar, { borderColor: colors.green }]}>
                               <Text style={[styles.driverAvatarText, { color: colors.green }]}>
@@ -930,7 +930,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                               </Text>
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={styles.driverName}>🪪 USN: {p.seeker?.usn && p.seeker.usn.toUpperCase() !== 'STUDENT' ? (p.seeker.usn.length > 3 ? p.seeker.usn.slice(-3).toUpperCase() : p.seeker.usn.toUpperCase()) : 'Buddy'}</Text>
+                              <Text style={[styles.driverName, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {p.seeker?.usn && p.seeker.usn.toUpperCase() !== 'STUDENT' ? (p.seeker.usn.length > 3 ? p.seeker.usn.slice(-3).toUpperCase() : p.seeker.usn.toUpperCase()) : 'Buddy'}</Text>
                               <Text style={styles.driverVehicleName}>
                                 💺 {p.seats || 1} Seat(s) Booked • {p.status?.toUpperCase() || 'CONFIRMED'}
                               </Text>
@@ -953,7 +953,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                             {p.seeker?.college && (
                               <View style={styles.driverGridItem}>
                                 <Text style={styles.driverGridLabel}>CAMPUS</Text>
-                                <Text style={styles.driverGridVal}>{p.seeker.college}</Text>
+                                <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]}>{p.seeker.college}</Text>
                               </View>
                             )}
                           </View>
@@ -976,7 +976,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       <Text style={styles.driverAvatarText}>🪪</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.driverName}>🪪 USN: {rideInfo?.providerId?.usn && rideInfo.providerId.usn.toUpperCase() !== 'STUDENT' ? rideInfo.providerId.usn : (rideInfo?.providerId?.name || 'Campus Provider')}</Text>
+                      <Text style={[styles.driverName, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {rideInfo?.providerId?.usn && rideInfo.providerId.usn.toUpperCase() !== 'STUDENT' ? rideInfo.providerId.usn : (rideInfo?.providerId?.name || 'Campus Provider')}</Text>
                       <Text style={styles.driverVehicleName}>
                         🚘 {rideInfo?.vehicleName || rideInfo?.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(rideInfo?.vehicleType || 'Car').toUpperCase()}
                       </Text>
@@ -994,7 +994,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     {rideInfo?.providerId?.usn && rideInfo.providerId.usn.toUpperCase() !== 'STUDENT' && (
                       <View style={styles.driverGridItem}>
                         <Text style={styles.driverGridLabel}>USN</Text>
-                        <Text style={styles.driverGridVal}>{rideInfo.providerId.usn}</Text>
+                        <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]}>{rideInfo.providerId.usn}</Text>
                       </View>
                     )}
                     {rideInfo?.providerId?.phone && (
@@ -1025,7 +1025,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
           {/* ── DRIVER TRIP CONTROLS CARD ── */}
           {isDriver && (
-            <View style={styles.driverControlCard}>
+            <View style={[styles.driverControlCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: colors.accent }]}>
               <Text style={styles.driverControlTitle}>🚗 DRIVER TRIP CONTROLS</Text>
               
               {rideInfo?.status === 'in-progress' ? (
@@ -1045,10 +1045,10 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                     <TouchableOpacity
-                      style={styles.driverSubBtn}
+                      style={[styles.driverSubBtn, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}
                       onPress={() => navigation.navigate('ProviderBookings')}
                     >
-                      <Text style={styles.driverSubBtnText}>👥 Passengers</Text>
+                      <Text style={[styles.driverSubBtnText, { color: isDark ? colors.text2 : '#475569' }]}>👥 Passengers</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -1160,11 +1160,11 @@ export default function LiveTrackingScreen({ navigation, route }) {
           {!isDriver && (rideInfo?.status === 'active' || rideInfo?.status === 'in-progress') && (
             <View style={{ gap: 10, marginBottom: 12 }}>
               {/* Seeker Fare To Pay Card */}
-              <View style={styles.seekerFareCard}>
+              <View style={[styles.seekerFareCard, { backgroundColor: isDark ? 'rgba(45, 212, 160, 0.12)' : '#ffffff', borderColor: '#2dd4a0' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                   <View>
                     <Text style={styles.seekerFareTag}>💰 FARE TO PAY PROVIDER</Text>
-                    <Text style={styles.seekerFareSub}>Direct to driver via UPI or Cash</Text>
+                    <Text style={[styles.seekerFareSub, { color: isDark ? colors.text2 : '#475569' }]}>Direct to driver via UPI or Cash</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={styles.seekerFareAmount}>₹{rideInfo?.costPerSeat || 49}</Text>
@@ -1211,7 +1211,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
               )}
 
               <TouchableOpacity
-                style={styles.passengerCancelBtn}
+                style={[styles.passengerCancelBtn, { backgroundColor: isDark ? '#141824' : '#fff1f2', borderColor: isDark ? colors.red + '55' : '#fca5a5' }]}
                 onPress={handleCancelBooking}
                 disabled={actionLoading}
               >

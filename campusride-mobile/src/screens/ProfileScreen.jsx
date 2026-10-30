@@ -16,11 +16,11 @@ import * as api from '../services/api';
 const ROLE_LABEL  = { provider: 'Provider', seeker: 'Seeker', both: 'Provider & Seeker', admin: 'Admin' };
 const KYC_COLOR   = { approved: colors.green, pending: colors.accent, rejected: colors.red, not_submitted: colors.text3, not_required: colors.text3 };
 
-function ProfileRow({ label, value, accent }) {
+function ProfileRow({ label, value, accent, isDark }) {
   return (
     <View style={styles.profileRow}>
-      <Text style={styles.profileLabel}>{label}</Text>
-      <Text style={[styles.profileValue, accent && { color: colors.accent, fontWeight: '700' }]}>{value || '—'}</Text>
+      <Text style={[styles.profileLabel, { color: isDark ? colors.text2 : '#475569' }]}>{label}</Text>
+      <Text style={[styles.profileValue, { color: isDark ? colors.text : '#0f172a' }, accent && { color: colors.accent, fontWeight: '700' }]}>{value || '—'}</Text>
     </View>
   );
 }
@@ -54,9 +54,6 @@ export default function ProfileScreen({ navigation }) {
   const [vErr,             setVErr]             = useState('');
   const [completedRidesCount, setCompletedRidesCount] = useState(0);
   const [ratingsList, setRatingsList] = useState([]);
-  const [editingUsn, setEditingUsn] = useState(false);
-  const [newUsn, setNewUsn] = useState('');
-  const [usnLoading, setUsnLoading] = useState(false);
 
   const VEHICLES_STORAGE_KEY = '@user_registered_vehicles_list';
 
@@ -293,27 +290,6 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const handleUsnSave = async () => {
-    if (!newUsn.trim()) {
-      RNAlert.alert('Error', 'Please enter a valid USN');
-      return;
-    }
-    setUsnLoading(true);
-    try {
-      const cleanUsn = newUsn.trim().toUpperCase();
-      await api.updateProfile({ usn: cleanUsn });
-      setProfile(prev => ({ ...prev, usn: cleanUsn }));
-      const stored = await api.getUser();
-      if (stored) await api.setUser({ ...stored, usn: cleanUsn });
-      setEditingUsn(false);
-      RNAlert.alert('✅ USN Updated', 'Your college USN has been saved.');
-    } catch (e) {
-      RNAlert.alert('Error', e.message || 'Failed to update USN');
-    } finally {
-      setUsnLoading(false);
-    }
-  };
-
   const handleEmergencySave = async () => {
     setEmergencyError('');
     const cleaned = newEmergency.replace(/\D/g, '').slice(0, 10);
@@ -417,44 +393,7 @@ export default function ProfileScreen({ navigation }) {
 
           <ProfileRow isDark={isDark} label="Full Name"      value={p?.name} />
           <ProfileRow isDark={isDark} label="Email"          value={p?.email} />
-          <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>USN</Text>
-            <View style={{ flex: 1 }}>
-              {editingUsn ? (
-                <View style={{ gap: 8 }}>
-                  <Input
-                    value={newUsn}
-                    onChangeText={t => setNewUsn(t.toUpperCase().replace(/\s/g, ''))}
-                    placeholder="e.g. 1RN21CS045"
-                    autoCapitalize="characters"
-                    maxLength={15}
-                    containerStyle={{ marginBottom: 0 }}
-                  />
-                  <Text style={{ color: colors.text3, fontSize: 11 }}>
-                    ⚠️ Note: USN once added cannot be edited for campus verification integrity.
-                  </Text>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Btn label="Save" onPress={handleUsnSave} loading={usnLoading} style={{ flex: 1 }} />
-                    <Btn label="Cancel" onPress={() => setEditingUsn(false)} variant="outline" style={{ flex: 1 }} />
-                  </View>
-                </View>
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={styles.profileValue}>
-                    {p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? p.usn : 'Not Set'}
-                  </Text>
-                  {/* USN once added cannot be edited */}
-                  {!(p?.usn && p.usn.toUpperCase() !== 'STUDENT') && (
-                    <TouchableOpacity onPress={() => { setNewUsn(''); setEditingUsn(true); }}>
-                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                        Set USN
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-            </View>
-          </View>
+          <ProfileRow isDark={isDark} label="USN"            value={p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? p.usn : '—'} />
           <ProfileRow isDark={isDark} label="College"        value={p?.college} />
           <ProfileRow isDark={isDark} label="Gender"         value={p?.gender?.replace(/_/g, ' ')} />
           {/* Emergency Contact — editable with strict 10-digit limit */}

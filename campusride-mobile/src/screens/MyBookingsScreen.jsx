@@ -119,7 +119,7 @@ export default function MyBookingsScreen({ navigation }) {
             const provider    = ride?.providerId;
 
             return (
-              <View key={b._id} style={[styles.card, isCancelled && styles.cardCancelled]}>
+              <View key={b._id} style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, isCancelled && styles.cardCancelled]}>
                 {/* Header */}
                 <View style={styles.cardHeader}>
                   <Text style={[styles.bookingId, { color: isDark ? colors.text : '#0f172a' }]}>Booking #{b._id.slice(-6).toUpperCase()}</Text>
@@ -258,11 +258,11 @@ export default function MyBookingsScreen({ navigation }) {
   );
 }
 
-function MetaItem({ label, value, accent }) {
+function MetaItem({ isDark, label, value, accent }) {
   return (
     <View style={{ width: '48%', marginBottom: 10 }}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={[styles.metaValue, accent && { color: colors.accent }]}>{value}</Text>
+      <Text style={[styles.metaLabel, { color: isDark ? colors.text3 : '#64748b' }]}>{label}</Text>
+      <Text style={[styles.metaValue, { color: isDark ? colors.text2 : '#1e293b' }, accent && { color: colors.accent }]}>{value}</Text>
     </View>
   );
 }

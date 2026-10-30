@@ -56,9 +56,10 @@ export function Btn({ label, onPress, variant = 'primary', loading = false, disa
 }
 
 // ── Input ─────────────────────────────────────────────
-export function Input({ label, error, icon, rightIcon, isPassword, style, containerStyle, secureTextEntry, ...props }) {
+export function Input({ label, error, icon, rightIcon, isPassword, style, containerStyle, secureTextEntry, forceDark = false, ...props }) {
   const [showPassword, setShowPassword] = useState(false);
-  const { isDark } = useTheme();
+  const themeCtx = useTheme();
+  const isDark = forceDark || (themeCtx?.isDark ?? true);
   const isSecure = isPassword ? !showPassword : secureTextEntry;
 
   return (
@@ -75,11 +76,14 @@ export function Input({ label, error, icon, rightIcon, isPassword, style, contai
         <TextInput
           style={[
             styles.input,
+            { color: isDark ? '#edf0f7' : '#0f172a' },
             icon && { paddingLeft: 40 },
             (rightIcon || isPassword) && { paddingRight: isPassword ? 48 : 44 },
             style
           ]}
-          placeholderTextColor={colors.text3}
+          placeholderTextColor={isDark ? colors.text3 : '#94a3b8'}
+          cursorColor="#f5a623"
+          selectionColor="rgba(245,166,35,0.3)"
           autoCapitalize="none"
           autoCorrect={false}
           spellCheck={false}

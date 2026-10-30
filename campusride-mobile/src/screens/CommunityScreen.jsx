@@ -96,8 +96,10 @@ function PostsTab({ user }) {
         // Cropping an image only crops — stages it locally, does NOT attach until tick mark is clicked
         setStagedAttachment({
           uri: asset.uri,
+          originalUri: asset.uri,
           name: asset.fileName || `post_image_${Date.now()}.jpg`,
           type: 'image',
+          cropIndex: 0,
         });
         setShowImageEditorModal(true);
       }
@@ -122,8 +124,10 @@ function PostsTab({ user }) {
         // Cropping an image only crops — stages it locally, does NOT attach until tick mark is clicked
         setStagedAttachment({
           uri: asset.uri,
+          originalUri: asset.uri,
           name: `camera_${Date.now()}.jpg`,
           type: 'image',
+          cropIndex: 0,
         });
         setShowImageEditorModal(true);
       }
@@ -132,23 +136,94 @@ function PostsTab({ user }) {
     }
   };
 
-    const handleRecropStagedImage = async () => {
+  const handleRecropStagedImage = async () => {
+    if (!stagedAttachment?.uri || uploadingAttachment) return;
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.8,
+      const sourceUri = stagedAttachment.originalUri || stagedAttachment.uri;
+      const currentIdx = stagedAttachment.cropIndex || 0;
+      const nextIdx = (currentIdx + 1) % 4; // 0: Original, 1: 1:1 Square, 2: 16:9 Landscape/4:5 Portrait, 3: 4:3
+
+      Image.getSize(sourceUri, async (origWidth, origHeight) => {
+        try {
+          if (nextIdx === 0) {
+            setStagedAttachment(prev => ({
+              ...prev,
+              uri: sourceUri,
+              cropIndex: 0,
+            }));
+            return;
+          }
+
+          let cropAction = null;
+          if (nextIdx === 1) {
+            // 1:1 Square center crop
+            const size = Math.min(origWidth, origHeight);
+            cropAction = {
+              crop: {
+                originX: Math.floor((origWidth - size) / 2),
+                originY: Math.floor((origHeight - size) / 2),
+                width: size,
+                height: size,
+              }
+            };
+          } else if (nextIdx === 2) {
+            // 16:9 Landscape or 4:5 Portrait center crop
+            if (origWidth >= origHeight) {
+              const targetH = Math.min(origHeight, Math.floor(origWidth * 9 / 16));
+              cropAction = {
+                crop: {
+                  originX: 0,
+                  originY: Math.floor((origHeight - targetH) / 2),
+                  width: origWidth,
+                  height: targetH,
+                }
+              };
+            } else {
+              const targetW = Math.min(origWidth, Math.floor(origHeight * 4 / 5));
+              cropAction = {
+                crop: {
+                  originX: Math.floor((origWidth - targetW) / 2),
+                  originY: 0,
+                  width: targetW,
+                  height: origHeight,
+                }
+              };
+            }
+          } else if (nextIdx === 3) {
+            // 4:3 Crop
+            const targetH = Math.min(origHeight, Math.floor(origWidth * 3 / 4));
+            cropAction = {
+              crop: {
+                originX: 0,
+                originY: Math.floor((origHeight - targetH) / 2),
+                width: origWidth,
+                height: targetH,
+              }
+            };
+          }
+
+          if (cropAction) {
+            const manipResult = await ImageManipulator.manipulateAsync(
+              sourceUri,
+              [cropAction],
+              { compress: 0.88, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            if (manipResult?.uri) {
+              setStagedAttachment(prev => ({
+                ...prev,
+                uri: manipResult.uri,
+                cropIndex: nextIdx,
+              }));
+            }
+          }
+        } catch (cropErr) {
+          console.log('[InPlaceCrop] error:', cropErr);
+        }
+      }, (err) => {
+        console.log('[InPlaceCrop] getSize error:', err);
       });
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const asset = result.assets[0];
-        setStagedAttachment({
-          uri: asset.uri,
-          name: asset.fileName || `cropped_${Date.now()}.jpg`,
-          type: 'image',
-        });
-      }
     } catch (err) {
-      RNAlert.alert('Crop Error', err.message);
+      console.log('[Crop] error:', err);
     }
   };
 
@@ -445,6 +520,58 @@ function PostsTab({ user }) {
             scrollEnabled={true}
             maxLength={500}
           />
+          {/* Staged Image Card (Before Attachment: Rotate, Crop, Attach tick, and Reject cross) */}
+          {stagedAttachment && !attachment && (
+            <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.accent, borderWidth: 1.5, padding: 8 }]}>
+              <Image source={{ uri: stagedAttachment.uri }} style={styles.attachmentPreviewThumb} />
+              <View style={{ flex: 1, paddingHorizontal: 6 }}>
+                <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{stagedAttachment.name}</Text>
+                <Text style={{ color: colors.accent, fontSize: 10.5, fontWeight: '700' }}>
+                  {uploadingAttachment ? '⏳ Attaching…' : '📷 Staged — tap ✓ to attach'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleRotateStagedImage}
+                disabled={uploadingAttachment}
+                style={[styles.inlineStagingBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: colors.accent }]}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 13, color: colors.accent }}>⟳</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleRecropStagedImage}
+                disabled={uploadingAttachment}
+                style={[styles.inlineStagingBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: colors.accent }]}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 13, color: colors.accent }}>✂️</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleConfirmAndUploadAttachment}
+                disabled={uploadingAttachment}
+                style={[styles.inlineStagingBtn, { backgroundColor: '#2dd4a0', borderColor: '#2dd4a0' }]}
+                activeOpacity={0.8}
+              >
+                {uploadingAttachment ? (
+                  <ActivityIndicator size="small" color="#000" />
+                ) : (
+                  <Text style={{ color: '#000', fontSize: 14, fontWeight: '900' }}>✓</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setStagedAttachment(null)}
+                disabled={uploadingAttachment}
+                style={[styles.inlineStagingBtn, { backgroundColor: 'rgba(255,82,82,0.15)', borderColor: colors.red }]}
+              >
+                <Text style={{ color: colors.red, fontSize: 14, fontWeight: '900' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Attached Image Preview (After Attachment: Rotate, Crop, and Attach options REMOVED) */}
           {attachment && (
             <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.green, borderWidth: 1.5 }]}>
@@ -620,36 +747,39 @@ function PostsTab({ user }) {
             </View>
           </View>
 
-          {/* Bottom Floating Staging Bar with ONLY the 4 options: Rotate, Crop, Upload ✓, Reject ✕ */}
+          {/* Bottom Floating Staging Bar with ONLY the 4 options: Rotate, Crop, Attach ✓, Cancel ✕ */}
           <View style={{
-            paddingHorizontal: 16,
-            paddingVertical: 14,
+            paddingHorizontal: 8,
+            paddingVertical: 12,
             backgroundColor: '#0a0e17',
             borderTopWidth: 1,
             borderTopColor: '#1c2638',
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'space-around',
+            justifyContent: 'space-between',
           }}>
             {/* 1. Rotate */}
             <TouchableOpacity
               onPress={handleRotateStagedImage}
               disabled={uploadingAttachment}
               style={{
+                flex: 1,
+                marginHorizontal: 3,
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 6,
+                justifyContent: 'center',
+                gap: 4,
                 backgroundColor: '#162235',
-                borderWidth: 1.5,
+                borderWidth: 1.2,
                 borderColor: colors.accent,
                 borderRadius: radius.md,
-                paddingHorizontal: 14,
                 paddingVertical: 10,
+                paddingHorizontal: 2,
               }}
               activeOpacity={0.75}
             >
-              <Text style={{ fontSize: 16 }}>⟳</Text>
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Rotate</Text>
+              <Text style={{ fontSize: 14 }}>⟳</Text>
+              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }} numberOfLines={1}>Rotate</Text>
             </TouchableOpacity>
 
             {/* 2. Crop */}
@@ -657,34 +787,40 @@ function PostsTab({ user }) {
               onPress={handleRecropStagedImage}
               disabled={uploadingAttachment}
               style={{
+                flex: 1,
+                marginHorizontal: 3,
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 6,
+                justifyContent: 'center',
+                gap: 4,
                 backgroundColor: '#162235',
-                borderWidth: 1.5,
+                borderWidth: 1.2,
                 borderColor: colors.accent,
                 borderRadius: radius.md,
-                paddingHorizontal: 14,
                 paddingVertical: 10,
+                paddingHorizontal: 2,
               }}
               activeOpacity={0.75}
             >
-              <Text style={{ fontSize: 16 }}>✂️</Text>
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Crop</Text>
+              <Text style={{ fontSize: 14 }}>✂️</Text>
+              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }} numberOfLines={1}>Crop</Text>
             </TouchableOpacity>
 
-            {/* 3. Upload / Attach (✓) */}
+            {/* 3. Attach (✓) */}
             <TouchableOpacity
               onPress={handleConfirmAndUploadAttachment}
               disabled={uploadingAttachment}
               style={{
+                flex: 1,
+                marginHorizontal: 3,
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 6,
+                justifyContent: 'center',
+                gap: 4,
                 backgroundColor: '#2dd4a0',
                 borderRadius: radius.md,
-                paddingHorizontal: 16,
                 paddingVertical: 10,
+                paddingHorizontal: 2,
               }}
               activeOpacity={0.8}
             >
@@ -692,13 +828,13 @@ function PostsTab({ user }) {
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <Text style={{ color: '#000', fontSize: 16, fontWeight: '900' }}>✓</Text>
-                  <Text style={{ color: '#000', fontSize: 13, fontWeight: '900' }}>Upload</Text>
+                  <Text style={{ color: '#000', fontSize: 14, fontWeight: '900' }}>✓</Text>
+                  <Text style={{ color: '#000', fontSize: 12, fontWeight: '900' }} numberOfLines={1}>Attach</Text>
                 </>
               )}
             </TouchableOpacity>
 
-            {/* 4. Reject / Cancel (✕) */}
+            {/* 4. Cancel (✕) */}
             <TouchableOpacity
               onPress={() => {
                 if (!uploadingAttachment) {
@@ -708,20 +844,23 @@ function PostsTab({ user }) {
               }}
               disabled={uploadingAttachment}
               style={{
+                flex: 1,
+                marginHorizontal: 3,
                 flexDirection: 'row',
                 alignItems: 'center',
-                gap: 6,
+                justifyContent: 'center',
+                gap: 4,
                 backgroundColor: 'rgba(255, 82, 82, 0.2)',
-                borderWidth: 1.5,
+                borderWidth: 1.2,
                 borderColor: colors.red,
                 borderRadius: radius.md,
-                paddingHorizontal: 14,
                 paddingVertical: 10,
+                paddingHorizontal: 2,
               }}
               activeOpacity={0.75}
             >
-              <Text style={{ color: colors.red, fontSize: 16, fontWeight: '900' }}>✕</Text>
-              <Text style={{ color: colors.red, fontSize: 13, fontWeight: '800' }}>Reject</Text>
+              <Text style={{ color: colors.red, fontSize: 14, fontWeight: '900' }}>✕</Text>
+              <Text style={{ color: colors.red, fontSize: 12, fontWeight: '800' }} numberOfLines={1}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -957,7 +1096,7 @@ function CollegeChatTab({ user }) {
   useEffect(() => {
     if (!user?.college) return;
     getChatMessages(user.college)
-      .then(data => setMessages(Array.isArray(data) ? data.reverse() : []))
+      .then(data => setMessages(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
 
@@ -1323,6 +1462,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+  },
+  inlineStagingBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
   },
   removeAttachmentBtn: {
     width: 26,

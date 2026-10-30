@@ -193,32 +193,32 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
           </View>
 
           {/* Selected Location Banner */}
-          <View style={styles.selectedCard}>
+          <View style={[styles.selectedCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
             <Text style={styles.cardHeader}>SELECTED LOCATION</Text>
             <View style={styles.selectedRow}>
               <View style={styles.pinCircle}>
                 <Text style={{ fontSize: 18 }}>📍</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.selectedAddress}>{addressLabel || 'Locating...'}</Text>
+                <Text style={[styles.selectedAddress, { color: isDark ? colors.text : '#0f172a' }]}>{addressLabel || 'Locating...'}</Text>
                 {coords && (
-                  <Text style={styles.coordSub}>GPS: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</Text>
+                  <Text style={[styles.coordSub, { color: isDark ? colors.text3 : '#64748b' }]}>GPS: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</Text>
                 )}
               </View>
             </View>
           </View>
 
           {/* Quick Campus Landmarks */}
-          <Text style={styles.sectionTitle}>🏫 QUICK CAMPUS LANDMARKS</Text>
+          <Text style={[styles.sectionTitle, { color: isDark ? colors.text2 : '#475569' }]}>🏫 QUICK CAMPUS LANDMARKS</Text>
           <View style={styles.spotsGrid}>
             {POPULAR_CAMPUS_SPOTS.map((spot, i) => (
               <TouchableOpacity
                 key={i}
-                style={[styles.spotChip, addressLabel === spot && styles.spotChipActive]}
+                style={[styles.spotChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }, addressLabel === spot && styles.spotChipActive]}
                 onPress={() => selectSpot(spot)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.spotText, addressLabel === spot && styles.spotTextActive]}>
+                <Text style={[styles.spotText, { color: isDark ? colors.text2 : '#475569' }, addressLabel === spot && styles.spotTextActive]}>
                   {spot}
                 </Text>
               </TouchableOpacity>
@@ -227,7 +227,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
         </ScrollView>
 
         {/* Bottom Confirm */}
-        <View style={styles.bottomBar}>
+        <View style={[styles.bottomBar, { backgroundColor: isDark ? colors.surface : '#ffffff', borderTopColor: isDark ? colors.border : '#e2e8f0' }]}>
           <TouchableOpacity
             style={[styles.confirmBtn, !addressLabel && { opacity: 0.5 }]}
             onPress={handleConfirm}

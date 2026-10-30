@@ -153,8 +153,9 @@ io.on("connection", (socket) => {
 
       const collegeRoom = `college-${user.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
       if (!socket.rooms.has(collegeRoom)) {
-        socket.emit('college-chat-error', { message: 'You are not in this college room' });
-        return;
+        socket.join(collegeRoom);
+        socket.collegeRoom = collegeRoom;
+        socket.userCollege = user.college;
       }
 
       const isAnon = !!anonymous;

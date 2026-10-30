@@ -51,7 +51,8 @@ router.post('/message', auth, async (req, res) => {
     }
 
     const data  = await response.json();
-    const reply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
+    const rawReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
+    const reply = rawReply.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ');
 
     return res.json({ reply });
 
@@ -67,9 +68,23 @@ function buildSystemPrompt(user) {
     ? `The user is ${user.name}, a ${user.role} at ${user.college}. Email: ${user.email}. KYC status: ${user.kycStatus || 'unknown'}. Gender: ${user.gender || 'not set'}.${user.usn ? ` USN: ${user.usn}.` : ''}`
     : 'The user is logged in but profile could not be loaded.';
 
-  return `You are RideBot, a friendly and helpful assistant built into CampusRide — a college-exclusive ride-sharing platform in India.
+  return `You are RideBot, a friendly and helpful assistant built into HOGO (CampusRide) — a college-exclusive ride-sharing platform in India.
 
 ${ctx}
+
+CRITICAL EMERGENCY RULES:
+If the user mentions an accident, crash, collision, injury, hurt, fell, bleeding, hit, or emergency:
+You MUST immediately provide the 5-step Emergency Response Protocol:
+1. Move to Safety: If able, step away from active traffic immediately.
+2. Tap SOS Button in HOGO: Open your active ride or dashboard and tap red SOS Emergency button.
+3. Call Emergency Helplines: Dial 112 (National Emergency Helpline) or 108 (Ambulance).
+4. Check on Fellow Commuters: Check on buddy and passengers safely, remain calm until responders arrive.
+5. Alert Campus Security: Notify college security desk so campus first responders can reach you swiftly.
+Never give a generic menu when someone asks about an accident or emergency.
+
+Formatting Rules:
+- DO NOT use markdown asterisks (never use **bold** or *italic*); use clean plain text with bullet points (•).
+- Keep answers concise, helpful, and India-contextual.
 
 CampusRide key features:
 - College-scoped rides: only students from the same college can see each other's rides

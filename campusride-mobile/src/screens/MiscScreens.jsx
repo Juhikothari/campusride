@@ -230,6 +230,20 @@ export function RideDetailScreen({ navigation, route }) {
             )}
           </>
         )}
+
+        {!ride && !loading && (
+          <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0', alignItems: 'center', padding: 24 }]}>
+            <Text style={{ fontSize: 48, marginBottom: 12 }}>🏁</Text>
+            <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 18, fontWeight: '800', marginBottom: 6 }}>
+              Ride Information Unavailable
+            </Text>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, textAlign: 'center', marginBottom: 20 }}>
+              This ride has completed, expired, or was removed. You can review your past rides in My Bookings.
+            </Text>
+            <Btn label="📑 View My Bookings" onPress={() => navigation.navigate('MyBookings')} style={{ width: '100%', marginBottom: 10 }} />
+            <Btn label="← Back to Dashboard" onPress={() => navigation.navigate('Home')} variant="outline" style={{ width: '100%' }} />
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -281,17 +295,22 @@ export function NotificationsScreen({ navigation }) {
   };
 
   const handleNotifPress = (item) => {
-    setReadIds(prev => {
-      const next = new Set(prev).add(item.id);
-      AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...next])).catch(() => {});
-      const remaining = allNotifs.filter(n => !next.has(n.id) && !n.isRead).length;
-      DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', Math.max(0, remaining));
-      return next;
-    });
-    if (item.id) {
-      api.request(`/notifications/${item.id}/read`, { method: 'PUT' }).catch(() => {});
+    try {
+      setReadIds(prev => {
+        const next = new Set(prev).add(item.id);
+        AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...next])).catch(() => {});
+        const remaining = allNotifs.filter(n => !next.has(n.id) && !n.isRead).length;
+        DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', Math.max(0, remaining));
+        return next;
+      });
+      if (item.id) {
+        api.request(`/notifications/${item.id}/read`, { method: 'PUT' }).catch(() => {});
+      }
+      if (item.onPress) item.onPress();
+    } catch (err) {
+      console.log('[NotificationPress] Handled gracefully:', err);
+      try { navigation.navigate('Home'); } catch {}
     }
-    if (item.onPress) item.onPress();
   };
 
   const NOTIF_TYPE = {
@@ -313,8 +332,19 @@ export function NotificationsScreen({ navigation }) {
     body:  n.body || n.message || '',
     time:  n.createdAt,
     onPress: () => {
-      if (n.data?.rideId) navigation.navigate('LiveTracking', { rideId: n.data.rideId });
-      else navigation.navigate('Home');
+      try {
+        const rideId = n.data?.rideId;
+        const type = (n.type || '').toUpperCase();
+        if (type.includes('COMPLETED') || type.includes('CANCELLED')) {
+          navigation.navigate('MyBookings');
+        } else if (rideId) {
+          navigation.navigate('LiveTracking', { rideId });
+        } else {
+          navigation.navigate('Home');
+        }
+      } catch (err) {
+        navigation.navigate('Home');
+      }
     }
   }));
 
@@ -327,7 +357,20 @@ export function NotificationsScreen({ navigation }) {
     title: `Booking ${b.status}`,
     body:  `${b.rideId?.pickup?.address?.split(',')[0] || 'Pickup'} → ${b.rideId?.drop?.address?.split(',')[0] || 'Drop'}`,
     time:  b.updatedAt || b.createdAt,
-    onPress: () => navigation.navigate('RideDetail', { rideId: b.rideId?._id || b.rideId }),
+    onPress: () => {
+      try {
+        const rideId = b.rideId?._id || b.rideId;
+        if (b.status === 'completed' || b.status === 'cancelled' || b.status === 'rejected') {
+          navigation.navigate('MyBookings');
+        } else if (rideId) {
+          navigation.navigate('RideDetail', { rideId });
+        } else {
+          navigation.navigate('MyBookings');
+        }
+      } catch (err) {
+        navigation.navigate('MyBookings');
+      }
+    },
   }));
 
   const providerNotifs = myRides.flatMap(r =>
@@ -339,7 +382,13 @@ export function NotificationsScreen({ navigation }) {
       title: 'New booking request',
       body:  `${r.pickup?.address?.split(',')[0] || '?'} → ${r.drop?.address?.split(',')[0] || '?'}`,
       time:  b.createdAt,
-      onPress: () => navigation.navigate('ProviderBookings'),
+      onPress: () => {
+        try {
+          navigation.navigate('ProviderBookings');
+        } catch (err) {
+          navigation.navigate('Home');
+        }
+      },
     }))
   );
 
@@ -998,6 +1047,7 @@ const RIDER_ROAD_INCIDENT_CATEGORIES = [
 
 export function IncidentReportScreen({ navigation }) {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
   const [activeTab, setActiveTab] = useState('new'); // 'new' | 'history'
@@ -1189,7 +1239,7 @@ export function IncidentReportScreen({ navigation }) {
     : RIDER_ROAD_INCIDENT_CATEGORIES;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: '#090D16' }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? '#090D16' : '#f8fafc' }]} edges={['top']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1204,10 +1254,10 @@ export function IncidentReportScreen({ navigation }) {
             <Text style={{ color: '#F5A623', fontSize: 11, fontWeight: '800', letterSpacing: 1.8, marginBottom: 4 }}>
               — SAFETY
             </Text>
-            <Text style={{ color: '#FFFFFF', fontSize: 26, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 }}>
+            <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 26, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 }}>
               Incident Report
             </Text>
-            <Text style={{ color: '#8E9BAE', fontSize: 13 }}>
+            <Text style={{ color: isDark ? '#8E9BAE' : '#64748b', fontSize: 13 }}>
               Report any safety concern or issue with a ride.
             </Text>
           </View>
@@ -1215,12 +1265,12 @@ export function IncidentReportScreen({ navigation }) {
           {/* Tab Selector: New Report vs My Reports */}
           <View style={{
             flexDirection: 'row',
-            backgroundColor: '#121824',
+            backgroundColor: isDark ? '#121824' : '#e2e8f0',
             borderRadius: 12,
             padding: 4,
             marginBottom: 16,
             borderWidth: 1,
-            borderColor: '#1C2536',
+            borderColor: isDark ? '#1C2536' : '#cbd5e1',
           }}>
             <TouchableOpacity
               onPress={() => setActiveTab('new')}
@@ -1233,7 +1283,7 @@ export function IncidentReportScreen({ navigation }) {
               }, activeTab === 'new' && { backgroundColor: '#F5A623' }]}
             >
               <Text style={{
-                color: activeTab === 'new' ? '#000000' : '#8E9BAE',
+                color: activeTab === 'new' ? '#000000' : (isDark ? '#8E9BAE' : '#475569'),
                 fontSize: 13,
                 fontWeight: '800',
               }}>
@@ -1255,7 +1305,7 @@ export function IncidentReportScreen({ navigation }) {
               }, activeTab === 'history' && { backgroundColor: '#F5A623' }]}
             >
               <Text style={{
-                color: activeTab === 'history' ? '#000000' : '#8E9BAE',
+                color: activeTab === 'history' ? '#000000' : (isDark ? '#8E9BAE' : '#475569'),
                 fontSize: 13,
                 fontWeight: '800',
               }}>
@@ -1273,14 +1323,14 @@ export function IncidentReportScreen({ navigation }) {
                 <View style={{
                   alignItems: 'center',
                   paddingVertical: 44,
-                  backgroundColor: '#111724',
+                  backgroundColor: isDark ? '#111724' : '#ffffff',
                   borderRadius: 16,
                   borderWidth: 1.2,
-                  borderColor: '#1D2638',
+                  borderColor: isDark ? '#1D2638' : '#e2e8f0',
                   paddingHorizontal: 20,
                 }}>
                   <Text style={{ fontSize: 44, marginBottom: 12 }}>🛡️</Text>
-                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginBottom: 6 }}>
+                  <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 16, fontWeight: '800', marginBottom: 6 }}>
                     No Incidents Reported
                   </Text>
                   <Text style={{ color: '#8E9BAE', fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
@@ -1304,10 +1354,10 @@ export function IncidentReportScreen({ navigation }) {
 
                   return (
                     <View key={inc._id} style={{
-                      backgroundColor: '#111724',
+                      backgroundColor: isDark ? '#111724' : '#ffffff',
                       borderRadius: 14,
                       borderWidth: 1.2,
-                      borderColor: '#1D2638',
+                      borderColor: isDark ? '#1D2638' : '#e2e8f0',
                       padding: 14,
                       marginBottom: 12,
                     }}>
@@ -1321,24 +1371,24 @@ export function IncidentReportScreen({ navigation }) {
                       </View>
 
                       {rideObj ? (
-                        <View style={{ backgroundColor: '#0B0E17', padding: 10, borderRadius: 8, marginBottom: 10, gap: 4 }}>
+                        <View style={{ backgroundColor: isDark ? '#0B0E17' : '#f8fafc', padding: 10, borderRadius: 8, marginBottom: 10, gap: 4 }}>
                           <Text style={{ color: '#8E9BAE', fontSize: 11.5 }} numberOfLines={1}>
-                            🟢 Pickup: <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{getRidePickup(rideObj)}</Text>
+                            🟢 Pickup: <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontWeight: '700' }}>{getRidePickup(rideObj)}</Text>
                           </Text>
                           <Text style={{ color: '#8E9BAE', fontSize: 11.5 }} numberOfLines={1}>
-                            🔴 Drop: <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{getRideDrop(rideObj)}</Text>
+                            🔴 Drop: <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontWeight: '700' }}>{getRideDrop(rideObj)}</Text>
                           </Text>
                         </View>
                       ) : null}
 
-                      <Text style={{ color: '#FFFFFF', fontSize: 13, lineHeight: 18, marginBottom: 10 }}>
+                      <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 13, lineHeight: 18, marginBottom: 10 }}>
                         {inc.description}
                       </Text>
 
                       {inc.resolutionNotes ? (
                         <View style={{ backgroundColor: 'rgba(0,230,118,0.08)', borderWidth: 1, borderColor: 'rgba(0,230,118,0.25)', padding: 10, borderRadius: 8, marginBottom: 8 }}>
                           <Text style={{ color: colors.green, fontSize: 11, fontWeight: '800', marginBottom: 2 }}>ADMIN RESOLUTION NOTES:</Text>
-                          <Text style={{ color: '#FFFFFF', fontSize: 12 }}>{inc.resolutionNotes}</Text>
+                          <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 12 }}>{inc.resolutionNotes}</Text>
                         </View>
                       ) : null}
 
@@ -1367,16 +1417,16 @@ export function IncidentReportScreen({ navigation }) {
 
               {/* Card 1: Select Ride */}
               <View style={{
-                backgroundColor: '#111724',
+                backgroundColor: isDark ? '#111724' : '#ffffff',
                 borderRadius: 14,
                 borderWidth: 1.2,
-                borderColor: '#1D2638',
+                borderColor: isDark ? '#1D2638' : '#e2e8f0',
                 padding: 16,
                 marginBottom: 16,
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <Text style={{ fontSize: 16 }}>🚗</Text>
-                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>Select Ride</Text>
+                  <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 15, fontWeight: '800' }}>Select Ride</Text>
                 </View>
                 <Text style={{ color: '#8E9BAE', fontSize: 12, marginBottom: 12 }}>
                   Choose the ride this incident occurred on
@@ -1386,9 +1436,9 @@ export function IncidentReportScreen({ navigation }) {
                   onPress={() => setShowRideModal(true)}
                   activeOpacity={0.8}
                   style={{
-                    backgroundColor: '#0B0E17',
+                    backgroundColor: isDark ? '#0B0E17' : '#f8fafc',
                     borderWidth: 1.2,
-                    borderColor: '#232E42',
+                    borderColor: isDark ? '#232E42' : '#cbd5e1',
                     borderRadius: 10,
                     paddingHorizontal: 14,
                     paddingVertical: 13,
@@ -1398,7 +1448,7 @@ export function IncidentReportScreen({ navigation }) {
                   }}
                 >
                   <Text style={{
-                    color: selectedRide ? '#FFFFFF' : '#7E8B9F',
+                    color: selectedRide ? (isDark ? '#FFFFFF' : '#0f172a') : (isDark ? '#7E8B9F' : '#64748b'),
                     fontSize: 13.5,
                     fontWeight: selectedRide ? '600' : '400',
                     flex: 1,
@@ -1440,7 +1490,7 @@ export function IncidentReportScreen({ navigation }) {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                     <Text style={{ fontSize: 14 }}>🎁</Text>
                     <Text style={{
-                      color: incidentSegment === 'passenger' ? '#000000' : '#E2E8F0',
+                      color: incidentSegment === 'passenger' ? '#000000' : (isDark ? '#E2E8F0' : '#0f172a'),
                       fontSize: 12.5,
                       fontWeight: '800',
                     }}>
@@ -1448,7 +1498,7 @@ export function IncidentReportScreen({ navigation }) {
                     </Text>
                   </View>
                   <Text style={{
-                    color: incidentSegment === 'passenger' ? 'rgba(0,0,0,0.7)' : '#6B7A90',
+                    color: incidentSegment === 'passenger' ? 'rgba(0,0,0,0.7)' : (isDark ? '#6B7A90' : '#64748b'),
                     fontSize: 10.5,
                     textAlign: 'center',
                   }}>
@@ -1482,7 +1532,7 @@ export function IncidentReportScreen({ navigation }) {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                     <Text style={{ fontSize: 14 }}>🏍</Text>
                     <Text style={{
-                      color: incidentSegment === 'rider_road' ? '#000000' : '#E2E8F0',
+                      color: incidentSegment === 'rider_road' ? '#000000' : (isDark ? '#E2E8F0' : '#0f172a'),
                       fontSize: 12.5,
                       fontWeight: '800',
                     }}>
@@ -1490,7 +1540,7 @@ export function IncidentReportScreen({ navigation }) {
                     </Text>
                   </View>
                   <Text style={{
-                    color: incidentSegment === 'rider_road' ? 'rgba(0,0,0,0.7)' : '#6B7A90',
+                    color: incidentSegment === 'rider_road' ? 'rgba(0,0,0,0.7)' : (isDark ? '#6B7A90' : '#64748b'),
                     fontSize: 10.5,
                     textAlign: 'center',
                   }}>
@@ -1501,16 +1551,16 @@ export function IncidentReportScreen({ navigation }) {
 
               {/* Card 2: Incident Type */}
               <View style={{
-                backgroundColor: '#111724',
+                backgroundColor: isDark ? '#111724' : '#ffffff',
                 borderRadius: 14,
                 borderWidth: 1.2,
-                borderColor: '#1D2638',
+                borderColor: isDark ? '#1D2638' : '#e2e8f0',
                 padding: 16,
                 marginBottom: 16,
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <Text style={{ fontSize: 16 }}>⚠️</Text>
-                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>Incident Type</Text>
+                  <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 15, fontWeight: '800' }}>Incident Type</Text>
                 </View>
                 <Text style={{ color: '#8E9BAE', fontSize: 12, marginBottom: 12 }}>
                   {incidentSegment === 'passenger'
@@ -1522,9 +1572,9 @@ export function IncidentReportScreen({ navigation }) {
                   onPress={() => setShowTypeModal(true)}
                   activeOpacity={0.8}
                   style={{
-                    backgroundColor: '#0B0E17',
+                    backgroundColor: isDark ? '#0B0E17' : '#f8fafc',
                     borderWidth: 1.2,
-                    borderColor: '#232E42',
+                    borderColor: isDark ? '#232E42' : '#cbd5e1',
                     borderRadius: 10,
                     paddingHorizontal: 14,
                     paddingVertical: 13,
@@ -1534,7 +1584,7 @@ export function IncidentReportScreen({ navigation }) {
                   }}
                 >
                   <Text style={{
-                    color: incidentType ? '#FFFFFF' : '#7E8B9F',
+                    color: incidentType ? (isDark ? '#FFFFFF' : '#0f172a') : (isDark ? '#7E8B9F' : '#64748b'),
                     fontSize: 13.5,
                     fontWeight: incidentType ? '700' : '400',
                     flex: 1,
@@ -1548,16 +1598,16 @@ export function IncidentReportScreen({ navigation }) {
 
               {/* Card 3: Full Description */}
               <View style={{
-                backgroundColor: '#111724',
+                backgroundColor: isDark ? '#111724' : '#ffffff',
                 borderRadius: 14,
                 borderWidth: 1.2,
-                borderColor: '#1D2638',
+                borderColor: isDark ? '#1D2638' : '#e2e8f0',
                 padding: 16,
                 marginBottom: 16,
               }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <Text style={{ fontSize: 16 }}>📝</Text>
-                  <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>Full Description</Text>
+                  <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 15, fontWeight: '800' }}>Full Description</Text>
                 </View>
                 <Text style={{ color: '#8E9BAE', fontSize: 12, marginBottom: 12 }}>
                   Explain in detail what happened
@@ -1565,11 +1615,11 @@ export function IncidentReportScreen({ navigation }) {
 
                 <TextInput
                   style={{
-                    backgroundColor: '#0B0E17',
+                    backgroundColor: isDark ? '#0B0E17' : '#f8fafc',
                     borderWidth: 1.2,
-                    borderColor: '#232E42',
+                    borderColor: isDark ? '#232E42' : '#cbd5e1',
                     borderRadius: 10,
-                    color: '#FFFFFF',
+                    color: isDark ? '#FFFFFF' : '#0f172a',
                     paddingHorizontal: 14,
                     paddingVertical: 12,
                     fontSize: 13.5,
@@ -1579,7 +1629,7 @@ export function IncidentReportScreen({ navigation }) {
                   value={description}
                   onChangeText={setDescription}
                   placeholder="Describe everything that happened in detail..."
-                  placeholderTextColor="#4A5568"
+                  placeholderTextColor={isDark ? '#4A5568' : '#94a3b8'}
                   multiline
                   maxLength={1000}
                 />
@@ -1635,14 +1685,14 @@ export function IncidentReportScreen({ navigation }) {
             width: '100%',
             maxWidth: 380,
             maxHeight: '75%',
-            backgroundColor: '#101726',
+            backgroundColor: isDark ? '#101726' : '#ffffff',
             borderRadius: 18,
             borderWidth: 1.5,
-            borderColor: '#232E42',
+            borderColor: isDark ? '#232E42' : '#cbd5e1',
             padding: 18,
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ color: '#FFFFFF', fontSize: 17, fontWeight: '800' }}>
+              <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 17, fontWeight: '800' }}>
                 🚗 Select Ride
               </Text>
               <TouchableOpacity onPress={() => setShowRideModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -1680,10 +1730,10 @@ export function IncidentReportScreen({ navigation }) {
                         paddingVertical: 12,
                         paddingHorizontal: 12,
                         borderRadius: 10,
-                        backgroundColor: isSel ? '#1E60D5' : '#141D2D',
+                        backgroundColor: isSel ? '#1E60D5' : (isDark ? '#141D2D' : '#f8fafc'),
                         marginBottom: 8,
                         borderWidth: 1,
-                        borderColor: isSel ? '#3B82F6' : '#1C273B',
+                        borderColor: isSel ? '#3B82F6' : (isDark ? '#1C273B' : '#e2e8f0'),
                       }}
                     >
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -1691,7 +1741,7 @@ export function IncidentReportScreen({ navigation }) {
                           📅 {dt.date} • {dt.time}
                         </Text>
                       </View>
-                      <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
+                      <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
                         🟢 {p} → 🔴 {d}
                       </Text>
                     </TouchableOpacity>
@@ -1721,10 +1771,10 @@ export function IncidentReportScreen({ navigation }) {
             width: '100%',
             maxWidth: 380,
             maxHeight: '80%',
-            backgroundColor: '#0F1624',
+            backgroundColor: isDark ? '#0F1624' : '#ffffff',
             borderRadius: 16,
             borderWidth: 1.5,
-            borderColor: '#243046',
+            borderColor: isDark ? '#243046' : '#cbd5e1',
             overflow: 'hidden',
           }}>
             {/* Dropdown Header Box */}
@@ -1732,13 +1782,13 @@ export function IncidentReportScreen({ navigation }) {
               paddingHorizontal: 16,
               paddingVertical: 14,
               borderBottomWidth: 1,
-              borderBottomColor: '#1E293B',
+              borderBottomColor: isDark ? '#1E293B' : '#e2e8f0',
               flexDirection: 'row',
               justifyContent: 'space-between',
               alignItems: 'center',
-              backgroundColor: '#141D2E',
+              backgroundColor: isDark ? '#141D2E' : '#f1f5f9',
             }}>
-              <Text style={{ color: '#FFFFFF', fontSize: 14.5, fontWeight: '800' }}>
+              <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 14.5, fontWeight: '800' }}>
                 — Select incident type —
               </Text>
               <TouchableOpacity onPress={() => setShowTypeModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -1766,11 +1816,11 @@ export function IncidentReportScreen({ navigation }) {
                       paddingHorizontal: 16,
                       backgroundColor: isSelected ? '#1E60D5' : 'transparent',
                       borderBottomWidth: idx < currentCategoryList.length - 1 ? 1 : 0,
-                      borderBottomColor: '#151D2A',
+                      borderBottomColor: isDark ? '#151D2A' : '#e2e8f0',
                     }}
                   >
                     <Text style={{
-                      color: isSelected ? '#FFFFFF' : '#CBD5E1',
+                      color: isSelected ? '#FFFFFF' : (isDark ? '#CBD5E1' : '#0f172a'),
                       fontSize: 13,
                       fontWeight: isSelected ? '800' : '500',
                     }}>

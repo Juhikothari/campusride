@@ -21,8 +21,8 @@ const SUGGESTIONS = [
 
 function cleanBotText(text) {
   if (!text) return '';
-  // Strip raw markdown asterisks so React Native doesn't display literal **
-  return text.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ');
+  // Strip raw markdown asterisks and leading asterisks so text is completely clean
+  return text.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ').replace(/\*/g, '');
 }
 
 function getLocalAnswer(query, user) {
@@ -158,6 +158,19 @@ export default function ChatBotScreen({ navigation }) {
     const updated = [...messages, userMsg];
     setMessages(updated);
     setInput('');
+
+    // Check if query is an emergency / accident / safety issue — prioritize immediate protocol
+    const lower = text.toLowerCase();
+    const isEmergency = lower.includes('accident') || lower.includes('crash') || lower.includes('collision') ||
+      lower.includes('ambulance') || lower.includes('injury') || lower.includes('hurt') || lower.includes('fell') ||
+      lower.includes('emergency') || lower.includes('hit');
+
+    if (isEmergency) {
+      const emergencyReply = cleanBotText(getLocalAnswer(text, user));
+      setMessages([...updated, { role: 'assistant', content: emergencyReply }]);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -294,12 +307,19 @@ export default function ChatBotScreen({ navigation }) {
             maxLength={500}
           />
           <TouchableOpacity
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
+            style={[
+              styles.sendBtn,
+              {
+                backgroundColor: !input.trim()
+                  ? (isDark ? 'rgba(245, 166, 35, 0.25)' : '#e2e8f0')
+                  : colors.accent,
+              }
+            ]}
             onPress={() => handleSend()}
             disabled={!input.trim() || loading}
             activeOpacity={0.8}
           >
-            <Text style={styles.sendBtnText}>➤</Text>
+            <Text style={[styles.sendBtnText, { color: !input.trim() ? (isDark ? '#64748b' : '#94a3b8') : '#000000' }]}>➤</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
