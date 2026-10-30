@@ -16,6 +16,7 @@ import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 import { resetCommunityUnreadCount } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import { Btn, Alert } from '../components/UI';
+import { getDisplayUSN } from '../utils/usn';
 
 const TABS = ['Posts', 'College Chat'];
 const POST_TYPES = [
@@ -69,6 +70,7 @@ function PostsTab({ user }) {
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [showImageEditorModal, setShowImageEditorModal] = useState(false);
   const [showAttachModal, setShowAttachModal] = useState(false);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState(null);
 
   useEffect(() => {
     getCommunityPosts('community')
@@ -273,6 +275,26 @@ function PostsTab({ user }) {
   };
 
   const handleLike = async (postId) => {
+    // 0ms immediate optimistic UI update
+    let prevPosts = null;
+    setPosts(prev => {
+      prevPosts = prev;
+      return prev.map(p => {
+        if (p._id !== postId) return p;
+        const currentLiked = p.userLiked !== undefined
+          ? p.userLiked
+          : (Array.isArray(p.likedBy) && p.likedBy.some(id => (id._id || id).toString() === (currentUserId || '').toString()));
+        const currentLikes = typeof p.likes === 'number' ? p.likes : (Array.isArray(p.likedBy) ? p.likedBy.length : (Array.isArray(p.likes) ? p.likes.length : 0));
+        const nextLiked = !currentLiked;
+        const nextLikes = nextLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+        return {
+          ...p,
+          userLiked: nextLiked,
+          likes: nextLikes,
+        };
+      });
+    });
+
     try {
       const updated = await toggleCommunityLike(postId);
       setPosts(prev => prev.map(p => {
@@ -284,7 +306,9 @@ function PostsTab({ user }) {
           userLiked: updated.liked,
         };
       }));
-    } catch {}
+    } catch {
+      if (prevPosts) setPosts(prevPosts);
+    }
   };
 
   const handleDeleteReply = (postId, replyId) => {
@@ -311,12 +335,45 @@ function PostsTab({ user }) {
   const handleReply = async (postId) => {
     const text = replyText[postId]?.trim();
     if (!text) return;
+
+    // 0ms immediate optimistic comment update
+    const tempReplyId = 'opt_' + Date.now();
+    const optimisticReply = {
+      _id: tempReplyId,
+      content: text,
+      text,
+      authorName: user?.name || 'You',
+      author: {
+        _id: currentUserId,
+        name: user?.name || 'You',
+        usn: user?.usn,
+      },
+      createdAt: new Date().toISOString(),
+    };
+
+    setReplyText(r => ({ ...r, [postId]: '' }));
+    setPosts(prev => prev.map(p => {
+      if (p._id !== postId) return p;
+      return {
+        ...p,
+        replies: [...(p.replies || []), optimisticReply],
+      };
+    }));
+
     try {
       const updated = await addCommunityReply(postId, text);
       setPosts(prev => prev.map(p => p._id === postId ? updated : p));
-      setReplyText(r => ({ ...r, [postId]: '' }));
-      setShowReply(s => ({ ...s, [postId]: false }));
-    } catch {}
+    } catch {
+      // Revert if request failed
+      setPosts(prev => prev.map(p => {
+        if (p._id !== postId) return p;
+        return {
+          ...p,
+          replies: (p.replies || []).filter(r => r._id !== tempReplyId),
+        };
+      }));
+      RNAlert.alert('Notice', 'Failed to send comment. Please try again.');
+    }
   };
 
   const handleDelete = (postId) => {
@@ -376,6 +433,7 @@ function PostsTab({ user }) {
               color: isDark ? '#ffffff' : '#0f172a',
               backgroundColor: isDark ? colors.surface2 : '#f8fafc',
               borderColor: isDark ? colors.border : '#cbd5e1',
+              maxHeight: 160,
             }]}
             value={content}
             onChangeText={setContent}
@@ -384,6 +442,7 @@ function PostsTab({ user }) {
             cursorColor="#f5a623"
             selectionColor="rgba(245,166,35,0.3)"
             multiline
+            scrollEnabled={true}
             maxLength={500}
           />
           {/* Attached Image Preview (After Attachment: Rotate, Crop, and Attach options REMOVED) */}
@@ -493,7 +552,7 @@ function PostsTab({ user }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Full-Screen Photo Editor & Cropper Modal (Matching Image 5) ── */}
+      {/* ── Full-Screen Photo Editor & Cropper Modal ── */}
       <Modal
         visible={showImageEditorModal && Boolean(stagedAttachment)}
         transparent={false}
@@ -507,13 +566,12 @@ function PostsTab({ user }) {
         }}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
-          {/* Top Bar: Left Back Arrow, Right 4 Controls (Rotate, Crop, Checkmark Attach, Cross Discard) */}
+          {/* Clean Top Bar: Back Arrow & Title */}
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'space-between',
             paddingHorizontal: 16,
-            paddingVertical: 12,
+            paddingVertical: 14,
             borderBottomWidth: 1,
             borderBottomColor: '#1c2638',
             backgroundColor: '#0a0e17',
@@ -525,104 +583,20 @@ function PostsTab({ user }) {
                   setStagedAttachment(null);
                 }
               }}
-              style={{ padding: 6 }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ padding: 6, marginRight: 12 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: '700' }}>←</Text>
             </TouchableOpacity>
-
-            {/* The 4 options placed at the top right as requested in Image 5 */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {/* 1. Rotate */}
-              <TouchableOpacity
-                onPress={handleRotateStagedImage}
-                disabled={uploadingAttachment}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 4,
-                  backgroundColor: '#162235',
-                  borderWidth: 1.5,
-                  borderColor: colors.accent,
-                  borderRadius: radius.md,
-                  paddingHorizontal: 10,
-                  paddingVertical: 7,
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>⟳ Rotate</Text>
-              </TouchableOpacity>
-
-              {/* 2. Crop */}
-              <TouchableOpacity
-                onPress={handleRecropStagedImage}
-                disabled={uploadingAttachment}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 4,
-                  backgroundColor: '#162235',
-                  borderWidth: 1.5,
-                  borderColor: colors.accent,
-                  borderRadius: radius.md,
-                  paddingHorizontal: 10,
-                  paddingVertical: 7,
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>✂️ Crop</Text>
-              </TouchableOpacity>
-
-              {/* 3. Attach (✓) */}
-              <TouchableOpacity
-                onPress={handleConfirmAndUploadAttachment}
-                disabled={uploadingAttachment}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: '#2dd4a0',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                activeOpacity={0.8}
-              >
-                {uploadingAttachment ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={{ color: '#000', fontSize: 18, fontWeight: '900' }}>✓</Text>
-                )}
-              </TouchableOpacity>
-
-              {/* 4. Discard (✕) */}
-              <TouchableOpacity
-                onPress={() => {
-                  if (!uploadingAttachment) {
-                    setShowImageEditorModal(false);
-                    setStagedAttachment(null);
-                  }
-                }}
-                disabled={uploadingAttachment}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: 'rgba(255, 82, 82, 0.2)',
-                  borderWidth: 1,
-                  borderColor: colors.red,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                activeOpacity={0.75}
-              >
-                <Text style={{ color: colors.red, fontSize: 16, fontWeight: '900' }}>✕</Text>
-              </TouchableOpacity>
+            <View>
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '800' }}>Photo Staging & Crop</Text>
+              <Text style={{ color: '#8b96b0', fontSize: 11 }}>Adjust photo before uploading to community</Text>
             </View>
           </View>
 
-          {/* Full Screen Image Preview with 3x3 Grid Overlay (as seen in Image 5) */}
+          {/* Full Screen Image Preview with 3x3 Grid Overlay */}
           <View style={{ flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center', padding: 12 }}>
-            <View style={{ width: '100%', height: '85%', position: 'relative', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ width: '100%', height: '88%', position: 'relative', justifyContent: 'center', alignItems: 'center' }}>
               {stagedAttachment?.uri ? (
                 <Image
                   source={{ uri: stagedAttachment.uri }}
@@ -638,22 +612,154 @@ function PostsTab({ user }) {
                 borderWidth: 1.5,
                 borderColor: 'rgba(255, 255, 255, 0.45)',
               }}>
-                {/* Horizontal grid lines */}
                 <View style={{ position: 'absolute', top: '33.33%', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
                 <View style={{ position: 'absolute', top: '66.66%', left: 0, right: 0, height: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
-                {/* Vertical grid lines */}
                 <View style={{ position: 'absolute', left: '33.33%', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
                 <View style={{ position: 'absolute', left: '66.66%', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(255, 255, 255, 0.25)' }} />
               </View>
             </View>
           </View>
 
-          {/* Bottom helper label */}
-          <View style={{ paddingVertical: 12, alignItems: 'center', backgroundColor: '#0a0e17' }}>
-            <Text style={{ color: '#8b96b0', fontSize: 12 }}>
-              {uploadingAttachment ? '⏳ Uploading & attaching photo…' : 'Tap ✂️ Crop to adjust, ⟳ Rotate to turn, or ✓ to attach to your post'}
-            </Text>
+          {/* Bottom Floating Staging Bar with ONLY the 4 options: Rotate, Crop, Upload ✓, Reject ✕ */}
+          <View style={{
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            backgroundColor: '#0a0e17',
+            borderTopWidth: 1,
+            borderTopColor: '#1c2638',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-around',
+          }}>
+            {/* 1. Rotate */}
+            <TouchableOpacity
+              onPress={handleRotateStagedImage}
+              disabled={uploadingAttachment}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: '#162235',
+                borderWidth: 1.5,
+                borderColor: colors.accent,
+                borderRadius: radius.md,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontSize: 16 }}>⟳</Text>
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Rotate</Text>
+            </TouchableOpacity>
+
+            {/* 2. Crop */}
+            <TouchableOpacity
+              onPress={handleRecropStagedImage}
+              disabled={uploadingAttachment}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: '#162235',
+                borderWidth: 1.5,
+                borderColor: colors.accent,
+                borderRadius: radius.md,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontSize: 16 }}>✂️</Text>
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Crop</Text>
+            </TouchableOpacity>
+
+            {/* 3. Upload / Attach (✓) */}
+            <TouchableOpacity
+              onPress={handleConfirmAndUploadAttachment}
+              disabled={uploadingAttachment}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: '#2dd4a0',
+                borderRadius: radius.md,
+                paddingHorizontal: 16,
+                paddingVertical: 10,
+              }}
+              activeOpacity={0.8}
+            >
+              {uploadingAttachment ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <>
+                  <Text style={{ color: '#000', fontSize: 16, fontWeight: '900' }}>✓</Text>
+                  <Text style={{ color: '#000', fontSize: 13, fontWeight: '900' }}>Upload</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* 4. Reject / Cancel (✕) */}
+            <TouchableOpacity
+              onPress={() => {
+                if (!uploadingAttachment) {
+                  setShowImageEditorModal(false);
+                  setStagedAttachment(null);
+                }
+              }}
+              disabled={uploadingAttachment}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: 'rgba(255, 82, 82, 0.2)',
+                borderWidth: 1.5,
+                borderColor: colors.red,
+                borderRadius: radius.md,
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={{ color: colors.red, fontSize: 16, fontWeight: '900' }}>✕</Text>
+              <Text style={{ color: colors.red, fontSize: 13, fontWeight: '800' }}>Reject</Text>
+            </TouchableOpacity>
           </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Full-Screen Image Viewer Modal for Post Photos */}
+      <Modal
+        visible={Boolean(previewPhotoUrl)}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setPreviewPhotoUrl(null)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 40,
+              right: 20,
+              zIndex: 999,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={() => setPreviewPhotoUrl(null)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={{ color: '#ffffff', fontSize: 22, fontWeight: '900' }}>✕</Text>
+          </TouchableOpacity>
+          {previewPhotoUrl ? (
+            <Image
+              source={{ uri: previewPhotoUrl }}
+              style={{ width: '96%', height: '82%' }}
+              resizeMode="contain"
+            />
+          ) : null}
         </SafeAreaView>
       </Modal>
 
@@ -692,12 +798,32 @@ function PostsTab({ user }) {
             <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14.5, lineHeight: 21, marginBottom: 10 }}>{post.content}</Text>
             
             {Array.isArray(post.attachments) && post.attachments.map((att, attIdx) => att?.url ? (
-              <Image
+              <TouchableOpacity
                 key={attIdx}
-                source={{ uri: att.url }}
-                style={styles.postAttachmentImage}
-                resizeMode="cover"
-              />
+                activeOpacity={0.9}
+                onPress={() => setPreviewPhotoUrl(att.url)}
+                style={{ marginBottom: 10, borderRadius: radius.md, overflow: 'hidden', backgroundColor: '#0a0e17' }}
+              >
+                <Image
+                  source={{ uri: att.url }}
+                  style={{ width: '100%', height: 240, borderRadius: radius.md }}
+                  resizeMode="contain"
+                />
+                <View style={{
+                  position: 'absolute',
+                  bottom: 8,
+                  right: 8,
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: radius.sm,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                }}>
+                  <Text style={{ color: '#ffffff', fontSize: 11, fontWeight: '700' }}>🔍 Tap to expand</Text>
+                </View>
+              </TouchableOpacity>
             ) : null)}
 
             <View style={styles.postFooterRow}>
@@ -895,7 +1021,7 @@ function CollegeChatTab({ user }) {
                   {!isMe && (
                     <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', marginBottom: 2 }}>
                       {item.anonymous ? 'Anonymous' : item.senderName}
-                      {item.senderUsn ? ` · ${item.senderUsn}` : ''}
+                      {item.senderUsn ? ` · ${getDisplayUSN(item.senderUsn, 'Buddy')}` : ''}
                     </Text>
                   )}
                   <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
@@ -915,8 +1041,7 @@ function CollegeChatTab({ user }) {
         {
           backgroundColor: isDark ? '#0c121e' : '#ffffff',
           borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
-          paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 10),
-          marginBottom: Platform.OS === 'android' && keyboardHeight > 0 ? keyboardHeight : 0,
+          paddingBottom: Math.max(insets.bottom, 10),
         }
       ]}>
         <TouchableOpacity

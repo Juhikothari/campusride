@@ -13,6 +13,7 @@ import { RatingModal } from './ExtraScreens';
 import { useSocket } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { getDisplayUSN } from '../utils/usn';
 
 const RIDE_STATUS_CONFIG = {
   active:        { color: '#ffffff',     icon: '⚪', label: 'Requested'   },
@@ -339,7 +340,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                           </View>
                           <View style={{ flex: 1 }}>
                             <Text style={[styles.seekerName, { color: isDark ? colors.text : '#0f172a' }]}>
-                                🪪 USN: {seeker?.usn && seeker.usn.toUpperCase() !== 'STUDENT' ? (seeker.usn.length > 3 ? seeker.usn.slice(-3).toUpperCase() : seeker.usn.toUpperCase()) : 'Buddy'}
+                                🪪 USN: {getDisplayUSN(seeker, 'Buddy')}
                               </Text>
                             <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
                             {seeker?.college && <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>🏫 {seeker.college}</Text>}
@@ -417,7 +418,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={[styles.seekerName, { color: isDark ? colors.text : '#0f172a' }]}>
-                                🪪 USN: {seeker?.usn && seeker.usn.toUpperCase() !== 'STUDENT' ? (seeker.usn.length > 3 ? seeker.usn.slice(-3).toUpperCase() : seeker.usn.toUpperCase()) : 'Buddy'}
+                                🪪 USN: {getDisplayUSN(seeker, 'Buddy')}
                               </Text>
                               {isAccepted && seeker?.phone ? (
                                 <Text style={styles.seekerMeta}>📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text></Text>

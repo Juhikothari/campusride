@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert as RNAlert, TextInput,
-  KeyboardAvoidingView, Platform, Modal,
+  KeyboardAvoidingView, Platform, Modal, DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -277,14 +277,20 @@ export function NotificationsScreen({ navigation }) {
     setReadIds(allIds);
     AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...allIds])).catch(() => {});
     api.markNotificationsRead().catch(() => {});
+    DeviceEventEmitter.emit('NOTIFICATIONS_READ');
   };
 
   const handleNotifPress = (item) => {
     setReadIds(prev => {
       const next = new Set(prev).add(item.id);
       AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...next])).catch(() => {});
+      const remaining = allNotifs.filter(n => !next.has(n.id) && !n.isRead).length;
+      DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', Math.max(0, remaining));
       return next;
     });
+    if (item.id) {
+      api.request(`/notifications/${item.id}/read`, { method: 'PUT' }).catch(() => {});
+    }
     if (item.onPress) item.onPress();
   };
 

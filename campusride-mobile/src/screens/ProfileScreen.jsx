@@ -430,6 +430,9 @@ export default function ProfileScreen({ navigation }) {
                     maxLength={15}
                     containerStyle={{ marginBottom: 0 }}
                   />
+                  <Text style={{ color: colors.text3, fontSize: 11 }}>
+                    ⚠️ Note: USN once added cannot be edited for campus verification integrity.
+                  </Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <Btn label="Save" onPress={handleUsnSave} loading={usnLoading} style={{ flex: 1 }} />
                     <Btn label="Cancel" onPress={() => setEditingUsn(false)} variant="outline" style={{ flex: 1 }} />
@@ -440,11 +443,14 @@ export default function ProfileScreen({ navigation }) {
                   <Text style={styles.profileValue}>
                     {p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? p.usn : 'Not Set'}
                   </Text>
-                  <TouchableOpacity onPress={() => { setNewUsn(p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? p.usn : ''); setEditingUsn(true); }}>
-                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                      {p?.usn && p.usn.toUpperCase() !== 'STUDENT' ? 'Edit' : 'Set USN'}
-                    </Text>
-                  </TouchableOpacity>
+                  {/* USN once added cannot be edited */}
+                  {!(p?.usn && p.usn.toUpperCase() !== 'STUDENT') && (
+                    <TouchableOpacity onPress={() => { setNewUsn(''); setEditingUsn(true); }}>
+                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                        Set USN
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </View>

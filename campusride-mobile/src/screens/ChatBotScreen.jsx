@@ -19,8 +19,26 @@ const SUGGESTIONS = [
   '📍 How do I track my ride?',
 ];
 
+function cleanBotText(text) {
+  if (!text) return '';
+  // Strip raw markdown asterisks so React Native doesn't display literal **
+  return text.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ');
+}
+
 function getLocalAnswer(query, user) {
   const q = (query || '').toLowerCase().trim();
+
+  // 0. Immediate Accident & Emergency Protocol
+  if (q.includes('accident') || q.includes('crash') || q.includes('collision') || q.includes('hit') || q.includes('ambulance') || q.includes('injury') || q.includes('hurt') || q.includes('fell') || q.includes('emergency')) {
+    return "🚨 EMERGENCY ACCIDENT RESPONSE PROTOCOL:\n\n" +
+      "1. Move to Safety: If you are able to move, step away from active vehicle traffic to a sidewalk or safe zone immediately.\n\n" +
+      "2. Tap SOS Button in HOGO: Open your active ride screen or dashboard and tap the red SOS Emergency button. This instantly alerts campus safety and broadcasts your live GPS coordinates to emergency contacts.\n\n" +
+      "3. Call Emergency Helpline Numbers:\n" +
+      "   • Dial 112 (National Emergency Helpline) immediately.\n" +
+      "   • Dial 108 for Ambulance assistance if anyone is hurt.\n\n" +
+      "4. Check on Fellow Commuters: Check on your buddy and passengers if safe to do so. Stay calm and remain at the scene until medical staff or police arrive.\n\n" +
+      "5. Contact Campus Security: Alert your college security desk so campus first responders can reach you swiftly.";
+  }
 
   // 1. Ride History & Past Trips
   if (q.includes('history') || q.includes('past ride') || q.includes('past booking') || q.includes('previous ride') || q.includes('completed ride') || q.includes('old ride') || q.includes('my trips')) {
@@ -83,7 +101,7 @@ function getLocalAnswer(query, user) {
   }
 
   // 13. SOS Emergency Protocol
-  if (q.includes('sos') || q.includes('emergency') || q.includes('help') || q.includes('panic') || q.includes('police')) {
+  if (q.includes('sos') || q.includes('panic') || q.includes('police')) {
     return "🆘 SOS Emergency Protocol:\n• During any active ride, a prominent red SOS Emergency button is available on the Live Tracking screen.\n• Tapping it immediately alerts campus safety, dials emergency contacts, and broadcasts your live GPS coordinates.";
   }
 
@@ -102,15 +120,15 @@ function getLocalAnswer(query, user) {
     return "🌓 Dark & Light Mode:\n• You can easily switch between Dark and Light mode using the toggle button located directly on your Dashboard greeting hero card (next to your name)!\n• It instantly adapts all screens, maps, and menus to your preferred appearance.";
   }
 
-  // 17. Intelligent Generalized Fallback with Comprehensive Guides
+  // 17. Intelligent Generalized Fallback with Clean Bullet Points (No Markdown Asterisks)
   return `🤖 Hi ${user?.name ? user.name.split(' ')[0] : 'there'}! I am RideBot, your HOGO assistant. Here is how I can help:\n\n` +
-    `• 📜 **Ride History**: View completed trips in Menu (☰) > My Bookings > History or Profile.\n` +
-    `• 🔍 **Search Your Buddy**: Match with peers heading your way in Search Your Buddy.\n` +
-    `• 🚗 **Offer a Ride**: Share seats with verified classmates in Offer Ride.\n` +
-    `• 🚶 **Walk Together**: Join or post walking groups across campus.\n` +
-    `• ❌ **Cancellations**: Cancel trips easily from the Dashboard before departure.\n` +
-    `• 🛡️ **KYC & Verification**: Check verification status in Menu (☰) > KYC.\n` +
-    `• 🆘 **SOS Emergency**: 24/7 emergency coordinates & contact broadcast.\n\n` +
+    `• 📜 Ride History: View completed trips in Menu (☰) > My Bookings > History or Profile.\n` +
+    `• 🔍 Search Your Buddy: Match with peers heading your way in Search Your Buddy.\n` +
+    `• 🚗 Offer a Ride: Share seats with verified classmates in Offer Ride.\n` +
+    `• 🚶 Walk Together: Join or post walking groups across campus.\n` +
+    `• ❌ Cancellations: Cancel trips easily from the Dashboard before departure.\n` +
+    `• 🛡️ KYC & Verification: Check verification status in Menu (☰) > KYC.\n` +
+    `• 🆘 SOS Emergency: 24/7 emergency coordinates & contact broadcast.\n\n` +
     `Feel free to ask me anything specific about your campus commute!`;
 }
 
@@ -145,12 +163,12 @@ export default function ChatBotScreen({ navigation }) {
     try {
       const res = await api.sendChatbotMessage(updated);
       if (res?.reply) {
-        setMessages([...updated, { role: 'assistant', content: res.reply }]);
+        setMessages([...updated, { role: 'assistant', content: cleanBotText(res.reply) }]);
       } else {
         throw new Error('Empty response');
       }
     } catch (e) {
-      const fallbackReply = getLocalAnswer(text, user);
+      const fallbackReply = cleanBotText(getLocalAnswer(text, user));
       setMessages([...updated, { role: 'assistant', content: fallbackReply }]);
     } finally {
       setLoading(false);
@@ -177,27 +195,26 @@ export default function ChatBotScreen({ navigation }) {
             activeOpacity={0.7}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Text style={styles.backBtnText}>←</Text>
+            <Text style={[styles.backBtnText, { color: isDark ? '#ffffff' : '#0f172a' }]}>←</Text>
           </TouchableOpacity>
           <View style={styles.botAvatar}>
             <Text style={{ fontSize: 20 }}>🤖</Text>
             <View style={styles.onlineDot} />
           </View>
           <View>
-            <Text style={styles.botTitle}>HOGO AI Assistant</Text>
-            <Text style={styles.botStatus}>Online • Campus Commute Helper</Text>
+            <Text style={[styles.botTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>HOGO AI Assistant</Text>
+            <Text style={[styles.botStatus, { color: isDark ? '#8b96b0' : '#475569' }]}>Online • Campus Commute Helper</Text>
           </View>
         </View>
 
         <TouchableOpacity onPress={handleClear} style={[styles.clearBtn, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]} activeOpacity={0.7}>
-          <Text style={styles.clearBtnText}>Clear Chat</Text>
+          <Text style={[styles.clearBtnText, { color: isDark ? colors.text3 : '#475569' }]}>Clear Chat</Text>
         </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           ref={scrollRef}
@@ -249,7 +266,7 @@ export default function ChatBotScreen({ navigation }) {
 
           {messages.length < 3 && !loading && (
             <View style={styles.suggestionsWrap}>
-              <Text style={styles.suggestionsHeader}>QUICK QUESTIONS</Text>
+              <Text style={[styles.suggestionsHeader, { color: isDark ? colors.text3 : '#475569' }]}>QUICK QUESTIONS</Text>
               <View style={styles.chipsRow}>
                 {SUGGESTIONS.map((s, i) => (
                   <TouchableOpacity
@@ -266,13 +283,13 @@ export default function ChatBotScreen({ navigation }) {
           )}
         </ScrollView>
 
-        <View style={[styles.inputContainer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={[styles.inputContainer, { backgroundColor: isDark ? colors.surface : '#ffffff', borderTopColor: isDark ? colors.border : '#e2e8f0', paddingBottom: Math.max(insets.bottom, 12) }]}>
           <TextInput
             style={[styles.input, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
             value={input}
             onChangeText={setInput}
             placeholder="Ask about rides, KYC, routes..."
-            placeholderTextColor={colors.text3}
+            placeholderTextColor={isDark ? colors.text3 : '#64748b'}
             multiline
             maxLength={500}
           />

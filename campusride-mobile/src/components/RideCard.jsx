@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, radius, spacing } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { Badge } from './UI';
+import { getDisplayUSN } from '../utils/usn';
 
 const STATUS_COLOR = {
   active:       colors.green,
@@ -66,7 +67,7 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
               {ride.vehicleName || (ride.vehicleType ? ride.vehicleType.charAt(0).toUpperCase() + ride.vehicleType.slice(1) : 'Ride')}
             </Text>
             <Text style={[styles.providerName, { color: isDark ? colors.text2 : '#475569' }]}>
-              🪪 USN: {ride.providerId?.usn || ride.provider?.usn || ride.providerUsn || 'Verified Commuter'}
+              🪪 USN: {getDisplayUSN(ride.providerId || ride.provider || ride.providerUsn, 'Buddy')}
             </Text>
           </View>
         </View>

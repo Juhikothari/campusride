@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal,
-  ScrollView, Alert as RNAlert,
+  ScrollView, Alert as RNAlert, DeviceEventEmitter,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -47,19 +48,21 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
     }
 
     const fetchUnread = () => {
-      api.getNotifications()
-        .then(res => {
-          if (!mounted) return;
-          let unread = 0;
-          if (typeof res?.unreadCount === 'number') {
-            unread = res.unreadCount;
-          } else {
+      AsyncStorage.getItem('@read_notif_ids').then(raw => {
+        let localRead = new Set();
+        if (raw) {
+          try { localRead = new Set(JSON.parse(raw)); } catch {}
+        }
+        api.getNotifications()
+          .then(res => {
+            if (!mounted) return;
+            let unread = 0;
             const list = Array.isArray(res) ? res : res?.notifications || [];
-            unread = list.filter(n => !n.readAt && !n.read && !n.isRead).length;
-          }
-          setUnreadCount(unread);
-        })
-        .catch(() => {});
+            unread = list.filter(n => !n.readAt && !n.read && !n.isRead && !localRead.has(n._id || n.id)).length;
+            setUnreadCount(unread);
+          })
+          .catch(() => {});
+      }).catch(() => {});
     };
 
     fetchUnread();
@@ -71,14 +74,24 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
       }
     });
 
+    // Device events to immediately reset or update badge when notifications are viewed/read
+    const subRead = DeviceEventEmitter.addListener('NOTIFICATIONS_READ', () => {
+      if (mounted) setUnreadCount(0);
+    });
+    const subCount = DeviceEventEmitter.addListener('NOTIFICATION_COUNT_CHANGED', (count) => {
+      if (mounted) setUnreadCount(count);
+    });
+
     // Navigation focus listener to update whenever screen appears
     const unsubFocus = navigation?.addListener ? navigation.addListener('focus', fetchUnread) : () => {};
 
-    const interval = setInterval(fetchUnread, 12000);
+    const interval = setInterval(fetchUnread, 10000);
     return () => {
       mounted = false;
       clearInterval(interval);
       unsubSocket();
+      subRead.remove();
+      subCount.remove();
       unsubFocus();
     };
   }, [user?._id, user?.userId, navigation]);

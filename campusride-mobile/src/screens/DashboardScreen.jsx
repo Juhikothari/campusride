@@ -14,6 +14,7 @@ import { subscribeToCommunityUnread, getCommunityUnreadCount } from '../hooks/us
 import { Btn } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { getDisplayUSN } from '../utils/usn';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -372,18 +373,14 @@ export default function DashboardScreen({ navigation }) {
 
         if (activeDriverRide) {
           const matchedBookings = requests.filter(b => (b.rideId === activeDriverRide._id || b.rideId?._id === activeDriverRide._id) && b.status === 'accepted');
-          const passengerNames = matchedBookings.map(b => {
-            const raw = b.seekerId?.usn || b.seekerId?.name;
-            if (!raw || raw.toUpperCase() === 'STUDENT') return 'Buddy';
-            return raw.length > 3 ? raw.slice(-3).toUpperCase() : raw.toUpperCase();
-          }).filter(Boolean);
+          const passengerNames = matchedBookings.map(b => getDisplayUSN(b.seekerId, 'Buddy')).filter(Boolean);
           const passengerColleges = matchedBookings.map(b => b.seekerId?.college).filter(Boolean);
           const passengerPhones = matchedBookings.map(b => b.seekerId?.phone).filter(Boolean);
           const isChecklistDone = activeDriverRide.seekerChecklistCompleted || matchedBookings.some(b => b.checklistCompleted);
 
           const passengersList = matchedBookings.map(b => ({
             name: 'Buddy',
-            usn: b.seekerId?.usn && b.seekerId.usn.toUpperCase() !== 'STUDENT' ? (b.seekerId.usn.length > 3 ? b.seekerId.usn.slice(-3).toUpperCase() : b.seekerId.usn.toUpperCase()) : 'Buddy',
+            usn: getDisplayUSN(b.seekerId, 'Buddy'),
             college: b.seekerId?.college || activeDriverRide.college || 'Campus Commuter',
             phone: b.seekerId?.phone || null,
             seats: b.seats || 1,

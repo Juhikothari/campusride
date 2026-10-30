@@ -11,6 +11,7 @@ import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { getDisplayUSN } from '../utils/usn';
 
 const STATUS_COLOR = {
   pending:   colors.accent,
@@ -168,7 +169,7 @@ export default function MyBookingsScreen({ navigation }) {
                         <Text style={styles.avatarMiniText}>🪪</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.providerNameText, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {provider.usn || 'Verified Commuter'}</Text>
+                        <Text style={[styles.providerNameText, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {getDisplayUSN(provider, 'Buddy')}</Text>
                         <Text style={styles.vehicleNameBadge}>
                           🚘 {ride?.vehicleName || provider.kycDocuments?.vehicleName || 'Vehicle'} • {(ride?.vehicleType || 'CAR').toUpperCase()}
                         </Text>
@@ -183,9 +184,7 @@ export default function MyBookingsScreen({ navigation }) {
                     </View>
 
                     <View style={styles.providerMetaGrid}>
-                      {provider.usn ? (
-                        <Text style={styles.providerMetaText}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{provider.usn}</Text></Text>
-                      ) : null}
+                      <Text style={styles.providerMetaText}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{getDisplayUSN(provider, 'Buddy')}</Text></Text>
                       {provider.phone ? (
                         <Text style={styles.providerMetaText}>📞 Phone: <Text style={{ color: colors.text, fontWeight: '700' }}>{provider.phone}</Text></Text>
                       ) : null}
@@ -200,7 +199,7 @@ export default function MyBookingsScreen({ navigation }) {
                       <View style={{ flex: 1, marginRight: 10 }}>
                         <Text style={styles.farePayTag}>💰 FARE TO PAY PROVIDER</Text>
                         <Text style={styles.farePaySub}>
-                          Pay directly to provider (USN: {provider?.usn || 'Commuter'}) via UPI / Cash
+                          Pay directly to provider (USN: {getDisplayUSN(provider, 'Buddy')}) via UPI / Cash
                         </Text>
                       </View>
                       <View style={{ alignItems: 'flex-end' }}>

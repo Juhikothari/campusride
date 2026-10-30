@@ -12,6 +12,7 @@ import FloatingChatBot from '../components/FloatingChatBot';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { getDisplayUSN } from '../utils/usn';
 
 // ════════════════════════════════════════════════════════════════
 //  RATINGS SCREEN
@@ -1559,7 +1560,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
           <View style={{ backgroundColor: isDark ? '#10141e' : '#ffffff', borderWidth: 1, borderColor: isDark ? colors.accent : '#cbd5e1', borderRadius: radius.lg, padding: 14, marginBottom: 16 }}>
             <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 }}>ASSIGNED RIDE DETAILS</Text>
             <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 15, fontWeight: '700' }}>
-              🪪 USN: {rideDetails.providerId?.usn && rideDetails.providerId.usn.toUpperCase() !== 'STUDENT' ? rideDetails.providerId.usn : (rideDetails.providerId?.name || rideDetails.providerUsn || 'Verified Commuter')} • 🏫 {rideDetails.college || 'Campus'}
+              🪪 USN: {getDisplayUSN(rideDetails.providerId || rideDetails.providerUsn, 'Buddy')} • 🏫 {rideDetails.college || 'Campus'}
             </Text>
             <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', marginTop: 4 }}>
               🚘 {rideDetails.vehicleName || 'Vehicle'} ({rideDetails.vehicleNumber || rideDetails.providerId?.kycDocuments?.vehicleNumber || rideDetails.providerId?.vehicleNumber || 'Verified Vehicle'})
