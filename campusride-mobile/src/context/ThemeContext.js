@@ -54,4 +54,8 @@ export const useTheme = () => {
   const ctx = useContext(ThemeContext);
   return ctx || defaultThemeValue;
 };
+
+ThemeContext.useTheme = useTheme;
+ThemeContext.ThemeProvider = ThemeProvider;
+
 export default ThemeContext;

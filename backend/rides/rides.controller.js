@@ -563,12 +563,15 @@ exports.searchRides = async (req, res) => {
       return geoMatched || textMatched;
     });
 
-    // Privacy safeguard: Ensure provider's phone and USN are NEVER exposed in search results
+    // Privacy safeguard: Provider's phone is hidden in search, but actual USN (last 3 digits) is preserved
     const sanitized = matchedRides.map(r => {
       const rObj = r.toObject ? r.toObject() : { ...r };
       if (rObj.providerId && typeof rObj.providerId === 'object') {
         rObj.providerId.phone = null;
-        rObj.providerId.usn = null;
+        if (rObj.providerId.usn) {
+          const raw = rObj.providerId.usn.trim().toUpperCase();
+          rObj.providerId.usn = raw.length > 3 ? raw.slice(-3) : raw;
+        }
       }
       // Mask vehicle plate number in search (seeker only sees vehicle name & vehicle type)
       rObj.vehicleNumber = null;
@@ -605,11 +608,14 @@ exports.getRide = async (req, res) => {
 
     const rideObj = ride.toObject();
 
-    // Privacy Protection: Only reveal phone, USN, and vehicle plate number after booking is accepted
+    // Privacy Protection: Only reveal full phone and vehicle plate number after booking is accepted
     if (!isOwner && !acceptedBooking) {
       if (rideObj.providerId && typeof rideObj.providerId === 'object') {
         rideObj.providerId.phone = null;
-        rideObj.providerId.usn = null;
+        if (rideObj.providerId.usn) {
+          const raw = rideObj.providerId.usn.trim().toUpperCase();
+          rideObj.providerId.usn = raw.length > 3 ? raw.slice(-3) : raw;
+        }
       }
       rideObj.vehicleNumber = null;
     }
@@ -620,12 +626,19 @@ exports.getRide = async (req, res) => {
         rideId: ride._id,
         status: { $in: ['accepted', 'pending'] }
       }).populate('seekerId', 'name phone usn college gender');
-      rideObj.passengers = acceptedBookings.map(b => ({
-        bookingId: b._id,
-        status: b.status,
-        seats: b.seats || 1,
-        seeker: b.seekerId,
-      }));
+      rideObj.passengers = acceptedBookings.map(b => {
+        const s = b.seekerId ? (b.seekerId.toObject ? b.seekerId.toObject() : { ...b.seekerId }) : null;
+        // Strictly hide seeker's phone number before provider accepts the booking!
+        if (s && b.status !== 'accepted') {
+          s.phone = null;
+        }
+        return {
+          bookingId: b._id,
+          status: b.status,
+          seats: b.seats || 1,
+          seeker: s,
+        };
+      });
     }
 
     res.json(rideObj);

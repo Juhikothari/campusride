@@ -182,6 +182,13 @@ export default function LiveTrackingScreen({ navigation, route }) {
       if (event === 'riderArrivedAtSeeker' || event === 'rider-arrived') {
         if (!data?.rideId || data.rideId === activeRideId) {
           setRideInfo(prev => prev ? ({ ...prev, riderReachedSeeker: true }) : prev);
+          if (!isDriver) {
+            RNAlert.alert(
+              '📍 Your Buddy Has Arrived!',
+              'Your buddy has arrived at your pickup location! Please meet them and complete your safety checklist.',
+              [{ text: 'OK' }]
+            );
+          }
         }
       } else if (event === 'checklistCompleted') {
         if (!data?.rideId || data.rideId === activeRideId) {
@@ -369,7 +376,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
       setRideInfo(prev => ({ ...prev, riderReachedSeeker: true }));
       RNAlert.alert(
         '📍 Arrived at Seeker',
-        'Arrival confirmed! The passenger can now complete their safety checklist before departure.'
+        'Arrival confirmed! The buddy can now complete their safety checklist before departure.'
       );
     } catch (err) {
       RNAlert.alert('Error', err.message || 'Failed to update arrival status');
@@ -382,14 +389,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
     if (!rideInfo?.riderReachedSeeker) {
       RNAlert.alert(
         '📍 Confirm Arrival First',
-        'Please confirm you have arrived at the passenger pickup spot before starting the ride.'
+        'Please confirm you have arrived at the buddy pickup spot before starting the ride.'
       );
       return;
     }
     if (!rideInfo?.seekerChecklistCompleted) {
       RNAlert.alert(
-        '⏳ Passenger Checklist Incomplete',
-        'For campus safety, the passenger must complete their pre-ride safety checklist before departure. Once verified, you will be able to start the ride.'
+        '⏳ Buddy Checklist Incomplete',
+        'For campus safety, the buddy must complete their pre-ride safety checklist before departure. Once verified, you will be able to start the ride.'
       );
       return;
     }
@@ -431,21 +438,54 @@ export default function LiveTrackingScreen({ navigation, route }) {
     }
   }, [rideInfo?.status, showRatingModal, hasRated, activeRideId]);
 
-  const openExternalNavigation = (destLat, destLng, label = 'Destination') => {
-    if (!destLat || !destLng) return;
-    const url = Platform.OS === 'android'
-      ? `google.navigation:q=${destLat},${destLng}&mode=d`
-      : `maps://?daddr=${destLat},${destLng}`;
+  const openDirectionsInGoogleMaps = () => {
+    const originStr = userLat && userLng ? `&origin=${userLat},${userLng}` : '';
 
-    Linking.canOpenURL(url).then(supported => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`);
+    if (isDriver) {
+      const acceptedSeekers = (rideInfo?.passengers || []).filter(p => p.status === 'accepted');
+      if (!isTripToDestination) {
+        if (acceptedSeekers.length > 1) {
+          const pickupPoints = acceptedSeekers
+            .map(p => {
+              const loc = p.seeker?.pickupLocation || p.pickupLocation || pickupCoords;
+              const lat = loc?.lat || loc?.latitude;
+              const lng = loc?.lng || loc?.longitude;
+              return lat && lng ? `${lat},${lng}` : null;
+            })
+            .filter(Boolean);
+
+          if (pickupPoints.length > 1) {
+            const finalPoint = pickupPoints.pop();
+            const waypoints = pickupPoints.join('|');
+            const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${finalPoint}&waypoints=${waypoints}&travelmode=driving`;
+            Linking.openURL(url).catch(() => {});
+            return;
+          }
+        }
+
+        if (pickupCoords?.latitude && pickupCoords?.longitude) {
+          const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${pickupCoords.latitude},${pickupCoords.longitude}&travelmode=driving`;
+          Linking.openURL(url).catch(() => {});
+          return;
+        }
       }
-    }).catch(() => {
-      Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}&travelmode=driving`);
-    });
+
+      if (dropCoords?.latitude && dropCoords?.longitude) {
+        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${dropCoords.latitude},${dropCoords.longitude}&travelmode=driving`;
+        Linking.openURL(url).catch(() => {});
+        return;
+      }
+    } else {
+      // Seeker view: tracks rider to destination once trip begins
+      if (dropCoords?.latitude && dropCoords?.longitude) {
+        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${dropCoords.latitude},${dropCoords.longitude}&travelmode=driving`;
+        Linking.openURL(url).catch(() => {});
+      }
+    }
+  };
+
+  const openExternalNavigation = (destLat, destLng, label = 'Destination') => {
+    openDirectionsInGoogleMaps();
   };
 
   const getCleanBuddyName = (rawUsn, fallback) => {
@@ -498,7 +538,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const handleCompleteRide = () => {
     RNAlert.alert(
       '🏁 Finish & Complete Ride',
-      'Are you sure you want to end this ride? All passengers will be marked as reached destination.',
+      'Are you sure you want to end this ride? All buddies will be marked as reached destination.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -523,7 +563,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const handleCancelRide = () => {
     RNAlert.alert(
       'Cancel Ride',
-      'Are you sure you want to cancel this ride? All passenger bookings will be cancelled.',
+      'Are you sure you want to cancel this ride? All buddy bookings will be cancelled.',
       [
         { text: 'Keep Ride', style: 'cancel' },
         {
@@ -639,123 +679,36 @@ export default function LiveTrackingScreen({ navigation, route }) {
             <>
           {/* Interactive Route Map with Eye-Catching Points — Always Shown in Track Ride */}
           <View style={[styles.radarCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-            {/* External Navigation Button (Opens Turn-by-Turn in Google Maps) */}
-            <View style={{ marginBottom: 12 }}>
+            {/* Directions ↗ Button to Google Maps */}
+            {(isDriver || isTripToDestination) && (
               <TouchableOpacity
-                onPress={() => {
-                  if (!isTripToDestination && pickupCoords?.latitude && pickupCoords?.longitude) {
-                    openExternalNavigation(pickupCoords.latitude, pickupCoords.longitude, 'Buddy Pickup Point');
-                  } else if (dropCoords?.latitude && dropCoords?.longitude) {
-                    openExternalNavigation(dropCoords.latitude, dropCoords.longitude, 'Drop Destination');
-                  }
-                }}
+                onPress={openDirectionsInGoogleMaps}
                 style={{
                   backgroundColor: colors.accent,
                   borderRadius: radius.md,
                   paddingVertical: 12,
-                  paddingHorizontal: 14,
+                  paddingHorizontal: 16,
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
+                  marginBottom: 12,
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={{ fontSize: 18 }}>🧭</Text>
+                <Text style={{ fontSize: 16 }}>🧭</Text>
                 <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>
-                  {!isTripToDestination
-                    ? "Navigate to Buddy's Pickup (Google Maps)"
-                    : 'Open Turn-by-Turn Directions (Google Maps)'}
+                  Directions ↗
                 </Text>
               </TouchableOpacity>
-            </View>
-
-            {/* In-App Turn-by-Turn Guidance Bar */}
-            {(() => {
-              const activeSteps = isTripToDestination ? (leg2Steps.length ? leg2Steps : leg1Steps) : leg1Steps;
-              const nextStep = activeSteps[0] || {
-                instruction: isTripToDestination ? 'Continue along route to drop destination' : "Head towards buddy's pickup location",
-                icon: '⬆️',
-                distanceMeters: 500,
-              };
-              return (
-                <View style={{
-                  backgroundColor: isDark ? '#141c2b' : '#f1f5f9',
-                  borderRadius: radius.md,
-                  borderWidth: 1.5,
-                  borderColor: isDark ? '#26344d' : '#cbd5e1',
-                  padding: 12,
-                  marginBottom: 12,
-                }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{
-                      width: 40, height: 40, borderRadius: 20,
-                      backgroundColor: colors.accent + '22',
-                      alignItems: 'center', justifyContent: 'center',
-                      borderWidth: 1, borderColor: colors.accent,
-                    }}>
-                      <Text style={{ fontSize: 20 }}>{nextStep.icon || '⬆️'}</Text>
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>
-                        NEXT DIRECTION
-                      </Text>
-                      <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13.5, fontWeight: '700' }} numberOfLines={2}>
-                        {nextStep.instruction}
-                      </Text>
-                      {nextStep.distanceMeters > 0 && (
-                        <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, marginTop: 2 }}>
-                          In {nextStep.distanceMeters > 1000 ? (nextStep.distanceMeters/1000).toFixed(1) + ' km' : nextStep.distanceMeters + ' meters'}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Expandable Step Directions List */}
-                  {activeSteps.length > 1 && (
-                    <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: isDark ? '#212c40' : '#e2e8f0', paddingTop: 8 }}>
-                      <TouchableOpacity
-                        onPress={() => setShowAllSteps(prev => !prev)}
-                        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                          📋 {showAllSteps ? 'Hide Full Turn-by-Turn Route' : `View All ${activeSteps.length} Route Turns ▾`}
-                        </Text>
-                        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>
-                          {showAllSteps ? '▲' : '▼'}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {showAllSteps && (
-                        <View style={{ marginTop: 8, gap: 8 }}>
-                          {activeSteps.map((step, sIdx) => (
-                            <View key={sIdx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              <Text style={{ fontSize: 15 }}>{step.icon || '•'}</Text>
-                              <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 12, flex: 1 }}>
-                                {step.instruction}
-                              </Text>
-                              {step.distanceMeters > 0 && (
-                                <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11 }}>
-                                  {step.distanceMeters > 1000 ? (step.distanceMeters/1000).toFixed(1) + 'km' : step.distanceMeters + 'm'}
-                                </Text>
-                              )}
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  )}
-                </View>
-              );
-            })()}
+            )}
 
             <View style={styles.radarHeader}>
               <View style={[styles.livePulseDot, !isTripToDestination && { backgroundColor: colors.accent }]} />
               <Text style={styles.radarTitle}>
                 {isTripToDestination
                   ? '🛰️ LIVE GPS TRACKING ACTIVE'
-                  : (rideInfo?.riderReachedSeeker ? '🟢 AT PASSENGER PICKUP' : '🗺️ EN ROUTE TO SEEKER PICKUP')}
+                  : (rideInfo?.riderReachedSeeker ? '🟢 AT BUDDY PICKUP' : '🗺️ EN ROUTE TO SEEKER PICKUP')}
               </Text>
               <View style={[styles.timerBadge, !isTripToDestination && { backgroundColor: 'rgba(245,166,35,0.15)', borderColor: colors.accent }]}>
                 <Text style={[styles.timerText, !isTripToDestination && { color: colors.accent }]}>
@@ -768,7 +721,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
               <Text style={{ color: colors.text2, fontSize: 11, fontWeight: '700', letterSpacing: 0.5 }}>
                 {isTripToDestination
                   ? (isMapExpanded ? '🗺️ DESTINATION ROUTE (FULL)' : '🗺️ ROUTE TO FINAL DESTINATION')
-                  : (isMapExpanded ? '🗺️ ROUTE TO SEEKER (FULL)' : '🗺️ ROUTE TO PASSENGER PICKUP')}
+                  : (isMapExpanded ? '🗺️ ROUTE TO SEEKER (FULL)' : '🗺️ ROUTE TO BUDDY PICKUP')}
               </Text>
               <TouchableOpacity
                 onPress={() => setIsMapExpanded(e => !e)}
@@ -900,10 +853,10 @@ export default function LiveTrackingScreen({ navigation, route }) {
               <Text style={[styles.preDepartureSub, { color: isDark ? colors.text2 : '#475569' }]}>
                 {isDriver
                   ? (!rideInfo?.riderReachedSeeker
-                      ? 'Follow the map above to passenger pickup spot. Once you arrive, tap "I Have Reached Seeker Location" below.'
+                      ? 'Follow directions above to buddy pickup spot. Once you arrive, tap "I Have Reached Seeker Location" below.'
                       : (rideInfo?.seekerChecklistCompleted
-                          ? 'Passenger safety checklist verified! Tap "🚀 Start Ride" below to begin destination navigation.'
-                          : 'Waiting for passenger to complete their pre-ride safety checklist before departure.'))
+                          ? 'Buddy safety checklist verified! Tap "🚀 Start Ride" below to begin destination route.'
+                          : 'Waiting for buddy to complete their pre-ride safety checklist before departure.'))
                   : (!rideInfo?.riderReachedSeeker
                       ? `Rider is on the way to your pickup point (${rideInfo?.pickup?.address || 'Pickup'}). You will complete the safety checklist upon arrival.`
                       : (rideInfo?.seekerChecklistCompleted
@@ -913,7 +866,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
           )}
 
-          {/* ── DETAILS CARD: SHOW PASSENGER DETAILS TO DRIVER, DRIVER DETAILS TO SEEKER (HIDDEN ONCE COMPLETED/CANCELLED) ── */}
+          {/* ── DETAILS CARD: SHOW BUDDY DETAILS TO DRIVER, DRIVER DETAILS TO SEEKER (HIDDEN ONCE COMPLETED/CANCELLED) ── */}
           {rideInfo && rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
             <View style={[styles.driverCard, { backgroundColor: isDark ? 'rgba(245,166,35,0.07)' : '#ffffff', borderColor: isDark ? 'rgba(245,166,35,0.25)' : '#e2e8f0' }]}>
               {isDriver ? (
@@ -938,7 +891,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                           </View>
                           <View style={styles.driverDetailsGrid}>
                             
-                            {p.seeker?.phone && (
+                            {p.seeker?.phone && p.status === 'accepted' && (
                               <TouchableOpacity
                                 style={styles.driverGridItem}
                                 onPress={() => Linking.openURL(`tel:${p.seeker.phone}`)}
@@ -963,7 +916,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   ) : (
                     <View style={{ paddingVertical: 8 }}>
                       <Text style={{ color: colors.text2, fontSize: 13 }}>
-                        Passenger confirmed for this ride.
+                        Buddy confirmed for this ride.
                       </Text>
                     </View>
                   )}
@@ -1100,9 +1053,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                         <Text style={{ fontSize: 22 }}>⏳</Text>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Passenger Checklist</Text>
+                          <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Buddy Checklist</Text>
                           <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
-                            You have arrived at pickup! Passenger must verify safety checklist before ride departure.
+                            You have arrived at pickup! Buddy must verify safety checklist before ride departure.
                           </Text>
                         </View>
                       </View>
@@ -1119,7 +1072,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Text style={{ fontSize: 16 }}>✅</Text>
                         <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
-                          Passenger checklist verified! Tap below to start ride and show route to destination.
+                          Buddy checklist verified! Tap below to start ride and show route to destination.
                         </Text>
                       </View>
 

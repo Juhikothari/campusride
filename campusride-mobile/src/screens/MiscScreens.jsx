@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert as RNAlert, TextInput,
-  KeyboardAvoidingView, Platform, Modal, DeviceEventEmitter,
+  KeyboardAvoidingView, Platform, Modal, DeviceEventEmitter, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -136,6 +136,34 @@ export function RideDetailScreen({ navigation, route }) {
                 <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14, flex: 1 }}>{getAddr(ride.drop)}</Text>
               </View>
             </View>
+
+            {/* Directions ↗ to Google Maps */}
+            <TouchableOpacity
+              onPress={() => {
+                const dropLat = ride?.drop?.lat || ride?.drop?.latitude;
+                const dropLng = ride?.drop?.lng || ride?.drop?.longitude;
+                const dropAddr = getAddr(ride?.drop) || '';
+                const dest = dropLat && dropLng ? `${dropLat},${dropLng}` : encodeURIComponent(dropAddr);
+                if (dest) {
+                  Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
+                }
+              }}
+              style={{
+                backgroundColor: colors.accent,
+                borderRadius: radius.md,
+                paddingVertical: 11,
+                paddingHorizontal: 16,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                marginBottom: 12,
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ fontSize: 16 }}>🧭</Text>
+              <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>Directions ↗</Text>
+            </TouchableOpacity>
 
             {/* Details */}
             <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
@@ -1002,25 +1030,25 @@ export function RouteAlertsScreen({ navigation }) {
 //  INCIDENT REPORT SCREEN (Images 3, 4, 5 UI Redesign)
 // ═══════════════════════════════════════════════════════════════
 const PASSENGER_INCIDENT_CATEGORIES = [
-  'Passenger No Show',
-  'Passenger Rude / Abusive Behaviour',
-  'Passenger Harassment',
-  'Passenger Refused to Pay',
-  'Passenger Cancelled at Last Minute',
-  'Passenger Brought Extra People',
-  'Passenger Damaged Vehicle',
-  'Passenger Under Influence',
-  'Passenger Threatened Driver',
-  'Passenger Privacy Violation',
+  'Buddy No Show',
+  'Buddy Rude / Abusive Behaviour',
+  'Buddy Harassment',
+  'Buddy Refused to Pay',
+  'Buddy Cancelled at Last Minute',
+  'Buddy Brought Extra People',
+  'Buddy Damaged Vehicle',
+  'Buddy Under Influence',
+  'Buddy Threatened Driver',
+  'Buddy Privacy Violation',
   'Fake Booking',
   'Wrong Pickup Location Given',
-  'Passenger Verbal Abuse',
-  'Passenger Physical Aggression',
-  'Passenger Brought Prohibited Items',
-  'Passenger Inappropriate Behaviour',
-  'Passenger Left Without Confirmation',
+  'Buddy Verbal Abuse',
+  'Buddy Physical Aggression',
+  'Buddy Brought Prohibited Items',
+  'Buddy Inappropriate Behaviour',
+  'Buddy Left Without Confirmation',
   'Booking Fraud / Identity Mismatch',
-  'Safety Threat by Passenger',
+  'Safety Threat by Buddy',
   'Other',
 ];
 
@@ -1035,9 +1063,9 @@ const RIDER_ROAD_INCIDENT_CATEGORIES = [
   'Pothole / Road Hazard Caused Damage',
   'Traffic Signal / Law Enforcement Stop',
   'Vehicle Stolen During Ride',
-  'Vehicle Damage (Not by Passenger)',
+  'Vehicle Damage (Not by Buddy)',
   'Medical Emergency — Rider',
-  'Medical Emergency — Passenger',
+  'Medical Emergency — Buddy',
   'Natural Hazard (Flooding, Fallen Tree etc.)',
   'Third-Party Collision (Hit by Another Vehicle)',
   'Phone Snatching / Robbery',
@@ -1462,9 +1490,9 @@ export function IncidentReportScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Passenger Incident vs Rider/Road Incident Toggle matching Image 3 */}
+              {/* Buddy Incident vs Rider/Road Incident Toggle matching Image 3 */}
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                {/* Passenger Incident Button */}
+                {/* Buddy Incident Button */}
                 <TouchableOpacity
                   onPress={() => {
                     setIncidentSegment('passenger');
@@ -1483,18 +1511,18 @@ export function IncidentReportScreen({ navigation }) {
                     backgroundColor: '#F5A623',
                     borderColor: '#F5A623',
                   } : {
-                    backgroundColor: '#121824',
-                    borderColor: '#1C2536',
+                    backgroundColor: isDark ? '#121824' : '#f1f5f9',
+                    borderColor: isDark ? '#1C2536' : '#cbd5e1',
                   }]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                    <Text style={{ fontSize: 14 }}>🎁</Text>
+                    <Text style={{ fontSize: 14 }}>👥</Text>
                     <Text style={{
                       color: incidentSegment === 'passenger' ? '#000000' : (isDark ? '#E2E8F0' : '#0f172a'),
                       fontSize: 12.5,
                       fontWeight: '800',
                     }}>
-                      Passenger Incident
+                      Buddy Incident
                     </Text>
                   </View>
                   <Text style={{
@@ -1502,7 +1530,7 @@ export function IncidentReportScreen({ navigation }) {
                     fontSize: 10.5,
                     textAlign: 'center',
                   }}>
-                    Issues caused by your passenger
+                    Issues caused by your buddy
                   </Text>
                 </TouchableOpacity>
 
@@ -1564,7 +1592,7 @@ export function IncidentReportScreen({ navigation }) {
                 </View>
                 <Text style={{ color: '#8E9BAE', fontSize: 12, marginBottom: 12 }}>
                   {incidentSegment === 'passenger'
-                    ? 'Select the passenger incident category'
+                    ? 'Select the buddy incident category'
                     : 'Select the road / rider incident category'}
                 </Text>
 
@@ -1919,103 +1947,112 @@ export function ForgotPasswordScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
-          <Text style={{ color: colors.text2 }}>← Back to Login</Text>
-        </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: 160 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+        >
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
+            <Text style={{ color: isDark ? colors.text2 : '#475569' }}>← Back to Login</Text>
+          </TouchableOpacity>
 
-        <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 4 }}>
-          {step === 3 ? '🎉 All Set!' : 'Reset Password'}
-        </Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.lg }}>
-          {step === 1 && 'Enter your registered email to receive a 6-digit verification code.'}
-          {step === 2 && `Enter the OTP sent to ${email} and your new password.`}
-          {step === 3 && 'Your password has been successfully updated.'}
-        </Text>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 24, fontWeight: '800', marginBottom: 4 }}>
+            {step === 3 ? '🎉 All Set!' : 'Reset Password'}
+          </Text>
+          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: spacing.lg }}>
+            {step === 1 && 'Enter your registered email to receive a 6-digit verification code.'}
+            {step === 2 && `Enter the OTP sent to ${email} and your new password.`}
+            {step === 3 && 'Your password has been successfully updated.'}
+          </Text>
 
-        <Alert message={error} />
-        {successMsg && step === 2 ? <Alert message={successMsg} type="success" /> : null}
+          <Alert message={error} />
+          {successMsg && step === 2 ? <Alert message={successMsg} type="success" /> : null}
 
-        {step === 1 && (
-          <View>
-            <TextInput
-              style={inputStyle}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@college.edu"
-              placeholderTextColor={colors.text3}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TouchableOpacity onPress={handleSendOtp} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }]}>
-              <Text style={styles.btnText}>{loading ? 'Sending OTP…' : 'Send Verification OTP ✉️'}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          {step === 1 && (
+            <View>
+              <TextInput
+                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@college.edu"
+                placeholderTextColor={isDark ? colors.text3 : '#64748b'}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <TouchableOpacity onPress={handleSendOtp} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }]}>
+                <Text style={styles.btnText}>{loading ? 'Sending OTP…' : 'Send Verification OTP ✉️'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-        {step === 2 && (
-          <View>
-            <TextInput
-              style={[inputStyle, { letterSpacing: 4, fontWeight: '700', textAlign: 'center', fontSize: 18 }]}
-              value={otp}
-              onChangeText={setOtp}
-              placeholder="Enter 6-digit OTP"
-              placeholderTextColor={colors.text3}
-              keyboardType="number-pad"
-              maxLength={6}
-            />
-            <TextInput
-              style={inputStyle}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              placeholder="New password (min 6 chars)"
-              placeholderTextColor={colors.text3}
-              secureTextEntry
-            />
-            <TextInput
-              style={inputStyle}
-              value={confirmPwd}
-              onChangeText={setConfirmPwd}
-              placeholder="Confirm new password"
-              placeholderTextColor={colors.text3}
-              secureTextEntry
-            />
+          {step === 2 && (
+            <View>
+              <TextInput
+                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1', letterSpacing: 4, fontWeight: '700', textAlign: 'center', fontSize: 18 }]}
+                value={otp}
+                onChangeText={setOtp}
+                placeholder="Enter 6-digit OTP"
+                placeholderTextColor={isDark ? colors.text3 : '#64748b'}
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+              <TextInput
+                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                placeholder="New password (min 6 chars)"
+                placeholderTextColor={isDark ? colors.text3 : '#64748b'}
+                secureTextEntry
+              />
+              <TextInput
+                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
+                value={confirmPwd}
+                onChangeText={setConfirmPwd}
+                placeholder="Confirm new password"
+                placeholderTextColor={isDark ? colors.text3 : '#64748b'}
+                secureTextEntry
+              />
 
-            <TouchableOpacity onPress={handleResetPassword} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }, { marginTop: 4 }]}>
-              <Text style={styles.btnText}>{loading ? 'Resetting…' : 'Reset Password 🔒'}</Text>
-            </TouchableOpacity>
+              <TouchableOpacity onPress={handleResetPassword} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }, { marginTop: 4 }]}>
+                <Text style={styles.btnText}>{loading ? 'Resetting…' : 'Reset Password 🔒'}</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={handleSendOtp}
-              disabled={loading || countdown > 0}
-              style={{ marginTop: 16, alignItems: 'center' }}
-            >
-              <Text style={{
-                color: countdown > 0 ? colors.text3 : colors.accent,
-                fontSize: 13,
-                fontWeight: '600'
-              }}>
-                {countdown > 0
-                  ? `Resend code in ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`
-                  : "Didn't receive OTP? Resend code"}
+              <TouchableOpacity
+                onPress={handleSendOtp}
+                disabled={loading || countdown > 0}
+                style={{ marginTop: 16, alignItems: 'center' }}
+              >
+                <Text style={{
+                  color: countdown > 0 ? (isDark ? colors.text3 : '#94a3b8') : colors.accent,
+                  fontSize: 13,
+                  fontWeight: '600'
+                }}>
+                  {countdown > 0
+                    ? `Resend code in ${Math.floor(countdown / 60)}:${String(countdown % 60).padStart(2, '0')}`
+                    : "Didn't receive OTP? Resend code"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {step === 3 && (
+            <View style={{ alignItems: 'center', paddingTop: 20 }}>
+              <Text style={{ fontSize: 50, marginBottom: 16 }}>✅</Text>
+              <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Password Reset Successful</Text>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
+                You can now sign in to HOGO with your new password.
               </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {step === 3 && (
-          <View style={{ alignItems: 'center', paddingTop: 20 }}>
-            <Text style={{ fontSize: 50, marginBottom: 16 }}>✅</Text>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700', marginBottom: 12 }}>Password Reset Successful</Text>
-            <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', marginBottom: 24 }}>
-              You can now sign in to HOGO with your new password.
-            </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={[styles.btn, { width: '100%' }]}>
-              <Text style={styles.btnText}>Sign In Now →</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </ScrollView>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')} style={[styles.btn, { width: '100%' }]}>
+                <Text style={styles.btnText}>Sign In Now →</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

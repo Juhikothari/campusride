@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert as RNAlert, RefreshControl,
+  StyleSheet, ActivityIndicator, Alert as RNAlert, RefreshControl, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
@@ -234,7 +234,32 @@ export default function MyBookingsScreen({ navigation }) {
                     />
                   )}
                   {rideIdStr && !isCancelled && (
-                    <Btn label="View Ride Details" onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })} variant="outline" />
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                      <View style={{ flex: 1 }}>
+                        <Btn label="View Ride Details" onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })} variant="outline" />
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          const dropLat = ride?.drop?.lat || ride?.drop?.latitude;
+                          const dropLng = ride?.drop?.lng || ride?.drop?.longitude;
+                          const dropAddr = ride?.drop?.address || ride?.drop?.name || '';
+                          const dest = dropLat && dropLng ? `${dropLat},${dropLng}` : encodeURIComponent(dropAddr);
+                          if (dest) {
+                            Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
+                          }
+                        }}
+                        style={{
+                          backgroundColor: colors.accent,
+                          borderRadius: radius.md,
+                          paddingHorizontal: 14,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>Directions ↗</Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                   {canCancel && (
                     <Btn label="✕ Cancel Booking" onPress={() => cancelBooking(b._id)} variant="danger" />

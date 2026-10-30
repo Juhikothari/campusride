@@ -222,7 +222,7 @@ export default function DashboardScreen({ navigation }) {
       tagline: 'CAMPUS COMMUTE REIMAGINED',
       title: 'Meet HOGO',
       desc: 'Find matching buddy, travel together across campus, walk safer in groups, and stay connected!',
-      btnLabel: 'Start →',
+      btnLabel: 'Next →',
       targetKey: null,
       screenName: null,
     },
@@ -395,7 +395,7 @@ export default function DashboardScreen({ navigation }) {
           setActiveTrip({
             ...activeDriverRide,
             passengersList,
-            matchedPassengerName: passengerNames[0] || (passengerNames.length > 0 ? passengerNames.join(', ') : 'Passenger'),
+            matchedPassengerName: passengerNames[0] || (passengerNames.length > 0 ? passengerNames.join(', ') : 'Buddy'),
             matchedPassengerCollege: passengerColleges[0] || activeDriverRide.college || 'Campus Commuter',
             matchedPassengerPhone: passengerPhone,
             hasAcceptedBookings: matchedBookings.length > 0,
@@ -444,7 +444,7 @@ export default function DashboardScreen({ navigation }) {
     RNAlert.alert(
       isDriver ? '❌ Cancel Ride' : '❌ Cancel Booking',
       isDriver
-        ? 'Are you sure you want to cancel this ride? All matched passengers will be notified.'
+        ? 'Are you sure you want to cancel this ride? All matched buddies will be notified.'
         : 'Are you sure you want to cancel your seat on this ride?',
       [
         { text: 'Keep Ride', style: 'cancel' },
@@ -478,7 +478,7 @@ export default function DashboardScreen({ navigation }) {
     if (!activeTrip) return;
     RNAlert.alert(
       '🏁 Finish & Complete Ride',
-      'Are you sure you want to end this ride? All passengers will be marked as reached destination.',
+      'Are you sure you want to end this ride? All buddies will be marked as reached destination.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -759,12 +759,8 @@ export default function DashboardScreen({ navigation }) {
                           const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
                           const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
                           const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
-                          const url = Platform.select({
-                            ios: `maps:0,0?q=${query}`,
-                            android: `geo:0,0?q=${query}(Buddy+Pickup)`,
-                            default: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                          });
-                          Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                          const url = `https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`;
+                          Linking.openURL(url).catch(() => {});
                         }}
                         style={{
                           flexDirection: 'row',
@@ -781,9 +777,9 @@ export default function DashboardScreen({ navigation }) {
                         }}
                         activeOpacity={0.75}
                       >
-                        <Text style={{ fontSize: 13 }}>🗺️</Text>
+                        <Text style={{ fontSize: 13 }}>🧭</Text>
                         <Text style={{ color: '#00E5FF', fontSize: 11, fontWeight: '800' }}>
-                          Seeker Location Map →
+                          Directions ↗
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -875,7 +871,7 @@ export default function DashboardScreen({ navigation }) {
                             await api.startRide(rId);
                             navigation.navigate('LiveTracking', { rideId: rId });
                           } catch (err) {
-                            RNAlert.alert('Cannot Start Ride', err.message || 'Wait for passenger to complete safety checklist.');
+                            RNAlert.alert('Cannot Start Ride', err.message || 'Wait for buddy to complete safety checklist.');
                           }
                         }}
                         activeOpacity={0.85}
@@ -891,9 +887,9 @@ export default function DashboardScreen({ navigation }) {
                   ) : (
                     <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
                       <Text style={{ fontSize: 20, marginBottom: 4 }}>⏳</Text>
-                      <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Passenger Checklist</Text>
+                      <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Buddy Checklist</Text>
                       <Text style={{ color: colors.text2, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 2 }}>
-                        The passenger must complete their safety checklist before departure. Start option will appear once verified.
+                        The buddy must complete their safety checklist before departure. Start option will appear once verified.
                       </Text>
                     </View>
                   )}
@@ -1060,14 +1056,14 @@ export default function DashboardScreen({ navigation }) {
                 />
               </View>
 
-              {/* Animated Bouncing Bike reaching 88% (end of track) on final step */}
+              {/* Animated Bouncing Bike reaching 92% (end of track) on final step */}
               <Animated.View
                 style={[
                   styles.onbBikeRunner,
                   {
                     left: progressAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: ['0%', '88%'],
+                      outputRange: ['0%', '92%'],
                       extrapolate: 'clamp',
                     }),
                   },
@@ -2085,6 +2081,7 @@ const styles = StyleSheet.create({
   onbBikeText: {
     fontSize: 22,
     lineHeight: 24,
+    transform: [{ scaleX: -1 }], // Straighten bike emoji to face forward in direction of motion
   },
   onbControlsRow: {
     flexDirection: 'row',

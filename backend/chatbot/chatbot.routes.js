@@ -52,7 +52,7 @@ router.post('/message', auth, async (req, res) => {
 
     const data  = await response.json();
     const rawReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
-    const reply = rawReply.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ');
+    const reply = rawReply.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ').replace(/\*/g, '');
 
     return res.json({ reply });
 

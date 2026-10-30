@@ -1287,6 +1287,7 @@ export function AdminDashboardScreen({ navigation }) {
 //  RESET PASSWORD SCREEN (OTP flow)
 // ════════════════════════════════════════════════════════════════
 export function ResetPasswordScreen({ navigation }) {
+  const { isDark } = useTheme();
   const STEP = { EMAIL: 'email', OTP: 'otp', PASSWORD: 'password', DONE: 'done' };
   const [step,       setStep]       = useState(STEP.EMAIL);
   const [email,      setEmail]      = useState('');
@@ -1334,45 +1335,54 @@ export function ResetPasswordScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
-          <Text style={{ color: colors.text2, fontSize: 14 }}>← Back to Login</Text>
-        </TouchableOpacity>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 6 }}>🔐 Reset Password</Text>
-        <Alert message={error} />
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.scroll, { paddingBottom: 160 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+        >
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 14 }}>← Back to Login</Text>
+          </TouchableOpacity>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 22, fontWeight: '800', marginBottom: 6 }}>🔐 Reset Password</Text>
+          <Alert message={error} />
 
-        {step === STEP.EMAIL && (
-          <>
-            <Text style={{ color: colors.text2, fontSize: 13, marginBottom: 16 }}>Enter your college email. We'll send an OTP.</Text>
-            <TextInput style={inp} value={email} onChangeText={setEmail} placeholder="you@college.edu" placeholderTextColor={colors.text3} keyboardType="email-address" autoCapitalize="none" />
-            <Btn label="Send OTP →" onPress={sendOtp} loading={loading} />
-          </>
-        )}
-        {step === STEP.OTP && (
-          <>
-            <Text style={{ color: colors.text2, fontSize: 13, marginBottom: 16 }}>Enter the OTP sent to {email}</Text>
-            <TextInput style={inp} value={otp} onChangeText={setOtp} placeholder="6-digit OTP" placeholderTextColor={colors.text3} keyboardType="number-pad" maxLength={6} />
-            <Btn label="Verify OTP →" onPress={verifyOtp} loading={loading} />
-          </>
-        )}
-        {step === STEP.PASSWORD && (
-          <>
-            <Text style={{ color: colors.text2, fontSize: 13, marginBottom: 16 }}>Enter your new password</Text>
-            <TextInput style={inp} value={password} onChangeText={setPassword} placeholder="New password (min 6 chars)" placeholderTextColor={colors.text3} secureTextEntry />
-            <TextInput style={inp} value={confirm}  onChangeText={setConfirm}  placeholder="Confirm new password"       placeholderTextColor={colors.text3} secureTextEntry />
-            <Btn label="Reset Password" onPress={setNewPassword} loading={loading} />
-          </>
-        )}
-        {step === STEP.DONE && (
-          <View style={{ alignItems: 'center', paddingTop: 24 }}>
-            <Text style={{ fontSize: 52, marginBottom: 16 }}>✅</Text>
-            <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: 8 }}>Password Reset!</Text>
-            <Text style={{ color: colors.text2, fontSize: 13, marginBottom: 24 }}>You can now log in with your new password.</Text>
-            <Btn label="Go to Login" onPress={() => navigation.navigate('Login')} style={{ width: '100%' }} />
-          </View>
-        )}
-      </ScrollView>
+          {step === STEP.EMAIL && (
+            <>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: 16 }}>Enter your college email. We'll send an OTP.</Text>
+              <TextInput style={[inp, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]} value={email} onChangeText={setEmail} placeholder="you@college.edu" placeholderTextColor={isDark ? colors.text3 : '#64748b'} keyboardType="email-address" autoCapitalize="none" />
+              <Btn label="Send OTP →" onPress={sendOtp} loading={loading} />
+            </>
+          )}
+          {step === STEP.OTP && (
+            <>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: 16 }}>Enter the OTP sent to {email}</Text>
+              <TextInput style={[inp, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]} value={otp} onChangeText={setOtp} placeholder="6-digit OTP" placeholderTextColor={isDark ? colors.text3 : '#64748b'} keyboardType="number-pad" maxLength={6} />
+              <Btn label="Verify OTP →" onPress={verifyOtp} loading={loading} />
+            </>
+          )}
+          {step === STEP.PASSWORD && (
+            <>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: 16 }}>Enter your new password</Text>
+              <TextInput style={[inp, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]} value={password} onChangeText={setPassword} placeholder="New password (min 6 chars)" placeholderTextColor={isDark ? colors.text3 : '#64748b'} secureTextEntry />
+              <TextInput style={[inp, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]} value={confirm}  onChangeText={setConfirm}  placeholder="Confirm new password"       placeholderTextColor={isDark ? colors.text3 : '#64748b'} secureTextEntry />
+              <Btn label="Reset Password" onPress={setNewPassword} loading={loading} />
+            </>
+          )}
+          {step === STEP.DONE && (
+            <View style={{ alignItems: 'center', paddingTop: 24 }}>
+              <Text style={{ fontSize: 52, marginBottom: 16 }}>✅</Text>
+              <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 20, fontWeight: '800', marginBottom: 8 }}>Password Reset!</Text>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: 24 }}>You can now log in with your new password.</Text>
+              <Btn label="Go to Login" onPress={() => navigation.navigate('Login')} style={{ width: '100%' }} />
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -1522,18 +1532,33 @@ export function PreRideChecklistScreen({ route, navigation }) {
     );
   };
 
+  const isLocked = isChecklistSaved || (rideDetails?.seekerChecklistCompleted && !isDriver) || rideDetails?.status === 'in-progress' || rideDetails?.status === 'completed';
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-          <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
+          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🛡️ Pre-Ride Safety Checklist</Text>
+        <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🛡️ Pre-Ride Safety Checklist</Text>
         <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: spacing.md }}>
           {isDriver
-            ? 'Confirm safety checks before giving the option to start the ride for your passengers.'
+            ? 'Confirm safety checks before giving the option to start the ride for your buddies.'
             : 'Verify your assigned ride details and safety checks before departure.'}
         </Text>
+
+        {/* Locked banner if already verified */}
+        {isLocked && (
+          <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 12, marginBottom: 14, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontSize: 18 }}>🔒</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.green, fontSize: 13, fontWeight: '800' }}>Checklist Verified & Locked</Text>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11.5, marginTop: 2 }}>
+                Safety checklist has been verified. For campus safety, checklist cannot be altered once verified.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* If Seeker's booking was rejected */}
         {!isDriver && bookingStatus === 'rejected' && (
@@ -1582,20 +1607,21 @@ export function PreRideChecklistScreen({ route, navigation }) {
         {CHECKS.map(c => (
           <TouchableOpacity
             key={c.key}
-            onPress={() => setChecks(ch => ({ ...ch, [c.key]: !ch[c.key] }))}
-            style={[styles.checkRow, checks[c.key] && styles.checkRowDone]}
+            disabled={isLocked}
+            onPress={() => !isLocked && setChecks(ch => ({ ...ch, [c.key]: !ch[c.key] }))}
+            style={[styles.checkRow, checks[c.key] && styles.checkRowDone, isLocked && { opacity: 0.88 }]}
           >
             <View style={[styles.checkBox, checks[c.key] && styles.checkBoxDone]}>
               {checks[c.key] && <Text style={{ color: '#000', fontWeight: '800', fontSize: 12 }}>✓</Text>}
             </View>
-            <Text style={[styles.checkLabel, checks[c.key] && { color: colors.text }]}>{c.label}</Text>
+            <Text style={[styles.checkLabel, checks[c.key] && { color: isDark ? colors.text : '#0f172a' }]}>{c.label}</Text>
           </TouchableOpacity>
         ))}
 
         <Btn
-          label={getButtonLabel()}
-          onPress={handleProceed}
-          disabled={!allDone || starting || (!isDriver && bookingStatus !== 'accepted')}
+          label={isLocked ? (isDriver ? '🚀 Start Ride Now →' : '📍 Open Live Ride Map →') : getButtonLabel()}
+          onPress={isLocked ? () => navigation.replace('LiveTracking', { rideId }) : handleProceed}
+          disabled={!isLocked && (!allDone || starting || (!isDriver && bookingStatus !== 'accepted'))}
           loading={starting}
           style={{ marginTop: spacing.md }}
         />

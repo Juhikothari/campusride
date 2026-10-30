@@ -785,7 +785,7 @@ export default function CreateRideScreen({ navigation }) {
               <View style={styles.fareHeader}>
                 <View>
                   <Text style={[styles.fareBadge, { color: isDark ? '#2dd4a0' : '#059669' }]}>ESTIMATED FARE</Text>
-                  <Text style={[styles.fareTitle, { color: isDark ? '#f0f6fc' : '#0f172a' }]}>Total Fare Per Passenger</Text>
+                  <Text style={[styles.fareTitle, { color: isDark ? '#f0f6fc' : '#0f172a' }]}>Total Fare Per Buddy</Text>
                 </View>
                 <View style={styles.farePriceBadge}>
                   <Text style={styles.farePriceCurrency}>₹</Text>

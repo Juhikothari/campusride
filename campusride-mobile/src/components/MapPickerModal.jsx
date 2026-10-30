@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal,
-  TextInput, ActivityIndicator, Platform, ScrollView,
+  TextInput, ActivityIndicator, Platform, ScrollView, Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
+import * as Clipboard from 'expo-clipboard';
 import LiveMapView from './LiveMapView';
 import { colors, radius, spacing } from '../theme';
 import { useTheme } from '../context/ThemeContext';
@@ -29,6 +30,22 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
   const [searching,     setSearching]     = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [query,         setQuery]         = useState('');
+  const [copied,        setCopied]        = useState(false);
+
+  const handleCopyLocation = async () => {
+    if (!addressLabel) return;
+    try {
+      await Clipboard.setStringAsync(addressLabel);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+
+  const handleOpenDirections = () => {
+    if (!coords?.lat || !coords?.lng) return;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}&travelmode=driving`;
+    Linking.openURL(url).catch(() => {});
+  };
 
   useEffect(() => {
     if (!visible) return;
@@ -205,6 +222,80 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
                   <Text style={[styles.coordSub, { color: isDark ? colors.text3 : '#64748b' }]}>GPS: {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</Text>
                 )}
               </View>
+            </View>
+
+            {/* Action Bar: Detect GPS, Copy Location, and Directions ↗ */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: isDark ? colors.border : '#e2e8f0' }}>
+              <TouchableOpacity
+                onPress={locateUser}
+                disabled={locating}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                  paddingVertical: 8,
+                  borderRadius: radius.md,
+                  borderWidth: 1,
+                  borderColor: isDark ? colors.border : '#cbd5e1',
+                  gap: 4,
+                }}
+                activeOpacity={0.7}
+              >
+                {locating ? (
+                  <ActivityIndicator color={colors.accent} size="small" />
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 13 }}>📍</Text>
+                    <Text style={{ fontSize: 11.5, fontWeight: '700', color: isDark ? colors.text : '#0f172a' }}>Detect GPS</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleCopyLocation}
+                disabled={!addressLabel}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                  paddingVertical: 8,
+                  borderRadius: radius.md,
+                  borderWidth: 1,
+                  borderColor: isDark ? colors.border : '#cbd5e1',
+                  gap: 4,
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 13 }}>{copied ? '✅' : '📋'}</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '700', color: copied ? colors.green : (isDark ? colors.text : '#0f172a') }}>
+                  {copied ? 'Copied!' : 'Copy'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleOpenDirections}
+                disabled={!coords}
+                style={{
+                  flex: 1.1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: colors.accent,
+                  paddingVertical: 8,
+                  borderRadius: radius.md,
+                  gap: 4,
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 12 }}>🧭</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#000000' }}>
+                  Directions ↗
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
