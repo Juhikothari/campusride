@@ -637,7 +637,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
           ) : (
             <>
           {/* Interactive Route Map with Eye-Catching Points — Always Shown in Track Ride */}
-          <View style={styles.radarCard}>
+          <View style={[styles.radarCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
             {/* External Navigation Button (Opens Turn-by-Turn in Google Maps) */}
             <View style={{ marginBottom: 12 }}>
               <TouchableOpacity
@@ -858,7 +858,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
 
             {/* GPS Telemetry Bar */}
-            <View style={styles.telemetryBar}>
+            <View style={[styles.telemetryBar, { backgroundColor: isDark ? '#141c2b' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' }]}>
               <View style={styles.telemetryItem}>
                 <Text style={styles.telemetryLabel}>TO PICKUP</Text>
                 <Text style={[styles.telemetryVal, { color: '#00E5FF' }]}>
@@ -889,14 +889,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
           {/* Pre-Departure Info Card if ride not started yet */}
           {!isTripToDestination && (
-            <View style={styles.preDepartureNoticeBox}>
+            <View style={[styles.preDepartureNoticeBox, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
               <Text style={{ fontSize: 24, textAlign: 'center', marginBottom: 6 }}>
                 {rideInfo?.riderReachedSeeker ? '📍' : '🚗'}
               </Text>
-              <Text style={styles.preDepartureTitle}>
+              <Text style={[styles.preDepartureTitle, { color: isDark ? colors.text : '#0f172a' }]}>
                 {rideInfo?.riderReachedSeeker ? 'Rider at Pickup Location' : 'Rider En Route to Pickup'}
               </Text>
-              <Text style={styles.preDepartureSub}>
+              <Text style={[styles.preDepartureSub, { color: isDark ? colors.text2 : '#475569' }]}>
                 {isDriver
                   ? (!rideInfo?.riderReachedSeeker
                       ? 'Follow the map above to passenger pickup spot. Once you arrive, tap "I Have Reached Seeker Location" below.'

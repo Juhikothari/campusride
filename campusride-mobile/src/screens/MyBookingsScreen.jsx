@@ -121,7 +121,7 @@ export default function MyBookingsScreen({ navigation }) {
               <View key={b._id} style={[styles.card, isCancelled && styles.cardCancelled]}>
                 {/* Header */}
                 <View style={styles.cardHeader}>
-                  <Text style={styles.bookingId}>Booking #{b._id.slice(-6).toUpperCase()}</Text>
+                  <Text style={[styles.bookingId, { color: isDark ? colors.text : '#0f172a' }]}>Booking #{b._id.slice(-6).toUpperCase()}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 14 }}>{STATUS_ICON[b.status] || '•'}</Text>
                     <Text style={[styles.statusText, { color: STATUS_COLOR[b.status] || colors.text2 }]}>{b.status}</Text>
@@ -133,12 +133,12 @@ export default function MyBookingsScreen({ navigation }) {
                   <View style={styles.route}>
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.green }]} />
-                      <Text style={styles.routeText} numberOfLines={2}>{getAddr(ride.pickup)}</Text>
+                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(ride.pickup)}</Text>
                     </View>
                     <View style={styles.routeLineDot} />
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.red }]} />
-                      <Text style={styles.routeText} numberOfLines={2}>{getAddr(ride.drop)}</Text>
+                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(ride.drop)}</Text>
                     </View>
                   </View>
                 )}
@@ -146,23 +146,29 @@ export default function MyBookingsScreen({ navigation }) {
                 {/* Meta grid */}
                 {ride && (
                   <View style={styles.metaGrid}>
-                    <MetaItem label="DATE"    value={fmtDate(ride.date)} />
-                    <MetaItem label="TIME"    value={ride.time || '—'} />
-                    <MetaItem label="COST"    value={`₹${ride.costPerSeat}/seat`} accent />
-                    <MetaItem label="VEHICLE" value={`${VEHICLE_ICON[ride.vehicleType] || '🚗'} ${ride.vehicleType || '—'}`} />
+                    <MetaItem isDark={isDark} label="DATE"    value={fmtDate(ride.date)} />
+                    <MetaItem isDark={isDark} label="TIME"    value={ride.time || '—'} />
+                    <MetaItem isDark={isDark} label="COST"    value={`₹${ride.costPerSeat}/seat`} accent />
+                    <MetaItem isDark={isDark} label="VEHICLE" value={`${VEHICLE_ICON[ride.vehicleType] || '🚗'} ${ride.vehicleType || '—'}`} />
                   </View>
                 )}
 
                 {/* Provider details — only after accepted */}
                 {b.status === 'accepted' && provider && (
-                  <View style={styles.providerCard}>
+                  <View style={[
+                    styles.providerCard,
+                    {
+                      backgroundColor: isDark ? 'rgba(245,166,35,0.07)' : '#fffbeb',
+                      borderColor: isDark ? 'rgba(245,166,35,0.2)' : '#fef08a',
+                    }
+                  ]}>
                     <Text style={styles.providerLabel}>CONFIRMED PROVIDER & VEHICLE</Text>
                     <View style={styles.providerHeaderRow}>
                       <View style={styles.avatarMini}>
                         <Text style={styles.avatarMiniText}>🪪</Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.providerNameText}>🪪 USN: {provider.usn || 'Verified Commuter'}</Text>
+                        <Text style={[styles.providerNameText, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {provider.usn || 'Verified Commuter'}</Text>
                         <Text style={styles.vehicleNameBadge}>
                           🚘 {ride?.vehicleName || provider.kycDocuments?.vehicleName || 'Vehicle'} • {(ride?.vehicleType || 'CAR').toUpperCase()}
                         </Text>

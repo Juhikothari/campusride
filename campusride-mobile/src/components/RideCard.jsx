@@ -42,6 +42,7 @@ function getAddress(field) {
 }
 
 export default function RideCard({ ride, onView, onBook, bookingStatus }) {
+  const { isDark } = useTheme();
   const vehicleIcon = VEHICLE_ICON[ride.vehicleType] || '🚗';
   const statusColor = STATUS_COLOR[ride.status] || colors.text2;
   const pickup = getAddress(ride.pickup);
@@ -49,16 +50,22 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
   const isBooked = bookingStatus === 'pending' || bookingStatus === 'accepted';
 
   return (
-    <View style={styles.card}>
+    <View style={[
+      styles.card,
+      {
+        backgroundColor: isDark ? colors.surface : '#ffffff',
+        borderColor: isDark ? colors.border : '#cbd5e1',
+      }
+    ]}>
       {/* Header row */}
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Text style={{ fontSize: 22 }}>{vehicleIcon}</Text>
           <View>
-            <Text style={styles.vehicleName}>
+            <Text style={[styles.vehicleName, { color: isDark ? colors.text : '#0f172a' }]}>
               {ride.vehicleName || (ride.vehicleType ? ride.vehicleType.charAt(0).toUpperCase() + ride.vehicleType.slice(1) : 'Ride')}
             </Text>
-            <Text style={styles.providerName}>
+            <Text style={[styles.providerName, { color: isDark ? colors.text2 : '#475569' }]}>
               🪪 USN: {ride.providerId?.usn || ride.provider?.usn || ride.providerUsn || 'Verified Commuter'}
             </Text>
           </View>
@@ -73,27 +80,36 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
       <View style={styles.route}>
         <View style={styles.routePoint}>
           <View style={[styles.dot, { backgroundColor: colors.green }]} />
-          <Text style={styles.routeText} numberOfLines={2}>{pickup}</Text>
+          <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{pickup}</Text>
         </View>
         <View style={styles.routeLine} />
         <View style={styles.routePoint}>
           <View style={[styles.dot, { backgroundColor: colors.red }]} />
-          <Text style={styles.routeText} numberOfLines={2}>{drop}</Text>
+          <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{drop}</Text>
         </View>
       </View>
 
       {/* Details row */}
       <View style={styles.detailRow}>
-        <DetailChip icon="📅" text={formatDate(ride.date)} />
-        <DetailChip icon="🕐" text={formatTime(ride.date, ride.time)} />
+        <DetailChip icon="📅" text={formatDate(ride.date)} isDark={isDark} />
+        <DetailChip icon="🕐" text={formatTime(ride.date, ride.time)} isDark={isDark} />
         <DetailChip icon="💺" text={`${ride.seatsAvailable} seat${ride.seatsAvailable !== 1 ? 's' : ''}`} />
         <DetailChip icon="₹" text={`${ride.costPerSeat}/seat`} />
       </View>
 
       {/* Actions */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.viewBtn} onPress={() => onView?.(ride._id)}>
-          <Text style={styles.viewBtnText}>View Details</Text>
+        <TouchableOpacity
+          style={[
+            styles.viewBtn,
+            {
+              backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+              borderColor: isDark ? colors.border : '#cbd5e1',
+            }
+          ]}
+          onPress={() => onView?.(ride._id)}
+        >
+          <Text style={[styles.viewBtnText, { color: isDark ? colors.text : '#0f172a' }]}>View Details</Text>
         </TouchableOpacity>
         {onBook && !isBooked && (
           <TouchableOpacity style={styles.bookBtn} onPress={() => onBook(ride._id)}>
@@ -112,11 +128,17 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
   );
 }
 
-function DetailChip({ icon, text }) {
+function DetailChip({ icon, text, isDark }) {
   return (
-    <View style={styles.chip}>
+    <View style={[
+      styles.chip,
+      {
+        backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+        borderColor: isDark ? colors.border : '#cbd5e1',
+      }
+    ]}>
       <Text style={{ fontSize: 11 }}>{icon}</Text>
-      <Text style={styles.chipText}>{text}</Text>
+      <Text style={[styles.chipText, { color: isDark ? colors.text2 : '#475569' }]}>{text}</Text>
     </View>
   );
 }

@@ -1,3 +1,4 @@
+import { useTheme } from '../context/ThemeContext';
 // Shared reusable components used across all screens
 import React, { useState } from 'react';
 import {

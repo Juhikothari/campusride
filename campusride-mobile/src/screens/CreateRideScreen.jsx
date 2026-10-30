@@ -534,18 +534,30 @@ export default function CreateRideScreen({ navigation }) {
           {Boolean(user?.college) && (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 12 }}>
               <TouchableOpacity
-                style={styles.campusChip}
+                style={[
+                styles.campusChip,
+                {
+                  backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                  borderColor: isDark ? '#26344d' : '#cbd5e1',
+                }
+              ]}
                 onPress={handleSelectPickupCollege}
                 activeOpacity={0.7}
               >
-                <Text style={styles.campusChipText}>🏫 Start at {user.college.split(' ')[0]}</Text>
+                <Text style={[styles.campusChipText, { color: isDark ? '#edf0f7' : '#0f172a' }]}>🏫 Start at {user.college.split(' ')[0]}</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.campusChip}
+                style={[
+                styles.campusChip,
+                {
+                  backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                  borderColor: isDark ? '#26344d' : '#cbd5e1',
+                }
+              ]}
                 onPress={handleSelectDropCollege}
                 activeOpacity={0.7}
               >
-                <Text style={styles.campusChipText}>🏫 Drop at {user.college.split(' ')[0]}</Text>
+                <Text style={[styles.campusChipText, { color: isDark ? '#edf0f7' : '#0f172a' }]}>🏫 Drop at {user.college.split(' ')[0]}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -553,7 +565,7 @@ export default function CreateRideScreen({ navigation }) {
           {/* ── Recent Commute History Chips ── */}
           {searchHistory.length > 0 && (
             <View style={styles.historySection}>
-              <Text style={styles.historyLabel}>🕒 RECENT COMMUTE ROUTES</Text>
+              <Text style={[styles.historyLabel, { color: isDark ? colors.text2 : '#475569' }]}>🕒 RECENT COMMUTE ROUTES</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   {searchHistory.map((item, i) => {
@@ -562,17 +574,23 @@ export default function CreateRideScreen({ navigation }) {
                     return (
                       <TouchableOpacity
                         key={i}
-                        style={styles.historyCard}
+                        style={[
+                        styles.historyCard,
+                        {
+                          backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                          borderColor: isDark ? '#26344d' : '#cbd5e1',
+                        }
+                      ]}
                         onPress={() => applyHistoryItem(item)}
                         activeOpacity={0.75}
                       >
                         <View style={styles.historyBulletRow}>
                           <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900' }}>•</Text>
-                          <Text style={styles.historyBulletText} numberOfLines={1}>{pName}</Text>
+                          <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{pName}</Text>
                         </View>
                         <View style={styles.historyBulletRow}>
                           <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900' }}>•</Text>
-                          <Text style={styles.historyBulletText} numberOfLines={1}>{dName}</Text>
+                          <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{dName}</Text>
                         </View>
                       </TouchableOpacity>
                     );
@@ -621,11 +639,17 @@ export default function CreateRideScreen({ navigation }) {
                 <View style={{ flex: 1, marginBottom: 12 }}>
                   <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '700', marginBottom: 6, textTransform: 'uppercase' }}>TIME *</Text>
                   <TouchableOpacity
-                    style={styles.timeSelectBtn}
+                    style={[
+                    styles.timeSelectBtn,
+                    {
+                      backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                      borderColor: isDark ? '#26344d' : '#cbd5e1',
+                    }
+                  ]}
                     onPress={() => setShowTimePicker(true)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.timeSelectBtnText}>{formatDisplayTime(time)}</Text>
+                    <Text style={[styles.timeSelectBtnText, { color: isDark ? '#edf0f7' : '#0f172a' }]}>{formatDisplayTime(time)}</Text>
                     <Text style={{ fontSize: 14 }}>🕒 ▼</Text>
                   </TouchableOpacity>
                 </View>
@@ -641,10 +665,16 @@ export default function CreateRideScreen({ navigation }) {
             </View>
           ) : !hasRegisteredVehicle ? (
             /* User did not add vehicle during registration -> prompt to go to profile */
-            <View style={styles.promptProfileCard}>
+            <View style={[
+              styles.promptProfileCard,
+              {
+                backgroundColor: isDark ? '#101520' : '#ffffff',
+                borderColor: isDark ? '#212840' : '#cbd5e1',
+              }
+            ]}>
               <Text style={{ fontSize: 32, textAlign: 'center', marginBottom: 6 }}>🚗</Text>
-              <Text style={styles.promptProfileTitle}>Vehicle & License Required</Text>
-              <Text style={styles.promptProfileSub}>
+              <Text style={[styles.promptProfileTitle, { color: isDark ? '#edf0f7' : '#0f172a' }]}>Vehicle & License Required</Text>
+              <Text style={[styles.promptProfileSub, { color: isDark ? '#8b96b0' : '#475569' }]}>
                 You have not registered your vehicle and driving license yet. Please go to your Profile to add your vehicle details and license before offering rides.
               </Text>
               <TouchableOpacity
@@ -719,7 +749,13 @@ export default function CreateRideScreen({ navigation }) {
 
           {/* ── ESTIMATED FARE DISPLAYED BEFORE POSTING ── */}
           {distKm > 0 && (
-            <View style={styles.fareCard}>
+            <View style={[
+              styles.fareCard,
+              {
+                backgroundColor: isDark ? '#0d131a' : '#ffffff',
+                borderColor: isDark ? '#1e3a2f' : '#86efac',
+              }
+            ]}>
               <View style={styles.fareHeader}>
                 <View>
                   <Text style={styles.fareBadge}>ESTIMATED FARE</Text>

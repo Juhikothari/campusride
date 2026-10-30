@@ -169,7 +169,7 @@ export default function ChatBotScreen({ navigation }) {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       {/* Unified clean header */}
-      <View style={styles.botHeader}>
+      <View style={[styles.botHeader, { backgroundColor: isDark ? colors.surface : '#ffffff', borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
         <View style={styles.botInfo}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -189,7 +189,7 @@ export default function ChatBotScreen({ navigation }) {
           </View>
         </View>
 
-        <TouchableOpacity onPress={handleClear} style={styles.clearBtn} activeOpacity={0.7}>
+        <TouchableOpacity onPress={handleClear} style={[styles.clearBtn, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]} activeOpacity={0.7}>
           <Text style={styles.clearBtnText}>Clear Chat</Text>
         </TouchableOpacity>
       </View>
@@ -224,10 +224,10 @@ export default function ChatBotScreen({ navigation }) {
                 <View
                   style={[
                     styles.bubble,
-                    isUser ? styles.bubbleUser : styles.bubbleAssistant
+                    isUser ? styles.bubbleUser : [styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]
                   ]}
                 >
-                  <Text style={[styles.msgText, isUser ? styles.msgTextUser : styles.msgTextAssistant]}>
+                  <Text style={[styles.msgText, isUser ? styles.msgTextUser : [styles.msgTextAssistant, { color: isDark ? colors.text : '#0f172a' }]]}>
                     {m.content}
                   </Text>
                 </View>
@@ -254,11 +254,11 @@ export default function ChatBotScreen({ navigation }) {
                 {SUGGESTIONS.map((s, i) => (
                   <TouchableOpacity
                     key={i}
-                    style={styles.chip}
+                    style={[styles.chip, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.accent + '44' : '#cbd5e1' }]}
                     onPress={() => handleSend(s)}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.chipText}>{s}</Text>
+                    <Text style={[styles.chipText, { color: isDark ? colors.text2 : '#475569' }]}>{s}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

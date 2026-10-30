@@ -67,6 +67,7 @@ function PostsTab({ user }) {
   const [attachment, setAttachment] = useState(null); // { uri, name, type, uploaded, url }
   const [stagedAttachment, setStagedAttachment] = useState(null); // { uri, name, type } - cropped but not yet attached
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [showImageEditorModal, setShowImageEditorModal] = useState(false);
   const [showAttachModal, setShowAttachModal] = useState(false);
 
   useEffect(() => {
@@ -96,6 +97,7 @@ function PostsTab({ user }) {
           name: asset.fileName || `post_image_${Date.now()}.jpg`,
           type: 'image',
         });
+        setShowImageEditorModal(true);
       }
     } catch (err) {
       RNAlert.alert('Error', 'Unable to pick image: ' + err.message);
@@ -121,6 +123,7 @@ function PostsTab({ user }) {
           name: `camera_${Date.now()}.jpg`,
           type: 'image',
         });
+        setShowImageEditorModal(true);
       }
     } catch (err) {
       RNAlert.alert('Error', 'Unable to take photo: ' + err.message);
@@ -181,6 +184,7 @@ function PostsTab({ user }) {
           uploaded: true,
         });
         setStagedAttachment(null);
+        setShowImageEditorModal(false);
       } else {
         throw new Error('Upload returned empty URL');
       }
@@ -382,62 +386,6 @@ function PostsTab({ user }) {
             multiline
             maxLength={500}
           />
-          {/* Staged Image Card (Before Attachment: Rotate, Crop, Attach tick, and Discard cross) */}
-          {stagedAttachment && !attachment && (
-            <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.accent, borderWidth: 1.5 }]}>
-              <Image source={{ uri: stagedAttachment.uri }} style={styles.attachmentPreviewThumb} />
-              <View style={{ flex: 1, paddingHorizontal: 8 }}>
-                <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{stagedAttachment.name}</Text>
-                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>
-                  {uploadingAttachment ? '⏳ Attaching…' : '📷 Staged — tap ✓ to attach'}
-                </Text>
-              </View>
-
-              {/* 1 Rotate Button */}
-              <TouchableOpacity
-                onPress={handleRotateStagedImage}
-                disabled={uploadingAttachment}
-                style={styles.cropActionBtn}
-                activeOpacity={0.75}
-              >
-                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>⟳ Rotate</Text>
-              </TouchableOpacity>
-
-              {/* Crop Button (crops without attaching) */}
-              <TouchableOpacity
-                onPress={handleRecropStagedImage}
-                disabled={uploadingAttachment}
-                style={styles.cropActionBtn}
-                activeOpacity={0.75}
-              >
-                <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>✂️ Crop</Text>
-              </TouchableOpacity>
-
-              {/* Tick Mark Button to Attach */}
-              <TouchableOpacity
-                onPress={handleConfirmAndUploadAttachment}
-                disabled={uploadingAttachment}
-                style={styles.attachTickBtn}
-                activeOpacity={0.8}
-              >
-                {uploadingAttachment ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={{ color: '#000', fontSize: 16, fontWeight: '900' }}>✓</Text>
-                )}
-              </TouchableOpacity>
-
-              {/* Discard staged image */}
-              <TouchableOpacity
-                onPress={() => setStagedAttachment(null)}
-                disabled={uploadingAttachment}
-                style={styles.removeAttachmentBtn}
-              >
-                <Text style={styles.removeAttachmentText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* Attached Image Preview (After Attachment: Rotate, Crop, and Attach options REMOVED) */}
           {attachment && (
             <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.green, borderWidth: 1.5 }]}>
@@ -454,7 +402,7 @@ function PostsTab({ user }) {
                 <Text style={styles.removeAttachmentText}>✕</Text>
               </TouchableOpacity>
             </View>
-          )}}
+          )}
 
           <View style={styles.composeToolbar}>
             {/* Single Attach button with Photo & Gallery options */}
@@ -543,6 +491,110 @@ function PostsTab({ user }) {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* ── Image Editor & Staging Modal (Those 4 options inside before attaching) ── */}
+      <Modal
+        visible={showImageEditorModal && Boolean(stagedAttachment)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (!uploadingAttachment) {
+            setShowImageEditorModal(false);
+            setStagedAttachment(null);
+          }
+        }}
+      >
+        <View style={styles.editorModalBackdrop}>
+          <View style={[styles.editorModalCard, { backgroundColor: isDark ? '#101520' : '#ffffff', borderColor: isDark ? '#212840' : '#e2e8f0' }]}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.editorModalTitle, { color: isDark ? colors.text : '#0f172a' }]}>📷 Edit & Preview Photo</Text>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 12, marginTop: 2 }}>
+                  Rotate or crop before attaching to your post
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowImageEditorModal(false);
+                  setStagedAttachment(null);
+                }}
+                disabled={uploadingAttachment}
+                style={[styles.editorCloseBtn, { backgroundColor: isDark ? '#1a2233' : '#f1f5f9' }]}
+              >
+                <Text style={{ color: isDark ? '#c8d4e6' : '#334155', fontSize: 16, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Large Preview */}
+            <View style={[styles.editorPreviewBox, { backgroundColor: isDark ? '#07090d' : '#f8fafc', borderColor: isDark ? '#212840' : '#cbd5e1' }]}>
+              {stagedAttachment?.uri ? (
+                <Image
+                  source={{ uri: stagedAttachment.uri }}
+                  style={{ width: '100%', height: 260, borderRadius: 8 }}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </View>
+
+            {/* 4 Options Inside Before Attaching: Rotate, Crop, Attach (✓), and Discard (✕) */}
+            <View style={styles.editorButtonsRow}>
+              {/* 1. Rotate */}
+              <TouchableOpacity
+                onPress={handleRotateStagedImage}
+                disabled={uploadingAttachment}
+                style={[styles.editorBtn, { backgroundColor: isDark ? '#1a2233' : '#f1f5f9', borderColor: colors.accent }]}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 16 }}>⟳</Text>
+                <Text style={[styles.editorBtnText, { color: colors.accent }]}>Rotate</Text>
+              </TouchableOpacity>
+
+              {/* 2. Crop */}
+              <TouchableOpacity
+                onPress={handleRecropStagedImage}
+                disabled={uploadingAttachment}
+                style={[styles.editorBtn, { backgroundColor: isDark ? '#1a2233' : '#f1f5f9', borderColor: colors.accent }]}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 16 }}>✂️</Text>
+                <Text style={[styles.editorBtnText, { color: colors.accent }]}>Crop</Text>
+              </TouchableOpacity>
+
+              {/* 3. Attach (✓) */}
+              <TouchableOpacity
+                onPress={handleConfirmAndUploadAttachment}
+                disabled={uploadingAttachment}
+                style={[styles.editorBtn, styles.editorConfirmBtn]}
+                activeOpacity={0.8}
+              >
+                {uploadingAttachment ? (
+                  <ActivityIndicator size="small" color="#000000" />
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 16, color: '#000000', fontWeight: '900' }}>✓</Text>
+                    <Text style={[styles.editorBtnText, { color: '#000000', fontWeight: '900' }]}>Attach</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {/* 4. Discard (✕) */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowImageEditorModal(false);
+                  setStagedAttachment(null);
+                }}
+                disabled={uploadingAttachment}
+                style={[styles.editorBtn, { backgroundColor: isDark ? '#2a1a1a' : '#fee2e2', borderColor: colors.red }]}
+                activeOpacity={0.75}
+              >
+                <Text style={{ fontSize: 16, color: colors.red, fontWeight: '800' }}>✕</Text>
+                <Text style={[styles.editorBtnText, { color: colors.red }]}>Discard</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Posts */}
@@ -882,6 +934,61 @@ export default function CommunityScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  editorModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  editorModalCard: {
+    borderRadius: radius.xxl,
+    borderWidth: 1.5,
+    padding: 18,
+  },
+  editorModalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  editorCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editorPreviewBox: {
+    width: '100%',
+    height: 270,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  editorButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  editorBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 11,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  editorConfirmBtn: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  editorBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
   tabBar:  { flexDirection: 'row', backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   tab:     { flex: 1, paddingVertical: 14, alignItems: 'center' },
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.accent },

@@ -1,10 +1,12 @@
-﻿import React from 'react';
+import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
 import { colors, radius } from '../theme';
 
 export default function FloatingChatBot() {
   const navigation = useNavigation();
+  const { isDark } = useTheme();
 
   return (
     <TouchableOpacity
@@ -12,7 +14,7 @@ export default function FloatingChatBot() {
       onPress={() => navigation.navigate('ChatBot')}
       activeOpacity={0.85}
     >
-      <View style={styles.iconCircle}>
+      <View style={[styles.iconCircle, { backgroundColor: isDark ? '#121722' : '#ffffff', borderColor: colors.accent }]}>
         <Text style={{ fontSize: 24 }}>🤖</Text>
       </View>
       <View style={styles.badge}>

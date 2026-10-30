@@ -392,8 +392,8 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.name}>{p?.name}</Text>
-          {p?.college && <Text style={styles.college}>🏫 {p.college}</Text>}
+          <Text style={[styles.name, { color: isDark ? colors.text : '#0f172a' }]}>{p?.name}</Text>
+          {p?.college && <Text style={[styles.college, { color: isDark ? colors.text2 : '#475569' }]}>🏫 {p.college}</Text>}
           {completedRidesCount >= 10 && (
             <View style={styles.ratingBadgeBelowCollege}>
               <Text style={{ fontSize: 13, marginRight: 4 }}>⭐</Text>
@@ -415,8 +415,8 @@ export default function ProfileScreen({ navigation }) {
           <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Personal Information</Text>
           <Text style={styles.readonlyNote}>ℹ️ Contact support to change name or email.</Text>
 
-          <ProfileRow label="Full Name"      value={p?.name} />
-          <ProfileRow label="Email"          value={p?.email} />
+          <ProfileRow isDark={isDark} label="Full Name"      value={p?.name} />
+          <ProfileRow isDark={isDark} label="Email"          value={p?.email} />
           <View style={styles.profileRow}>
             <Text style={styles.profileLabel}>USN</Text>
             <View style={{ flex: 1 }}>
@@ -449,8 +449,8 @@ export default function ProfileScreen({ navigation }) {
               )}
             </View>
           </View>
-          <ProfileRow label="College"        value={p?.college} />
-          <ProfileRow label="Gender"         value={p?.gender?.replace(/_/g, ' ')} />
+          <ProfileRow isDark={isDark} label="College"        value={p?.college} />
+          <ProfileRow isDark={isDark} label="Gender"         value={p?.gender?.replace(/_/g, ' ')} />
           {/* Emergency Contact — editable with strict 10-digit limit */}
           <View style={styles.profileRow}>
             <Text style={styles.profileLabel}>Emergency Contact</Text>
@@ -524,7 +524,7 @@ export default function ProfileScreen({ navigation }) {
         {/* Verification */}
         <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
           <Text style={[styles.sectionTitle, { color: themeColors.text }]}>Verification Status</Text>
-          <ProfileRow label="KYC Status" value={p?.kycStatus?.replace(/_/g, ' ') || 'Not submitted'} />
+          <ProfileRow isDark={isDark} label="KYC Status" value={p?.kycStatus?.replace(/_/g, ' ') || 'Not submitted'} />
           <View style={[styles.kycBadge, { borderColor: kycColor + '55', backgroundColor: kycColor + '15' }]}>
             <Text style={[styles.kycBadgeText, { color: kycColor }]}>
               {p?.kycStatus === 'approved' ? '✓ Verified' : p?.kycStatus === 'pending' ? '⏳ Under Review' : '⚠ Not Verified'}

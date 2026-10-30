@@ -118,6 +118,7 @@ function StarRow({ value, onChange }) {
 }
 
 export function RatingsScreen({ navigation }) {
+  const { isDark } = useTheme();
   const { user } = useAuth();
   const [ratings,     setRatings]     = useState([]);
   const [pastRides,   setPastRides]   = useState([]);
@@ -165,21 +166,21 @@ export function RatingsScreen({ navigation }) {
     : '—';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 16 }}>
-          <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
+          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
-        <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: spacing.md }}>⭐ Ratings</Text>
+        <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 22, fontWeight: '800', marginBottom: spacing.md }}>⭐ Ratings</Text>
 
         {/* Summary or Lock Card */}
         {ratings.length < 10 ? (
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
             <Text style={{ fontSize: 32, marginBottom: 6 }}>🔒</Text>
-            <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 4 }}>
+            <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 4 }}>
               Rating Locked ({ratings.length}/10 Rides)
             </Text>
-            <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', lineHeight: 18, maxWidth: 280 }}>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, textAlign: 'center', lineHeight: 18, maxWidth: 280 }}>
               Ratings unlock after completing 10 rides to ensure reliable averages and protect student privacy.
             </Text>
             <View style={{ width: '80%', height: 6, backgroundColor: colors.surface2, borderRadius: 3, marginVertical: 12, overflow: 'hidden' }}>
@@ -190,7 +191,7 @@ export function RatingsScreen({ navigation }) {
             </Text>
           </View>
         ) : (
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
             <Text style={styles.bigNum}>{avg}</Text>
             <StarRow value={Math.round(parseFloat(avg) || 0)} />
             <Text style={{ color: colors.text2, fontSize: 12, marginTop: 8 }}>{ratings.length} verified ride{ratings.length !== 1 ? 's' : ''}</Text>
@@ -211,7 +212,7 @@ export function RatingsScreen({ navigation }) {
         )}
 
         {showForm && (
-          <View style={styles.formCard}>
+          <View style={[styles.formCard, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
             <Text style={{ color: colors.text2, fontSize: 12, fontWeight: '600', marginBottom: 8 }}>SELECT RIDE</Text>
             {pastRides.map(bk => {
               const r = bk.rideId;
@@ -1388,6 +1389,7 @@ const CHECKS = [
 ];
 
 export function PreRideChecklistScreen({ route, navigation }) {
+  const { isDark } = useTheme();
   const rideId = route?.params?.rideId;
   const { user } = useAuth();
   const [checks, setChecks] = useState(Object.fromEntries(CHECKS.map(c => [c.key, false])));
@@ -1526,7 +1528,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
           <Text style={{ color: colors.text2, fontSize: 14 }}>← Back</Text>
         </TouchableOpacity>
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🛡️ Pre-Ride Safety Checklist</Text>
-        <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>
+        <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: spacing.md }}>
           {isDriver
             ? 'Confirm safety checks before giving the option to start the ride for your passengers.'
             : 'Verify your assigned ride details and safety checks before departure.'}
@@ -1554,9 +1556,9 @@ export function PreRideChecklistScreen({ route, navigation }) {
 
         {/* Assigned Ride & Driver Info Card — Revealed ONLY when provider accepted (or if user is driver) */}
         {rideDetails && (isDriver || bookingStatus === 'accepted') && (
-          <View style={{ backgroundColor: '#10141e', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.lg, padding: 14, marginBottom: 16 }}>
+          <View style={{ backgroundColor: isDark ? '#10141e' : '#ffffff', borderWidth: 1, borderColor: isDark ? colors.accent : '#cbd5e1', borderRadius: radius.lg, padding: 14, marginBottom: 16 }}>
             <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 6 }}>ASSIGNED RIDE DETAILS</Text>
-            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>
+            <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 15, fontWeight: '700' }}>
               🪪 USN: {rideDetails.providerId?.usn && rideDetails.providerId.usn.toUpperCase() !== 'STUDENT' ? rideDetails.providerId.usn : (rideDetails.providerId?.name || rideDetails.providerUsn || 'Verified Commuter')} • 🏫 {rideDetails.college || 'Campus'}
             </Text>
             <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800', marginTop: 4 }}>
@@ -1571,10 +1573,10 @@ export function PreRideChecklistScreen({ route, navigation }) {
         )}
 
         {/* Progress bar */}
-        <View style={styles.progressBg}>
+        <View style={[styles.progressBg, { backgroundColor: isDark ? '#161c2a' : '#e2e8f0' }]}>
           <View style={[styles.progressFill, { width: `${(done / CHECKS.length) * 100}%` }]} />
         </View>
-        <Text style={{ color: colors.text2, fontSize: 12, marginBottom: spacing.md }}>{done} / {CHECKS.length} completed</Text>
+        <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginBottom: spacing.md }}>{done} / {CHECKS.length} completed</Text>
 
         {CHECKS.map(c => (
           <TouchableOpacity

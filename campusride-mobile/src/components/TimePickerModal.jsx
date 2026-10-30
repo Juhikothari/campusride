@@ -5,11 +5,13 @@ import {
   ScrollView, Platform,
 } from 'react-native';
 import { colors, radius, spacing } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
 const HOURS = ['12', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'];
 const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
 export function TimePickerModal({ visible, value, onConfirm, onClose }) {
+  const { isDark } = useTheme();
   const [selectedHour, setSelectedHour] = useState('08');
   const [selectedMin, setSelectedMin] = useState('30');
   const [selectedPeriod, setSelectedPeriod] = useState('AM');
@@ -60,20 +62,20 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={[styles.sheet, { backgroundColor: isDark ? '#0d1117' : '#ffffff', borderColor: isDark ? '#21262d' : '#e2e8f0' }]}>
           {/* Header */}
           <View style={styles.header}>
             <View>
               <Text style={styles.badge}>SCHEDULE DEPARTURE</Text>
-              <Text style={styles.title}>Select Ride Time</Text>
+              <Text style={[styles.title, { color: isDark ? '#f0f6fc' : '#0f172a' }]}>Select Ride Time</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDark ? '#161b22' : '#f1f5f9', borderColor: isDark ? '#30363d' : '#cbd5e1' }]}>
+              <Text style={[styles.closeBtnText, { color: isDark ? '#8b949e' : '#475569' }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
           {/* Big Time Display */}
-          <View style={styles.timePreviewCard}>
+          <View style={[styles.timePreviewCard, { backgroundColor: isDark ? '#161b22' : '#f8fafc', borderColor: isDark ? '#21262d' : '#e2e8f0' }]}>
             <View style={styles.digitBox}>
               <Text style={styles.digitText}>{selectedHour}</Text>
               <Text style={styles.digitSub}>HR</Text>
@@ -90,11 +92,11 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
           </View>
 
           {/* Vertical Order Columns: Hours, Minutes, and AM/PM */}
-          <View style={styles.verticalColumnsContainer}>
+          <View style={[styles.verticalColumnsContainer, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#21262d' : '#cbd5e1' }]}>
             {/* Hours Column */}
             <View style={styles.verticalCol}>
               <Text style={styles.colHeaderLabel}>HOURS</Text>
-              <View style={styles.colScrollWrapper}>
+              <View style={[styles.colScrollWrapper, { backgroundColor: isDark ? '#0d1117' : '#ffffff', borderColor: isDark ? '#21262d' : '#cbd5e1' }]}>
                 <ScrollView
                   nestedScrollEnabled
                   showsVerticalScrollIndicator={false}
@@ -105,11 +107,11 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
                     return (
                       <TouchableOpacity
                         key={h}
-                        style={[styles.vChip, isSel && styles.vChipActive]}
+                        style={[styles.vChip, { backgroundColor: isDark ? '#161b22' : '#f8fafc', borderColor: isDark ? '#30363d' : '#e2e8f0' }, isSel && styles.vChipActive]}
                         onPress={() => setSelectedHour(h)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.vChipText, isSel && styles.vChipTextActive]}>{h}</Text>
+                        <Text style={[styles.vChipText, { color: isDark ? '#c9d1d9' : '#0f172a' }, isSel && styles.vChipTextActive]}>{h}</Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -124,7 +126,7 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
             {/* Minutes Column */}
             <View style={styles.verticalCol}>
               <Text style={styles.colHeaderLabel}>MINUTES</Text>
-              <View style={styles.colScrollWrapper}>
+              <View style={[styles.colScrollWrapper, { backgroundColor: isDark ? '#0d1117' : '#ffffff', borderColor: isDark ? '#21262d' : '#cbd5e1' }]}>
                 <ScrollView
                   nestedScrollEnabled
                   showsVerticalScrollIndicator={false}
@@ -135,11 +137,11 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
                     return (
                       <TouchableOpacity
                         key={m}
-                        style={[styles.vChip, isSel && styles.vChipActive]}
+                        style={[styles.vChip, { backgroundColor: isDark ? '#161b22' : '#f8fafc', borderColor: isDark ? '#30363d' : '#e2e8f0' }, isSel && styles.vChipActive]}
                         onPress={() => setSelectedMin(m)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[styles.vChipText, isSel && styles.vChipTextActive]}>{m}</Text>
+                        <Text style={[styles.vChipText, { color: isDark ? '#c9d1d9' : '#0f172a' }, isSel && styles.vChipTextActive]}>{m}</Text>
                       </TouchableOpacity>
                     );
                   })}

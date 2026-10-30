@@ -570,10 +570,17 @@ export default function SearchRidesScreen({ navigation }) {
         {isFemale && (
           <TouchableOpacity
             onPress={() => setWomenOnly(w => !w)}
-            style={[styles.womenToggle, womenOnly && styles.womenToggleActive]}
+            style={[
+              styles.womenToggle,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#ffffff',
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1',
+              },
+              womenOnly && styles.womenToggleActive
+            ]}
           >
             <Text style={{ fontSize: 16 }}>{womenOnly ? '🔒' : '♀'}</Text>
-            <Text style={[styles.womenToggleText, womenOnly && { color: colors.pink }]}>Women-only rides</Text>
+            <Text style={[styles.womenToggleText, { color: isDark ? colors.text2 : '#475569' }, womenOnly && { color: colors.pink }]}>Women-only rides</Text>
             {womenOnly && (
               <View style={{ backgroundColor: colors.pink, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
                 <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>ON</Text>

@@ -169,7 +169,7 @@ export default function ProviderBookingsScreen({ navigation }) {
         {selectedRide && (
           <>
             {/* Selected Ride Details Card */}
-            <View style={styles.selectedRideCard}>
+            <View style={[styles.selectedRideCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.accent : '#f59e0b' }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <Text style={styles.selectedRideTitle}>SELECTED RIDE DETAILS</Text>
                 <TouchableOpacity
@@ -202,7 +202,7 @@ export default function ProviderBookingsScreen({ navigation }) {
               </View>
 
               {/* Route */}
-              <View style={styles.routeBox}>
+              <View style={[styles.routeBox, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
                   <Text style={{ fontSize: 13, marginTop: 2 }}>🟢</Text>
                   <View style={{ flex: 1 }}>
@@ -221,13 +221,13 @@ export default function ProviderBookingsScreen({ navigation }) {
 
               {/* Metadata pills */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                <View style={styles.metaChip}>
+                <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
                   <Text style={styles.metaChipText}>🗓 {fmtDate(selectedRide.date)}</Text>
                 </View>
-                <View style={styles.metaChip}>
+                <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
                   <Text style={styles.metaChipText}>⏰ {selectedRide.time}</Text>
                 </View>
-                <View style={styles.metaChip}>
+                <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
                   <Text style={styles.metaChipText}>💺 {selectedRide.seatsAvailable} seats available</Text>
                 </View>
                 {Boolean(selectedRide.womenOnly) && (
@@ -290,9 +290,9 @@ export default function ProviderBookingsScreen({ navigation }) {
 
             {/* Stats */}
             <View style={styles.statsRow}>
-              <StatPill label="Pending" value={pending.length} color={colors.accent} />
-              <StatPill label="Resolved" value={resolved.length} color={colors.green} />
-              <StatPill label="Total" value={bookings.length} color={colors.blue} />
+              <StatPill isDark={isDark} label="Pending" value={pending.length} color={colors.accent} />
+              <StatPill isDark={isDark} label="Resolved" value={resolved.length} color={colors.green} />
+              <StatPill isDark={isDark} label="Total" value={bookings.length} color={colors.blue} />
               <TouchableOpacity style={styles.refreshBtn} onPress={() => loadBookings(selectedRide._id)}>
                 <Text style={{ color: colors.text2, fontSize: 13 }}>↻</Text>
               </TouchableOpacity>
@@ -320,7 +320,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                 {bkLoading ? (
                   <ActivityIndicator color={colors.accent} />
                 ) : pending.length === 0 ? (
-                  <View style={styles.emptyBox}>
+                  <View style={[styles.emptyBox, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9' }]}>
                     <Text style={{ fontSize: 28, marginBottom: 6 }}>📭</Text>
                     <Text style={{ color: colors.text2, fontSize: 13 }}>No pending requests</Text>
                   </View>
@@ -329,7 +329,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                     const am = actionMap[b._id] || {};
                     const seeker = b.seekerId;
                     return (
-                      <View key={b._id} style={styles.bookingCard}>
+                      <View key={b._id} style={[styles.bookingCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
                         <View style={styles.seekerRow}>
                           <View style={styles.avatar}>
                             <Text style={styles.avatarText}>🪪</Text>
@@ -484,9 +484,9 @@ export default function ProviderBookingsScreen({ navigation }) {
   );
 }
 
-function StatPill({ label, value, color }) {
+function StatPill({ label, value, color, isDark }) {
   return (
-    <View style={{ alignItems: 'center', backgroundColor: colors.surface2, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 8 }}>
+    <View style={{ alignItems: 'center', backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 8 }}>
       <Text style={{ color, fontSize: 20, fontWeight: '800' }}>{value}</Text>
       <Text style={{ color: colors.text3, fontSize: 11 }}>{label}</Text>
     </View>

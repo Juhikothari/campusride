@@ -6,6 +6,7 @@ import {
 import * as Location from 'expo-location';
 import LiveMapView from './LiveMapView';
 import { colors, radius, spacing } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 import * as api from '../services/api';
 
 const POPULAR_CAMPUS_SPOTS = [
@@ -131,13 +132,13 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}>
         {/* Top Header */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
-            <Text style={styles.closeBtnText}>✕ Close</Text>
+        <View style={[styles.topBar, { backgroundColor: isDark ? colors.surface : '#ffffff', borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
+          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9' }]} activeOpacity={0.7}>
+            <Text style={[styles.closeBtnText, { color: isDark ? colors.text2 : '#475569' }]}>✕ Close</Text>
           </TouchableOpacity>
-          <Text style={styles.topBarTitle} numberOfLines={1}>{title}</Text>
+          <Text style={[styles.topBarTitle, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>{title}</Text>
           <TouchableOpacity onPress={locateUser} disabled={locating} style={styles.gpsBtn} activeOpacity={0.7}>
             {locating ? (
               <ActivityIndicator color={colors.accent} size="small" />
@@ -149,10 +150,10 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {/* Search Box */}
-          <View style={styles.searchBox}>
+          <View style={[styles.searchBox, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
             <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: isDark ? colors.text : '#0f172a' }]}
               value={query}
               onChangeText={handleSearch}
               placeholder="Search location, landmark, hostel, gate..."
@@ -163,7 +164,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
 
           {/* Search Dropdown Results */}
           {searchResults.length > 0 && (
-            <View style={styles.resultsBox}>
+            <View style={[styles.resultsBox, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
               {searchResults.slice(0, 5).map((item, idx) => (
                 <TouchableOpacity
                   key={idx}
@@ -171,7 +172,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
                   onPress={() => selectSearchResult(item)}
                 >
                   <Text style={{ fontSize: 14 }}>📍</Text>
-                  <Text style={styles.resultText} numberOfLines={1}>
+                  <Text style={[styles.resultText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>
                     {item.label || item.formatted || item.display_name}
                   </Text>
                 </TouchableOpacity>

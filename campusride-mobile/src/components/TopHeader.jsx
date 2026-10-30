@@ -129,7 +129,13 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
         <View style={styles.rightActions}>
           {/* Notification Button */}
           <TouchableOpacity
-            style={styles.iconBtn}
+            style={[
+              styles.iconBtn,
+              {
+                backgroundColor: isDark ? colors.surface : '#f1f5f9',
+                borderColor: isDark ? colors.border : '#cbd5e1',
+              }
+            ]}
             onPress={() => navTo('Notifications')}
             activeOpacity={0.7}
             accessibilityRole="button"

@@ -52,10 +52,11 @@ export const lightColors = {
 export const colors = { ...darkColors };
 
 export const radius = {
-  sm:  8,
-  md:  10,
-  lg:  16,
-  xl:  22,
+  sm:   8,
+  md:   10,
+  lg:   16,
+  xl:   22,
+  xxl:  28,
   full: 999,
 };
 

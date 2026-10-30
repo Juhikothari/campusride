@@ -225,7 +225,7 @@ export default function KYCScreen({ navigation }) {
           <View style={[styles.statusCard, { borderColor: stColor + '55', backgroundColor: stColor + '10' }]}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>{stEmoji}</Text>
             <Text style={{ color: stColor, fontSize: 20, fontWeight: '800', marginBottom: 6, textTransform: 'capitalize' }}>{st.replace(/_/g, ' ')}</Text>
-            <Text style={{ color: colors.text2, fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
               {st === 'approved' ? 'Your identity has been verified. You can now offer rides.' :
                st === 'pending'  ? 'Your documents are under review. Usually takes 24–48 hours.' :
                st === 'rejected' ? `Rejected: ${kycStatus?.remarks || 'Documents unclear or invalid. Please resubmit.'}`
@@ -235,7 +235,7 @@ export default function KYCScreen({ navigation }) {
 
           {/* Doc previews */}
           {(docs_.aadhar || docs_.collegeIdCard || docs_.drivingLicense || docs_.selfie) && (
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
               <Text style={styles.sectionLabel}>SUBMITTED DOCUMENTS</Text>
               {docs_.selfie       && <DocRow label="Live Selfie Photo" icon="📸" uri={docs_.selfie || docs.selfie} submitted onView={() => openDocPreview('Live Selfie Photo', docs_.selfie || docs.selfie)} />}
               {docs_.aadhar       && <DocRow label="Aadhar Card"      icon="🪪" uri={docs_.aadhar || docs.aadhar} submitted onView={() => openDocPreview('Aadhar Card', docs_.aadhar || docs.aadhar)} />}
@@ -259,11 +259,11 @@ export default function KYCScreen({ navigation }) {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <TopHeader title="KYC Verification" subtitle="Student & Vehicle Verification" showBack={true} />
       <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 100 }]} keyboardShouldPersistTaps="handled">
-        <Text style={styles.subtitle}>Submit your documents to get verified. Required to offer rides.</Text>
+        <Text style={[styles.subtitle, { color: isDark ? colors.text2 : '#475569' }]}>Submit your documents to get verified. Required to offer rides.</Text>
 
         <Alert message={error} />
 
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
           <Text style={styles.sectionLabel}>REQUIRED DOCUMENTS</Text>
           <DocRow label="Live Selfie Photo" icon="📸" onUpload={captureSelfie}            uri={docs.selfie}   onView={() => openDocPreview('Live Selfie Photo', docs.selfie)} required />
           <DocRow label="Aadhar Card"       icon="🪪" onUpload={() => pickDoc('aadhar')}   uri={docs.aadhar}   onView={() => openDocPreview('Aadhar Card', docs.aadhar)} required />
@@ -272,7 +272,7 @@ export default function KYCScreen({ navigation }) {
           <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>* Required fields</Text>
         </View>
 
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
           <Text style={styles.sectionLabel}>VEHICLE TYPE (FOR PROVIDERS)</Text>
           <Input label="Vehicle Name / Model" value={vehicleName} onChangeText={setVehicleName} placeholder="e.g. Honda City, Activa, Nexon" autoCapitalize="words" />
 
@@ -321,6 +321,7 @@ export default function KYCScreen({ navigation }) {
 }
 
 function DocRow({ label, icon, onUpload, uri, submitted, required, onView }) {
+  const { isDark } = useTheme();
   const isAdded = Boolean(uri || submitted);
 
   return (
@@ -339,7 +340,7 @@ function DocRow({ label, icon, onUpload, uri, submitted, required, onView }) {
       )}
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ color: colors.text, fontSize: 14, fontWeight: '700' }}>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14, fontWeight: '700' }}>
             {label}{required && !submitted ? ' *' : ''}
           </Text>
           {isAdded && (

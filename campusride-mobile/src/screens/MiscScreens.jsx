@@ -63,7 +63,7 @@ export function RideDetailScreen({ navigation, route }) {
     }
   };
 
-  if (loading) return <SafeAreaView style={styles.safe}><ActivityIndicator color={colors.accent} style={{ marginTop: 60 }} /></SafeAreaView>;
+  if (loading) return <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}><ActivityIndicator color={colors.accent} style={{ marginTop: 60 }} /></SafeAreaView>;
 
   const isOwner  = ride && (ride.providerId?._id === user?._id || ride.providerId === user?._id);
   const isSeeker = user?.role === 'seeker' || user?.role === 'both';
@@ -71,7 +71,7 @@ export function RideDetailScreen({ navigation, route }) {
   const VEHICLE_ICON = { motorcycle: '🏍️', car: '🚗', suv: '🚙', xuv: '🛻' };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="Ride Details" subtitle="Verified campus ride" showBack={navigation.canGoBack()} />
       <ScrollView contentContainerStyle={styles.scroll}>
 
@@ -908,7 +908,7 @@ export function RouteAlertsScreen({ navigation }) {
   const inputStyle = { backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border, borderRadius:radius.md, color:colors.text, paddingHorizontal:14, paddingVertical:12, fontSize:14, marginBottom:10 };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={{ color: colors.text, fontSize: 22, fontWeight: '800', marginBottom: 4 }}>🔔 Route Alerts</Text>
         <Text style={{ color: colors.text2, fontSize: 13, marginBottom: spacing.md }}>Get notified when a ride is posted on your route</Text>
@@ -1860,7 +1860,7 @@ export function ForgotPasswordScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
           <Text style={{ color: colors.text2 }}>← Back to Login</Text>
