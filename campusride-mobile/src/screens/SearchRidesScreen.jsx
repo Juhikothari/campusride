@@ -60,12 +60,28 @@ const matchesWomenFilter = (ride, isFilterActive) => {
   return pGender === 'female';
 };
 
-// Auto-mask helpers: numeric input auto-formatted to YYYY-MM-DD and HH:MM
+// Auto-mask helpers: numeric input auto-formatted to DD-MM-YYYY and HH:MM
+function getFormattedDMY(d = new Date()) {
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
 function formatDateInput(text) {
   const digits = text.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4, 8)}`;
+}
+
+function toIsoDate(dmy) {
+  if (!dmy) return '';
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dmy)) {
+    const [d, m, y] = dmy.split('-');
+    return `${y}-${m}-${d}`;
+  }
+  return dmy;
 }
 
 function formatTimeInput(text) {
@@ -329,7 +345,7 @@ export default function SearchRidesScreen({ navigation }) {
         ...(pickup.label && { pickupText: pickup.label }),
         ...(drop.label && { dropText: drop.label }),
         ...(schedMode === 'now' && { isNow: 'true', date: todayStr, time: nowTimeStr }),
-        ...(schedMode === 'later' && date && { date }),
+        ...(schedMode === 'later' && date && { date: toIsoDate(date) }),
         ...(schedMode === 'later' && time && { time }),
         ...(womenOnly && { womenOnly: true }),
         ...(vehicle && { vehicleType: vehicle }),
@@ -481,38 +497,38 @@ export default function SearchRidesScreen({ navigation }) {
                 style={[
                   styles.dateChip,
                   { backgroundColor: isDark ? '#161c2a' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' },
-                  (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipActive
+                  (!date || date === getFormattedDMY(new Date())) && styles.dateChipActive
                 ]}
-                onPress={() => setDate(new Date().toISOString().split('T')[0])}
+                onPress={() => setDate(getFormattedDMY(new Date()))}
               >
                 <Text style={[
                   styles.dateChipText,
                   { color: isDark ? '#8b96b0' : '#475569' },
-                  (!date || date === new Date().toISOString().split('T')[0]) && styles.dateChipTextActive
+                  (!date || date === getFormattedDMY(new Date())) && styles.dateChipTextActive
                 ]}>Today</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.dateChip,
                   { backgroundColor: isDark ? '#161c2a' : '#f1f5f9', borderColor: isDark ? '#26344d' : '#cbd5e1' },
-                  date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipActive
+                  date === getFormattedDMY(new Date(Date.now() + 86400000)) && styles.dateChipActive
                 ]}
-                onPress={() => setDate(new Date(Date.now() + 86400000).toISOString().split('T')[0])}
+                onPress={() => setDate(getFormattedDMY(new Date(Date.now() + 86400000)))}
               >
                 <Text style={[
                   styles.dateChipText,
                   { color: isDark ? '#8b96b0' : '#475569' },
-                  date === new Date(Date.now() + 86400000).toISOString().split('T')[0] && styles.dateChipTextActive
+                  date === getFormattedDMY(new Date(Date.now() + 86400000)) && styles.dateChipTextActive
                 ]}>Tomorrow</Text>
               </TouchableOpacity>
             </View>
 
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Input
-                label="Date (YYYY-MM-DD)"
+                label="Date (DD-MM-YYYY)"
                 value={date}
                 onChangeText={(val) => setDate(formatDateInput(val))}
-                placeholder="YYYY-MM-DD"
+                placeholder="DD-MM-YYYY"
                 keyboardType="numeric"
                 maxLength={10}
                 containerStyle={{ flex: 1 }}

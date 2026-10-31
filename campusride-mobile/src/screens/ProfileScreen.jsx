@@ -397,72 +397,68 @@ export default function ProfileScreen({ navigation }) {
           <ProfileRow isDark={isDark} label="College"        value={p?.college} />
           <ProfileRow isDark={isDark} label="Gender"         value={p?.gender?.replace(/_/g, ' ')} />
           {/* Emergency Contact — editable with strict 10-digit limit */}
-          <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Emergency Contact</Text>
-            <View style={{ flex: 1 }}>
-              {editingEmergency ? (
-                <View style={{ gap: 8 }}>
-                  <Input
-                    value={newEmergency}
-                    onChangeText={t => { setNewEmergency(t.replace(/\D/g, '').slice(0, 10)); setEmergencyError(''); }}
-                    placeholder="10-digit number"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    containerStyle={{ marginBottom: 0 }}
-                  />
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Btn label="Save" onPress={handleEmergencySave} loading={emergencyLoading} style={{ flex: 1 }} />
-                    <Btn label="Cancel" onPress={() => { setEditingEmergency(false); setEmergencyError(''); }} variant="outline" style={{ flex: 1 }} />
-                  </View>
-                  {emergencyError ? <Text style={{ color: colors.red, fontSize: 12 }}>{emergencyError}</Text> : null}
+          <View style={[styles.profileRow, { borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
+            <Text style={[styles.profileLabel, { color: isDark ? colors.text2 : '#475569' }]}>Emergency Contact</Text>
+            {editingEmergency ? (
+              <View style={{ flex: 0.58, gap: 6 }}>
+                <Input
+                  value={newEmergency}
+                  onChangeText={t => { setNewEmergency(t.replace(/\D/g, '').slice(0, 10)); setEmergencyError(''); }}
+                  placeholder="10-digit number"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  containerStyle={{ marginBottom: 0 }}
+                />
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <Btn label="Save" onPress={handleEmergencySave} loading={emergencyLoading} style={{ flex: 1, paddingVertical: 6 }} />
+                  <Btn label="Cancel" onPress={() => { setEditingEmergency(false); setEmergencyError(''); }} variant="outline" style={{ flex: 1, paddingVertical: 6 }} />
                 </View>
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={styles.profileValue}>{p?.emergencyContact || '—'}</Text>
-                  <TouchableOpacity onPress={() => { setNewEmergency(p?.emergencyContact || ''); setEditingEmergency(true); }}>
-                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
+                {emergencyError ? <Text style={{ color: colors.red, fontSize: 11 }}>{emergencyError}</Text> : null}
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flex: 0.58 }}>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '500' }}>{p?.emergencyContact || '—'}</Text>
+                <TouchableOpacity onPress={() => { setNewEmergency(p?.emergencyContact || ''); setEditingEmergency(true); }}>
+                  <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Edit</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* Phone — editable once per 90 days */}
-          <View style={styles.profileRow}>
-            <Text style={styles.profileLabel}>Phone Number</Text>
-            <View style={{ flex: 1 }}>
-              {editingPhone ? (
-                <View style={{ gap: 8 }}>
-                  <Input
-                    value={newPhone}
-                    onChangeText={t => { setNewPhone(t.replace(/\D/g, '')); setPhoneError(''); }}
-                    placeholder="10-digit number"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    containerStyle={{ marginBottom: 0 }}
-                  />
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Btn label="Save" onPress={handlePhoneSave} loading={phoneLoading} style={{ flex: 1 }} />
-                    <Btn label="Cancel" onPress={() => { setEditingPhone(false); setPhoneError(''); }} variant="outline" style={{ flex: 1 }} />
-                  </View>
-                  {phoneError && <Text style={{ color: colors.red, fontSize: 12 }}>{phoneError}</Text>}
-                  {phoneMsg   && <Text style={{ color: colors.green, fontSize: 12 }}>{phoneMsg}</Text>}
+          <View style={[styles.profileRow, { borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
+            <Text style={[styles.profileLabel, { color: isDark ? colors.text2 : '#475569' }]}>Phone Number</Text>
+            {editingPhone ? (
+              <View style={{ flex: 0.58, gap: 6 }}>
+                <Input
+                  value={newPhone}
+                  onChangeText={t => { setNewPhone(t.replace(/\D/g, '')); setPhoneError(''); }}
+                  placeholder="10-digit number"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  containerStyle={{ marginBottom: 0 }}
+                />
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <Btn label="Save" onPress={handlePhoneSave} loading={phoneLoading} style={{ flex: 1, paddingVertical: 6 }} />
+                  <Btn label="Cancel" onPress={() => { setEditingPhone(false); setPhoneError(''); }} variant="outline" style={{ flex: 1, paddingVertical: 6 }} />
                 </View>
-              ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Text style={styles.profileValue}>{p?.phone || '—'}</Text>
-                  {p?.canChangePhone ? (
-                    <TouchableOpacity onPress={() => setEditingPhone(true)}>
-                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Edit</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={{ color: colors.text3, fontSize: 11 }}>
-                      🔒 Editable in {p?.phoneChangeCooldownDaysLeft ?? 90}d
-                    </Text>
-                  )}
-                </View>
-              )}
-            </View>
+                {phoneError && <Text style={{ color: colors.red, fontSize: 11 }}>{phoneError}</Text>}
+                {phoneMsg   && <Text style={{ color: colors.green, fontSize: 11 }}>{phoneMsg}</Text>}
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flex: 0.58 }}>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '500' }}>{p?.phone || '—'}</Text>
+                {p?.canChangePhone ? (
+                  <TouchableOpacity onPress={() => setEditingPhone(true)}>
+                    <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>Edit</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={{ color: colors.text3, fontSize: 11 }}>
+                    🔒 Editable in {p?.phoneChangeCooldownDaysLeft ?? 90}d
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
         </View>
 

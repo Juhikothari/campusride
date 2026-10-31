@@ -175,11 +175,12 @@ export function Divider({ label }) {
 
 // ── EmptyState ────────────────────────────────────────
 export function EmptyState({ icon, title, subtitle, action, actionLabel }) {
+  const { isDark } = useTheme();
   return (
     <View style={styles.emptyState}>
       <Text style={{ fontSize: 52, marginBottom: 12 }}>{icon}</Text>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      {subtitle && <Text style={styles.emptySubtitle}>{subtitle}</Text>}
+      <Text style={[styles.emptyTitle, { color: isDark ? colors.text : '#0f172a' }]}>{title}</Text>
+      {subtitle && <Text style={[styles.emptySubtitle, { color: isDark ? colors.text2 : '#475569' }]}>{subtitle}</Text>}
       {action && actionLabel && (
         <Btn label={actionLabel} onPress={action} style={{ marginTop: 20, minWidth: 160 }} />
       )}

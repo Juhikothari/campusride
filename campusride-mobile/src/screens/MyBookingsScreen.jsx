@@ -154,8 +154,8 @@ export default function MyBookingsScreen({ navigation }) {
                   </View>
                 )}
 
-                {/* Provider details — only after accepted */}
-                {b.status === 'accepted' && provider && (
+                {/* Provider details — only while active/pending completion */}
+                {b.status === 'accepted' && !isCompleted && provider && (
                   <View style={[
                     styles.providerCard,
                     {
@@ -184,16 +184,16 @@ export default function MyBookingsScreen({ navigation }) {
                     </View>
 
                     <View style={styles.providerMetaGrid}>
-                      <Text style={styles.providerMetaText}>🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{getDisplayUSN(provider, 'Buddy')}</Text></Text>
+                      <Text style={styles.providerMetaText}>🪪 USN: <Text style={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}>{getDisplayUSN(provider, 'Buddy')}</Text></Text>
                       {provider.phone ? (
-                        <Text style={styles.providerMetaText}>📞 Phone: <Text style={{ color: colors.text, fontWeight: '700' }}>{provider.phone}</Text></Text>
+                        <Text style={styles.providerMetaText}>📞 Phone: <Text style={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}>{provider.phone}</Text></Text>
                       ) : null}
                     </View>
                   </View>
                 )}
 
                 {/* Price displayed to seeker to pay upon provider acceptance */}
-                {b.status === 'accepted' && (
+                {b.status === 'accepted' && !isCompleted && (
                   <View style={styles.farePayBox}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                       <View style={{ flex: 1, marginRight: 10 }}>
@@ -217,8 +217,15 @@ export default function MyBookingsScreen({ navigation }) {
                 {/* Actions */}
                 <View style={{ gap: 8, marginTop: 12 }}>
                   {isCompleted && (
-                    <View style={{ backgroundColor: isDark ? 'rgba(0,230,118,0.12)' : '#ecfdf5', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
-                      <Text style={{ color: colors.green, fontSize: 13, fontWeight: '800' }}>🏁 Ride Completed</Text>
+                    <View style={{
+                      backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fefce8',
+                      borderWidth: 1,
+                      borderColor: isDark ? 'rgba(245, 166, 35, 0.25)' : '#fde047',
+                      borderRadius: radius.md,
+                      padding: 12,
+                      alignItems: 'center'
+                    }}>
+                      <Text style={{ color: isDark ? colors.accent : '#b45309', fontSize: 13, fontWeight: '800' }}>🏁 Ride Completed</Text>
                       <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, textAlign: 'center', marginTop: 2 }}>
                         This trip has ended. Thank you for commuting with HOGO!
                       </Text>
@@ -234,37 +241,14 @@ export default function MyBookingsScreen({ navigation }) {
                     />
                   )}
                   {rideIdStr && !isCancelled && (
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                      <View style={{ flex: 1 }}>
-                        <Btn
-                          label="View Ride Details"
-                          onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })}
-                          variant="outline"
-                          style={{ borderColor: isDark ? colors.border : '#cbd5e1' }}
-                          textStyle={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}
-                        />
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => {
-                          const dropLat = ride?.drop?.lat || ride?.drop?.latitude;
-                          const dropLng = ride?.drop?.lng || ride?.drop?.longitude;
-                          const dropAddr = ride?.drop?.address || ride?.drop?.name || '';
-                          const dest = dropLat && dropLng ? `${dropLat},${dropLng}` : encodeURIComponent(dropAddr);
-                          if (dest) {
-                            Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
-                          }
-                        }}
-                        style={{
-                          backgroundColor: colors.accent,
-                          borderRadius: radius.md,
-                          paddingHorizontal: 14,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>Directions ↗</Text>
-                      </TouchableOpacity>
+                    <View style={{ marginTop: 4 }}>
+                      <Btn
+                        label="View Ride Details"
+                        onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })}
+                        variant="outline"
+                        style={{ borderColor: isDark ? colors.border : '#cbd5e1' }}
+                        textStyle={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}
+                      />
                     </View>
                   )}
                   {canCancel && (

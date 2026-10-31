@@ -703,12 +703,12 @@ function DocUploadRow({ label, icon, onUpload, uri }) {
     <TouchableOpacity onPress={onUpload} style={[styles.docRow, uri && styles.docRowDone]}>
       <Text style={{ fontSize: 20 }}>{icon}</Text>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{label}</Text>
-        <Text style={{ color: uri ? colors.green : colors.text3, fontSize: 12, marginTop: 2 }}>
+        <Text style={{ color: '#edf0f7', fontSize: 14, fontWeight: '700' }}>{label}</Text>
+        <Text style={{ color: uri ? '#2dd4a0' : '#8b96b0', fontSize: 12, marginTop: 2, fontWeight: '500' }}>
           {uri ? '✓ Uploaded' : 'Tap to upload'}
         </Text>
       </View>
-      <Text style={{ fontSize: 18, color: uri ? colors.green : colors.text3 }}>{uri ? '✓' : '+'}</Text>
+      <Text style={{ fontSize: 18, color: uri ? '#2dd4a0' : '#8b96b0', fontWeight: '700' }}>{uri ? '✓' : '+'}</Text>
     </TouchableOpacity>
   );
 }
@@ -870,14 +870,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.surface2,
+    backgroundColor: '#161c2a',
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#26344d',
     padding: 14,
     marginBottom: 10,
   },
-  docRowDone: { borderColor: colors.green + '55', backgroundColor: colors.greenDim },
+  docRowDone: { borderColor: 'rgba(45, 212, 160, 0.4)', backgroundColor: 'rgba(45, 212, 160, 0.08)' },
   addVehicleBtn: {
     backgroundColor: colors.accentDim,
     paddingHorizontal: 12,

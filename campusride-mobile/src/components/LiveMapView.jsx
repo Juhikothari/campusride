@@ -10,6 +10,7 @@ export default function LiveMapView({
   coordinates = [],
   leg1Coordinates = [],
   leg2Coordinates = [],
+  extraPickups = [],
   pinLocation,
   onMapClick,
   height = 280,
@@ -206,6 +207,33 @@ export default function LiveMapView({
             const pMarker = L.marker([${pLat}, ${pLng}], { icon: pIcon }).addTo(map).bindPopup('<b>🟢 Seeker Pickup Spot</b><br/>${pickup?.label || "Confirmed Pickup"}');
             markers.push([${pLat}, ${pLng}]);
           ` : ''}
+
+          // 1b. Additional Seeker Pickup Markers (Multi-Seeker Commute)
+          ${(Array.isArray(extraPickups) ? extraPickups : []).map((ep, epIdx) => {
+            const epLat = ep?.lat ? parseFloat(ep.lat) : null;
+            const epLng = ep?.lng ? parseFloat(ep.lng) : null;
+            if (!epLat || !epLng) return '';
+            return `
+              const epIcon_${epIdx} = L.divIcon({
+                className: '',
+                html: \`
+                  <div class="pin-container">
+                    <div class="beacon-ring beacon-pickup"></div>
+                    <div class="point-badge badge-pickup">
+                      <span style="font-size: 15px;">📍</span>
+                      <span>BUDDY ${epIdx + 2}</span>
+                    </div>
+                    <div class="point-arrow arrow-pickup"></div>
+                    <div class="point-anchor-dot"></div>
+                  </div>
+                \`,
+                iconSize: [100, 52],
+                iconAnchor: [50, 50]
+              });
+              L.marker([${epLat}, ${epLng}], { icon: epIcon_${epIdx} }).addTo(map).bindPopup('<b>🟢 Buddy ${epIdx + 2} Pickup</b><br/>${ep.label || "Buddy Pickup Location"}');
+              markers.push([${epLat}, ${epLng}]);
+            `;
+          }).join('\n')}
 
           // 2. Eye-Catching Destination Drop Marker
           ${dLat && dLng ? `

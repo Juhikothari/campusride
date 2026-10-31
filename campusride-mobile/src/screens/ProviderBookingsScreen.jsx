@@ -150,13 +150,20 @@ export default function ProviderBookingsScreen({ navigation }) {
                   return (
                     <TouchableOpacity
                       key={r._id}
-                      style={[styles.rideChip, isSelected && styles.rideChipActive]}
+                      style={[
+                        styles.rideChip,
+                        {
+                          backgroundColor: isDark ? colors.surface : (isSelected ? '#fffbeb' : '#ffffff'),
+                          borderColor: isSelected ? colors.accent : (isDark ? colors.border : '#cbd5e1'),
+                        },
+                        isSelected && styles.rideChipActive,
+                      ]}
                       onPress={() => { setSelectedRide(r); loadBookings(r._id); }}
                     >
                       <Text style={{ fontSize: 14 }}>{cfg.icon}</Text>
                       <View>
-                        <Text style={[styles.rideChipDate, isSelected && { color: colors.accent }]}>{fmtDate(r.date)} · {r.time}</Text>
-                        <Text style={styles.rideChipRoute} numberOfLines={1}>
+                        <Text style={[styles.rideChipDate, { color: isSelected ? colors.accent : (isDark ? colors.text : '#0f172a') }]}>{fmtDate(r.date)} · {r.time}</Text>
+                        <Text style={[styles.rideChipRoute, { color: isDark ? colors.text2 : '#64748b' }]} numberOfLines={1}>
                           {getAddr(r.pickup)} → {getAddr(r.drop)}
                         </Text>
                       </View>
@@ -440,8 +447,19 @@ export default function ProviderBookingsScreen({ navigation }) {
                     {resolved.map(b => {
                       const seeker = b.seekerId;
                       const isAccepted = b.status === 'accepted';
+                      const isCompletedOrCancelled = selectedRide?.status === 'completed' || selectedRide?.status === 'cancelled';
                       return (
-                        <View key={b._id} style={[styles.bookingCard, !isAccepted && { opacity: 0.7 }]}>
+                        <View
+                          key={b._id}
+                          style={[
+                            styles.bookingCard,
+                            {
+                              backgroundColor: isDark ? colors.surface : '#ffffff',
+                              borderColor: isDark ? (isAccepted ? 'rgba(0,230,118,0.3)' : colors.border) : (isAccepted ? '#86efac' : '#cbd5e1'),
+                            },
+                            !isAccepted && { opacity: 0.7 }
+                          ]}
+                        >
                           <View style={styles.seekerRow}>
                             <View style={[styles.avatar, isAccepted && { borderColor: colors.green, backgroundColor: colors.green + '22' }]}>
                               <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>🪪</Text>
@@ -450,18 +468,26 @@ export default function ProviderBookingsScreen({ navigation }) {
                               <Text style={[styles.seekerName, { color: isDark ? colors.text : '#0f172a' }]}>
                                 🪪 USN: {getDisplayUSN(seeker, 'Buddy')}
                               </Text>
-                              {isAccepted && seeker?.phone ? (
-                                <Text style={styles.seekerMeta}>📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text></Text>
+                              {/* After rides are completed, hide phone details */}
+                              {isAccepted && seeker?.phone && !isCompletedOrCancelled ? (
+                                <Text style={[styles.seekerMeta, { color: isDark ? colors.text2 : '#475569' }]}>
+                                  📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{seeker.phone}</Text>
+                                </Text>
                               ) : null}
-                              {seeker?.college && <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>🏫 {seeker.college}</Text>}
-                              {isAccepted && (
+                              {seeker?.college && (
+                                <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>
+                                  🏫 {seeker.college}
+                                </Text>
+                              )}
+                              {/* Directions & Seeker location only while active/not completed */}
+                              {isAccepted && !isCompletedOrCancelled && (
                                 <TouchableOpacity
                                   style={{
                                     flexDirection: 'row',
                                     alignItems: 'center',
-                                    backgroundColor: 'rgba(0,229,255,0.12)',
+                                    backgroundColor: isDark ? 'rgba(0,229,255,0.12)' : '#e0f2fe',
                                     borderWidth: 1,
-                                    borderColor: '#00E5FF',
+                                    borderColor: isDark ? '#00E5FF' : '#0284c7',
                                     borderRadius: radius.md,
                                     paddingHorizontal: 10,
                                     paddingVertical: 6,
@@ -485,7 +511,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                                   activeOpacity={0.75}
                                 >
                                   <Text style={{ fontSize: 13 }}>🗺️</Text>
-                                  <Text style={{ color: '#00E5FF', fontSize: 11, fontWeight: '800' }}>
+                                  <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 11, fontWeight: '800' }}>
                                     Seeker Location Map →
                                   </Text>
                                 </TouchableOpacity>

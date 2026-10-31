@@ -2,8 +2,8 @@
 // Standardized universal date & time formatting helper
 
 /**
- * Formats a date string, Date object, or timestamp strictly into DD/MM/YYYY.
- * e.g. "2026-10-30" -> "30/10/2026"
+ * Formats a date string, Date object, or timestamp strictly into DD-MM-YYYY.
+ * e.g. "2026-10-30" -> "30-10-2026"
  */
 export function formatDateDMY(d) {
   if (!d) return '—';
@@ -12,8 +12,12 @@ export function formatDateDMY(d) {
     if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) {
       const parts = d.split('T')[0].split('-');
       if (parts.length === 3) {
-        return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
       }
+    }
+    // If string is in DD/MM/YYYY format, convert to DD-MM-YYYY
+    if (typeof d === 'string' && /^\d{2}\/\d{2}\/\d{4}/.test(d)) {
+      return d.replace(/\//g, '-');
     }
     const date = (typeof d === 'string' || typeof d === 'number') ? new Date(d) : d;
     if (isNaN(date.getTime())) {
@@ -22,14 +26,14 @@ export function formatDateDMY(d) {
     const day = String(date.getDate()).padStart(2, '0');
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
+    return `${day}-${month}-${year}`;
   } catch {
     return '—';
   }
 }
 
 /**
- * Formats a date strictly into DD/MM/YYYY at HH:MM
+ * Formats a date strictly into DD-MM-YYYY at HH:MM
  */
 export function formatDateTimeDMY(d) {
   if (!d) return '—';

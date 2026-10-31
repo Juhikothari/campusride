@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert as RNAlert, Linking, Modal,
-  Animated, Easing, Dimensions, Platform,
+  Animated, Easing, Dimensions, Platform, RefreshControl,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -346,96 +346,106 @@ export default function DashboardScreen({ navigation }) {
     goToStep(stepIndex - 1);
   };
   const TOUR_STEPS = ONBOARDING_STEPS;
+  const [refreshing, setRefreshing] = useState(false);
+
   // Load active trip status
-  useEffect(() => {
-    let mounted = true;
-    const fetchActiveTrip = async () => {
-      try {
-        const [bookingsRes, ridesRes, requestsRes] = await Promise.allSettled([
-          api.getMyBookings(),
-          api.getMyRides(),
-          api.getRideRequests(),
-        ]);
-        if (!mounted) return;
+  const fetchActiveTrip = useCallback(async () => {
+    try {
+      const [bookingsRes, ridesRes, requestsRes] = await Promise.allSettled([
+        api.getMyBookings(),
+        api.getMyRides(),
+        api.getRideRequests(),
+      ]);
 
-        const rides = ridesRes.status === 'fulfilled' ? (Array.isArray(ridesRes.value) ? ridesRes.value : ridesRes.value?.rides || []) : [];
-        const bookings = bookingsRes.status === 'fulfilled' ? (Array.isArray(bookingsRes.value) ? bookingsRes.value : bookingsRes.value?.bookings || []) : [];
-        const requests = requestsRes.status === 'fulfilled' ? (Array.isArray(requestsRes.value) ? requestsRes.value : requestsRes.value?.requests || []) : [];
+      const rides = ridesRes.status === 'fulfilled' ? (Array.isArray(ridesRes.value) ? ridesRes.value : ridesRes.value?.rides || []) : [];
+      const bookings = bookingsRes.status === 'fulfilled' ? (Array.isArray(bookingsRes.value) ? bookingsRes.value : bookingsRes.value?.bookings || []) : [];
+      const requests = requestsRes.status === 'fulfilled' ? (Array.isArray(requestsRes.value) ? requestsRes.value : requestsRes.value?.requests || []) : [];
 
-        // Check if user is provider of an in-progress ride, OR an active ride that has at least one accepted passenger!
-        const activeDriverRide = rides.find(r => {
-          if (r.status === 'completed' || r.status === 'cancelled') return false;
-          if (r.status === 'in-progress') return true;
-          if (r.status === 'active') {
-            return requests.some(b => (b.rideId === r._id || b.rideId?._id === r._id) && b.status === 'accepted');
-          }
-          return false;
+      // Check if user is provider of an in-progress ride, OR an active ride that has at least one accepted passenger!
+      const activeDriverRide = rides.find(r => {
+        if (r.status === 'completed' || r.status === 'cancelled') return false;
+        if (r.status === 'in-progress') return true;
+        if (r.status === 'active') {
+          return requests.some(b => (b.rideId === r._id || b.rideId?._id === r._id) && b.status === 'accepted');
+        }
+        return false;
+      });
+
+      if (activeDriverRide) {
+        const matchedBookings = requests.filter(b => (b.rideId === activeDriverRide._id || b.rideId?._id === activeDriverRide._id) && b.status === 'accepted');
+        const passengerNames = matchedBookings.map(b => getDisplayUSN(b.seekerId, 'Buddy')).filter(Boolean);
+        const passengerColleges = matchedBookings.map(b => b.seekerId?.college).filter(Boolean);
+        const passengerPhones = matchedBookings.map(b => b.seekerId?.phone).filter(Boolean);
+        const isChecklistDone = activeDriverRide.seekerChecklistCompleted || matchedBookings.some(b => b.checklistCompleted);
+
+        const passengersList = matchedBookings.map(b => ({
+          name: 'Buddy',
+          usn: getDisplayUSN(b.seekerId, 'Buddy'),
+          college: b.seekerId?.college || activeDriverRide.college || 'Campus Commuter',
+          phone: b.seekerId?.phone || null,
+          seats: b.seats || 1,
+          bookingId: b._id,
+        }));
+
+        let passengerPhone = passengerPhones[0] || null;
+        if (!passengerPhone && activeDriverRide.passengers?.length > 0) {
+          passengerPhone = activeDriverRide.passengers[0]?.seeker?.phone || null;
+        }
+
+        setActiveTrip({
+          ...activeDriverRide,
+          passengersList,
+          matchedPassengerName: passengerNames[0] || (passengerNames.length > 0 ? passengerNames.join(', ') : 'Buddy'),
+          matchedPassengerCollege: passengerColleges[0] || activeDriverRide.college || 'Campus Commuter',
+          matchedPassengerPhone: passengerPhone,
+          hasAcceptedBookings: matchedBookings.length > 0,
+          seekerChecklistCompleted: isChecklistDone,
         });
-
-        if (activeDriverRide) {
-          const matchedBookings = requests.filter(b => (b.rideId === activeDriverRide._id || b.rideId?._id === activeDriverRide._id) && b.status === 'accepted');
-          const passengerNames = matchedBookings.map(b => getDisplayUSN(b.seekerId, 'Buddy')).filter(Boolean);
-          const passengerColleges = matchedBookings.map(b => b.seekerId?.college).filter(Boolean);
-          const passengerPhones = matchedBookings.map(b => b.seekerId?.phone).filter(Boolean);
-          const isChecklistDone = activeDriverRide.seekerChecklistCompleted || matchedBookings.some(b => b.checklistCompleted);
-
-          const passengersList = matchedBookings.map(b => ({
-            name: 'Buddy',
-            usn: getDisplayUSN(b.seekerId, 'Buddy'),
-            college: b.seekerId?.college || activeDriverRide.college || 'Campus Commuter',
-            phone: b.seekerId?.phone || null,
-            seats: b.seats || 1,
-            bookingId: b._id,
-          }));
-
-          let passengerPhone = passengerPhones[0] || null;
-          if (!passengerPhone && activeDriverRide.passengers?.length > 0) {
-            passengerPhone = activeDriverRide.passengers[0]?.seeker?.phone || null;
-          }
-
-          setActiveTrip({
-            ...activeDriverRide,
-            passengersList,
-            matchedPassengerName: passengerNames[0] || (passengerNames.length > 0 ? passengerNames.join(', ') : 'Buddy'),
-            matchedPassengerCollege: passengerColleges[0] || activeDriverRide.college || 'Campus Commuter',
-            matchedPassengerPhone: passengerPhone,
-            hasAcceptedBookings: matchedBookings.length > 0,
-            seekerChecklistCompleted: isChecklistDone,
-          });
-          setTripRole('driver');
-          return;
-        }
-
-        // Check if user is passenger with an accepted booking
-        const activeSeekerBooking = bookings.find(b =>
-          b.status === 'accepted' &&
-          b.rideId?.status !== 'completed' &&
-          b.rideId?.status !== 'cancelled' &&
-          (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
-        );
-        if (activeSeekerBooking?.rideId) {
-          setActiveTrip({
-            ...activeSeekerBooking.rideId,
-            bookedSeats: activeSeekerBooking.seats || 1,
-            seatsAvailable: activeSeekerBooking.rideId?.seatsAvailable,
-            seekerChecklistCompleted: activeSeekerBooking.checklistCompleted || activeSeekerBooking.rideId?.seekerChecklistCompleted,
-          });
-          setActiveBookingId(activeSeekerBooking._id || activeSeekerBooking.id);
-          setTripRole('rider');
-          return;
-        }
-
-        setActiveTrip(null);
-        setActiveBookingId(null);
-      } catch (err) {
-        console.log('Error loading active trip:', err);
+        setTripRole('driver');
+        return;
       }
-    };
 
+      // Check if user is passenger with an accepted booking
+      const activeSeekerBooking = bookings.find(b =>
+        b.status === 'accepted' &&
+        b.rideId?.status !== 'completed' &&
+        b.rideId?.status !== 'cancelled' &&
+        (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
+      );
+      if (activeSeekerBooking?.rideId) {
+        setActiveTrip({
+          ...activeSeekerBooking.rideId,
+          bookedSeats: activeSeekerBooking.seats || 1,
+          seatsAvailable: activeSeekerBooking.rideId?.seatsAvailable,
+          seekerChecklistCompleted: activeSeekerBooking.checklistCompleted || activeSeekerBooking.rideId?.seekerChecklistCompleted,
+        });
+        setActiveBookingId(activeSeekerBooking._id || activeSeekerBooking.id);
+        setTripRole('rider');
+        return;
+      }
+
+      setActiveTrip(null);
+      setActiveBookingId(null);
+    } catch (err) {
+      console.log('Error loading active trip:', err);
+    }
+  }, []);
+
+  useEffect(() => {
     fetchActiveTrip();
     const interval = setInterval(fetchActiveTrip, 15000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, []);
+    return () => clearInterval(interval);
+  }, [fetchActiveTrip]);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await fetchActiveTrip();
+    try {
+      const cnt = getCommunityUnreadCount();
+      setUnreadCommunityCount(cnt);
+    } catch {}
+    setRefreshing(false);
+  };
 
   const [activeBookingId, setActiveBookingId] = useState(null);
 
@@ -513,6 +523,14 @@ export default function DashboardScreen({ navigation }) {
         ref={scrollViewRef}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleManualRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+          />
+        }
       >
         {/* Hey Greeting Hero Card */}
         <View style={[styles.heroCard, { backgroundColor: isDark ? '#0e1218' : '#ffffff', borderColor: isDark ? '#1e2430' : '#e2e8f0' }]}>
@@ -525,26 +543,52 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={[styles.heroCollege, { color: isDark ? colors.text2 : '#475569' }]} numberOfLines={1}>{collegeName}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              onPress={toggleTheme}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: isDark ? '#1a2234' : '#f1f5f9',
-                paddingHorizontal: 12,
-                paddingVertical: 7,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: isDark ? '#2e3a52' : '#cbd5e1',
-                gap: 6,
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 14 }}>{isDark ? '☀️' : '🌙'}</Text>
-              <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a' }}>
-                {isDark ? 'Light' : 'Dark'}
-              </Text>
-            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {/* Manual Refresh Button */}
+              <TouchableOpacity
+                onPress={handleManualRefresh}
+                disabled={refreshing}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isDark ? '#1a2234' : '#f1f5f9',
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: isDark ? '#2e3a52' : '#cbd5e1',
+                  gap: 4,
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 13 }}>{refreshing ? '⏳' : '🔄'}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a' }}>
+                  {refreshing ? 'Syncing...' : 'Refresh'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={toggleTheme}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: isDark ? '#1a2234' : '#f1f5f9',
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: isDark ? '#2e3a52' : '#cbd5e1',
+                  gap: 6,
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 14 }}>{isDark ? '☀️' : '🌙'}</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a' }}>
+                  {isDark ? 'Light' : 'Dark'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 

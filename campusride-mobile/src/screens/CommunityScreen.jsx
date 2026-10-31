@@ -627,63 +627,39 @@ function PostsTab({ user }) {
               disabled={uploadingAttachment}
               style={{
                 flex: 1,
-                marginHorizontal: 3,
+                marginHorizontal: 4,
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 4,
+                gap: 5,
                 backgroundColor: isDark ? '#162235' : '#f1f5f9',
                 borderWidth: 1.2,
                 borderColor: colors.accent,
                 borderRadius: radius.md,
-                paddingVertical: 10,
-                paddingHorizontal: 2,
+                paddingVertical: 11,
+                paddingHorizontal: 4,
               }}
               activeOpacity={0.75}
             >
-              <Text style={{ fontSize: 14 }}>⟳</Text>
-              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }} numberOfLines={1}>Rotate</Text>
+              <Text style={{ fontSize: 15 }}>⟳</Text>
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }} numberOfLines={1}>Rotate</Text>
             </TouchableOpacity>
 
-            {/* 2. Crop */}
-            <TouchableOpacity
-              onPress={handleRecropStagedImage}
-              disabled={uploadingAttachment}
-              style={{
-                flex: 1,
-                marginHorizontal: 3,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                backgroundColor: isDark ? '#162235' : '#f1f5f9',
-                borderWidth: 1.2,
-                borderColor: colors.accent,
-                borderRadius: radius.md,
-                paddingVertical: 10,
-                paddingHorizontal: 2,
-              }}
-              activeOpacity={0.75}
-            >
-              <Text style={{ fontSize: 14 }}>✂️</Text>
-              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }} numberOfLines={1}>Crop</Text>
-            </TouchableOpacity>
-
-            {/* 3. Attach (✓) */}
+            {/* 2. Attach (✓) */}
             <TouchableOpacity
               onPress={handleConfirmAndUploadAttachment}
               disabled={uploadingAttachment}
               style={{
-                flex: 1,
-                marginHorizontal: 3,
+                flex: 1.3,
+                marginHorizontal: 4,
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 4,
+                gap: 5,
                 backgroundColor: '#2dd4a0',
                 borderRadius: radius.md,
-                paddingVertical: 10,
-                paddingHorizontal: 2,
+                paddingVertical: 11,
+                paddingHorizontal: 6,
               }}
               activeOpacity={0.8}
             >
@@ -691,8 +667,8 @@ function PostsTab({ user }) {
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <Text style={{ color: '#000', fontSize: 14, fontWeight: '900' }}>✓</Text>
-                  <Text style={{ color: '#000', fontSize: 12, fontWeight: '900' }} numberOfLines={1}>Attach</Text>
+                  <Text style={{ color: '#000', fontSize: 15, fontWeight: '900' }}>✓</Text>
+                  <Text style={{ color: '#000', fontSize: 13, fontWeight: '900' }} numberOfLines={1}>Attach</Text>
                 </>
               )}
             </TouchableOpacity>

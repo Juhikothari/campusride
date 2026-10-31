@@ -439,48 +439,42 @@ export default function LiveTrackingScreen({ navigation, route }) {
   }, [rideInfo?.status, showRatingModal, hasRated, activeRideId]);
 
   const openDirectionsInGoogleMaps = () => {
+    // Only provider gets external driving directions; seeker uses in-app live tracking
+    if (!isDriver) return;
     const originStr = userLat && userLng ? `&origin=${userLat},${userLng}` : '';
+    const acceptedSeekers = (rideInfo?.passengers || []).filter(p => p.status === 'accepted');
 
-    if (isDriver) {
-      const acceptedSeekers = (rideInfo?.passengers || []).filter(p => p.status === 'accepted');
-      if (!isTripToDestination) {
-        if (acceptedSeekers.length > 1) {
-          const pickupPoints = acceptedSeekers
-            .map(p => {
-              const loc = p.seeker?.pickupLocation || p.pickupLocation || pickupCoords;
-              const lat = loc?.lat || loc?.latitude;
-              const lng = loc?.lng || loc?.longitude;
-              return lat && lng ? `${lat},${lng}` : null;
-            })
-            .filter(Boolean);
+    const destPoint = (dropCoords?.latitude && dropCoords?.longitude)
+      ? `${dropCoords.latitude},${dropCoords.longitude}`
+      : (rideInfo?.drop?.address ? encodeURIComponent(rideInfo.drop.address) : null);
 
-          if (pickupPoints.length > 1) {
-            const finalPoint = pickupPoints.pop();
-            const waypoints = pickupPoints.join('|');
-            const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${finalPoint}&waypoints=${waypoints}&travelmode=driving`;
-            Linking.openURL(url).catch(() => {});
-            return;
-          }
-        }
+    const pickupPoints = acceptedSeekers
+      .map(p => {
+        const loc = p.pickupLocation || p.seeker?.pickupLocation || pickupCoords;
+        const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
+        const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
+        return lat && lng ? `${lat},${lng}` : null;
+      })
+      .filter(Boolean);
 
-        if (pickupCoords?.latitude && pickupCoords?.longitude) {
-          const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${pickupCoords.latitude},${pickupCoords.longitude}&travelmode=driving`;
-          Linking.openURL(url).catch(() => {});
-          return;
-        }
-      }
-
-      if (dropCoords?.latitude && dropCoords?.longitude) {
-        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${dropCoords.latitude},${dropCoords.longitude}&travelmode=driving`;
+    // If 2 or more seekers accepted, route must visit all seekers' pickup locations then final destination!
+    if (pickupPoints.length > 0 && destPoint) {
+      if (pickupPoints.length > 1) {
+        const waypoints = pickupPoints.join('|');
+        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${destPoint}&waypoints=${waypoints}&travelmode=driving`;
+        Linking.openURL(url).catch(() => {});
+        return;
+      } else if (!isTripToDestination) {
+        // Leg 1: go to single seeker pickup
+        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${pickupPoints[0]}&travelmode=driving`;
         Linking.openURL(url).catch(() => {});
         return;
       }
-    } else {
-      // Seeker view: tracks rider to destination once trip begins
-      if (dropCoords?.latitude && dropCoords?.longitude) {
-        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${dropCoords.latitude},${dropCoords.longitude}&travelmode=driving`;
-        Linking.openURL(url).catch(() => {});
-      }
+    }
+
+    if (destPoint) {
+      const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${destPoint}&travelmode=driving`;
+      Linking.openURL(url).catch(() => {});
     }
   };
 
@@ -621,7 +615,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const isTripToDestination = rideInfo?.status === 'in-progress' || rideInfo?.status === 'completed';
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
       <TopHeader title="HOGO Track" subtitle="Live Route & Navigation" />
 
       {lookingUp || loading ? (
@@ -630,7 +624,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
           <Text style={styles.loadingText}>Checking active ride & route...</Text>
         </View>
       ) : !activeRideId || !rideInfo ? (
-        <View style={styles.emptyContainer}>
+        <View style={[styles.emptyContainer, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}>
           <EmptyState
             icon="📍"
             title="No Active Ride to Track"
@@ -679,8 +673,8 @@ export default function LiveTrackingScreen({ navigation, route }) {
             <>
           {/* Interactive Route Map with Eye-Catching Points — Always Shown in Track Ride */}
           <View style={[styles.radarCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-            {/* Directions ↗ Button to Google Maps */}
-            {(isDriver || isTripToDestination) && (
+            {/* Directions ↗ Button to Google Maps — strictly for Provider/Driver */}
+            {isDriver && (
               <TouchableOpacity
                 onPress={openDirectionsInGoogleMaps}
                 style={{
@@ -735,11 +729,20 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </View>
 
             {/* Interactive OpenStreetMap Live Map with Eye-Catching Markers */}
-            {/* FIRST rider gets route to seeker location; AFTER reaching seeker and checklist, gets route to destination */}
+            {/* If 2 seekers have accepted, both pickup spots and destination are marked */}
             <LiveMapView
               pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
               drop={isTripToDestination && dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
               driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
+              extraPickups={isDriver ? (rideInfo?.passengers || [])
+                .filter((p, i) => p.status === 'accepted' && i > 0)
+                .map((p, i) => {
+                  const loc = p.pickupLocation || p.seeker?.pickupLocation;
+                  const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
+                  const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
+                  return lat && lng ? { lat, lng, label: `Buddy ${i + 2}: ${p.seeker?.usn || 'Seeker'}` } : null;
+                })
+                .filter(Boolean) : []}
               coordinates={isTripToDestination ? routeCoordinates : []}
               leg1Coordinates={!isTripToDestination ? leg1Coords : []}
               leg2Coordinates={isTripToDestination ? leg2Coords : []}
@@ -756,7 +759,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.nodeLabel, { color: '#00E5FF' }]}>1. PROVIDER LOCATION</Text>
-                  <Text style={styles.nodeAddress} numberOfLines={1}>
+                  <Text style={[styles.nodeAddress, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>
                     {isDriver ? 'Your Live Location' : `${rideInfo?.providerId?.name || rideInfo?.providerName || 'Provider'} (${isTripToDestination ? 'Trip in Progress' : 'En Route to Pickup'})`}
                   </Text>
                 </View>
@@ -781,15 +784,15 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   <Text style={{ fontSize: 16 }}>🟢</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.nodeLabel}>2. SEEKER PICKUP POINT</Text>
-                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.pickup?.address || 'Pickup Location'}</Text>
+                  <Text style={[styles.nodeLabel, { color: isDark ? colors.text2 : '#475569' }]}>2. SEEKER PICKUP POINT</Text>
+                  <Text style={[styles.nodeAddress, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{rideInfo?.pickup?.address || 'Pickup Location'}</Text>
                 </View>
               </View>
 
               {/* Leg 2 connector: Pickup to Destination */}
               <View style={styles.nodeConnector}>
-                <View style={[styles.connectorLine, !isTripToDestination && { borderColor: 'rgba(255,255,255,0.15)', borderStyle: 'dotted' }]} />
-                <View style={[styles.liveCarBadge, !isTripToDestination && { borderColor: 'rgba(255,255,255,0.2)' }]}>
+                <View style={[styles.connectorLine, !isTripToDestination && { borderColor: isDark ? 'rgba(255,255,255,0.15)' : '#cbd5e1', borderStyle: 'dotted' }]} />
+                <View style={[styles.liveCarBadge, !isTripToDestination && { borderColor: isDark ? 'rgba(255,255,255,0.2)' : '#cbd5e1' }]}>
                   <Text style={{ fontSize: 11 }}>{isTripToDestination ? '🏁' : '🔒'}</Text>
                   <Text style={[styles.liveCarText, !isTripToDestination && { color: colors.text3 }]}>
                     {isTripToDestination
@@ -805,8 +808,8 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   <Text style={{ fontSize: 16 }}>🏁</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.nodeLabel, !isTripToDestination && { color: colors.text3 }]}>3. DROP-OFF DESTINATION</Text>
-                  <Text style={styles.nodeAddress} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
+                  <Text style={[styles.nodeLabel, { color: isDark ? colors.text2 : '#475569' }]}>3. DROP-OFF DESTINATION</Text>
+                  <Text style={[styles.nodeAddress, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{rideInfo?.drop?.address || 'Destination'}</Text>
                 </View>
               </View>
             </View>
@@ -917,6 +920,36 @@ export default function LiveTrackingScreen({ navigation, route }) {
                                 </Text>
                               </View>
                             ) : null}
+
+                            {/* View Seeker Location Map Button */}
+                            <TouchableOpacity
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                backgroundColor: isDark ? 'rgba(0, 229, 255, 0.12)' : '#e0f2fe',
+                                borderWidth: 1,
+                                borderColor: isDark ? '#00E5FF' : '#0284c7',
+                                borderRadius: radius.md,
+                                paddingHorizontal: 10,
+                                paddingVertical: 6,
+                                marginTop: 6,
+                                gap: 6,
+                                alignSelf: 'flex-start',
+                              }}
+                              onPress={() => {
+                                const loc = p.pickupLocation || p.seeker?.pickupLocation || rideInfo?.pickup;
+                                const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
+                                const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
+                                const dest = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.address || 'Buddy Pickup');
+                                Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
+                              }}
+                              activeOpacity={0.75}
+                            >
+                              <Text style={{ fontSize: 13 }}>📍</Text>
+                              <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 11, fontWeight: '800' }}>
+                                View Seeker Location →
+                              </Text>
+                            </TouchableOpacity>
                           </View>
                         </View>
                       ))}
@@ -972,8 +1005,8 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     )}
                     {rideInfo?.college && (
                       <View style={styles.driverGridItem}>
-                        <Text style={styles.driverGridLabel}>CAMPUS</Text>
-                        <Text style={styles.driverGridVal}>{rideInfo.college}</Text>
+                        <Text style={[styles.driverGridLabel, { color: isDark ? colors.text3 : '#64748b' }]}>CAMPUS</Text>
+                        <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]}>{rideInfo.college}</Text>
                       </View>
                     )}
                   </View>
@@ -1140,9 +1173,18 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   </View>
                 ) : !rideInfo?.seekerChecklistCompleted ? (
                   <>
-                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ fontSize: 18 }}>📍</Text>
-                      <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
+                    <View style={{
+                      backgroundColor: isDark ? 'rgba(245,166,35,0.12)' : '#fffbeb',
+                      borderWidth: 1,
+                      borderColor: colors.accent,
+                      borderRadius: radius.md,
+                      padding: 12,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10
+                    }}>
+                      <Text style={{ fontSize: 20 }}>📍</Text>
+                      <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '700', flex: 1 }}>
                         Your rider has arrived! Please complete your safety checklist now.
                       </Text>
                     </View>
@@ -1155,22 +1197,25 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     </TouchableOpacity>
                   </>
                 ) : (
-                  <View style={{ gap: 8 }}>
-                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ fontSize: 16 }}>✅</Text>
-                      <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
-                        Safety checklist completed. Ready for destination commute!
+                  <View style={{
+                    backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fefce8',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : '#fde047',
+                    borderRadius: radius.md,
+                    padding: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}>
+                    <Text style={{ fontSize: 22 }}>🛡️</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: isDark ? colors.accent : '#b45309', fontSize: 13, fontWeight: '800' }}>
+                        Safety Checklist Completed
+                      </Text>
+                      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, marginTop: 2, lineHeight: 15 }}>
+                        Live in-app tracking active. Commute will begin shortly once driver starts trip.
                       </Text>
                     </View>
-                    <TouchableOpacity
-                      style={[styles.completeRideBtn, { backgroundColor: colors.accent, borderColor: colors.accent }]}
-                      onPress={openDirectionsInGoogleMaps}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.completeRideBtnText, { color: '#000000' }]}>
-                        📍 Track to Destination (Directions ↗)
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 )
               )}
@@ -1196,39 +1241,56 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
           {/* Emergency & Action Buttons (only for active rides) */}
           {rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
-          <View style={[styles.actionRow, { gap: 8 }]}>
+          <View style={{ marginTop: 8, marginBottom: 12 }}>
             <TouchableOpacity
-              style={[styles.sosBtn, { flex: 1.25, paddingHorizontal: 4 }, sosSent && { opacity: 0.5 }]}
-              onPress={triggerSOS}
-              disabled={sosSent || sosLoading}
-              activeOpacity={0.8}
-            >
-              {sosLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.sosBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                  🆘 SOS EMERGENCY
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.call112Btn, { paddingHorizontal: 10 }]}
-              onPress={() => Linking.openURL('tel:112')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.call112BtnText}>📞 112</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.detailsBtn, { flex: 1, paddingHorizontal: 6, backgroundColor: isDark ? colors.surface2 : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}
+              style={[
+                styles.detailsBtn,
+                {
+                  width: '100%',
+                  marginBottom: 10,
+                  paddingVertical: 12,
+                  backgroundColor: isDark ? colors.surface2 : '#ffffff',
+                  borderColor: isDark ? colors.border : '#cbd5e1',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }
+              ]}
               onPress={() => navigation.navigate('RideDetail', { rideId: activeRideId })}
               activeOpacity={0.8}
             >
-              <Text style={[styles.detailsBtnText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>
-                Ride Details →
+              <Text style={{ fontSize: 15 }}>ℹ️</Text>
+              <Text style={[styles.detailsBtnText, { color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '800' }]}>
+                View Full Ride Details
               </Text>
             </TouchableOpacity>
+
+            {/* Emergency Bar: Compact SOS + 112 */}
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <TouchableOpacity
+                style={[styles.sosBtn, { flex: 1, paddingVertical: 10, paddingHorizontal: 8 }, sosSent && { opacity: 0.5 }]}
+                onPress={triggerSOS}
+                disabled={sosSent || sosLoading}
+                activeOpacity={0.8}
+              >
+                {sosLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={[styles.sosBtnText, { fontSize: 12, fontWeight: '800' }]} numberOfLines={1}>
+                    🆘 SOS Emergency
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.call112Btn, { paddingVertical: 10, paddingHorizontal: 16 }]}
+                onPress={() => Linking.openURL('tel:112')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.call112BtnText, { fontSize: 12, fontWeight: '800' }]}>📞 112</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           )}
         </ScrollView>
@@ -1317,7 +1379,7 @@ const styles = StyleSheet.create({
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   emptyContainer: { flex: 1, justifyContent: 'center' },
   loadingText: { color: colors.text2, marginTop: 14, fontSize: 14, fontWeight: '600' },
-  scroll: { padding: spacing.md, paddingBottom: 40 },
+  scroll: { padding: spacing.md, paddingBottom: 110 },
 
   /* Rating Modal Styles */
   ratingBackdrop: {
