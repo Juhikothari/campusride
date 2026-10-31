@@ -57,5 +57,7 @@ export const useTheme = () => {
 
 ThemeContext.useTheme = useTheme;
 ThemeContext.ThemeProvider = ThemeProvider;
+ThemeContext.ThemeContext = ThemeContext;
+ThemeContext.default = ThemeContext;
 
 export default ThemeContext;

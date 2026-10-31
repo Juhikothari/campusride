@@ -454,58 +454,6 @@ function PostsTab({ user }) {
             scrollEnabled={true}
             maxLength={500}
           />
-          {/* Staged Image Card (Before Attachment: Rotate, Crop, Attach tick, and Reject cross) */}
-          {stagedAttachment && !attachment && (
-            <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.accent, borderWidth: 1.5, padding: 8 }]}>
-              <Image source={{ uri: stagedAttachment.uri }} style={styles.attachmentPreviewThumb} />
-              <View style={{ flex: 1, paddingHorizontal: 6 }}>
-                <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{stagedAttachment.name}</Text>
-                <Text style={{ color: colors.accent, fontSize: 10.5, fontWeight: '700' }}>
-                  {uploadingAttachment ? '⏳ Attaching…' : '📷 Staged — tap ✓ to attach'}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                onPress={handleRotateStagedImage}
-                disabled={uploadingAttachment}
-                style={[styles.inlineStagingBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: colors.accent }]}
-                activeOpacity={0.75}
-              >
-                <Text style={{ fontSize: 13, color: colors.accent }}>⟳</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleRecropStagedImage}
-                disabled={uploadingAttachment}
-                style={[styles.inlineStagingBtn, { backgroundColor: isDark ? '#1e293b' : '#e2e8f0', borderColor: colors.accent }]}
-                activeOpacity={0.75}
-              >
-                <Text style={{ fontSize: 13, color: colors.accent }}>✂️</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleConfirmAndUploadAttachment}
-                disabled={uploadingAttachment}
-                style={[styles.inlineStagingBtn, { backgroundColor: '#2dd4a0', borderColor: '#2dd4a0' }]}
-                activeOpacity={0.8}
-              >
-                {uploadingAttachment ? (
-                  <ActivityIndicator size="small" color="#000" />
-                ) : (
-                  <Text style={{ color: '#000', fontSize: 14, fontWeight: '900' }}>✓</Text>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setStagedAttachment(null)}
-                disabled={uploadingAttachment}
-                style={[styles.inlineStagingBtn, { backgroundColor: 'rgba(255,82,82,0.15)', borderColor: colors.red }]}
-              >
-                <Text style={{ color: colors.red, fontSize: 14, fontWeight: '900' }}>✕</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           {/* Attached Image Preview (After Attachment: Rotate, Crop, and Attach options REMOVED) */}
           {attachment && (
             <View style={[styles.attachmentPreviewRow, { backgroundColor: isDark ? '#162235' : '#f1f5f9', borderColor: colors.green, borderWidth: 1.5 }]}>
@@ -513,13 +461,15 @@ function PostsTab({ user }) {
               <View style={{ flex: 1, paddingHorizontal: 8 }}>
                 <Text style={[styles.attachmentPreviewName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>{attachment.name}</Text>
                 <Text style={{ color: colors.green, fontSize: 11, fontWeight: '700' }}>
-                  ✓ Image attached
+                  ✓ Photo attached
                 </Text>
               </View>
-
-              {/* Only Remove button after attached */}
-              <TouchableOpacity onPress={() => setAttachment(null)} style={styles.removeAttachmentBtn}>
-                <Text style={styles.removeAttachmentText}>✕</Text>
+              <TouchableOpacity
+                onPress={() => setAttachment(null)}
+                style={styles.attachmentRemoveBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={{ color: colors.red, fontSize: 14, fontWeight: '800' }}>✕</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -626,8 +576,7 @@ function PostsTab({ user }) {
           }
         }}
       >
-        <DarkScope>
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#000000' }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? '#000000' : '#f8fafc' }}>
           {/* Clean Top Bar: Back Arrow & Title */}
           <View style={{
             flexDirection: 'row',
@@ -635,8 +584,8 @@ function PostsTab({ user }) {
             paddingHorizontal: 16,
             paddingVertical: 14,
             borderBottomWidth: 1,
-            borderBottomColor: '#1c2638',
-            backgroundColor: '#0a0e17',
+            borderBottomColor: isDark ? '#1c2638' : '#e2e8f0',
+            backgroundColor: isDark ? '#0a0e17' : '#ffffff',
           }}>
             <TouchableOpacity
               onPress={() => {
@@ -648,26 +597,26 @@ function PostsTab({ user }) {
               style={{ padding: 6, marginRight: 12 }}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: '700' }}>←</Text>
+              <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 24, fontWeight: '700' }}>←</Text>
             </TouchableOpacity>
             <View>
-              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '800' }}>Photo Staging & Crop</Text>
-              <Text style={{ color: '#8b96b0', fontSize: 11 }}>Adjust photo before uploading to community</Text>
+              <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 16, fontWeight: '800' }}>Crop & Attach Photo</Text>
+              <Text style={{ color: isDark ? '#8b96b0' : '#475569', fontSize: 11 }}>Crop freely, rotate, or tap ✓ to attach</Text>
             </View>
           </View>
 
           {/* Interactive crop editor: drag the box / corners, pick a ratio */}
-          <View style={{ flex: 1, backgroundColor: '#000000' }}>
+          <View style={{ flex: 1, backgroundColor: isDark ? '#000000' : '#0f172a' }}>
             <CropView ref={cropRef} uri={stagedAttachment?.uri} accent={colors.accent} />
           </View>
 
-          {/* Bottom Floating Staging Bar with ONLY the 4 options: Rotate, Crop, Attach ✓, Cancel ✕ */}
+          {/* Bottom Floating Bar with ONLY the 4 options: Rotate, Crop, Attach ✓, Cancel ✕ */}
           <View style={{
             paddingHorizontal: 8,
             paddingVertical: 12,
-            backgroundColor: '#0a0e17',
+            backgroundColor: isDark ? '#0a0e17' : '#ffffff',
             borderTopWidth: 1,
-            borderTopColor: '#1c2638',
+            borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -683,7 +632,7 @@ function PostsTab({ user }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 4,
-                backgroundColor: '#162235',
+                backgroundColor: isDark ? '#162235' : '#f1f5f9',
                 borderWidth: 1.2,
                 borderColor: colors.accent,
                 borderRadius: radius.md,
@@ -707,7 +656,7 @@ function PostsTab({ user }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 4,
-                backgroundColor: '#162235',
+                backgroundColor: isDark ? '#162235' : '#f1f5f9',
                 borderWidth: 1.2,
                 borderColor: colors.accent,
                 borderRadius: radius.md,
@@ -778,7 +727,6 @@ function PostsTab({ user }) {
             </TouchableOpacity>
           </View>
         </SafeAreaView>
-        </DarkScope>
       </Modal>
 
       {/* Full-Screen Image Viewer Modal for Post Photos */}

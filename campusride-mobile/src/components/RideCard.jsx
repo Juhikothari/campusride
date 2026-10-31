@@ -4,6 +4,7 @@ import { colors, radius, spacing } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { Badge } from './UI';
 import { getDisplayUSN } from '../utils/usn';
+import { formatDateDMY } from '../utils/date';
 
 const STATUS_COLOR = {
   active:       colors.green,
@@ -27,9 +28,7 @@ function formatTime(date, time) {
 }
 
 function formatDate(date) {
-  try {
-    return new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-  } catch { return '—'; }
+  return formatDateDMY(date);
 }
 
 function getAddress(field) {

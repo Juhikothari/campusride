@@ -15,6 +15,7 @@ import {
   View, Text, Image, TouchableOpacity, PanResponder, ActivityIndicator, StyleSheet,
 } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
+import { useTheme } from '../context/ThemeContext';
 
 const MIN = 56;   // smallest crop box side (screen px)
 const PAD = 26;   // room around the image so corner handles can be touched at the edges
@@ -27,6 +28,7 @@ const ASPECTS = [
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
 
 const CropView = React.forwardRef(function CropView({ uri, accent = '#f5a623' }, ref) {
+  const { isDark } = useTheme();
   const [src, setSrc] = useState(null);                 // { uri, width, height } real pixels
   const [loading, setLoading] = useState(false);
   const [aspect, setAspect] = useState(null);
@@ -150,7 +152,7 @@ const CropView = React.forwardRef(function CropView({ uri, accent = '#f5a623' },
   );
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: isDark ? '#000000' : '#0a0e17' }]}>
       <View
         style={styles.stage}
         onLayout={(e) => setStage({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
@@ -196,14 +198,20 @@ const CropView = React.forwardRef(function CropView({ uri, accent = '#f5a623' },
             <TouchableOpacity
               key={a.label}
               onPress={() => setAspect(a.value)}
-              style={[styles.chip, { borderColor: on ? accent : '#3a4256', backgroundColor: on ? accent : 'transparent' }]}
+              style={[
+                styles.chip,
+                {
+                  borderColor: on ? accent : (isDark ? '#3a4256' : '#475569'),
+                  backgroundColor: on ? accent : (isDark ? '#161b22' : '#1e293b'),
+                }
+              ]}
             >
-              <Text style={{ color: on ? '#000' : '#fff', fontWeight: '700', fontSize: 12 }}>{a.label}</Text>
+              <Text style={{ color: on ? '#000' : '#ffffff', fontWeight: '700', fontSize: 12 }}>{a.label}</Text>
             </TouchableOpacity>
           );
         })}
       </View>
-      <Text style={styles.hint}>Drag the corners or the box to choose what to keep</Text>
+      <Text style={[styles.hint, { color: isDark ? '#8b96b0' : '#cbd5e1' }]}>Drag the corners or the box to choose what to keep</Text>
     </View>
   );
 });

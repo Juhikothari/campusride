@@ -75,19 +75,19 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
           </View>
 
           {/* Big Time Display */}
-          <View style={[styles.timePreviewCard, { backgroundColor: isDark ? '#161b22' : '#f8fafc', borderColor: isDark ? '#21262d' : '#e2e8f0' }]}>
+          <View style={[styles.timePreviewCard, { backgroundColor: isDark ? '#161b22' : '#f8fafc', borderColor: '#f5a623' }]}>
             <View style={styles.digitBox}>
               <Text style={styles.digitText}>{selectedHour}</Text>
-              <Text style={styles.digitSub}>HR</Text>
+              <Text style={[styles.digitSub, { color: isDark ? '#8b949e' : '#64748b' }]}>HR</Text>
             </View>
-            <Text style={styles.colonText}>:</Text>
+            <Text style={[styles.colonText, { color: '#f5a623' }]}>:</Text>
             <View style={styles.digitBox}>
               <Text style={styles.digitText}>{selectedMin}</Text>
-              <Text style={styles.digitSub}>MIN</Text>
+              <Text style={[styles.digitSub, { color: isDark ? '#8b949e' : '#64748b' }]}>MIN</Text>
             </View>
             <View style={styles.digitBox}>
               <Text style={styles.digitText}>{selectedPeriod}</Text>
-              <Text style={styles.digitSub}>PERIOD</Text>
+              <Text style={[styles.digitSub, { color: isDark ? '#8b949e' : '#64748b' }]}>PERIOD</Text>
             </View>
           </View>
 

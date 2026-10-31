@@ -909,6 +909,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
                                 <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]}>{p.seeker.college}</Text>
                               </View>
                             )}
+                            {(p.pickupLocation?.address || p.seeker?.pickupLocation?.address || p.pickupAddress || rideInfo?.pickup?.address) ? (
+                              <View style={[styles.driverGridItem, { width: '100%', marginTop: 4 }]}>
+                                <Text style={styles.driverGridLabel}>SEEKER PICKUP SPOT</Text>
+                                <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
+                                  📍 {p.pickupLocation?.address || p.seeker?.pickupLocation?.address || p.pickupAddress || rideInfo?.pickup?.address}
+                                </Text>
+                              </View>
+                            ) : null}
                           </View>
                         </View>
                       ))}
@@ -996,19 +1004,12 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     )}
                   </TouchableOpacity>
 
-                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <View style={{ marginTop: 10 }}>
                     <TouchableOpacity
-                      style={[styles.driverSubBtn, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}
-                      onPress={() => navigation.navigate('ProviderBookings')}
-                    >
-                      <Text style={[styles.driverSubBtnText, { color: isDark ? colors.text2 : '#475569' }]}>👥 Passengers</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.driverSubBtn, { borderColor: colors.red + '55' }]}
+                      style={[styles.driverSubBtn, { borderColor: colors.red + '55', paddingVertical: 12 }]}
                       onPress={handleCancelRide}
                     >
-                      <Text style={[styles.driverSubBtnText, { color: colors.red }]}>Cancel Ride</Text>
+                      <Text style={[styles.driverSubBtnText, { color: colors.red, textAlign: 'center' }]}>✕ Cancel Ride</Text>
                     </TouchableOpacity>
                   </View>
                 </>
@@ -1021,7 +1022,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                         <View style={{ flex: 1 }}>
                           <Text style={{ color: '#00E5FF', fontSize: 13, fontWeight: '800' }}>Navigating to Seeker</Text>
                           <Text style={{ color: colors.text2, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
-                            Map is guiding you to {rideInfo?.pickup?.address || 'passenger pickup'}. Tap below when you reach the passenger.
+                            Map is guiding you to {rideInfo?.pickup?.address || 'buddy pickup'}. Tap below when you reach your buddy.
                           </Text>
                         </View>
                       </View>
@@ -1154,11 +1155,22 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     </TouchableOpacity>
                   </>
                 ) : (
-                  <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontSize: 16 }}>✅</Text>
-                    <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
-                      Safety checklist completed. Waiting for provider to start ride to destination.
-                    </Text>
+                  <View style={{ gap: 8 }}>
+                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Text style={{ fontSize: 16 }}>✅</Text>
+                      <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700', flex: 1 }}>
+                        Safety checklist completed. Ready for destination commute!
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.completeRideBtn, { backgroundColor: colors.accent, borderColor: colors.accent }]}
+                      onPress={openDirectionsInGoogleMaps}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.completeRideBtnText, { color: '#000000' }]}>
+                        📍 Track to Destination (Directions ↗)
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )
               )}
@@ -1184,9 +1196,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
           {/* Emergency & Action Buttons (only for active rides) */}
           {rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
-          <View style={styles.actionRow}>
+          <View style={[styles.actionRow, { gap: 8 }]}>
             <TouchableOpacity
-              style={[styles.sosBtn, sosSent && { opacity: 0.5 }]}
+              style={[styles.sosBtn, { flex: 1.25, paddingHorizontal: 4 }, sosSent && { opacity: 0.5 }]}
               onPress={triggerSOS}
               disabled={sosSent || sosLoading}
               activeOpacity={0.8}
@@ -1194,12 +1206,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
               {sosLoading ? (
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={styles.sosBtnText}>🆘 SOS EMERGENCY</Text>
+                <Text style={styles.sosBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                  🆘 SOS EMERGENCY
+                </Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.call112Btn}
+              style={[styles.call112Btn, { paddingHorizontal: 10 }]}
               onPress={() => Linking.openURL('tel:112')}
               activeOpacity={0.8}
             >
@@ -1207,11 +1221,13 @@ export default function LiveTrackingScreen({ navigation, route }) {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.detailsBtn}
+              style={[styles.detailsBtn, { flex: 1, paddingHorizontal: 6, backgroundColor: isDark ? colors.surface2 : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}
               onPress={() => navigation.navigate('RideDetail', { rideId: activeRideId })}
               activeOpacity={0.8}
             >
-              <Text style={styles.detailsBtnText}>Ride Details →</Text>
+              <Text style={[styles.detailsBtnText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>
+                Ride Details →
+              </Text>
             </TouchableOpacity>
           </View>
           )}

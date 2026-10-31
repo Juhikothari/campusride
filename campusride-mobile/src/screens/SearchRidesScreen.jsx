@@ -631,7 +631,7 @@ export default function SearchRidesScreen({ navigation }) {
             </View>
           ) : (
             <View>
-              <Text style={styles.resultsHeader}>
+              <Text style={[styles.resultsHeader, { color: isDark ? colors.text : '#0f172a' }]}>
                 {rides.length} match{rides.length !== 1 ? 'es' : ''} found (within 5km of your route)
               </Text>
               {rides.map(ride => {

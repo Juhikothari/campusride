@@ -198,7 +198,7 @@ export default function ChatBotScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top', 'bottom']}>
       {/* Unified clean header */}
       <View style={[styles.botHeader, { backgroundColor: isDark ? colors.surface : '#ffffff', borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
         <View style={styles.botInfo}>
@@ -210,7 +210,7 @@ export default function ChatBotScreen({ navigation }) {
           >
             <Text style={[styles.backBtnText, { color: isDark ? '#ffffff' : '#0f172a' }]}>←</Text>
           </TouchableOpacity>
-          <View style={styles.botAvatar}>
+          <View style={[styles.botAvatar, { backgroundColor: isDark ? colors.accentDim : 'rgba(245,166,35,0.15)' }]}>
             <Text style={{ fontSize: 20 }}>🤖</Text>
             <View style={styles.onlineDot} />
           </View>
@@ -226,7 +226,7 @@ export default function ChatBotScreen({ navigation }) {
       </View>
 
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
@@ -247,7 +247,7 @@ export default function ChatBotScreen({ navigation }) {
                 ]}
               >
                 {!isUser && (
-                  <View style={styles.bubbleAvatar}>
+                  <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
                     <Text style={{ fontSize: 13 }}>🤖</Text>
                   </View>
                 )}
@@ -267,12 +267,12 @@ export default function ChatBotScreen({ navigation }) {
 
           {loading && (
             <View style={[styles.msgRow, styles.msgRowAssistant]}>
-              <View style={styles.bubbleAvatar}>
+              <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
                 <Text style={{ fontSize: 13 }}>🤖</Text>
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, { flexDirection: 'row', gap: 6, alignItems: 'center' }]}>
                 <ActivityIndicator color={colors.accent} size="small" />
-                <Text style={{ color: colors.text3, fontSize: 12 }}>RideBot is thinking…</Text>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 12 }}>RideBot is thinking…</Text>
               </View>
             </View>
           )}

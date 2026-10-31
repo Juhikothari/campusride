@@ -475,14 +475,20 @@ export default function CreateRideScreen({ navigation }) {
   };
 
   if (success) return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc', alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
       <Text style={{ fontSize: 60, marginBottom: 16 }}>🎉</Text>
-      <Text style={{ color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>Ride Posted Successfully!</Text>
-      <Text style={{ color: colors.text2, fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 20 }}>
+      <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>Ride Posted Successfully!</Text>
+      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 20 }}>
         Your ride is now visible to students from {user?.college || 'your campus'}.
       </Text>
       <Btn label="View Ride Requests" onPress={() => navigation.navigate('ProviderBookings')} style={{ width: '100%', marginBottom: 12 }} />
-      <Btn label="Post Another Ride" onPress={() => setSuccess(null)} variant="outline" style={{ width: '100%' }} />
+      <Btn
+        label="Post Another Ride"
+        onPress={() => setSuccess(null)}
+        variant="outline"
+        style={{ width: '100%', borderColor: isDark ? colors.border : '#cbd5e1' }}
+        textStyle={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}
+      />
     </SafeAreaView>
   );
 

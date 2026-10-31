@@ -9,6 +9,7 @@ import { colors, radius, spacing, commonStyles } from '../theme';
 
 // ── Button ────────────────────────────────────────────
 export function Btn({ label, onPress, variant = 'primary', loading = false, disabled = false, style, textStyle, icon }) {
+  const { isDark } = useTheme();
   const isPrimary  = variant === 'primary';
   const isOutline  = variant === 'outline';
   const isGhost    = variant === 'ghost';
@@ -22,7 +23,7 @@ export function Btn({ label, onPress, variant = 'primary', loading = false, disa
       style={[
         styles.btn,
         isPrimary && styles.btnPrimary,
-        isOutline && styles.btnOutline,
+        isOutline && [styles.btnOutline, { borderColor: isDark ? colors.border2 : '#cbd5e1' }],
         isGhost   && styles.btnGhost,
         isDanger  && styles.btnDanger,
         (disabled || loading) && styles.btnDisabled,
@@ -38,8 +39,8 @@ export function Btn({ label, onPress, variant = 'primary', loading = false, disa
             style={[
               styles.btnText,
               isPrimary && styles.btnPrimaryText,
-              isOutline && styles.btnOutlineText,
-              isGhost   && styles.btnGhostText,
+              isOutline && [styles.btnOutlineText, { color: isDark ? colors.text : '#0f172a' }],
+              isGhost   && [styles.btnGhostText, { color: isDark ? colors.text2 : '#475569' }],
               isDanger  && styles.btnDangerText,
               textStyle,
             ]}
@@ -193,27 +194,37 @@ export function TogglePill({ options, value, onChange }) {
     <View style={[
       styles.toggleRow,
       {
-        backgroundColor: isDark ? '#161c2a' : '#e2e8f0',
+        backgroundColor: isDark ? '#161c2a' : '#f1f5f9',
         borderColor: isDark ? '#26344d' : '#cbd5e1',
         borderWidth: 1,
       }
     ]}>
-      {options.map(opt => (
-        <TouchableOpacity
-          key={opt.value}
-          onPress={() => onChange(opt.value)}
-          style={[styles.togglePill, value === opt.value && { backgroundColor: themeColors.accent }]}
-        >
-          {opt.icon && <Text style={{ fontSize: 13, marginRight: 4 }}>{opt.icon}</Text>}
-          <Text style={[
-            styles.togglePillText,
-            { color: isDark ? '#8b96b0' : '#475569' },
-            value === opt.value && { color: '#000000', fontWeight: '800' }
-          ]}>
-            {opt.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {options.map(opt => {
+        const isSel = value === opt.value;
+        return (
+          <TouchableOpacity
+            key={opt.value}
+            onPress={() => onChange(opt.value)}
+            style={[
+              styles.togglePill,
+              {
+                backgroundColor: isSel ? themeColors.accent : (isDark ? 'transparent' : '#ffffff'),
+                borderWidth: isSel ? 0 : (isDark ? 0 : 1),
+                borderColor: isDark ? 'transparent' : '#cbd5e1',
+              }
+            ]}
+          >
+            {opt.icon && <Text style={{ fontSize: 13, marginRight: 4 }}>{opt.icon}</Text>}
+            <Text style={[
+              styles.togglePillText,
+              { color: isDark ? '#8b96b0' : '#475569' },
+              isSel && { color: '#000000', fontWeight: '800' }
+            ]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }

@@ -17,6 +17,23 @@ router.post('/message', auth, async (req, res) => {
     const userId = req.user?.userId || req.user?.id;
     const user   = await User.findById(userId).select('name email role college gender kycStatus usn');
 
+    // 0. Immediate Accident & Emergency Intercept
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content?.toLowerCase() || '';
+    if (lastUserMsg.includes('accident') || lastUserMsg.includes('crash') || lastUserMsg.includes('collision') ||
+        lastUserMsg.includes('ambulance') || lastUserMsg.includes('injury') || lastUserMsg.includes('hurt') ||
+        lastUserMsg.includes('fell') || lastUserMsg.includes('emergency') || lastUserMsg.includes('hit')) {
+      return res.json({
+        reply: "🚨 EMERGENCY ACCIDENT RESPONSE PROTOCOL:\n\n" +
+          "1. Move to Safety: If you are able to move, step away from active vehicle traffic to a sidewalk or safe zone immediately.\n\n" +
+          "2. Tap SOS Button in HOGO: Open your active ride screen or dashboard and tap the red SOS Emergency button. This instantly alerts campus safety and broadcasts your live GPS coordinates to emergency contacts.\n\n" +
+          "3. Call Emergency Helpline Numbers:\n" +
+          "   • Dial 112 (National Emergency Helpline) immediately.\n" +
+          "   • Dial 108 for Ambulance assistance if anyone is hurt.\n\n" +
+          "4. Check on Fellow Commuters: Check on your buddy and passengers if safe to do so. Stay calm and remain at the scene until medical staff or police arrive.\n\n" +
+          "5. Contact Campus Security: Alert your college security desk so campus first responders can reach you swiftly."
+      });
+    }
+
     const groqKey = process.env.GROQ_API_KEY;
     if (!groqKey) {
       return res.status(503).json({ message: 'AI assistant is not configured on this server.' });

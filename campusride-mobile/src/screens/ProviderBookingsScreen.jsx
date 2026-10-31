@@ -14,6 +14,7 @@ import { useSocket } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { getDisplayUSN } from '../utils/usn';
+import { formatDateDMY } from '../utils/date';
 
 const RIDE_STATUS_CONFIG = {
   active:        { color: '#ffffff',     icon: '⚪', label: 'Requested'   },
@@ -29,8 +30,7 @@ function getAddr(field) {
 }
 
 function fmtDate(d) {
-  try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); }
-  catch { return '—'; }
+  return formatDateDMY(d);
 }
 
 export default function ProviderBookingsScreen({ navigation }) {
@@ -126,7 +126,7 @@ export default function ProviderBookingsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Ride Requests" subtitle="Manage incoming passenger requests" showBack={navigation.canGoBack()} />
+      <TopHeader title="Ride Requests" subtitle="Manage incoming buddy requests" showBack={navigation.canGoBack()} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -225,13 +225,13 @@ export default function ProviderBookingsScreen({ navigation }) {
               {/* Metadata pills */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
                 <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-                  <Text style={styles.metaChipText}>🗓 {fmtDate(selectedRide.date)}</Text>
+                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>🗓 {fmtDate(selectedRide.date)}</Text>
                 </View>
                 <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-                  <Text style={styles.metaChipText}>⏰ {selectedRide.time}</Text>
+                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>⏰ {selectedRide.time}</Text>
                 </View>
                 <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-                  <Text style={styles.metaChipText}>💺 {selectedRide.seatsAvailable} seats available</Text>
+                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>💺 {selectedRide.seatsAvailable} seats available</Text>
                 </View>
                 {Boolean(selectedRide.womenOnly) && (
                   <View style={[styles.metaChip, { backgroundColor: 'rgba(233,30,99,0.15)', borderColor: 'rgba(233,30,99,0.4)' }]}>
@@ -296,20 +296,50 @@ export default function ProviderBookingsScreen({ navigation }) {
               <StatPill isDark={isDark} label="Pending" value={pending.length} color={colors.accent} />
               <StatPill isDark={isDark} label="Resolved" value={resolved.length} color={colors.green} />
               <StatPill isDark={isDark} label="Total" value={bookings.length} color={colors.blue} />
-              <TouchableOpacity style={styles.refreshBtn} onPress={() => loadBookings(selectedRide._id)}>
-                <Text style={{ color: colors.text2, fontSize: 13 }}>↻</Text>
+              <TouchableOpacity
+                style={[
+                  styles.refreshBtn,
+                  {
+                    backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'transparent' : '#cbd5e1',
+                  }
+                ]}
+                onPress={() => loadBookings(selectedRide._id)}
+              >
+                <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, fontWeight: '700' }}>↻</Text>
               </TouchableOpacity>
             </View>
 
             {/* Requests / Bookings Section */}
             {selectedRide.status === 'completed' ? (
-              <View style={[styles.bookingCard, { alignItems: 'center', paddingVertical: 24, marginTop: spacing.sm }]}>
+              <View style={[
+                styles.bookingCard,
+                {
+                  alignItems: 'center',
+                  paddingVertical: 24,
+                  marginTop: spacing.sm,
+                  backgroundColor: isDark ? colors.surface : '#ffffff',
+                  borderColor: isDark ? colors.border : '#cbd5e1',
+                }
+              ]}>
                 <Text style={{ fontSize: 32, marginBottom: 8 }}>🔒</Text>
-                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Ride Completed</Text>
-                <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 18 }}>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Ride Completed</Text>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 18 }}>
                   Seeker personal and contact details are hidden once a ride is completed in accordance with student safety and privacy policy.
                 </Text>
-                <View style={{ marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface2, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.full }}>
+                <View style={{
+                  marginTop: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: radius.full,
+                  borderWidth: 1,
+                  borderColor: isDark ? 'transparent' : '#cbd5e1',
+                }}>
                   <Text style={{ fontSize: 12 }}>🟢</Text>
                   <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
                     {resolved.filter(b => b.status === 'accepted').length} Buddy Completed

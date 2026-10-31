@@ -16,6 +16,7 @@ import TopHeader from '../components/TopHeader';
 import TimePickerModal from '../components/TimePickerModal';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { formatDateDMY } from '../utils/date';
 
 function getAddr(field) {
   if (!field) return '—';
@@ -170,7 +171,7 @@ export function RideDetailScreen({ navigation, route }) {
               <Text style={{ color: colors.text3, fontSize: 11, fontWeight: '700', marginBottom: 12 }}>DETAILS</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
                 {[
-                  { label: '📅 Date',   value: new Date(ride.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) },
+                  { label: '📅 Date',   value: formatDateDMY(ride.date) },
                   { label: '🕐 Time',   value: ride.time },
                   { label: '💺 Seats',  value: `${ride.seatsAvailable} available` },
                   { label: '₹ Cost',    value: `₹${ride.costPerSeat} / seat` },
@@ -1273,9 +1274,10 @@ export function IncidentReportScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 120 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 320 }}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={true}
         >
           {/* Header matching Image 3 */}
           <View style={{ marginBottom: 16 }}>
@@ -1553,8 +1555,8 @@ export function IncidentReportScreen({ navigation }) {
                     backgroundColor: '#F5A623',
                     borderColor: '#F5A623',
                   } : {
-                    backgroundColor: '#121824',
-                    borderColor: '#1C2536',
+                    backgroundColor: isDark ? '#121824' : '#f1f5f9',
+                    borderColor: isDark ? '#1C2536' : '#cbd5e1',
                   }]}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -1940,9 +1942,15 @@ export function ForgotPasswordScreen({ navigation }) {
   };
 
   const inputStyle = {
-    backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, color: colors.text, paddingHorizontal: 14,
-    paddingVertical: 13, fontSize: 14, marginBottom: 12,
+    backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+    borderWidth: 1,
+    borderColor: isDark ? colors.border : '#cbd5e1',
+    borderRadius: radius.md,
+    color: isDark ? colors.text : '#0f172a',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 14,
+    marginBottom: 12,
   };
 
   return (
@@ -1952,8 +1960,9 @@ export function ForgotPasswordScreen({ navigation }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingBottom: 160 }]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: 280 }]}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={true}
         >
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>

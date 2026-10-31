@@ -15,6 +15,7 @@ import { Btn } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { getDisplayUSN } from '../utils/usn';
+import { formatDateDMY } from '../utils/date';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -672,7 +673,7 @@ export default function DashboardScreen({ navigation }) {
 
               {activeTrip.date && (
                 <Text style={[styles.tripDateSub, { color: isDark ? colors.text3 : '#64748b' }]}>
-                  {activeTrip.date} {activeTrip.time ? `• ${activeTrip.time}` : ''}
+                  {formatDateDMY(activeTrip.date)} {activeTrip.time ? `• ${activeTrip.time}` : ''}
                 </Text>
               )}
 

@@ -12,6 +12,7 @@ import FloatingChatBot from '../components/FloatingChatBot';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { getDisplayUSN } from '../utils/usn';
+import { formatDateDMY } from '../utils/date';
 
 const STATUS_COLOR = {
   pending:   colors.accent,
@@ -34,8 +35,7 @@ function getAddr(field) {
 }
 
 function fmtDate(d) {
-  try { return new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); }
-  catch { return '—'; }
+  return formatDateDMY(d);
 }
 
 export default function MyBookingsScreen({ navigation }) {
@@ -217,9 +217,9 @@ export default function MyBookingsScreen({ navigation }) {
                 {/* Actions */}
                 <View style={{ gap: 8, marginTop: 12 }}>
                   {isCompleted && (
-                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
+                    <View style={{ backgroundColor: isDark ? 'rgba(0,230,118,0.12)' : '#ecfdf5', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
                       <Text style={{ color: colors.green, fontSize: 13, fontWeight: '800' }}>🏁 Ride Completed</Text>
-                      <Text style={{ color: colors.text2, fontSize: 11, textAlign: 'center', marginTop: 2 }}>
+                      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, textAlign: 'center', marginTop: 2 }}>
                         This trip has ended. Thank you for commuting with HOGO!
                       </Text>
                     </View>
@@ -236,7 +236,13 @@ export default function MyBookingsScreen({ navigation }) {
                   {rideIdStr && !isCancelled && (
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
                       <View style={{ flex: 1 }}>
-                        <Btn label="View Ride Details" onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })} variant="outline" />
+                        <Btn
+                          label="View Ride Details"
+                          onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })}
+                          variant="outline"
+                          style={{ borderColor: isDark ? colors.border : '#cbd5e1' }}
+                          textStyle={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}
+                        />
                       </View>
                       <TouchableOpacity
                         onPress={() => {
