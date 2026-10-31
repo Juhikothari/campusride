@@ -29,7 +29,14 @@ function getLocalAnswer(query, user) {
   const q = (query || '').toLowerCase().trim();
 
   // 0. Immediate Accident & Emergency Protocol
-  if (q.includes('accident') || q.includes('crash') || q.includes('collision') || q.includes('hit') || q.includes('ambulance') || q.includes('injury') || q.includes('hurt') || q.includes('fell') || q.includes('emergency')) {
+  if (
+    q.includes('accident') || q.includes('crash') || q.includes('collision') ||
+    q.includes('hit') || q.includes('ambulance') || q.includes('injury') ||
+    q.includes('injured') || q.includes('hurt') || q.includes('fell') ||
+    q.includes('emergency') || q.includes('bleeding') || q.includes('blood') ||
+    q.includes('police') || q.includes('hospital') || q.includes('doctor') ||
+    q.includes('help me') || q.includes('urgent') || q.includes('danger')
+  ) {
     return "🚨 EMERGENCY ACCIDENT RESPONSE PROTOCOL:\n\n" +
       "1. Move to Safety: If you are able to move, step away from active vehicle traffic to a sidewalk or safe zone immediately.\n\n" +
       "2. Tap SOS Button in HOGO: Open your active ride screen or dashboard and tap the red SOS Emergency button. This instantly alerts campus safety and broadcasts your live GPS coordinates to emergency contacts.\n\n" +
@@ -161,9 +168,13 @@ export default function ChatBotScreen({ navigation }) {
 
     // Check if query is an emergency / accident / safety issue — prioritize immediate protocol
     const lower = text.toLowerCase();
-    const isEmergency = lower.includes('accident') || lower.includes('crash') || lower.includes('collision') ||
-      lower.includes('ambulance') || lower.includes('injury') || lower.includes('hurt') || lower.includes('fell') ||
-      lower.includes('emergency') || lower.includes('hit');
+    const isEmergency =
+      lower.includes('accident') || lower.includes('crash') || lower.includes('collision') ||
+      lower.includes('hit') || lower.includes('ambulance') || lower.includes('injury') ||
+      lower.includes('injured') || lower.includes('hurt') || lower.includes('fell') ||
+      lower.includes('emergency') || lower.includes('bleeding') || lower.includes('blood') ||
+      lower.includes('police') || lower.includes('hospital') || lower.includes('doctor') ||
+      lower.includes('help me') || lower.includes('urgent') || lower.includes('danger');
 
     if (isEmergency) {
       const emergencyReply = cleanBotText(getLocalAnswer(text, user));
@@ -227,7 +238,8 @@ export default function ChatBotScreen({ navigation }) {
 
       <KeyboardAvoidingView
         style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
       >
         <ScrollView
           ref={scrollRef}

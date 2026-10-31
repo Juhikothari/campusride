@@ -211,7 +211,6 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
               {isProvider && (
                 <MenuItem icon="📬" label="Ride Requests" onPress={() => navTo('ProviderBookings')} isDark={isDark} />
               )}
-              <MenuItem icon="📍" label="Track Active Ride" onPress={() => navTo('LiveTracking')} isDark={isDark} />
               <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} isDark={isDark} />
               <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} isDark={isDark} />
 

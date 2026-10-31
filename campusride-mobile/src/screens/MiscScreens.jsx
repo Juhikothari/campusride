@@ -138,37 +138,39 @@ export function RideDetailScreen({ navigation, route }) {
               </View>
             </View>
 
-            {/* Directions ↗ to Google Maps */}
-            <TouchableOpacity
-              onPress={() => {
-                const dropLat = ride?.drop?.lat || ride?.drop?.latitude;
-                const dropLng = ride?.drop?.lng || ride?.drop?.longitude;
-                const dropAddr = getAddr(ride?.drop) || '';
-                const dest = dropLat && dropLng ? `${dropLat},${dropLng}` : encodeURIComponent(dropAddr);
-                if (dest) {
-                  Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
-                }
-              }}
-              style={{
-                backgroundColor: colors.accent,
-                borderRadius: radius.md,
-                paddingVertical: 11,
-                paddingHorizontal: 16,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                marginBottom: 12,
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 16 }}>🧭</Text>
-              <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>Directions ↗</Text>
-            </TouchableOpacity>
+            {/* Directions ↗ to Google Maps — Provider only */}
+            {isOwner && (
+              <TouchableOpacity
+                onPress={() => {
+                  const dropLat = ride?.drop?.lat || ride?.drop?.latitude;
+                  const dropLng = ride?.drop?.lng || ride?.drop?.longitude;
+                  const dropAddr = getAddr(ride?.drop) || '';
+                  const dest = dropLat && dropLng ? `${dropLat},${dropLng}` : encodeURIComponent(dropAddr);
+                  if (dest) {
+                    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
+                  }
+                }}
+                style={{
+                  backgroundColor: colors.accent,
+                  borderRadius: radius.md,
+                  paddingVertical: 11,
+                  paddingHorizontal: 16,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  marginBottom: 12,
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 16 }}>🧭</Text>
+                <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>Directions ↗</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Details */}
             <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
-              <Text style={{ color: colors.text3, fontSize: 11, fontWeight: '700', marginBottom: 12 }}>DETAILS</Text>
+              <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11, fontWeight: '700', marginBottom: 12 }}>DETAILS</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
                 {[
                   { label: '📅 Date',   value: formatDateDMY(ride.date) },
@@ -179,8 +181,8 @@ export function RideDetailScreen({ navigation, route }) {
                   { label: '🏫 College',value: ride.college },
                 ].map(d => (
                   <View key={d.label} style={{ width: '45%' }}>
-                    <Text style={{ color: colors.text3, fontSize: 11, marginBottom: 3 }}>{d.label}</Text>
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600', textTransform: 'capitalize' }}>{d.value || '—'}</Text>
+                    <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11, marginBottom: 3 }}>{d.label}</Text>
+                    <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '600', textTransform: 'capitalize' }}>{d.value || '—'}</Text>
                   </View>
                 ))}
               </View>
@@ -188,25 +190,32 @@ export function RideDetailScreen({ navigation, route }) {
 
             {/* Confirmed Provider Card — ONLY AFTER ACCEPTANCE */}
             {booking.status === 'accepted' && (
-              <View style={[styles.card, { borderColor: colors.green, borderWidth: 1.5 }]}>
-                <Text style={{ color: colors.green, fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }}>CONFIRMED PROVIDER & VEHICLE</Text>
+              <View style={[
+                styles.card,
+                {
+                  backgroundColor: isDark ? colors.surface : '#ffffff',
+                  borderColor: isDark ? colors.green : '#86efac',
+                  borderWidth: 1.5,
+                }
+              ]}>
+                <Text style={{ color: isDark ? colors.green : '#059669', fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginBottom: 10 }}>CONFIRMED PROVIDER & VEHICLE</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.green }}>
-                    <Text style={{ color: colors.green, fontSize: 18, fontWeight: '800' }}>
+                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isDark ? colors.surface2 : '#f1f5f9', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: isDark ? colors.green : '#86efac' }}>
+                    <Text style={{ color: isDark ? colors.green : '#059669', fontSize: 18, fontWeight: '800' }}>
                       {ride.providerId?.name?.charAt(0) || 'P'}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>
+                    <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 15, fontWeight: '800' }}>
                       {ride.providerId?.name || 'Provider'}
                     </Text>
-                    <Text style={{ color: colors.text2, fontSize: 12, marginTop: 2 }}>
+                    <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginTop: 2 }}>
                       {ride.vehicleName || 'Vehicle'} • {(ride.vehicleType || 'Car').toUpperCase()}
                     </Text>
                   </View>
                   {(ride.vehicleNumber || ride.providerId?.kycDocuments?.vehicleNumber) && (
-                    <View style={{ backgroundColor: colors.surface2, paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border }}>
-                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>
+                    <View style={{ backgroundColor: isDark ? colors.surface2 : '#f1f5f9', paddingHorizontal: 10, paddingVertical: 5, borderRadius: radius.sm, borderWidth: 1, borderColor: isDark ? colors.border : '#cbd5e1' }}>
+                      <Text style={{ color: isDark ? colors.accent : '#d97706', fontSize: 12, fontWeight: '800' }}>
                         {ride.vehicleNumber || ride.providerId?.kycDocuments?.vehicleNumber}
                       </Text>
                     </View>
@@ -215,12 +224,12 @@ export function RideDetailScreen({ navigation, route }) {
 
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   {ride.providerId?.usn ? (
-                    <Text style={{ color: colors.text2, fontSize: 12 }}>
-                      🪪 USN: <Text style={{ color: colors.text, fontWeight: '700' }}>{ride.providerId.usn}</Text>
+                    <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12 }}>
+                      🪪 USN: <Text style={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}>{ride.providerId.usn}</Text>
                     </Text>
                   ) : null}
                   {ride.providerId?.phone ? (
-                    <Text style={{ color: colors.text2, fontSize: 12 }}>
+                    <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12 }}>
                       📞 Phone: <Text style={{ color: colors.accent, fontWeight: '700' }}>{ride.providerId.phone}</Text>
                     </Text>
                   ) : null}

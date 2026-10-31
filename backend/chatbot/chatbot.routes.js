@@ -19,9 +19,14 @@ router.post('/message', auth, async (req, res) => {
 
     // 0. Immediate Accident & Emergency Intercept
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content?.toLowerCase() || '';
-    if (lastUserMsg.includes('accident') || lastUserMsg.includes('crash') || lastUserMsg.includes('collision') ||
-        lastUserMsg.includes('ambulance') || lastUserMsg.includes('injury') || lastUserMsg.includes('hurt') ||
-        lastUserMsg.includes('fell') || lastUserMsg.includes('emergency') || lastUserMsg.includes('hit')) {
+    if (
+      lastUserMsg.includes('accident') || lastUserMsg.includes('crash') || lastUserMsg.includes('collision') ||
+      lastUserMsg.includes('ambulance') || lastUserMsg.includes('injury') || lastUserMsg.includes('injured') ||
+      lastUserMsg.includes('hurt') || lastUserMsg.includes('fell') || lastUserMsg.includes('emergency') ||
+      lastUserMsg.includes('hit') || lastUserMsg.includes('bleeding') || lastUserMsg.includes('blood') ||
+      lastUserMsg.includes('police') || lastUserMsg.includes('hospital') || lastUserMsg.includes('doctor') ||
+      lastUserMsg.includes('help me') || lastUserMsg.includes('urgent') || lastUserMsg.includes('danger')
+    ) {
       return res.json({
         reply: "🚨 EMERGENCY ACCIDENT RESPONSE PROTOCOL:\n\n" +
           "1. Move to Safety: If you are able to move, step away from active vehicle traffic to a sidewalk or safe zone immediately.\n\n" +

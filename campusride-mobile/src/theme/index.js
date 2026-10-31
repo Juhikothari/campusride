@@ -156,3 +156,14 @@ export const commonStyles = {
     marginTop: 4,
   },
 };
+
+// Safe fallback theme hooks to prevent Hermes "Property 'useTheme' doesn't exist" crashes
+export const useTheme = () => ({
+  theme: 'dark',
+  isDark: true,
+  colors: darkColors,
+  toggleTheme: () => {},
+  setTheme: () => {},
+});
+
+export const ThemeProvider = ({ children }) => children;

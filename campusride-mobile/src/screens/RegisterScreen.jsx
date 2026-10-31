@@ -259,8 +259,8 @@ export default function RegisterScreen({ navigation }) {
 
       await AsyncStorage.setItem('@show_onboarding_carousel', 'true').catch(() => {});
 
-      if (validVehicles.length > 0) {
-        AsyncStorage.setItem('@user_registered_vehicles_list', JSON.stringify(validVehicles)).catch(() => {});
+      if (validVehicles.length > 0 && phone) {
+        AsyncStorage.setItem(`@user_vehicles_${phone.trim()}`, JSON.stringify(validVehicles)).catch(() => {});
       }
     } catch (err) {
       setError(err.message || 'Registration failed');
@@ -700,15 +700,15 @@ export default function RegisterScreen({ navigation }) {
 
 function DocUploadRow({ label, icon, onUpload, uri }) {
   return (
-    <TouchableOpacity onPress={onUpload} style={[styles.docRow, uri && styles.docRowDone]}>
+    <TouchableOpacity onPress={onUpload} style={[styles.docRow, uri && styles.docRowDone]} activeOpacity={0.75}>
       <Text style={{ fontSize: 20 }}>{icon}</Text>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: '#edf0f7', fontSize: 14, fontWeight: '700' }}>{label}</Text>
-        <Text style={{ color: uri ? '#2dd4a0' : '#8b96b0', fontSize: 12, marginTop: 2, fontWeight: '500' }}>
+        <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '700' }}>{label}</Text>
+        <Text style={{ color: uri ? '#2dd4a0' : '#cbd5e1', fontSize: 12, marginTop: 2, fontWeight: '600' }}>
           {uri ? '✓ Uploaded' : 'Tap to upload'}
         </Text>
       </View>
-      <Text style={{ fontSize: 18, color: uri ? '#2dd4a0' : '#8b96b0', fontWeight: '700' }}>{uri ? '✓' : '+'}</Text>
+      <Text style={{ fontSize: 18, color: uri ? '#2dd4a0' : '#cbd5e1', fontWeight: '800' }}>{uri ? '✓' : '+'}</Text>
     </TouchableOpacity>
   );
 }
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
   subtitle: { color: '#8b96b0', fontSize: 14, marginBottom: spacing.lg },
 
   label: {
-    color: colors.text2,
+    color: '#8b96b0',
     fontSize: 10.5,
     fontWeight: '800',
     textTransform: 'uppercase',

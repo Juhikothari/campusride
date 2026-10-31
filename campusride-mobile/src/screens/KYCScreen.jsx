@@ -191,10 +191,13 @@ export default function KYCScreen({ navigation }) {
           vehicleType: vehicleType || 'car',
           status: 'pending',
         };
-        const existingListStr = await AsyncStorage.getItem('@user_registered_vehicles_list').catch(() => null);
+        const userVehicleKey = user?._id || user?.userId || user?.phone
+          ? `@user_vehicles_${user._id || user.userId || user.phone}`
+          : '@user_vehicles_default';
+        const existingListStr = await AsyncStorage.getItem(userVehicleKey).catch(() => null);
         const list = existingListStr ? JSON.parse(existingListStr) : [];
         const updated = [vItem, ...list.filter(x => x.vehicleNumber !== vItem.vehicleNumber)];
-        await AsyncStorage.setItem('@user_registered_vehicles_list', JSON.stringify(updated)).catch(() => {});
+        await AsyncStorage.setItem(userVehicleKey, JSON.stringify(updated)).catch(() => {});
       }
       setSubmitted(true);
       setKycStatus({ kycStatus: 'pending' });

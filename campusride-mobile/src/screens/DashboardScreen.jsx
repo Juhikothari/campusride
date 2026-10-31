@@ -545,29 +545,6 @@ export default function DashboardScreen({ navigation }) {
             </View>
 
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {/* Manual Refresh Button */}
-              <TouchableOpacity
-                onPress={handleManualRefresh}
-                disabled={refreshing}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: isDark ? '#1a2234' : '#f1f5f9',
-                  paddingHorizontal: 10,
-                  paddingVertical: 7,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: isDark ? '#2e3a52' : '#cbd5e1',
-                  gap: 4,
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 13 }}>{refreshing ? '⏳' : '🔄'}</Text>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a' }}>
-                  {refreshing ? 'Syncing...' : 'Refresh'}
-                </Text>
-              </TouchableOpacity>
-
               <TouchableOpacity
                 onPress={toggleTheme}
                 style={{

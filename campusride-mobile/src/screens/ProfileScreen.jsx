@@ -55,11 +55,16 @@ export default function ProfileScreen({ navigation }) {
   const [completedRidesCount, setCompletedRidesCount] = useState(0);
   const [ratingsList, setRatingsList] = useState([]);
 
-  const VEHICLES_STORAGE_KEY = '@user_registered_vehicles_list';
+  const userVehicleKey = user?._id || user?.userId || user?.phone
+    ? `@user_vehicles_${user._id || user.userId || user.phone}`
+    : '@user_vehicles_default';
 
   const fetchProfileAndVehicles = async () => {
     try {
-      const cachedVehiclesStr = await AsyncStorage.getItem(VEHICLES_STORAGE_KEY).catch(() => null);
+      // Clear legacy unscoped global key
+      AsyncStorage.removeItem('@user_registered_vehicles_list').catch(() => {});
+
+      const cachedVehiclesStr = await AsyncStorage.getItem(userVehicleKey).catch(() => null);
       const cachedVehicles = cachedVehiclesStr ? JSON.parse(cachedVehiclesStr) : [];
 
       const [pRes, vRes, bRes, rRes, ratRes] = await Promise.allSettled([
@@ -92,20 +97,23 @@ export default function ProfileScreen({ navigation }) {
       const remoteVehicles = vRes.status === 'fulfilled' && Array.isArray(vRes.value) ? vRes.value : [];
       const profileVehicles = (p?.vehicles && Array.isArray(p.vehicles)) ? p.vehicles : [];
 
-      // Merge all sources by unique vehicleNumber without overwriting!
+      // Merge only this user's vehicles by unique vehicleNumber
       const map = new Map();
 
-      cachedVehicles.forEach(v => {
-        if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), v);
-      });
-
-      profileVehicles.forEach(v => {
-        if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), { ...map.get(v.vehicleNumber.toUpperCase()), ...v });
-      });
-
-      remoteVehicles.forEach(v => {
-        if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), { ...map.get(v.vehicleNumber.toUpperCase()), ...v });
-      });
+      // If server returned vehicles, use server as authoritative
+      if (remoteVehicles.length > 0 || profileVehicles.length > 0) {
+        remoteVehicles.forEach(v => {
+          if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), v);
+        });
+        profileVehicles.forEach(v => {
+          if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), { ...map.get(v.vehicleNumber.toUpperCase()), ...v });
+        });
+      } else {
+        // Fallback to user-scoped local cache only if server returned empty
+        cachedVehicles.forEach(v => {
+          if (v?.vehicleNumber) map.set(v.vehicleNumber.toUpperCase(), v);
+        });
+      }
 
       if (p?.kycDocuments?.vehicleNumber) {
         const kycVn = p.kycDocuments.vehicleNumber.toUpperCase();
@@ -140,7 +148,7 @@ export default function ProfileScreen({ navigation }) {
       const merged = Array.from(map.values());
       setUserVehicles(merged);
       if (merged.length > 0) {
-        AsyncStorage.setItem(VEHICLES_STORAGE_KEY, JSON.stringify(merged)).catch(() => {});
+        AsyncStorage.setItem(userVehicleKey, JSON.stringify(merged)).catch(() => {});
       }
     } catch (e) {
       setError(e.message);
@@ -253,7 +261,7 @@ export default function ProfileScreen({ navigation }) {
       }
 
       setUserVehicles(updatedList);
-      await AsyncStorage.setItem(VEHICLES_STORAGE_KEY, JSON.stringify(updatedList)).catch(() => {});
+      await AsyncStorage.setItem(userVehicleKey, JSON.stringify(updatedList)).catch(() => {});
 
       // Sync with server
       await api.saveVehicle(newEntry).catch(() => {});

@@ -973,8 +973,8 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
     >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
@@ -1039,7 +1039,13 @@ function CollegeChatTab({ user }) {
             }
           ]}
           value={input}
-          onChangeText={setInput}
+          onChangeText={(t) => {
+            setInput(t);
+            flatRef.current?.scrollToEnd({ animated: true });
+          }}
+          onFocus={() => {
+            setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 150);
+          }}
           placeholder={anonymous ? 'Send anonymously…' : 'Message your college…'}
           placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
           cursorColor="#f5a623"

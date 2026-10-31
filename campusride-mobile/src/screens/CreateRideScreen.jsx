@@ -142,56 +142,71 @@ export default function CreateRideScreen({ navigation }) {
   const [inlineVType,     setInlineVType]     = useState('car');
   const [savingInlineV,   setSavingInlineV]   = useState(false);
 
-  // Load user vehicles
+  // Load user vehicles strictly scoped to this authenticated user
   useEffect(() => {
     if (!isProvider) return;
     let mounted = true;
+    const userVehicleKey = user?._id || user?.userId || user?.phone
+      ? `@user_vehicles_${user._id || user.userId || user.phone}`
+      : '@user_vehicles_default';
+
     Promise.allSettled([
-      AsyncStorage.getItem('@user_registered_vehicles_list').catch(() => null),
+      AsyncStorage.getItem(userVehicleKey).catch(() => null),
       api.getUserVehicles(),
       api.getProfile(),
       api.getKycStatus(),
     ]).then(([localRes, vRes, pRes, kycRes]) => {
       if (!mounted) return;
+      // Clean up legacy shared unscoped key if present
+      AsyncStorage.removeItem('@user_registered_vehicles_list').catch(() => {});
+
       const localListStr = localRes.status === 'fulfilled' && localRes.value ? localRes.value : null;
-      const localList = localListStr ? JSON.parse(localListStr) : [];
+      let localList = [];
+      try {
+        if (localListStr) localList = JSON.parse(localListStr);
+      } catch {}
+
       const vList = vRes.status === 'fulfilled' && Array.isArray(vRes.value) ? vRes.value : [];
       const pData = pRes.status === 'fulfilled' ? pRes.value : null;
       const kData = kycRes.status === 'fulfilled' ? kycRes.value : null;
 
-      const combined = [...localList];
-      vList.forEach(v => {
-        if (v?.vehicleNumber && !combined.some(c => c.vehicleNumber === v.vehicleNumber)) {
-          combined.push(v);
-        }
-      });
-      if (pData?.vehicles && Array.isArray(pData.vehicles)) {
+      const combined = [];
+
+      // 1. Vehicles registered on server for this user (authoritative)
+      if (Array.isArray(vList) && vList.length > 0) {
+        vList.forEach(v => {
+          if (v?.vehicleNumber && !combined.some(c => c.vehicleNumber.toLowerCase() === v.vehicleNumber.toLowerCase())) {
+            combined.push(v);
+          }
+        });
+      } else if (pData?.vehicles && Array.isArray(pData.vehicles) && pData.vehicles.length > 0) {
         pData.vehicles.forEach(v => {
-          if (v?.vehicleNumber && !combined.some(c => c.vehicleNumber === v.vehicleNumber)) {
+          if (v?.vehicleNumber && !combined.some(c => c.vehicleNumber.toLowerCase() === v.vehicleNumber.toLowerCase())) {
+            combined.push(v);
+          }
+        });
+      } else if (Array.isArray(localList) && localList.length > 0) {
+        // Fallback to user-scoped local list only if server returned empty
+        localList.forEach(v => {
+          if (v?.vehicleNumber && !combined.some(c => c.vehicleNumber.toLowerCase() === v.vehicleNumber.toLowerCase())) {
             combined.push(v);
           }
         });
       }
-      if (pData?.kycDocuments?.vehicleNumber && !combined.some(c => c.vehicleNumber === pData.kycDocuments.vehicleNumber)) {
-        combined.push({
-          vehicleNumber: pData.kycDocuments.vehicleNumber,
-          vehicleName: pData.kycDocuments.vehicleName || 'Registered Vehicle',
-          vehicleType: pData.kycDocuments.vehicleType || 'car',
-        });
-      }
-      if (kData?.documents?.vehicleNumber && !combined.some(c => c.vehicleNumber === kData.documents.vehicleNumber)) {
-        combined.push({
-          vehicleNumber: kData.documents.vehicleNumber,
-          vehicleName: kData.documents.vehicleName || 'Registered Vehicle',
-          vehicleType: kData.documents.vehicleType || 'car',
-        });
-      }
-      if (user?.kycDocuments?.vehicleNumber && !combined.some(c => c.vehicleNumber === user.kycDocuments.vehicleNumber)) {
-        combined.push({
-          vehicleNumber: user.kycDocuments.vehicleNumber,
-          vehicleName: user.kycDocuments.vehicleName || 'Registered Vehicle',
-          vehicleType: user.kycDocuments.vehicleType || 'car',
-        });
+
+      // 2. Fallback to KYC document vehicle if user has no other registered vehicles
+      if (combined.length === 0) {
+        const kycVNum = pData?.kycDocuments?.vehicleNumber || kData?.documents?.vehicleNumber || user?.kycDocuments?.vehicleNumber;
+        const kycVName = pData?.kycDocuments?.vehicleName || kData?.documents?.vehicleName || user?.kycDocuments?.vehicleName;
+        const kycVType = pData?.kycDocuments?.vehicleType || kData?.documents?.vehicleType || user?.kycDocuments?.vehicleType;
+        if (kycVNum) {
+          combined.push({
+            vehicleNumber: kycVNum,
+            vehicleName: kycVName || 'My Vehicle',
+            vehicleType: kycVType || 'car',
+            status: 'approved',
+          });
+        }
       }
 
       setUserVehicles(combined);
@@ -200,6 +215,7 @@ export default function CreateRideScreen({ navigation }) {
         setVehicleName(combined[0].vehicleName || 'Vehicle');
         setVehicleNumber(combined[0].vehicleNumber || '');
         if (combined[0].vehicleType) setVehicleType(combined[0].vehicleType);
+        AsyncStorage.setItem(userVehicleKey, JSON.stringify(combined)).catch(() => {});
       }
     }).catch(() => {})
       .finally(() => { if (mounted) setLoadingVehicles(false); });
@@ -332,7 +348,7 @@ export default function CreateRideScreen({ navigation }) {
   // Set current date & time for "now"
   useEffect(() => {
     const now = new Date();
-    setDate(now.toISOString().split('T')[0]);
+    setDate(getFormattedDMY(now));
     if (schedMode === 'now') {
       const hh = String(now.getHours()).padStart(2, '0');
       const mm = String(now.getMinutes()).padStart(2, '0');
@@ -448,7 +464,7 @@ export default function CreateRideScreen({ navigation }) {
     }
 
     const nowSubmit = new Date();
-    const defaultDate = nowSubmit.toISOString().split('T')[0];
+    const defaultDate = getFormattedDMY(nowSubmit);
     const defaultTime = `${String(nowSubmit.getHours()).padStart(2, '0')}:${String(nowSubmit.getMinutes()).padStart(2, '0')}`;
     const rideDate = (schedMode === 'now' || !date?.trim()) ? defaultDate : date.trim();
     const rideTime = (schedMode === 'now' || !time?.trim()) ? defaultTime : time.trim();
@@ -641,9 +657,9 @@ export default function CreateRideScreen({ navigation }) {
                       backgroundColor: isDark ? '#161c2a' : '#f1f5f9',
                       borderColor: isDark ? '#26344d' : '#cbd5e1',
                     },
-                    date === new Date().toISOString().split('T')[0] && styles.timeChipActive
+                    date === getFormattedDMY(new Date()) && styles.timeChipActive
                   ]}
-                  onPress={() => setDate(new Date().toISOString().split('T')[0])}
+                  onPress={() => setDate(getFormattedDMY(new Date()))}
                 >
                   <Text style={[
                     styles.timeChipText,
