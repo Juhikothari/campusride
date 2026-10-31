@@ -146,12 +146,11 @@ export default function CreateRideScreen({ navigation }) {
   useEffect(() => {
     if (!isProvider) return;
     let mounted = true;
-    const userVehicleKey = user?._id || user?.userId || user?.phone
-      ? `@user_vehicles_${user._id || user.userId || user.phone}`
-      : '@user_vehicles_default';
+    const uId = user?._id || user?.id || user?.userId || user?.phone;
+    const userVehicleKey = uId ? `@user_vehicles_${uId}` : null;
 
     Promise.allSettled([
-      AsyncStorage.getItem(userVehicleKey).catch(() => null),
+      userVehicleKey ? AsyncStorage.getItem(userVehicleKey).catch(() => null) : Promise.resolve(null),
       api.getUserVehicles(),
       api.getProfile(),
       api.getKycStatus(),
@@ -215,7 +214,7 @@ export default function CreateRideScreen({ navigation }) {
         setVehicleName(combined[0].vehicleName || 'Vehicle');
         setVehicleNumber(combined[0].vehicleNumber || '');
         if (combined[0].vehicleType) setVehicleType(combined[0].vehicleType);
-        AsyncStorage.setItem(userVehicleKey, JSON.stringify(combined)).catch(() => {});
+        if (userVehicleKey) AsyncStorage.setItem(userVehicleKey, JSON.stringify(combined)).catch(() => {});
       }
     }).catch(() => {})
       .finally(() => { if (mounted) setLoadingVehicles(false); });
@@ -799,15 +798,35 @@ export default function CreateRideScreen({ navigation }) {
           {isFemale && (
             <TouchableOpacity
               onPress={() => setWomenOnly(w => !w)}
-              style={[styles.womenToggle, womenOnly && styles.womenToggleActive]}
+              style={[
+                styles.womenToggle,
+                {
+                  backgroundColor: isDark
+                    ? (womenOnly ? 'rgba(233,30,140,0.12)' : colors.surface2)
+                    : (womenOnly ? '#fdf2f8' : '#ffffff'),
+                  borderColor: womenOnly
+                    ? colors.pink
+                    : (isDark ? colors.border : '#cbd5e1'),
+                }
+              ]}
               activeOpacity={0.8}
             >
-              <Text style={{ fontSize: 18 }}>♀</Text>
+              <Text style={{ fontSize: 18, color: womenOnly ? colors.pink : (isDark ? colors.text2 : '#64748b') }}>♀</Text>
               <View style={{ flex: 1 }}>
-                <Text style={[styles.womenToggleTitle, womenOnly && { color: colors.pink }]}>Women-only ride</Text>
-                <Text style={{ color: colors.text2, fontSize: 12 }}>Only female students from your campus can request seats</Text>
+                <Text style={[styles.womenToggleTitle, { color: isDark ? colors.text : '#0f172a' }, womenOnly && { color: colors.pink }]}>
+                  Women-only ride
+                </Text>
+                <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12 }}>
+                  Only female students from your campus can request seats
+                </Text>
               </View>
-              <View style={[styles.toggleDot, womenOnly && styles.toggleDotActive]} />
+              <View style={[
+                styles.toggleDot,
+                {
+                  backgroundColor: womenOnly ? colors.pink : (isDark ? '#26344d' : '#cbd5e1'),
+                  borderColor: isDark ? '#3b4a6b' : '#94a3b8',
+                }
+              ]} />
             </TouchableOpacity>
           )}
 

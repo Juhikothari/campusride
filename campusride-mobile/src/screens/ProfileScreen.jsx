@@ -55,9 +55,8 @@ export default function ProfileScreen({ navigation }) {
   const [completedRidesCount, setCompletedRidesCount] = useState(0);
   const [ratingsList, setRatingsList] = useState([]);
 
-  const userVehicleKey = user?._id || user?.userId || user?.phone
-    ? `@user_vehicles_${user._id || user.userId || user.phone}`
-    : '@user_vehicles_default';
+  const uId = user?._id || user?.id || user?.userId || user?.phone;
+  const userVehicleKey = uId ? `@user_vehicles_${uId}` : null;
 
   const fetchProfileAndVehicles = async () => {
     try {
@@ -160,6 +159,33 @@ export default function ProfileScreen({ navigation }) {
   useEffect(() => {
     fetchProfileAndVehicles();
   }, []);
+
+  const handleDeleteVehicle = (vNum) => {
+    RNAlert.alert(
+      'Remove Vehicle',
+      `Are you sure you want to remove ${vNum}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteUserVehicle(vNum);
+              setUserVehicles(prev => prev.filter(v => (v.vehicleNumber || '').toUpperCase() !== (vNum || '').toUpperCase()));
+              if (userVehicleKey) {
+                const updated = userVehicles.filter(v => (v.vehicleNumber || '').toUpperCase() !== (vNum || '').toUpperCase());
+                AsyncStorage.setItem(userVehicleKey, JSON.stringify(updated)).catch(() => {});
+              }
+              RNAlert.alert('Removed', 'Vehicle removed from your account.');
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to remove vehicle');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const saveProfilePhoto = async (uri) => {
     setUploadingPhoto(true);
@@ -536,6 +562,13 @@ export default function ProfileScreen({ navigation }) {
                           </Text>
                           <Text style={styles.vehiclePlateHead}>{veh.vehicleNumber}</Text>
                         </View>
+                        <TouchableOpacity
+                          onPress={() => handleDeleteVehicle(veh.vehicleNumber)}
+                          style={{ padding: 6, marginRight: 2 }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={{ fontSize: 16 }}>🗑️</Text>
+                        </TouchableOpacity>
                         <View style={[
                           styles.vehicleStatusBadge,
                           isPending

@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import * as api from '../services/api';
 import { registerForPushNotificationsAsync } from '../services/pushNotification';
+import { disconnectGlobalSocket } from '../hooks/useSocket';
 import { colors } from '../theme';
 
 const AuthContext = createContext(null);
@@ -34,10 +35,16 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      await api.logout();
+      await api.unregisterPushToken().catch(() => {});
+      await api.logout().catch(() => {});
     } catch (_) {}
+    disconnectGlobalSocket();
     await api.removeToken().catch(() => {});
     await api.removeUser().catch(() => {});
+    // Clear user cached data to prevent cross-account leak
+    AsyncStorage.removeItem('@last_handled_notif_response_id').catch(() => {});
+    AsyncStorage.removeItem('@read_notif_ids').catch(() => {});
+    AsyncStorage.removeItem('@user_registered_vehicles_list').catch(() => {});
     setUserState(null);
   }, []);
 

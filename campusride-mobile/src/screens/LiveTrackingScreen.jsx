@@ -1242,34 +1242,10 @@ export default function LiveTrackingScreen({ navigation, route }) {
           {/* Emergency & Action Buttons (only for active rides) */}
           {rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
           <View style={{ marginTop: 8, marginBottom: 12 }}>
-            <TouchableOpacity
-              style={[
-                styles.detailsBtn,
-                {
-                  width: '100%',
-                  marginBottom: 10,
-                  paddingVertical: 12,
-                  backgroundColor: isDark ? colors.surface2 : '#ffffff',
-                  borderColor: isDark ? colors.border : '#cbd5e1',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                }
-              ]}
-              onPress={() => navigation.navigate('RideDetail', { rideId: activeRideId })}
-              activeOpacity={0.8}
-            >
-              <Text style={{ fontSize: 15 }}>ℹ️</Text>
-              <Text style={[styles.detailsBtnText, { color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '800' }]}>
-                View Full Ride Details
-              </Text>
-            </TouchableOpacity>
-
-            {/* Emergency Bar: Compact SOS + 112 */}
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+            {/* Emergency Bar: SOS Emergency */}
+            <View style={{ marginTop: 6 }}>
               <TouchableOpacity
-                style={[styles.sosBtn, { flex: 1, paddingVertical: 10, paddingHorizontal: 8 }, sosSent && { opacity: 0.5 }]}
+                style={[styles.sosBtn, { paddingVertical: 12, paddingHorizontal: 16 }, sosSent && { opacity: 0.5 }]}
                 onPress={triggerSOS}
                 disabled={sosSent || sosLoading}
                 activeOpacity={0.8}
@@ -1277,18 +1253,10 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 {sosLoading ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={[styles.sosBtnText, { fontSize: 12, fontWeight: '800' }]} numberOfLines={1}>
+                  <Text style={[styles.sosBtnText, { fontSize: 13, fontWeight: '800', textAlign: 'center' }]} numberOfLines={1}>
                     🆘 SOS Emergency
                   </Text>
                 )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.call112Btn, { paddingVertical: 10, paddingHorizontal: 16 }]}
-                onPress={() => Linking.openURL('tel:112')}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.call112BtnText, { fontSize: 12, fontWeight: '800' }]}>📞 112</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1375,7 +1343,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1 },
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   emptyContainer: { flex: 1, justifyContent: 'center' },
   loadingText: { color: colors.text2, marginTop: 14, fontSize: 14, fontWeight: '600' },

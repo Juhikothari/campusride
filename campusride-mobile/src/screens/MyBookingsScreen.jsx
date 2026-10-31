@@ -240,7 +240,7 @@ export default function MyBookingsScreen({ navigation }) {
                       onPress={() => navigation.navigate(isChecklistDone ? 'LiveTracking' : 'PreRideChecklist', { rideId: rideIdStr })}
                     />
                   )}
-                  {rideIdStr && !isCancelled && (
+                  {rideIdStr && !isCancelled && !isCompleted && (
                     <View style={{ marginTop: 4 }}>
                       <Btn
                         label="View Ride Details"

@@ -95,4 +95,17 @@ router.post('/register-token', auth, async (req, res) => {
   }
 });
 
+// Unregister push notification token (on logout or account switch)
+router.post('/unregister-token', auth, async (req, res) => {
+  try {
+    const User = require('../users/users.model');
+    await User.findByIdAndUpdate(req.user.userId, {
+      $set: { pushToken: null, pushPlatform: null }
+    });
+    res.json({ success: true, message: 'Push token unregistered successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;

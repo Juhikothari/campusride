@@ -35,7 +35,11 @@ export function handleNotificationResponse(response) {
     AsyncStorage.setItem('@last_handled_notif_response_id', notifId).catch(() => {});
 
     if (data.rideId) {
-      if (data.type === 'new-booking') {
+      const typeStr = String(data.type || '').toLowerCase();
+      const statusStr = String(data.status || '').toLowerCase();
+      if (typeStr.includes('completed') || typeStr.includes('cancelled') || statusStr === 'completed' || statusStr === 'cancelled') {
+        navigateFromNotification('MyBookings');
+      } else if (data.type === 'new-booking') {
         navigateFromNotification('ProviderBookings');
       } else if (data.type === 'rider-reached' || data.type === 'RIDER_ARRIVED') {
         navigateFromNotification('LiveTracking', { rideId: data.rideId });
@@ -98,7 +102,15 @@ function AppNotificationBanner() {
   const timeoutRef = useRef(null);
 
   useEffect(() => {
-    const unsub = addNotificationListener((notif) => {
+    const unsub = addNotificationListener(async (notif) => {
+      try {
+        const storedUser = await AsyncStorage.getItem('@user').then(s => s ? JSON.parse(s) : null).catch(() => null);
+        const myId = storedUser?._id || storedUser?.id || storedUser?.userId;
+        const targetId = notif?.data?.recipientId || notif?.data?.userId;
+        if (myId && targetId && String(targetId) !== String(myId)) {
+          return;
+        }
+      } catch (_) {}
       setCurrentNotif(notif);
       Animated.spring(translateY, {
         toValue: insets.top > 0 ? insets.top + 6 : 24,

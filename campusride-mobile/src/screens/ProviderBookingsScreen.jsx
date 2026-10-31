@@ -182,12 +182,14 @@ export default function ProviderBookingsScreen({ navigation }) {
             <View style={[styles.selectedRideCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.accent : '#f59e0b' }]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <Text style={styles.selectedRideTitle}>SELECTED RIDE DETAILS</Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('RideDetail', { rideId: selectedRide._id })}
-                  style={styles.viewDetailBadge}
-                >
-                  <Text style={styles.viewDetailText}>Full View ↗</Text>
-                </TouchableOpacity>
+                {selectedRide.status !== 'completed' && selectedRide.status !== 'cancelled' && (
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('RideDetail', { rideId: selectedRide._id })}
+                    style={styles.viewDetailBadge}
+                  >
+                    <Text style={styles.viewDetailText}>Full View ↗</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* Vehicle & Plate */}
@@ -267,8 +269,69 @@ export default function ProviderBookingsScreen({ navigation }) {
               }
 
               if (!hasChecklist) {
+                const acceptedB = bookings.find(b => b.status === 'accepted');
+                const seekerObj = acceptedB?.seekerId;
+                const loc = selectedRide?.pickup;
+                const coords = loc?.coordinates;
+                const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
+                const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
+                const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
+
                 return (
                   <View style={{ marginBottom: spacing.md }}>
+                    {/* Seeker Location on Top of Checklist */}
+                    <View style={{
+                      backgroundColor: isDark ? 'rgba(0,229,255,0.08)' : '#f0fdf4',
+                      borderWidth: 1,
+                      borderColor: isDark ? '#00E5FF' : '#86efac',
+                      borderRadius: radius.md,
+                      padding: 12,
+                      marginBottom: 10,
+                    }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ color: isDark ? '#00E5FF' : '#059669', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>
+                          📍 SEEKER PICKUP LOCATION
+                        </Text>
+                        {seekerObj?.phone ? (
+                          <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>📞 {seekerObj.phone}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '700', marginBottom: 2 }}>
+                        🪪 USN: {getDisplayUSN(seekerObj, 'Buddy')}
+                      </Text>
+                      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginBottom: 8 }} numberOfLines={2}>
+                        {getAddr(selectedRide.pickup)}
+                      </Text>
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: isDark ? 'rgba(0,229,255,0.15)' : '#e0f2fe',
+                          borderWidth: 1,
+                          borderColor: isDark ? '#00E5FF' : '#0284c7',
+                          borderRadius: radius.md,
+                          paddingHorizontal: 12,
+                          paddingVertical: 7,
+                          alignSelf: 'flex-start',
+                          gap: 6,
+                        }}
+                        onPress={() => {
+                          const url = Platform.select({
+                            ios: `maps:0,0?q=${query}`,
+                            android: `geo:0,0?q=${query}(Buddy+Pickup)`,
+                            default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+                          });
+                          Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={{ fontSize: 13 }}>🗺️</Text>
+                        <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 11.5, fontWeight: '800' }}>
+                          Seeker Location Map →
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
                     <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
                       <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
                         ⏳ Buddy Checklist Pending: Buddy must complete pre-ride safety checklist before departure.

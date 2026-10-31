@@ -10,6 +10,26 @@ const notificationSubscribers = new Set();
 const communityUnreadSubscribers = new Set();
 let communityUnreadCount = 0;
 
+export const disconnectGlobalSocket = () => {
+  if (globalSocket) {
+    try {
+      globalSocket.removeAllListeners();
+      globalSocket.disconnect();
+    } catch (_) {}
+    globalSocket = null;
+  }
+  activeUserId = null;
+  communityUnreadCount = 0;
+  notificationSubscribers.clear();
+};
+
+const isForMe = (data) => {
+  if (!activeUserId) return false;
+  if (data?.recipientId && String(data.recipientId) !== String(activeUserId)) return false;
+  if (data?.targetUserId && String(data.targetUserId) !== String(activeUserId)) return false;
+  return true;
+};
+
 export const subscribeToNotifications = (callback) => {
   notificationSubscribers.add(callback);
   return () => notificationSubscribers.delete(callback);
@@ -34,6 +54,9 @@ export const resetCommunityUnreadCount = () => {
 export const getCommunityUnreadCount = () => communityUnreadCount;
 
 export const getSharedSocket = (userId, userType) => {
+  if (globalSocket && activeUserId && String(activeUserId) !== String(userId)) {
+    disconnectGlobalSocket();
+  }
   activeUserId = userId;
   if (!globalSocket && userId) {
     // Load initial persisted unread count
@@ -76,6 +99,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── Ride Booking Requests ──
     globalSocket.on('new-booking', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('new-booking', data);
       showPushNotification({
         title: '🚗 New Ride Request!',
@@ -86,6 +110,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── Booking Accepted / Declined ──
     globalSocket.on('booking-response', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('booking-response', data);
       const status = data?.status || data?.booking?.status;
       const isAccepted = status === 'accepted';
@@ -98,6 +123,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── Driver Reached Location ──
     globalSocket.on('rider-arrived', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('rider-arrived', data);
       showPushNotification({
         title: '📍 Your Buddy Has Arrived!',
@@ -106,6 +132,7 @@ export const getSharedSocket = (userId, userType) => {
       });
     });
     globalSocket.on('riderArrivedAtSeeker', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('riderArrivedAtSeeker', data);
       showPushNotification({
         title: '📍 Rider Reached Your Location!',
@@ -116,6 +143,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── Checklist Completed ──
     globalSocket.on('checklistCompleted', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('checklistCompleted', data);
       showPushNotification({
         title: '🛡️ Safety Checklist Completed!',
@@ -126,6 +154,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── Ride Started ──
     globalSocket.on('rideStarted', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('rideStarted', data);
       showPushNotification({
         title: '🏁 Ride In Progress — Live GPS Active',
@@ -136,6 +165,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── Ride Completed ──
     globalSocket.on('rideCompleted', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('rideCompleted', data);
       showPushNotification({
         title: '🎉 Campus Trip Completed',
@@ -146,6 +176,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── Ride Cancelled ──
     globalSocket.on('rideCancelled', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('rideCancelled', data);
       showPushNotification({
         title: '⚠️ Ride Cancelled',
@@ -199,6 +230,7 @@ export const getSharedSocket = (userId, userType) => {
 
     // ── General Notifications ──
     globalSocket.on('new-notification', (data) => {
+      if (!isForMe(data)) return;
       notifyAll('new-notification', data);
       if (data?.type === 'community-reply') {
         incrementCommunityUnread();

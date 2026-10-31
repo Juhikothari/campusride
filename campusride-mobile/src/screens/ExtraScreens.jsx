@@ -1482,25 +1482,16 @@ export function PreRideChecklistScreen({ route, navigation }) {
 
       if (rideDetails?.status === 'in-progress') {
         navigation.replace('LiveTracking', { rideId });
-      } else {
-        RNAlert.alert(
-          '✅ Safety Checklist Verified',
-          'All pre-ride checks verified! The driver can now start the ride, and route to destination will activate automatically.',
-          [{ text: 'View Live Ride Map', onPress: () => navigation.replace('LiveTracking', { rideId }) }]
-        );
       }
     }
   };
 
   const getButtonLabel = () => {
-    if (!isDriver && bookingStatus === 'rejected') return '❌ Request Declined by Provider';
+    if (!isDriver && bookingStatus === 'rejected') return '✕ Request Declined by Provider';
     if (!isDriver && bookingStatus === 'pending') return '⏳ Waiting for Provider Acceptance';
     if (!allDone) return `${done}/${CHECKS.length} checked — please verify all`;
-    if (isDriver) return '🚀 Everything Checked — Start Ride Now →';
-    if (rideDetails?.status === 'in-progress') return '📍 Driver Started Ride — Open Live Map →';
-    return isChecklistSaved
-      ? '✅ Checklist Already Verified • Waiting for Driver'
-      : '✅ Checklist Verified • Waiting for Driver to Start';
+    if (isDriver) return '🏁 Everything Checked — Start Ride Now →';
+    return '📍 Track My Ride →';
   };
 
   const handleCancel = () => {
@@ -1581,6 +1572,63 @@ export function PreRideChecklistScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* Seeker Pickup Location Card on top of checklist for Provider */}
+        {isDriver && rideDetails && (
+          <View style={{
+            backgroundColor: isDark ? 'rgba(0,229,255,0.08)' : '#f0fdf4',
+            borderWidth: 1,
+            borderColor: isDark ? '#00E5FF' : '#86efac',
+            borderRadius: radius.md,
+            padding: 12,
+            marginBottom: 14,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <Text style={{ color: isDark ? '#00E5FF' : '#059669', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>
+                📍 SEEKER PICKUP LOCATION
+              </Text>
+            </View>
+            <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '700', marginBottom: 2 }}>
+              Buddy Pickup Point
+            </Text>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginBottom: 8 }} numberOfLines={2}>
+              {rideDetails?.pickup?.name || rideDetails?.pickup?.address || 'Pickup Spot'}
+            </Text>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: isDark ? 'rgba(0,229,255,0.15)' : '#e0f2fe',
+                borderWidth: 1,
+                borderColor: isDark ? '#00E5FF' : '#0284c7',
+                borderRadius: radius.md,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                alignSelf: 'flex-start',
+                gap: 6,
+              }}
+              onPress={() => {
+                const loc = rideDetails?.pickup;
+                const coords = loc?.coordinates;
+                const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
+                const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
+                const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
+                const url = Platform.select({
+                  ios: `maps:0,0?q=${query}`,
+                  android: `geo:0,0?q=${query}(Buddy+Pickup)`,
+                  default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+                });
+                Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={{ fontSize: 13 }}>🗺️</Text>
+              <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 11.5, fontWeight: '800' }}>
+                Seeker Location Map →
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Assigned Ride & Driver Info Card — Revealed ONLY when provider accepted (or if user is driver) */}
         {rideDetails && (isDriver || bookingStatus === 'accepted') && (
           <View style={{ backgroundColor: isDark ? '#10141e' : '#ffffff', borderWidth: 1, borderColor: isDark ? colors.accent : '#cbd5e1', borderRadius: radius.lg, padding: 14, marginBottom: 16 }}>
@@ -1620,7 +1668,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
         ))}
 
         <Btn
-          label={isLocked ? (isDriver ? '🚀 Start Ride Now →' : '📍 Open Live Ride Map →') : getButtonLabel()}
+          label={isLocked ? (isDriver ? '🏁 Start Ride Now →' : '📍 Track My Ride →') : getButtonLabel()}
           onPress={isLocked ? () => navigation.replace('LiveTracking', { rideId }) : handleProceed}
           disabled={!isLocked && (!allDone || starting || (!isDriver && bookingStatus !== 'accepted'))}
           loading={starting}

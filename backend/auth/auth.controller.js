@@ -244,6 +244,8 @@ const logout = async (req, res) => {
       user.isLoggedIn = false;
       user.activeDeviceId = null;
       user.currentSessionSeed = '';
+      user.pushToken = null;
+      user.pushPlatform = null;
       await user.save();
     }
     res.json({ success: true, message: 'Logged out successfully' });

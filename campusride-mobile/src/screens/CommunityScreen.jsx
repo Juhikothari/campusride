@@ -973,91 +973,94 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
-      ) : (
-        <FlatList
-          ref={flatRef}
-          data={messages}
-          keyExtractor={(item, i) => item._id || String(i)}
-          contentContainerStyle={{ padding: spacing.md, paddingBottom: 24 }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={true}
-          onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-          renderItem={({ item }) => {
-            const isMe = item.senderId === myId;
-            return (
-              <View style={[styles.msgRow, isMe && styles.msgRowMe]}>
-                <View style={[
-                  styles.msgBubble,
-                  isMe ? styles.msgBubbleMe : { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#e2e8f0', borderWidth: 1 }
-                ]}>
-                  {!isMe && (
-                    <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', marginBottom: 2 }}>
-                      {item.anonymous ? 'Anonymous' : item.senderName}
-                      {item.senderUsn ? ` · ${getDisplayUSN(item.senderUsn, 'Buddy')}` : ''}
-                    </Text>
-                  )}
-                  <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
-                  {isMe && (
-                    <TouchableOpacity onPress={() => deleteMsg(item._id)} style={{ marginTop: 4, alignSelf: 'flex-end' }}>
-                      <Text style={{ color: 'rgba(0,0,0,0.4)', fontSize: 10 }}>Delete</Text>
-                    </TouchableOpacity>
-                  )}
+      <View style={{ flex: 1 }}>
+        {loading ? (
+          <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
+        ) : (
+          <FlatList
+            ref={flatRef}
+            data={messages}
+            style={{ flex: 1 }}
+            keyExtractor={(item, i) => item._id || String(i)}
+            contentContainerStyle={{ padding: spacing.md, paddingBottom: 16 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={true}
+            onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
+            renderItem={({ item }) => {
+              const isMe = item.senderId === myId;
+              return (
+                <View style={[styles.msgRow, isMe && styles.msgRowMe]}>
+                  <View style={[
+                    styles.msgBubble,
+                    isMe ? styles.msgBubbleMe : { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#e2e8f0', borderWidth: 1 }
+                  ]}>
+                    {!isMe && (
+                      <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', marginBottom: 2 }}>
+                        {item.anonymous ? 'Anonymous' : item.senderName}
+                        {item.senderUsn ? ` · ${getDisplayUSN(item.senderUsn, 'Buddy')}` : ''}
+                      </Text>
+                    )}
+                    <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
+                    {isMe && (
+                      <TouchableOpacity onPress={() => deleteMsg(item._id)} style={{ marginTop: 4, alignSelf: 'flex-end' }}>
+                        <Text style={{ color: 'rgba(0,0,0,0.4)', fontSize: 10 }}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-              </View>
-            );
-          }}
-        />
-      )}
-      <View style={[
-        styles.chatInput,
-        {
-          backgroundColor: isDark ? '#0c121e' : '#ffffff',
-          borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
-          paddingBottom: Math.max(insets.bottom, 10),
-        }
-      ]}>
-        <TouchableOpacity
-          onPress={() => setAnonymous(a => !a)}
-          style={{ padding: 8, justifyContent: 'center', alignItems: 'center' }}
-          activeOpacity={0.7}
-        >
-          <Text style={{ fontSize: 20 }}>{anonymous ? '🎭' : '🎓'}</Text>
-        </TouchableOpacity>
-        <TextInput
-          style={[
-            styles.chatTextInput,
-            {
-              color: isDark ? '#ffffff' : '#0f172a',
-              backgroundColor: isDark ? '#162235' : '#f1f5f9',
-              borderColor: isDark ? '#26344d' : '#cbd5e1',
-            }
-          ]}
-          value={input}
-          onChangeText={(t) => {
-            setInput(t);
-            flatRef.current?.scrollToEnd({ animated: true });
-          }}
-          onFocus={() => {
-            setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 150);
-          }}
-          placeholder={anonymous ? 'Send anonymously…' : 'Message your college…'}
-          placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
-          cursorColor="#f5a623"
-          selectionColor="rgba(245,166,35,0.3)"
-          multiline={true}
-          scrollEnabled={true}
-          textAlignVertical="center"
-          returnKeyType="default"
-        />
-        <TouchableOpacity style={styles.sendBtn} onPress={sendMsg} activeOpacity={0.8}>
-          <Text style={{ color: '#000', fontSize: 16, fontWeight: '800' }}>➤</Text>
-        </TouchableOpacity>
+              );
+            }}
+          />
+        )}
+        <View style={[
+          styles.chatInput,
+          {
+            backgroundColor: isDark ? '#0c121e' : '#ffffff',
+            borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
+            paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 10),
+          }
+        ]}>
+          <TouchableOpacity
+            onPress={() => setAnonymous(a => !a)}
+            style={{ padding: 8, justifyContent: 'center', alignItems: 'center' }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 20 }}>{anonymous ? '🎭' : '🎓'}</Text>
+          </TouchableOpacity>
+          <TextInput
+            style={[
+              styles.chatTextInput,
+              {
+                color: isDark ? '#ffffff' : '#0f172a',
+                backgroundColor: isDark ? '#162235' : '#f1f5f9',
+                borderColor: isDark ? '#26344d' : '#cbd5e1',
+              }
+            ]}
+            value={input}
+            onChangeText={(t) => {
+              setInput(t);
+              flatRef.current?.scrollToEnd({ animated: true });
+            }}
+            onFocus={() => {
+              setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 150);
+            }}
+            placeholder={anonymous ? 'Send anonymously…' : 'Message your college…'}
+            placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
+            cursorColor="#f5a623"
+            selectionColor="rgba(245,166,35,0.3)"
+            multiline={true}
+            scrollEnabled={true}
+            textAlignVertical="center"
+            returnKeyType="default"
+          />
+          <TouchableOpacity style={styles.sendBtn} onPress={sendMsg} activeOpacity={0.8}>
+            <Text style={{ color: '#000', fontSize: 16, fontWeight: '800' }}>➤</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );

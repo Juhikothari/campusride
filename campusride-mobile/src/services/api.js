@@ -89,6 +89,7 @@ export const getProfile        = ()     => request('/users/profile');
 export const updateProfile     = (body) => request('/users/profile', { method:'PUT', body: JSON.stringify(body) });
 export const updatePhoneNumber = (phone) => request('/users/profile/phone', { method:'PUT', body: JSON.stringify({ phone }) });
 export const saveVehicle       = (data) => request('/users/profile/vehicle', { method:'PUT', body: JSON.stringify(data) });
+export const deleteUserVehicle = (vehicleNumber) => request('/users/profile/vehicles/' + encodeURIComponent(vehicleNumber), { method: 'DELETE' });
 export const getUserVehicles   = ()     => request('/users/profile/vehicles').catch(async () => {
   const profile = await getProfile().catch(() => null);
   if (profile?.vehicles && Array.isArray(profile.vehicles) && profile.vehicles.length > 0) return profile.vehicles;
@@ -189,6 +190,7 @@ export const getAdminIncidents = ()     => request('/admin/incidents');
 export const updateIncidentStatus = (id, status) => request(`/admin/incidents/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });
 export const getColleges       = (search = '') => request(`/colleges${search ? '?search=' + encodeURIComponent(search) : ''}`);
 export const registerPushToken = (token, platform) => request('/notifications/register-token', { method: 'POST', body: JSON.stringify({ token, platform }) });
+export const unregisterPushToken = () => request('/notifications/unregister-token', { method: 'POST' }).catch(() => {});
 
 // ── Generic API Client (matches axios-like calls across screens) ──
 export const apiClient = {
