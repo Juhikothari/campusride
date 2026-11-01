@@ -2,11 +2,30 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, TextInput, TouchableOpacity,
-  Alert, Modal, StyleSheet, ActivityIndicator,
+  Alert, Modal, StyleSheet, ActivityIndicator, Image,
+  ScrollView, Linking, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '../../services/api';
 import { AdminHeader } from '../../components/admin/AdminHeader';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function formatDate(d) {
+  if (!d) return '—';
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    const day = String(dt.getDate()).padStart(2, '0');
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const year = dt.getFullYear();
+    const hours = String(dt.getHours()).padStart(2, '0');
+    const mins = String(dt.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${mins}`;
+  } catch {
+    return String(d);
+  }
+}
 
 export function AdminUsersScreen({ navigation }) {
   const [users, setUsers] = useState([]);
@@ -16,6 +35,8 @@ export function AdminUsersScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [suspendModal, setSuspendModal] = useState(null);
   const [suspendDuration, setSuspendDuration] = useState('24'); // hours
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [previewDoc, setPreviewDoc] = useState(null); // { title: '', uri: '' }
 
   const loadUsers = async () => {
     setLoading(true);
@@ -52,6 +73,9 @@ export function AdminUsersScreen({ navigation }) {
           onPress: async () => {
             try {
               await apiClient.post(`/admin/users/${action}`, { userId });
+              if (selectedUser && (selectedUser._id === userId || selectedUser.id === userId)) {
+                setSelectedUser(prev => prev ? { ...prev, isBlocked: !currentlyBlocked, blocked: !currentlyBlocked } : null);
+              }
               loadUsers();
             } catch (err) {
               Alert.alert('Error', err.message);
@@ -71,6 +95,9 @@ export function AdminUsersScreen({ navigation }) {
         reason: 'Policy violation'
       });
       setSuspendModal(null);
+      if (selectedUser && (selectedUser._id === userId || selectedUser.id === userId)) {
+        setSelectedUser(prev => prev ? { ...prev, suspendedUntil: new Date(Date.now() + hours * 3600000).toISOString() } : null);
+      }
       loadUsers();
       Alert.alert('Suspended', `User suspended for ${hours} hours.`);
     } catch (err) {
@@ -90,6 +117,9 @@ export function AdminUsersScreen({ navigation }) {
           onPress: async () => {
             try {
               await apiClient.delete(`/admin/users/${userId}`);
+              if (selectedUser && (selectedUser._id === userId || selectedUser.id === userId)) {
+                setSelectedUser(null);
+              }
               loadUsers();
               Alert.alert('Deleted', 'User account permanently removed.');
             } catch (err) {
@@ -99,6 +129,11 @@ export function AdminUsersScreen({ navigation }) {
         }
       ]
     );
+  };
+
+  const openDoc = (title, uri) => {
+    if (!uri) return;
+    setPreviewDoc({ title, uri });
   };
 
   return (
@@ -151,23 +186,38 @@ export function AdminUsersScreen({ navigation }) {
 
             return (
               <View style={styles.userCard}>
-                <View style={styles.userInfo}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <Text style={styles.userName}>{u.name}</Text>
-                    <View style={styles.roleBadge}>
-                      <Text style={styles.roleBadgeText}>{u.role}</Text>
+                <TouchableOpacity
+                  style={styles.userInfo}
+                  onPress={() => setSelectedUser(u)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', flex: 1 }}>
+                      <Text style={styles.userName}>{u.name}</Text>
+                      <View style={styles.roleBadge}>
+                        <Text style={styles.roleBadgeText}>{u.role}</Text>
+                      </View>
                     </View>
+                    <Text style={styles.tapDetailHint}>Details ➔</Text>
                   </View>
-                  <Text style={styles.userSub}>📞 {u.phone || 'No phone'} · 🏫 {u.collegeName || u.college || '—'}</Text>
+                  <Text style={styles.userSub}>📞 {u.phone || 'No phone'} · 🎓 {u.collegeName || u.college || '—'}</Text>
                   <Text style={styles.userMeta}>
-                    KYC: <Text style={{ color: u.kycStatus === 'approved' ? '#2dd4a0' : '#f59e0b' }}>{u.kycStatus}</Text>
+                    KYC: <Text style={{ color: u.kycStatus === 'approved' ? '#2dd4a0' : '#f59e0b', fontWeight: '700' }}>{u.kycStatus || 'not_submitted'}</Text>
                     {' · '}Rides: {u.totalRides ?? 0}
+                    {u.usn ? ` · USN: ${u.usn}` : ''}
                     {blocked ? ' · 🚫 BLOCKED' : ''}
-                    {isSuspended ? ` · ⏸ Suspended till ${new Date(u.suspendedUntil).toLocaleDateString('en-IN')}` : ''}
+                    {isSuspended ? ` · ⏳ Suspended till ${new Date(u.suspendedUntil).toLocaleDateString('en-IN')}` : ''}
                   </Text>
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.userActions}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.viewDetailsBtn]}
+                    onPress={() => setSelectedUser(u)}
+                  >
+                    <Text style={styles.viewDetailsBtnText}>👁️ View Details</Text>
+                  </TouchableOpacity>
+
                   <TouchableOpacity
                     style={[styles.actionBtn, blocked ? styles.unblockBtn : styles.blockBtn]}
                     onPress={() => handleBlock(u._id || u.id, blocked)}
@@ -195,6 +245,378 @@ export function AdminUsersScreen({ navigation }) {
             );
           }}
         />
+
+        {/* ════════ USER DETAILS & UPLOADED DOCS FULL MODAL ════════ */}
+        <Modal visible={!!selectedUser} animationType="slide" transparent={false}>
+          <SafeAreaView style={styles.detailSafe}>
+            <View style={styles.detailHeaderBar}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.detailBadge}>COMMUTER ACCOUNT & UPLOADED DOCUMENTS</Text>
+                <Text style={styles.detailTitle} numberOfLines={1}>{selectedUser?.name}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setSelectedUser(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.closeBtnText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.detailScroll} showsVerticalScrollIndicator={true}>
+              {/* Profile Card */}
+              <View style={styles.detailSectionCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                  {selectedUser?.selfieUrl || selectedUser?.profilePhoto ? (
+                    <TouchableOpacity onPress={() => openDoc('Profile Photo', selectedUser.selfieUrl || selectedUser.profilePhoto)}>
+                      <Image
+                        source={{ uri: selectedUser.selfieUrl || selectedUser.profilePhoto }}
+                        style={styles.avatarImg}
+                        resizeMode="cover"
+                      />
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.avatarPlaceholder}>
+                      <Text style={styles.avatarPlaceholderText}>
+                        {(selectedUser?.name?.charAt(0) || 'U').toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.detailNameText}>{selectedUser?.name}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                      <View style={styles.roleBadgeLg}>
+                        <Text style={styles.roleBadgeLgText}>{selectedUser?.role?.toUpperCase()}</Text>
+                      </View>
+                      <View style={[
+                        styles.kycStatusBadge,
+                        selectedUser?.kycStatus === 'approved' ? styles.kycApproved :
+                        selectedUser?.kycStatus === 'rejected' ? styles.kycRejected : styles.kycPending
+                      ]}>
+                        <Text style={styles.kycBadgeText}>
+                          KYC: {(selectedUser?.kycStatus || 'NOT SUBMITTED').toUpperCase()}
+                        </Text>
+                      </View>
+                      {selectedUser?.isBlocked && (
+                        <View style={styles.blockedBadge}>
+                          <Text style={styles.blockedBadgeText}>BLOCKED</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </View>
+
+                {/* Account details table */}
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>🎓 College / Campus:</Text>
+                  <Text style={styles.detailValue}>{selectedUser?.collegeName || selectedUser?.college || '—'}</Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>🪪 USN (Student ID):</Text>
+                  <Text style={[styles.detailValue, { color: '#f5a623', fontWeight: '800' }]}>{selectedUser?.usn || 'STUDENT'}</Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>📞 Mobile Number:</Text>
+                  {selectedUser?.phone ? (
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${selectedUser.phone}`)}>
+                      <Text style={[styles.detailValue, { color: '#2dd4a0', textDecorationLine: 'underline' }]}>
+                        {selectedUser.phone} ↗
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.detailValue}>Not provided</Text>
+                  )}
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>✉️ Email Address:</Text>
+                  {selectedUser?.email ? (
+                    <TouchableOpacity onPress={() => Linking.openURL(`mailto:${selectedUser.email}`)}>
+                      <Text style={[styles.detailValue, { color: '#4fa3e0', textDecorationLine: 'underline' }]}>
+                        {selectedUser.email} ↗
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.detailValue}>Not provided</Text>
+                  )}
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>🚻 Gender:</Text>
+                  <Text style={styles.detailValue}>{selectedUser?.gender || 'Prefer not to say'}</Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>🚨 Emergency Contact:</Text>
+                  {selectedUser?.emergencyContact ? (
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${selectedUser.emergencyContact}`)}>
+                      <Text style={[styles.detailValue, { color: '#ef4444', fontWeight: '700', textDecorationLine: 'underline' }]}>
+                        {selectedUser.emergencyContact} ↗
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.detailValue}>Not provided</Text>
+                  )}
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>📅 Account Created:</Text>
+                  <Text style={styles.detailValue}>{formatDate(selectedUser?.createdAt)}</Text>
+                </View>
+              </View>
+
+              {/* Uploaded Documents Section */}
+              <View style={styles.detailSectionCard}>
+                <Text style={styles.sectionHeaderTitle}>📄 KYC DOCUMENTS UPLOADED</Text>
+                <Text style={styles.sectionHeaderSub}>
+                  Files uploaded by student during registration or verification:
+                </Text>
+
+                {/* 1. Profile Selfie */}
+                <View style={styles.docItemCard}>
+                  <View style={styles.docHeaderRow}>
+                    <Text style={styles.docTitle}>📸 1. Front Camera Selfie / Profile Photo</Text>
+                    <Text style={selectedUser?.selfieUrl || selectedUser?.profilePhoto ? styles.docUploadedText : styles.docMissingText}>
+                      {selectedUser?.selfieUrl || selectedUser?.profilePhoto ? '✓ Uploaded' : '✕ Missing'}
+                    </Text>
+                  </View>
+                  {selectedUser?.selfieUrl || selectedUser?.profilePhoto ? (
+                    <TouchableOpacity
+                      onPress={() => openDoc('Front Selfie', selectedUser.selfieUrl || selectedUser.profilePhoto)}
+                      style={styles.docImgWrap}
+                      activeOpacity={0.85}
+                    >
+                      <Image
+                        source={{ uri: selectedUser.selfieUrl || selectedUser.profilePhoto }}
+                        style={styles.docThumbnail}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.docOverlayBtn}>
+                        <Text style={styles.docOverlayText}>🔍 View Full Size</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.noDocDesc}>No selfie photo uploaded</Text>
+                  )}
+                </View>
+
+                {/* 2. College ID Card */}
+                <View style={styles.docItemCard}>
+                  <View style={styles.docHeaderRow}>
+                    <Text style={styles.docTitle}>🎓 2. College Student ID Card</Text>
+                    <Text style={selectedUser?.collegeIdUrl ? styles.docUploadedText : styles.docMissingText}>
+                      {selectedUser?.collegeIdUrl ? '✓ Uploaded' : '✕ Missing'}
+                    </Text>
+                  </View>
+                  {selectedUser?.collegeIdUrl ? (
+                    <TouchableOpacity
+                      onPress={() => openDoc('College ID Card', selectedUser.collegeIdUrl)}
+                      style={styles.docImgWrap}
+                      activeOpacity={0.85}
+                    >
+                      <Image
+                        source={{ uri: selectedUser.collegeIdUrl }}
+                        style={styles.docThumbnail}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.docOverlayBtn}>
+                        <Text style={styles.docOverlayText}>🔍 View Full Size</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.noDocDesc}>No college ID card uploaded</Text>
+                  )}
+                </View>
+
+                {/* 3. Aadhaar Card */}
+                <View style={styles.docItemCard}>
+                  <View style={styles.docHeaderRow}>
+                    <Text style={styles.docTitle}>🪪 3. Government Aadhaar Document</Text>
+                    <Text style={selectedUser?.aadhaarUrl ? styles.docUploadedText : styles.docMissingText}>
+                      {selectedUser?.aadhaarUrl ? '✓ Uploaded' : '✕ Missing'}
+                    </Text>
+                  </View>
+                  {selectedUser?.aadhaarUrl ? (
+                    <TouchableOpacity
+                      onPress={() => openDoc('Aadhaar Document', selectedUser.aadhaarUrl)}
+                      style={styles.docImgWrap}
+                      activeOpacity={0.85}
+                    >
+                      <Image
+                        source={{ uri: selectedUser.aadhaarUrl }}
+                        style={styles.docThumbnail}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.docOverlayBtn}>
+                        <Text style={styles.docOverlayText}>🔍 View Full Size</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.noDocDesc}>No Aadhaar document uploaded</Text>
+                  )}
+                </View>
+
+                {/* 4. Driving License */}
+                <View style={styles.docItemCard}>
+                  <View style={styles.docHeaderRow}>
+                    <Text style={styles.docTitle}>🪪 4. Driving License (Driver / Provider)</Text>
+                    <Text style={selectedUser?.drivingLicenseUrl ? styles.docUploadedText : styles.docMissingText}>
+                      {selectedUser?.drivingLicenseUrl ? '✓ Uploaded' : '✕ Not Uploaded'}
+                    </Text>
+                  </View>
+                  {selectedUser?.drivingLicenseUrl ? (
+                    <TouchableOpacity
+                      onPress={() => openDoc('Driving License', selectedUser.drivingLicenseUrl)}
+                      style={styles.docImgWrap}
+                      activeOpacity={0.85}
+                    >
+                      <Image
+                        source={{ uri: selectedUser.drivingLicenseUrl }}
+                        style={styles.docThumbnail}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.docOverlayBtn}>
+                        <Text style={styles.docOverlayText}>🔍 View Full Size</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.noDocDesc}>
+                      {selectedUser?.role === 'seeker' ? 'Not required for Passenger accounts' : 'No driving license uploaded'}
+                    </Text>
+                  )}
+                </View>
+
+                {/* 5. Vehicle Photo */}
+                {selectedUser?.vehiclePhotoUrl ? (
+                  <View style={styles.docItemCard}>
+                    <View style={styles.docHeaderRow}>
+                      <Text style={styles.docTitle}>🚗 5. Vehicle Photo</Text>
+                      <Text style={styles.docUploadedText}>✓ Uploaded</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => openDoc('Vehicle Photo', selectedUser.vehiclePhotoUrl)}
+                      style={styles.docImgWrap}
+                      activeOpacity={0.85}
+                    >
+                      <Image
+                        source={{ uri: selectedUser.vehiclePhotoUrl }}
+                        style={styles.docThumbnail}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.docOverlayBtn}>
+                        <Text style={styles.docOverlayText}>🔍 View Full Size</Text>
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Registered Vehicles Section */}
+              <View style={styles.detailSectionCard}>
+                <Text style={styles.sectionHeaderTitle}>🚗 REGISTERED VEHICLES</Text>
+                {selectedUser?.vehicleNumber || (selectedUser?.vehicles && selectedUser.vehicles.length > 0) ? (
+                  <View style={{ gap: 8, marginTop: 8 }}>
+                    {(selectedUser.vehicles && selectedUser.vehicles.length > 0
+                      ? selectedUser.vehicles
+                      : [{
+                          vehicleNumber: selectedUser.vehicleNumber,
+                          vehicleName: selectedUser.vehicleName,
+                          vehicleType: selectedUser.vehicleType,
+                          status: selectedUser.vehicleStatus,
+                        }]
+                    ).map((v, idx) => (
+                      <View key={idx} style={styles.vehCard}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.vehName}>{v.vehicleName || 'Vehicle'} · {(v.vehicleType || 'car').toUpperCase()}</Text>
+                          <Text style={styles.vehPlate}>{v.vehicleNumber || 'No plate'}</Text>
+                        </View>
+                        <View style={[
+                          styles.vehStatusBadge,
+                          v.status === 'approved' ? styles.vehStatusApproved : styles.vehStatusPending
+                        ]}>
+                          <Text style={styles.vehStatusText}>
+                            {(v.status || 'pending').toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.noDocDesc}>No vehicle registered for this commuter.</Text>
+                )}
+              </View>
+
+              {/* Actions Footer inside Modal */}
+              <View style={{ gap: 10, marginTop: 6, marginBottom: 40 }}>
+                <TouchableOpacity
+                  style={[styles.bigActionBtn, selectedUser?.isBlocked ? styles.unblockBtnLg : styles.blockBtnLg]}
+                  onPress={() => handleBlock(selectedUser?._id || selectedUser?.id, selectedUser?.isBlocked)}
+                >
+                  <Text style={styles.bigActionBtnText}>
+                    {selectedUser?.isBlocked ? '✓ Unblock Commuter Account' : '🚫 Block Commuter Account'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.bigActionBtn, styles.suspendBtnLg]}
+                  onPress={() => {
+                    const u = selectedUser;
+                    setSuspendModal(u);
+                  }}
+                >
+                  <Text style={[styles.bigActionBtnText, { color: '#f59e0b' }]}>
+                    ⏳ Timed Account Suspension
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.bigActionBtn, styles.deleteBtnLg]}
+                  onPress={() => handleDelete(selectedUser?._id || selectedUser?.id, selectedUser?.name)}
+                >
+                  <Text style={[styles.bigActionBtnText, { color: '#ef4444' }]}>
+                    🗑️ Permanently Delete Account
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.closeModalBottomBtn}
+                  onPress={() => setSelectedUser(null)}
+                >
+                  <Text style={styles.closeModalBottomText}>Close Details</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+
+        {/* ════════ FULL SCREEN DOCUMENT VIEWER MODAL ════════ */}
+        <Modal visible={!!previewDoc} transparent animationType="fade">
+          <View style={styles.previewBackdrop}>
+            <SafeAreaView style={{ flex: 1 }}>
+              <View style={styles.previewHeader}>
+                <Text style={styles.previewTitle} numberOfLines={1}>{previewDoc?.title || 'Document Preview'}</Text>
+                <TouchableOpacity
+                  onPress={() => setPreviewDoc(null)}
+                  style={styles.previewCloseBtn}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Text style={styles.previewCloseText}>✕ Close</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.previewBody}>
+                {previewDoc?.uri ? (
+                  <Image
+                    source={{ uri: previewDoc.uri }}
+                    style={styles.fullPreviewImg}
+                    resizeMode="contain"
+                  />
+                ) : null}
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
 
         {/* Suspend Modal */}
         <Modal visible={!!suspendModal} transparent animationType="fade">
@@ -248,22 +670,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-  },
-  header: {
-    marginBottom: 12,
-    paddingTop: 4,
-  },
-  headerBadge: {
-    color: '#2dd4a0',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  headerTitle: {
-    color: '#ffffff',
-    fontSize: 22,
-    fontWeight: '900',
   },
   search: {
     backgroundColor: '#161b22',
@@ -321,6 +727,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
   },
+  tapDetailHint: {
+    color: '#2dd4a0',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   roleBadge: {
     backgroundColor: '#161b22',
     paddingHorizontal: 6,
@@ -353,10 +764,19 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   actionBtn: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
+  },
+  viewDetailsBtn: {
+    borderColor: '#2dd4a0',
+    backgroundColor: 'rgba(45,212,160,0.12)',
+  },
+  viewDetailsBtnText: {
+    color: '#2dd4a0',
+    fontSize: 11,
+    fontWeight: '800',
   },
   blockBtn: {
     borderColor: '#ef4444',
@@ -467,17 +887,369 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   confirmBtnText: {
-    color: '#07090d',
-    fontSize: 13,
+    color: '#000000',
     fontWeight: '800',
+    fontSize: 14,
   },
   cancelBtn: {
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
   },
   cancelText: {
     color: '#8b949e',
-    fontSize: 12,
     fontWeight: '600',
+    fontSize: 13,
+  },
+
+  /* ════════ User Details Modal Styles ════════ */
+  detailSafe: {
+    flex: 1,
+    backgroundColor: '#07090d',
+  },
+  detailHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#21262d',
+    backgroundColor: '#0d1117',
+  },
+  detailBadge: {
+    color: '#2dd4a0',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  detailTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#161b22',
+    borderWidth: 1,
+    borderColor: '#30363d',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  closeBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  detailScroll: {
+    padding: 16,
+  },
+  detailSectionCard: {
+    backgroundColor: '#0d1117',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#21262d',
+    padding: 16,
+    marginBottom: 16,
+  },
+  avatarImg: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: '#2dd4a0',
+  },
+  avatarPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#161b22',
+    borderWidth: 1.5,
+    borderColor: '#30363d',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarPlaceholderText: {
+    color: '#2dd4a0',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  detailNameText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  roleBadgeLg: {
+    backgroundColor: '#161b22',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  roleBadgeLgText: {
+    color: '#edf0f7',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  kycStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  kycApproved: {
+    backgroundColor: 'rgba(45,212,160,0.15)',
+    borderColor: '#2dd4a0',
+  },
+  kycPending: {
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderColor: '#f5a623',
+  },
+  kycRejected: {
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderColor: '#ef4444',
+  },
+  kycBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  blockedBadge: {
+    backgroundColor: 'rgba(239,68,68,0.2)',
+    borderColor: '#ef4444',
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  blockedBadgeText: {
+    color: '#ef4444',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#161b22',
+  },
+  detailLabel: {
+    color: '#8b949e',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  detailValue: {
+    color: '#edf0f7',
+    fontSize: 13,
+    fontWeight: '600',
+    maxWidth: '60%',
+    textAlign: 'right',
+  },
+  sectionHeaderTitle: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  sectionHeaderSub: {
+    color: '#6e7681',
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  docItemCard: {
+    backgroundColor: '#161b22',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#21262d',
+    padding: 12,
+    marginBottom: 10,
+  },
+  docHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  docTitle: {
+    color: '#edf0f7',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  docUploadedText: {
+    color: '#2dd4a0',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  docMissingText: {
+    color: '#6e7681',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  docImgWrap: {
+    width: '100%',
+    height: 150,
+    borderRadius: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#07090d',
+    marginTop: 4,
+  },
+  docThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  docOverlayBtn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#2dd4a0',
+  },
+  docOverlayText: {
+    color: '#2dd4a0',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  noDocDesc: {
+    color: '#6e7681',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  vehCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#161b22',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#21262d',
+  },
+  vehName: {
+    color: '#edf0f7',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  vehPlate: {
+    color: '#f5a623',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  vehStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  vehStatusApproved: {
+    backgroundColor: 'rgba(45,212,160,0.15)',
+    borderColor: '#2dd4a0',
+  },
+  vehStatusPending: {
+    backgroundColor: 'rgba(245,166,35,0.15)',
+    borderColor: '#f5a623',
+  },
+  vehStatusText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  bigActionBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  blockBtnLg: {
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderColor: '#ef4444',
+  },
+  unblockBtnLg: {
+    backgroundColor: 'rgba(45,212,160,0.15)',
+    borderColor: '#2dd4a0',
+  },
+  suspendBtnLg: {
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    borderColor: '#f59e0b',
+  },
+  deleteBtnLg: {
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderColor: '#ef4444',
+  },
+  bigActionBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  closeModalBottomBtn: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#161b22',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#30363d',
+    marginTop: 4,
+  },
+  closeModalBottomText: {
+    color: '#8b949e',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  /* ════════ Full Screen Image Viewer Modal ════════ */
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  previewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(13,17,23,0.95)',
+    borderBottomWidth: 1,
+    borderBottomColor: '#21262d',
+  },
+  previewTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    flex: 1,
+    marginRight: 12,
+  },
+  previewCloseBtn: {
+    backgroundColor: '#161b22',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#30363d',
+  },
+  previewCloseText: {
+    color: '#2dd4a0',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  previewBody: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  fullPreviewImg: {
+    width: '100%',
+    height: '100%',
   },
 });

@@ -976,7 +976,7 @@ function CollegeChatTab({ user }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, marginBottom: Platform.OS === 'android' ? keyboardHeight : 0 }}>
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
         ) : (

@@ -28,38 +28,93 @@ export function navigateFromNotification(name, params) {
 export function handleNotificationResponse(response) {
   try {
     const notifId = response?.notification?.request?.identifier || String(response?.notification?.date || Date.now());
-    const data = response?.notification?.request?.content?.data || response?.data;
-    if (!data) return;
+    const rawData = response?.notification?.request?.content?.data || response?.data || response || {};
+    if (!rawData) return;
 
     // Mark as handled so it won't re-trigger on subsequent cold starts
     AsyncStorage.setItem('@last_handled_notif_response_id', notifId).catch(() => {});
 
-    if (data.rideId) {
-      const typeStr = String(data.type || '').toLowerCase();
-      const statusStr = String(data.status || '').toLowerCase();
-      if (typeStr.includes('completed') || typeStr.includes('cancelled') || statusStr === 'completed' || statusStr === 'cancelled') {
-        navigateFromNotification('MyBookings');
-      } else if (data.type === 'new-booking') {
-        navigateFromNotification('ProviderBookings');
-      } else if (data.type === 'rider-reached' || data.type === 'RIDER_ARRIVED') {
-        navigateFromNotification('LiveTracking', { rideId: data.rideId });
-      } else {
-        navigateFromNotification('LiveTracking', { rideId: data.rideId });
-      }
-    } else if (data.postId || data.type === 'community-reply') {
-      navigateFromNotification('Community');
-    } else if (data.type === 'walk-joined') {
-      navigateFromNotification('WalkTogether');
-    } else if (data.type === 'adminSOSAlert' || data.type === 'emergency_sos') {
-      navigateFromNotification('AdminLiveSOS');
-    } else if (data.type === 'newIncidentReport') {
-      navigateFromNotification('AdminIncidents');
-    } else if (data.type === 'newKYCSubmission' || data.type === 'newVehicleSubmission') {
-      navigateFromNotification('AdminKYC');
+    // Unnest wrapped payload structures
+    const inner = (typeof rawData.data === 'string' ? JSON.parse(rawData.data) : rawData.data) || rawData.notification?.data || {};
+    const type = String(rawData.type || rawData.notification?.type || inner.type || '').toUpperCase();
+    const rideId = inner.rideId || rawData.rideId || rawData.ride?._id || rawData.booking?.rideId || (typeof rawData.ride === 'string' ? rawData.ride : null);
+    const postId = inner.postId || rawData.postId;
+    const status = String(inner.status || rawData.status || rawData.booking?.status || '').toLowerCase();
+
+    // 1. Driver receives new booking request
+    if (type.includes('BOOKING_REQUEST') || type === 'NEW-BOOKING' || type === 'BOOKING_RECEIVED') {
+      navigateFromNotification('ProviderBookings');
+      return;
     }
-    // Note: Do NOT fallback to 'Notifications' here; if there is no explicit target route, stay on Home/Dashboard
+
+    // 2. Seeker receives booking confirmation
+    if (type.includes('BOOKING_CONFIRMED') || type === 'BOOKING-RESPONSE' || type.includes('BOOKING_ACCEPTED')) {
+      navigateFromNotification('MyBookings');
+      return;
+    }
+
+    // 3. Completed or cancelled rides
+    if (type.includes('COMPLETED') || type.includes('CANCEL') || type.includes('DECLINE') || status === 'completed' || status === 'cancelled') {
+      navigateFromNotification('MyBookings');
+      return;
+    }
+
+    // 4. Rider arrival or live tracking active
+    if (type.includes('RIDER_ARRIVED') || type.includes('RIDER-REACHED') || type.includes('RIDE_STARTED') || type.includes('TRACKING') || type === 'LIVE_TRACK') {
+      if (rideId) navigateFromNotification('LiveTracking', { rideId });
+      else navigateFromNotification('MyBookings');
+      return;
+    }
+
+    // 5. Active ride fallback
+    if (rideId) {
+      navigateFromNotification('LiveTracking', { rideId });
+      return;
+    }
+
+    // 6. Community & student chat
+    if (postId || type.includes('COMMUNITY') || type.includes('POST') || type.includes('CHAT')) {
+      navigateFromNotification('Community');
+      return;
+    }
+
+    // 7. Walk together companion
+    if (type.includes('WALK')) {
+      navigateFromNotification('WalkTogether');
+      return;
+    }
+
+    // 8. KYC document status
+    if (type.includes('KYC')) {
+      navigateFromNotification('KYC');
+      return;
+    }
+
+    // 9. Vehicle registration / review
+    if (type.includes('VEHICLE')) {
+      navigateFromNotification('Profile');
+      return;
+    }
+
+    // 10. Admin emergencies & operational alerts
+    if (type.includes('SOS') || type === 'ADMINSOSALERT') {
+      navigateFromNotification('AdminLiveSOS');
+      return;
+    }
+    if (type.includes('INCIDENT')) {
+      navigateFromNotification('AdminIncidents');
+      return;
+    }
+    if (type.includes('ADMIN')) {
+      navigateFromNotification('AdminDashboard');
+      return;
+    }
+
+    // Safe fallback: MyBookings (NEVER navigate to Home!)
+    navigateFromNotification('MyBookings');
   } catch (err) {
     console.log('[NotificationResponse] Error:', err?.message);
+    navigateFromNotification('MyBookings');
   }
 }
 

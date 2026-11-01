@@ -23,6 +23,7 @@ router.put('/kyc/:userId',       controller.reviewKYC);
 
 // ── User Management ───────────────────────────────────────────────
 router.get('/users',             controller.getUsers);
+router.get('/users/:id',         controller.getUserDetail);
 router.post('/users/suspend',    controller.suspendUser);
 router.put('/users/:id/suspend', controller.suspendUser);
 router.post('/users/block',      controller.blockUser);

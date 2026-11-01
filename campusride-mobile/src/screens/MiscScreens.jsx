@@ -362,8 +362,8 @@ export function NotificationsScreen({ navigation }) {
 
   const directNotifs = serverNotifs.map(n => ({
     id: n._id || n.id,
-    isRead: Boolean(n.read),
-    icon: n.type?.includes('PICKUP') ? '🚗' : n.type?.includes('DROP') ? '📍' : '🔔',
+    isRead: Boolean(n.read || n.readAt),
+    icon: n.type?.includes('PICKUP') ? '🚗' : n.type?.includes('DROP') ? '📍' : n.type?.includes('CHAT') ? '🎓' : '🔔',
     color: colors.accent,
     label: n.type?.replace(/_/g, ' ') || 'Notification',
     title: n.title || 'Notification',
@@ -371,17 +371,40 @@ export function NotificationsScreen({ navigation }) {
     time:  n.createdAt,
     onPress: () => {
       try {
-        const rideId = n.data?.rideId;
-        const type = (n.type || '').toUpperCase();
-        if (type.includes('COMPLETED') || type.includes('CANCELLED')) {
+        const inner = (typeof n.data === 'string' ? JSON.parse(n.data) : n.data) || {};
+        const type = (n.type || inner.type || '').toUpperCase();
+        const rideId = inner.rideId || inner.ride?._id || n.rideId;
+        const postId = inner.postId || n.postId;
+        const status = String(inner.status || n.status || '').toLowerCase();
+
+        if (type.includes('BOOKING_REQUEST') || type === 'NEW-BOOKING') {
+          navigation.navigate('ProviderBookings');
+        } else if (type.includes('BOOKING_CONFIRMED') || type === 'BOOKING-RESPONSE' || type.includes('BOOKING_ACCEPTED')) {
           navigation.navigate('MyBookings');
+        } else if (type.includes('COMPLETED') || type.includes('CANCEL') || status === 'completed' || status === 'cancelled') {
+          navigation.navigate('MyBookings');
+        } else if (type.includes('RIDER_ARRIVED') || type.includes('RIDER-REACHED') || type.includes('RIDE_STARTED')) {
+          if (rideId) navigation.navigate('LiveTracking', { rideId });
+          else navigation.navigate('MyBookings');
         } else if (rideId) {
           navigation.navigate('LiveTracking', { rideId });
+        } else if (postId || type.includes('COMMUNITY') || type.includes('POST') || type.includes('CHAT')) {
+          navigation.navigate('Community');
+        } else if (type.includes('WALK')) {
+          navigation.navigate('WalkTogether');
+        } else if (type.includes('KYC')) {
+          navigation.navigate('KYC');
+        } else if (type.includes('VEHICLE')) {
+          navigation.navigate('Profile');
+        } else if (type.includes('SOS')) {
+          navigation.navigate('AdminLiveSOS');
+        } else if (type.includes('INCIDENT')) {
+          navigation.navigate('AdminIncidents');
         } else {
-          navigation.navigate('Home');
+          navigation.navigate('MyBookings'); // NEVER FALLBACK TO HOME
         }
       } catch (err) {
-        navigation.navigate('Home');
+        navigation.navigate('MyBookings');
       }
     }
   }));

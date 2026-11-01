@@ -373,6 +373,21 @@ exports.getUsers = async (req, res) => {
       profilePhoto: u.profilePhoto || u.kycDocuments?.selfie || '',
       totalRides: rideCountMap.get(u._id.toString()) || 0,
       createdAt: u.createdAt,
+      gender: u.gender || 'prefer_not_to_say',
+      usn: u.usn || '',
+      emergencyContact: u.emergencyContact || '',
+      kycDocuments: u.kycDocuments || {},
+      vehicles: u.vehicles || [],
+      kycSubmittedAt: u.kycSubmittedAt || null,
+      aadhaarUrl: u.kycDocuments?.aadhar || '',
+      collegeIdUrl: u.kycDocuments?.collegeIdCard || '',
+      selfieUrl: u.profilePhoto || u.kycDocuments?.selfie || '',
+      drivingLicenseUrl: u.kycDocuments?.drivingLicense || '',
+      vehiclePhotoUrl: u.kycDocuments?.vehiclePhoto || '',
+      vehicleNumber: u.kycDocuments?.vehicleNumber || (u.vehicles?.[0]?.vehicleNumber) || '',
+      vehicleName: u.kycDocuments?.vehicleName || (u.vehicles?.[0]?.vehicleName) || '',
+      vehicleType: u.kycDocuments?.vehicleType || (u.vehicles?.[0]?.vehicleType) || 'car',
+      vehicleStatus: u.kycDocuments?.vehicleStatus || (u.vehicles?.[0]?.status) || 'not_submitted',
     }));
 
     res.json({
@@ -765,6 +780,25 @@ exports.exportData = async (req, res) => {
       data = await AuditLog.find().sort({ createdAt: -1 }).limit(200);
     }
     res.json({ type, count: data.length, data });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ── GET /api/admin/users/:id ──
+exports.getUserDetail = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const [rides, bookings] = await Promise.all([
+      Ride.find({ providerId: user._id }).sort({ createdAt: -1 }).limit(10),
+      Booking.find({ seekerId: user._id }).sort({ createdAt: -1 }).limit(10)
+    ]);
+    res.json({
+      user,
+      rides,
+      bookings
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
