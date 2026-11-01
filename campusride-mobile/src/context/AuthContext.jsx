@@ -43,7 +43,7 @@ export function AuthProvider({ children }) {
     await api.removeUser().catch(() => {});
     // Clear user cached data to prevent cross-account leak
     AsyncStorage.removeItem('@last_handled_notif_response_id').catch(() => {});
-    AsyncStorage.removeItem('@read_notif_ids').catch(() => {});
+    // Scoped @read_notif_ids_${userId} preserved across logins
     AsyncStorage.removeItem('@user_registered_vehicles_list').catch(() => {});
     setUserState(null);
   }, []);

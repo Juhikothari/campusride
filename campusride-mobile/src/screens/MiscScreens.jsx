@@ -298,13 +298,16 @@ export function NotificationsScreen({ navigation }) {
   const [loading,   setLoading]   = useState(true);
   const [readIds,   setReadIds]   = useState(new Set());
 
+  const userId = user?._id || user?.userId;
+  const storageKey = userId ? `@read_notif_ids_${userId}` : '@read_notif_ids';
+
   const isSeeker   = user?.role === 'seeker'   || user?.role === 'both';
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
   const [serverNotifs, setServerNotifs] = useState([]);
 
   useEffect(() => {
-    AsyncStorage.getItem('@read_notif_ids').then(raw => {
+    AsyncStorage.getItem(storageKey).then(raw => {
       if (raw) {
         try { setReadIds(new Set(JSON.parse(raw))); } catch {}
       }
@@ -318,25 +321,40 @@ export function NotificationsScreen({ navigation }) {
         .then(res => {
           const list = Array.isArray(res) ? res : res?.notifications || [];
           setServerNotifs(list);
+          // Automatically mark notifications as read on server & client
+          api.markNotificationsRead().catch(() => {});
+          const notifIds = list.map(n => n._id || n.id).filter(Boolean);
+          AsyncStorage.getItem(storageKey).then(raw => {
+            let next = new Set();
+            if (raw) {
+              try { next = new Set(JSON.parse(raw)); } catch {}
+            }
+            notifIds.forEach(id => next.add(id));
+            setReadIds(next);
+            AsyncStorage.setItem(storageKey, JSON.stringify([...next])).catch(() => {});
+            DeviceEventEmitter.emit('NOTIFICATIONS_READ');
+            DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', 0);
+          }).catch(() => {});
         })
         .catch(() => {})
     );
     Promise.all(promises).finally(() => setLoading(false));
-  }, []);
+  }, [storageKey]);
 
   const markAllAsRead = () => {
     const allIds = new Set([...readIds, ...allNotifs.map(n => n.id)]);
     setReadIds(allIds);
-    AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...allIds])).catch(() => {});
+    AsyncStorage.setItem(storageKey, JSON.stringify([...allIds])).catch(() => {});
     api.markNotificationsRead().catch(() => {});
     DeviceEventEmitter.emit('NOTIFICATIONS_READ');
+    DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', 0);
   };
 
   const handleNotifPress = (item) => {
     try {
       setReadIds(prev => {
         const next = new Set(prev).add(item.id);
-        AsyncStorage.setItem('@read_notif_ids', JSON.stringify([...next])).catch(() => {});
+        AsyncStorage.setItem(storageKey, JSON.stringify([...next])).catch(() => {});
         const remaining = allNotifs.filter(n => !next.has(n.id) && !n.isRead).length;
         DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', Math.max(0, remaining));
         return next;
@@ -347,7 +365,7 @@ export function NotificationsScreen({ navigation }) {
       if (item.onPress) item.onPress();
     } catch (err) {
       console.log('[NotificationPress] Handled gracefully:', err);
-      try { navigation.navigate('Home'); } catch {}
+      try { navigation.navigate('MyBookings'); } catch {}
     }
   };
 
@@ -411,7 +429,7 @@ export function NotificationsScreen({ navigation }) {
 
   const seekerNotifs = bookings.map(b => ({
     id: b._id,
-    isRead: false,
+    isRead: readIds.has(b._id) || b.status === 'completed' || b.status === 'cancelled' || b.status === 'rejected',
     icon:  (NOTIF_TYPE[b.status] || NOTIF_TYPE.pending).icon,
     color: (NOTIF_TYPE[b.status] || NOTIF_TYPE.pending).color,
     label: (NOTIF_TYPE[b.status] || NOTIF_TYPE.pending).label,
@@ -447,7 +465,7 @@ export function NotificationsScreen({ navigation }) {
         try {
           navigation.navigate('ProviderBookings');
         } catch (err) {
-          navigation.navigate('Home');
+          navigation.navigate('ProviderBookings');
         }
       },
     }))

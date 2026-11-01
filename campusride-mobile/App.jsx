@@ -316,8 +316,7 @@ export default function App() {
 
         // If notification is already handled or older than 20 seconds, ignore stale cold-start cache
         if (lastHandled && lastHandled === notifId) return;
-        if (notifDate && (Date.now() - notifDate > 20000)) return;
-
+        
         setTimeout(() => handleNotificationResponse(resp), 900);
       } catch {}
     }).catch(() => {});

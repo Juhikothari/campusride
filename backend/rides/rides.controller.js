@@ -563,8 +563,18 @@ exports.searchRides = async (req, res) => {
       return geoMatched || textMatched;
     });
 
+    // STRICT COLLEGE ISOLATION:
+    // Do not show rides offered by other college users! Commuters only see rides from their own college.
+    const sameCollegeRides = matchedRides.filter(r => {
+      if (!seeker?.college) return true;
+      const sColl = seeker.college.trim().toLowerCase();
+      const rColl = (r.college || r.providerId?.college || '').trim().toLowerCase();
+      if (!rColl) return false;
+      return rColl.includes(sColl) || sColl.includes(rColl);
+    });
+
     // Privacy safeguard: Provider's phone is hidden in search, but actual USN (last 3 digits) is preserved
-    const sanitized = matchedRides.map(r => {
+    const sanitized = sameCollegeRides.map(r => {
       const rObj = r.toObject ? r.toObject() : { ...r };
       if (rObj.providerId && typeof rObj.providerId === 'object') {
         rObj.providerId.phone = null;
@@ -636,6 +646,9 @@ exports.getRide = async (req, res) => {
           bookingId: b._id,
           status: b.status,
           seats: b.seats || 1,
+          cost: b.cost || ((b.seats || 1) * (ride.costPerSeat || 0)),
+          pickupLocation: b.pickupLocation || (s?.pickupLocation || ride.pickup),
+          dropLocation: b.dropLocation || ride.drop,
           seeker: s,
         };
       });

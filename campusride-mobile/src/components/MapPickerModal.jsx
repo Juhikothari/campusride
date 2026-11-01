@@ -41,11 +41,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
     } catch {}
   };
 
-  const handleOpenDirections = () => {
-    if (!coords?.lat || !coords?.lng) return;
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}&travelmode=driving`;
-    Linking.openURL(url).catch(() => {});
-  };
+
 
   useEffect(() => {
     if (!visible) return;
@@ -224,7 +220,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               </View>
             </View>
 
-            {/* Action Bar: Detect GPS, Copy Location, and Directions ↗ */}
+            {/* Action Bar: Detect GPS & Copy Location */}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: isDark ? colors.border : '#e2e8f0' }}>
               <TouchableOpacity
                 onPress={locateUser}
@@ -276,26 +272,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleOpenDirections}
-                disabled={!coords}
-                style={{
-                  flex: 1.1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: colors.accent,
-                  paddingVertical: 8,
-                  borderRadius: radius.md,
-                  gap: 4,
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 12 }}>🧭</Text>
-                <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#000000' }}>
-                  Directions ↗
-                </Text>
-              </TouchableOpacity>
+              
             </View>
           </View>
 

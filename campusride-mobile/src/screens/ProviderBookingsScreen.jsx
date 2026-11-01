@@ -444,6 +444,25 @@ export default function ProviderBookingsScreen({ navigation }) {
                               </Text>
                             <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
                             {seeker?.college && <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>🏫 {seeker.college}</Text>}
+                            {/* Calculated Fare for Provider Review */}
+                            <View style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              backgroundColor: isDark ? 'rgba(45,212,160,0.12)' : '#ecfdf5',
+                              borderWidth: 1,
+                              borderColor: isDark ? '#2dd4a0' : '#10b981',
+                              borderRadius: radius.sm,
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              alignSelf: 'flex-start',
+                              marginTop: 6,
+                              gap: 4
+                            }}>
+                              <Text style={{ fontSize: 12 }}>💰</Text>
+                              <Text style={{ color: isDark ? '#2dd4a0' : '#047857', fontSize: 12, fontWeight: '800' }}>
+                                Fare: ₹{b.cost || ((b.seats || 1) * (selectedRide?.costPerSeat || 0))} ({(b.seats || 1)} seat{(b.seats || 1) > 1 ? 's' : ''})
+                              </Text>
+                            </View>
                               {isAccepted && (
                                 <TouchableOpacity
                                   style={{

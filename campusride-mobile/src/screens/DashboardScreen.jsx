@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
+import LiveMapView from '../components/LiveMapView';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { subscribeToCommunityUnread, getCommunityUnreadCount } from '../hooks/useSocket';
 import { Btn } from '../components/UI';
@@ -675,6 +676,49 @@ export default function DashboardScreen({ navigation }) {
           <View style={styles.activeTripSection}>
             <Text style={[styles.sectionLabel, { color: isDark ? colors.text2 : '#475569' }]}>ACTIVE TRIP STATUS</Text>
             <View style={[styles.activeTripCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: isDark ? colors.accent : '#f5a623' }]}>
+              {/* Provider Live Route Map on Main Screen */}
+              {tripRole === 'driver' && activeTrip && (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
+                  style={{
+                    borderRadius: radius.lg,
+                    overflow: 'hidden',
+                    marginVertical: 10,
+                    borderWidth: 1.5,
+                    borderColor: isDark ? colors.border : '#cbd5e1'
+                  }}
+                >
+                  <LiveMapView
+                    pickup={activeTrip.pickup}
+                    drop={activeTrip.drop}
+                    driverLocation={userLat && userLng ? { lat: userLat, lng: userLng } : null}
+                    extraPickups={Array.isArray(activeTrip.passengers) ? activeTrip.passengers.map((p, i) => {
+                      const loc = p.pickupLocation || p.seeker?.pickupLocation || activeTrip.pickup;
+                      const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
+                      const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
+                      return lat && lng ? { lat, lng, label: `Buddy ${i + 1}: ${p.seeker?.usn || 'Pickup'}` } : null;
+                    }).filter(Boolean) : []}
+                    height={190}
+                    interactive={false}
+                  />
+                  <View style={{
+                    position: 'absolute',
+                    top: 8,
+                    left: 8,
+                    backgroundColor: 'rgba(0,0,0,0.75)',
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: radius.sm,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5
+                  }}>
+                    <Text style={{ fontSize: 11 }}>📍</Text>
+                    <Text style={{ color: '#00E5FF', fontSize: 10.5, fontWeight: '800' }}>LIVE ROUTE MAP (TAP TO NAVIGATE)</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
               {/* Trip Header */}
               <View style={styles.tripHeaderRow}>
                 <View style={styles.tripStatusIndicator}>

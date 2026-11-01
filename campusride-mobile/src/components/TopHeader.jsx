@@ -48,7 +48,7 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
     }
 
     const fetchUnread = () => {
-      AsyncStorage.getItem('@read_notif_ids').then(raw => {
+      AsyncStorage.getItem(userId ? `@read_notif_ids_${userId}` : '@read_notif_ids').then(raw => {
         let localRead = new Set();
         if (raw) {
           try { localRead = new Set(JSON.parse(raw)); } catch {}
@@ -128,7 +128,7 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
               accessibilityRole="button"
               accessibilityLabel="Go back to previous screen"
             >
-              <Text style={styles.backBtnText}>←</Text>
+              <Text style={[styles.backBtnText, { color: isDark ? "#edf0f7" : "#0f172a" }]}>←</Text>
             </TouchableOpacity>
           )}
           <Text style={styles.brandLogo}>{emoji}</Text>

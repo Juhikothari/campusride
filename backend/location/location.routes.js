@@ -50,7 +50,7 @@ router.get('/search', auth, async (req, res) => {
     if (!results.length) {
       try {
         const photonResponse = await fetch(
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lat=12.9716&lon=77.5946`,
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=10&lat=12.9716&lon=77.5946&location_bias_scale=0.9`,
           { signal: AbortSignal.timeout(5000) }
         );
 
@@ -83,7 +83,7 @@ router.get('/search', auth, async (req, res) => {
     if (!results.length) {
       try {
         const nomResponse = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=8&countrycodes=in&addressdetails=1`,
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=10&countrycodes=in&viewbox=77.35,13.15,77.85,12.80&bounded=0&addressdetails=1`,
           {
             headers: { 'User-Agent': 'HOGO-App/1.0 (contact@hogo.app)' },
             signal: AbortSignal.timeout(6000)
@@ -105,6 +105,18 @@ router.get('/search', auth, async (req, res) => {
         console.error('Nominatim search failed:', nomErr.message);
       }
     }
+
+    // Bangalore / Bengaluru Proximity Sorting:
+    // Prioritize locations in Bengaluru/Karnataka so local students find spots first
+    results.sort((a, b) => {
+      const isBlrA = /bengaluru|bangalore|karnataka/i.test(a.display_name) ||
+        (a.lat >= 12.75 && a.lat <= 13.25 && a.lng >= 77.35 && a.lng <= 77.85);
+      const isBlrB = /bengaluru|bangalore|karnataka/i.test(b.display_name) ||
+        (b.lat >= 12.75 && b.lat <= 13.25 && b.lng >= 77.35 && b.lng <= 77.85);
+      if (isBlrA && !isBlrB) return -1;
+      if (!isBlrA && isBlrB) return 1;
+      return 0;
+    });
 
     res.json(results);
   } catch (error) {

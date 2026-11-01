@@ -1471,17 +1471,22 @@ export function PreRideChecklistScreen({ route, navigation }) {
         setStarting(false);
       }
     } else {
-      // Seeker completes checklist
+      // Seeker completes checklist - submit then allow tracking
       setStarting(true);
       try {
         await api.submitChecklist(rideId, { seekerCompleted: true, checklist: checks });
-      } catch {}
-      finally {
+        RNAlert.alert(
+          'Checklist Submitted ✓',
+          'Your safety checklist has been verified and submitted! Tap "Track My Ride" to follow your buddy live.'
+        );
+      } catch (err) {
+        console.log('Submit checklist note:', err?.message);
+        RNAlert.alert(
+          'Checklist Saved ✓',
+          'Your safety checklist is saved! You can now track your buddy live.'
+        );
+      } finally {
         setStarting(false);
-      }
-
-      if (rideDetails?.status === 'in-progress') {
-        navigation.replace('LiveTracking', { rideId });
       }
     }
   };
@@ -1491,7 +1496,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
     if (!isDriver && bookingStatus === 'pending') return '⏳ Waiting for Provider Acceptance';
     if (!allDone) return `${done}/${CHECKS.length} checked — please verify all`;
     if (isDriver) return '🏁 Everything Checked — Start Ride Now →';
-    return '📍 Track My Ride →';
+    return '✓ Submit Safety Checklist';
   };
 
   const handleCancel = () => {

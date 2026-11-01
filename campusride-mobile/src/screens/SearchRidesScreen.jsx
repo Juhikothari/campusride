@@ -355,6 +355,16 @@ export default function SearchRidesScreen({ navigation }) {
       if (womenOnly) results = (results || []).filter(r => matchesWomenFilter(r, true));
       if (!isFemale) results = (results || []).filter(r => !r.womenOnly);
 
+      // Strict College Isolation: do not show rides offered by other college users
+      if (user?.college) {
+        const myColl = user.college.trim().toLowerCase();
+        results = (results || []).filter(r => {
+          const rColl = (r.college || r.providerId?.college || '').trim().toLowerCase();
+          if (!rColl) return false;
+          return rColl.includes(myColl) || myColl.includes(rColl);
+        });
+      }
+
       setRides(results || []);
     } catch (e) {
       setError(e.message || 'Search failed');

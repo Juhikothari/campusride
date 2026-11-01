@@ -830,29 +830,7 @@ export default function CreateRideScreen({ navigation }) {
             </TouchableOpacity>
           )}
 
-          {/* ── ESTIMATED FARE DISPLAYED BEFORE POSTING ── */}
-          {distKm > 0 && (
-            <View style={[
-              styles.fareCard,
-              {
-                backgroundColor: isDark ? '#0d131a' : '#ffffff',
-                borderColor: isDark ? '#1e3a2f' : '#86efac',
-              }
-            ]}>
-              <View style={styles.fareHeader}>
-                <View>
-                  <Text style={[styles.fareBadge, { color: isDark ? '#2dd4a0' : '#059669' }]}>ESTIMATED FARE</Text>
-                  <Text style={[styles.fareTitle, { color: isDark ? '#f0f6fc' : '#0f172a' }]}>Total Fare Per Buddy</Text>
-                </View>
-                <View style={styles.farePriceBadge}>
-                  <Text style={styles.farePriceCurrency}>₹</Text>
-                  <Text style={styles.farePriceAmount}>{calcCost(distKm, vehicleType)}</Text>
-                  <Text style={[styles.farePricePer, { color: isDark ? '#8b949e' : '#475569' }]}>/ seat</Text>
-                </View>
-              </View>
-            </View>
-          )}
-
+          {/* Auto-calculated pricing is used by HOGO platform and shown to seeker and on booking requests */}
           {hasRegisteredVehicle ? (
             isVehiclePending ? (
               <View style={{ marginTop: spacing.md }}>
