@@ -35,6 +35,7 @@ router.post('/:rideId/cancel',    controller.cancelRide);
 router.put('/:rideId/cancel',     controller.cancelRide);
 
 router.get('/:rideId/status',     controller.getRideStatus);
+router.get('/:rideId/stops',      controller.getOptimizedStops);   // provider: optimised pickup/drop order
 
 // ── Generic /:id routes (at the end) ─────────────────────────
 router.get('/:id',    controller.getRide);

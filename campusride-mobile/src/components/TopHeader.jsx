@@ -14,7 +14,7 @@ import { subscribeToNotifications, getSharedSocket } from '../hooks/useSocket';
 
 function getHeaderEmoji(title) {
   const t = (title || '').toLowerCase();
-  if (t.includes('get a buddy') || t.includes('offer')) return '🚗';
+  if (t.includes('share your ride') || t.includes('get a buddy') || t.includes('offer')) return '🚗';
   if (t.includes('search') || t.includes('find')) return '🔍';
   if (t.includes('walk') || t.includes('nadi')) return '🚶';
   if (t.includes('community') || t.includes('sitcom') || t.includes('lounge') || t.includes('perk') || t.includes('dunder') || t.includes('99th') || t.includes('caltech')) return '🛋️';

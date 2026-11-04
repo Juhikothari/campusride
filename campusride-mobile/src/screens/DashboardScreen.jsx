@@ -29,7 +29,7 @@ const MAIN_SERVICES = [
   },
   {
     key: 'CreateRide',
-    title: 'Get a Buddy',
+    title: 'Share Your Ride',
     sub: 'Offer a ride and travel together',
     iconBg: '#1c2630',
   },
@@ -242,7 +242,7 @@ export default function DashboardScreen({ navigation }) {
       step: 3,
       icon: '🏍️',
       tagline: 'EMPTY SEATS? SHARE THE RIDE',
-      title: 'Get a Buddy (Offer Ride)',
+      title: 'Share Your Ride',
       desc: 'Riding or driving to campus? Post your route, pick up verified classmates, and travel to college together with ease.',
       btnLabel: 'Next →',
       targetKey: 'CreateRide',
@@ -692,7 +692,15 @@ export default function DashboardScreen({ navigation }) {
                   <LiveMapView
                     pickup={activeTrip.pickup}
                     drop={activeTrip.drop}
-                    driverLocation={userLat && userLng ? { lat: userLat, lng: userLng } : null}
+                    driverLocation={
+                      activeTrip?.currentLocation?.coordinates
+                        ? { lat: activeTrip.currentLocation.coordinates[1], lng: activeTrip.currentLocation.coordinates[0] }
+                        : (activeTrip?.pickup?.coordinates
+                            ? { lat: activeTrip.pickup.coordinates[1], lng: activeTrip.pickup.coordinates[0] }
+                            : (activeTrip?.pickup?.lat && activeTrip?.pickup?.lng
+                                ? { lat: activeTrip.pickup.lat, lng: activeTrip.pickup.lng }
+                                : null))
+                    }
                     extraPickups={Array.isArray(activeTrip.passengers) ? activeTrip.passengers.map((p, i) => {
                       const loc = p.pickupLocation || p.seeker?.pickupLocation || activeTrip.pickup;
                       const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);

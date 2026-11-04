@@ -108,6 +108,7 @@ export const getUserVehicles   = ()     => request('/users/profile/vehicles').ca
 // ── Location & Routing ────────────────────────────────
 export const searchLocation    = (q)   => request(`/location/search?q=${encodeURIComponent(q)}`);
 export const reverseGeocode    = (lat, lng) => request(`/location/reverse?lat=${lat}&lng=${lng}`);
+export const resolveMapsLink   = (url) => request('/location/resolve-maps-link', { method:'POST', body: JSON.stringify({ url }) });
 export const getOptimalRoute   = (fromLat, fromLng, toLat, toLng) =>
   request(`/location/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`);
 export const getDistance       = (fromLat, fromLng, toLat, toLng) =>
@@ -136,7 +137,19 @@ export const updateRideStatus  = (id, status) => {
 };
 
 // ── Bookings ──────────────────────────────────────────
-export const bookRide          = (rideId, seats = 1) => request('/booking/request', { method:'POST', body: JSON.stringify({ rideId, seats }) });
+// pickup / drop are optional: { lat, lng, address }. If omitted the ride's own points are used.
+export const bookRide          = (rideId, seats = 1, pickup = null, drop = null) =>
+  request('/booking/request', { method:'POST', body: JSON.stringify({ rideId, seats, pickup, drop }) });
+export const getPickupCode     = (bookingId) => request(`/booking/${bookingId}/pickup-code`);
+export const updateBookingStop = (bookingId, action, code) =>
+  request(`/booking/${bookingId}/stop`, { method:'PUT', body: JSON.stringify({ action, code }) });
+// Provider: optimised pickup/drop order. loc = { lat, lng } of the vehicle (optional)
+export const getRideStops      = (rideId, loc = null, includePending = false) => {
+  const q = [];
+  if (loc?.lat != null && loc?.lng != null) q.push(`lat=${loc.lat}`, `lng=${loc.lng}`);
+  if (includePending) q.push('include=pending');
+  return request(`/ride/${rideId}/stops${q.length ? `?${q.join('&')}` : ''}`);
+};
 export const getMyBookings     = ()     => request('/booking/my');
 export const getRideRequests   = ()     => request('/booking/requests');
 export const getRideBookings   = (rideId) => request(`/booking/ride/${rideId}`);
@@ -194,6 +207,10 @@ export const unregisterPushToken = () => request('/notifications/unregister-toke
 
 // ── Generic API Client (matches axios-like calls across screens) ──
 export const apiClient = {
+  resolveMapsLink,
+  getPickupCode,
+  updateBookingStop,
+  getRideStops,
   get: (path, config = {}) => {
     let p = path;
     if (config.params) {

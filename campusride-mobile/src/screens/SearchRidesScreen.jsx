@@ -12,6 +12,7 @@ import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
 import LocationSearch from '../components/LocationSearch';
 import RideCard from '../components/RideCard';
+import BookingPointsModal from '../components/BookingPointsModal';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { Btn, Alert, TogglePill, EmptyState, Input } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
@@ -374,13 +375,25 @@ export default function SearchRidesScreen({ navigation }) {
     }
   }, [pickup, drop, schedMode, date, time, womenOnly, vehicle, isFemale]);
 
-  const book = async (rideId) => {
+  const [pointsRide, setPointsRide] = useState(null);
+
+  const startBook = (ride) => {
+    // Open points modal so seeker can customize/confirm their pickup & drop spot
+    setPointsRide(ride);
+  };
+
+  const confirmBook = async (pickupPt, dropPt) => {
+    const ride = pointsRide;
+    if (!ride) return;
+    const rideId = ride._id;
     setBookingMap(m => ({ ...m, [rideId]: { loading: true } }));
     try {
-      await api.bookRide(rideId);
+      await api.bookRide(rideId, 1, pickupPt, dropPt);
       setBookingMap(m => ({ ...m, [rideId]: { status: 'pending' } }));
     } catch (e) {
       setBookingMap(m => ({ ...m, [rideId]: { error: e.message } }));
+    } finally {
+      setPointsRide(null);
     }
   };
 
@@ -667,7 +680,7 @@ export default function SearchRidesScreen({ navigation }) {
                     <RideCard
                       ride={ride}
                       onView={id => navigation.navigate('RideDetail', { rideId: id })}
-                      onBook={bm?.status ? null : book}
+                      onBook={bm?.status ? null : () => startBook(ride)}
                       bookingStatus={bm?.status}
                     />
                     {bm?.error  && <Alert message={bm.error} />}
@@ -691,6 +704,14 @@ export default function SearchRidesScreen({ navigation }) {
 
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
+
+      {/* Choose customized pickup & drop points modal */}
+      <BookingPointsModal
+        visible={!!pointsRide}
+        ride={pointsRide}
+        onCancel={() => setPointsRide(null)}
+        onConfirm={confirmBook}
+      />
     </SafeAreaView>
   );
 }

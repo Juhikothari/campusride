@@ -93,19 +93,18 @@ exports.requestBooking = async (req, res) => {
       return res.status(400).json({ message: `Invalid seat count. Available: ${ride.seatsAvailable}` });
     }
 
-// Create booking WITH seats
+// Create booking WITH seats (seat availability is updated ONLY when provider accepts)
 const booking = new Booking({
   rideId,
   seekerId,
-  seats: requestedSeats, // ✅ FIX
-  status: 'pending'
+  seats: requestedSeats,
+  status: 'pending',
+  pickup: seekerPickup || { type: 'Point', coordinates: ride.pickup?.coordinates, address: ride.pickup?.address || '' },
+  drop:   seekerDrop   || { type: 'Point', coordinates: ride.drop?.coordinates,   address: ride.drop?.address   || '' },
+  pickupCode: String(require('crypto').randomInt(0, 10000)).padStart(4, '0'),
 });
 
 await booking.save();
-
-// Decrease seats properly
-ride.seatsAvailable -= requestedSeats; // ✅ FIX
-await ride.save();
     // ================= PROVIDER NOTIFICATION: New Booking Request =================
     try {
       const providerNotification = new Notification({
@@ -562,5 +561,82 @@ exports.cancelBooking = async (req, res) => {
     res.json({ message: 'Booking cancelled successfully', booking });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+};
+
+
+// ================= SEEKER: get my pickup code =================
+// The code is only ever sent to the seeker (never to the provider).
+exports.getPickupCode = async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.bookingId).select('+pickupCode');
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+    if (String(booking.seekerId) !== String(req.user.userId)) {
+      return res.status(403).json({ message: 'Not your booking' });
+    }
+    if (booking.status !== 'accepted') {
+      return res.status(400).json({ message: 'Code is available once the provider accepts your request' });
+    }
+    res.json({ pickupCode: booking.pickupCode || null, stopStatus: booking.stopStatus });
+  } catch (error) {
+    res.status(500).json({ message: 'Could not load pickup code' });
+  }
+};
+
+// ================= PROVIDER: mark a stop done =================
+// PUT /api/booking/:bookingId/stop   body: { action: 'pickup' | 'drop', code? }
+exports.updateStop = async (req, res) => {
+  try {
+    const { action, code } = req.body || {};
+    if (!['pickup', 'drop'].includes(action)) {
+      return res.status(400).json({ message: "action must be 'pickup' or 'drop'" });
+    }
+
+    const booking = await Booking.findById(req.params.bookingId).select('+pickupCode +codeAttempts');
+    if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+    const ride = await Ride.findById(booking.rideId);
+    if (!ride || String(ride.providerId) !== String(req.user.userId)) {
+      return res.status(403).json({ message: 'Only the ride provider can update stops' });
+    }
+    if (booking.status !== 'accepted') {
+      return res.status(400).json({ message: 'Booking is not accepted' });
+    }
+
+    if (action === 'pickup') {
+      if (booking.stopStatus !== 'waiting') {
+        return res.status(400).json({ message: 'Passenger is already picked up' });
+      }
+      if (booking.pickupCode) {
+        if ((booking.codeAttempts || 0) >= 5) {
+          return res.status(429).json({ message: 'Too many wrong codes. Ask the passenger to contact support.' });
+        }
+        if (String(code || '') !== booking.pickupCode) {
+          booking.codeAttempts = (booking.codeAttempts || 0) + 1;
+          await booking.save();
+          return res.status(400).json({ message: 'Wrong pickup code' });
+        }
+      }
+      booking.stopStatus = 'picked_up';
+      booking.pickedUpAt = new Date();
+    } else {
+      if (booking.stopStatus !== 'picked_up') {
+        return res.status(400).json({ message: 'Passenger has not been picked up yet' });
+      }
+      booking.stopStatus = 'dropped';
+      booking.droppedAt = new Date();
+    }
+    await booking.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user-${booking.seekerId}`).emit('stop-updated', {
+        bookingId: booking._id, rideId: booking.rideId, stopStatus: booking.stopStatus,
+      });
+    }
+    res.json({ bookingId: booking._id, stopStatus: booking.stopStatus });
+  } catch (error) {
+    console.error('updateStop error:', error.message);
+    res.status(500).json({ message: 'Could not update stop' });
   }
 };

@@ -17,6 +17,7 @@ import ProfileScreen      from '../screens/ProfileScreen';
 
 // ── Stack screens ─────────────────────────────────────────────
 import LiveTrackingScreen     from '../screens/LiveTrackingScreen';
+import StopPlanScreen         from '../screens/StopPlanScreen';
 import MyBookingsScreen       from '../screens/MyBookingsScreen';
 import ProviderBookingsScreen from '../screens/ProviderBookingsScreen';
 import KYCScreen              from '../screens/KYCScreen';
@@ -76,10 +77,11 @@ function AppStack() {
       {/* Rides & Search */}
       <Stack.Screen name="SearchRides"       component={SearchRidesScreen}      options={{ title: 'Search Your Buddy' }} />
       <Stack.Screen name="SearchMatch"       component={SearchRidesScreen}      options={{ title: 'Search Your Buddy' }} />
-      <Stack.Screen name="CreateRide"        component={CreateRideScreen}       options={{ title: 'Get a Buddy' }} />
-      <Stack.Screen name="OfferRide"         component={CreateRideScreen}       options={{ title: 'Get a Buddy' }} />
+      <Stack.Screen name="CreateRide"        component={CreateRideScreen}       options={{ title: 'Share Your Ride' }} />
+      <Stack.Screen name="OfferRide"         component={CreateRideScreen}       options={{ title: 'Share Your Ride' }} />
       <Stack.Screen name="RideDetail"        component={RideDetailScreen}       options={{ title: 'Ride Details' }} />
       <Stack.Screen name="LiveTracking"      component={LiveTrackingScreen}     options={{ headerShown: false }} />
+      <Stack.Screen name="StopPlan"          component={StopPlanScreen}         options={{ headerShown: false }} />
 
       {/* Bookings */}
       <Stack.Screen name="MyBookings"        component={MyBookingsScreen}       options={{ title: 'My Bookings' }} />

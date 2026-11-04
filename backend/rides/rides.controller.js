@@ -1360,3 +1360,45 @@ exports.findNearbyRides = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ================= GET OPTIMIZED STOPS (Provider multi-stop routing) =================
+exports.getOptimizedStops = async (req, res) => {
+  try {
+    const { planStops } = require('../routing/stopOrder');
+    const ride = await Ride.findById(req.params.rideId);
+    if (!ride) return res.status(404).json({ message: 'Ride not found' });
+    if (String(ride.providerId) !== String(req.user.userId)) {
+      return res.status(403).json({ message: 'Only the ride provider can view the stop plan' });
+    }
+
+    const all = await Booking.find({ rideId: ride._id, status: { $in: ['accepted', 'pending'] } })
+      .populate('seekerId', 'name usn');
+    const accepted = all.filter((b) => b.status === 'accepted' && b.stopStatus !== 'dropped');
+    const pending  = all.filter((b) => b.status === 'pending');
+
+    const capacity = (ride.seatsAvailable || 0) + all.reduce((s, b) => s + (b.seats || 1), 0);
+    const from = (req.query.lat && req.query.lng) ? { lat: parseFloat(req.query.lat), lng: parseFloat(req.query.lng) } : null;
+
+    const plan = await planStops({ ride, bookings: accepted, from, capacity });
+
+    // "adds +N min" for each waiting request, so the provider can decide quickly
+    let pendingDetours = [];
+    if (req.query.include === 'pending') {
+      for (const p of pending.slice(0, 5)) {
+        try {
+          const alt = await planStops({ ride, bookings: [...accepted, p], from, capacity, withGeometry: false });
+          pendingDetours.push({
+            bookingId: String(p._id),
+            name: p.seekerId && (p.seekerId.usn ? p.seekerId.usn.slice(-3).toUpperCase() : p.seekerId.name),
+            extraMinutes: Math.max(0, alt.totalMinutes - plan.totalMinutes),
+          });
+        } catch (e) { /* skip */ }
+      }
+    }
+
+    res.json({ ...plan, pendingDetours });
+  } catch (error) {
+    console.error('getOptimizedStops error:', error.message);
+    res.status(500).json({ message: 'Could not build the stop plan' });
+  }
+};

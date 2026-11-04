@@ -9,6 +9,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
 import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
+import PickupCodeBox from '../components/PickupCodeBox';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { getDisplayUSN } from '../utils/usn';
@@ -191,6 +192,9 @@ export default function MyBookingsScreen({ navigation }) {
                     </View>
                   </View>
                 )}
+
+                {/* 4-digit pickup code for seeker to share with driver */}
+                {b.status === 'accepted' && !isCancelled && !isCompleted && <PickupCodeBox bookingId={b._id} />}
 
                 {/* Price displayed to seeker to pay upon provider acceptance */}
                 {b.status === 'accepted' && !isCompleted && (

@@ -363,7 +363,7 @@ export default function CreateRideScreen({ navigation }) {
 
   if (user?.kycStatus !== 'approved') return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <TopHeader title="Get a Buddy" subtitle="Campus Verification" />
+      <TopHeader title="Share Your Ride" subtitle="Campus Verification" />
       <View style={{ flex: 1, padding: 24, justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ fontSize: 44, marginBottom: 12 }}>🛡️</Text>
         <Text style={{ color: colors.text, fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 8 }}>
@@ -525,7 +525,7 @@ export default function CreateRideScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Get a Buddy" subtitle="Offer your ride and split cost" showBack={navigation.canGoBack()} />
+      <TopHeader title="Share Your Ride" subtitle="Offer your ride and split cost" showBack={navigation.canGoBack()} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

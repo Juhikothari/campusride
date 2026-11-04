@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Btn, Alert, Badge } from '../components/UI';
 import TopHeader from '../components/TopHeader';
+import BookingPointsModal from '../components/BookingPointsModal';
 import TimePickerModal from '../components/TimePickerModal';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -54,10 +55,12 @@ export function RideDetailScreen({ navigation, route }) {
       .catch(() => {});
   }, [rideId]);
 
-  const doBook = async () => {
+  const [showPoints, setShowPoints] = useState(false);
+  const doBook = async (pickupPt, dropPt) => {
+    setShowPoints(false);
     setBooking(b => ({ ...b, loading: true, error: '' }));
     try {
-      await api.bookRide(rideId);
+      await api.bookRide(rideId, 1, pickupPt, dropPt);
       setBooking({ loading: false, status: 'pending', error: '' });
     } catch (e) {
       setBooking(b => ({ ...b, loading: false, error: e.message }));
@@ -252,7 +255,7 @@ export function RideDetailScreen({ navigation, route }) {
             {booking.status === 'rejected' && <Alert message="❌ Booking was rejected." />}
 
             {canBook && (
-              <Btn label="Book This Ride" onPress={doBook} loading={booking.loading} style={{ marginTop: 8 }} />
+              <Btn label="Book This Ride" onPress={() => setShowPoints(true)} loading={booking.loading} style={{ marginTop: 8 }} />
             )}
 
             {booking.status === 'accepted' && (
@@ -283,6 +286,14 @@ export function RideDetailScreen({ navigation, route }) {
           </View>
         )}
       </ScrollView>
+
+      {/* Choose customized pickup & drop points modal */}
+      <BookingPointsModal
+        visible={showPoints}
+        ride={ride}
+        onCancel={() => setShowPoints(false)}
+        onConfirm={doBook}
+      />
     </SafeAreaView>
   );
 }

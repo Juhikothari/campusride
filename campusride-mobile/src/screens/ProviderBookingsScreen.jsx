@@ -250,6 +250,16 @@ export default function ProviderBookingsScreen({ navigation }) {
               </View>
             </View>
 
+            {/* Stop-by-stop plan: every seeker's pickup & drop in the best order */}
+            {['active', 'in-progress'].includes(selectedRide.status) && bookings.some(b => b.status === 'accepted') && (
+              <Btn
+                label="🧭 Route plan: all pickups & drops"
+                onPress={() => navigation.navigate('StopPlan', { rideId: selectedRide._id })}
+                variant="outline"
+                style={{ marginBottom: spacing.md }}
+              />
+            )}
+
             {/* Ride status controls */}
             {selectedRide.status === 'active' && (() => {
               const hasAccepted = bookings.some(b => b.status === 'accepted');
@@ -316,12 +326,8 @@ export default function ProviderBookingsScreen({ navigation }) {
                           gap: 6,
                         }}
                         onPress={() => {
-                          const url = Platform.select({
-                            ios: `maps:0,0?q=${query}`,
-                            android: `geo:0,0?q=${query}(Buddy+Pickup)`,
-                            default: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                          });
-                          Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                          const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+                          Linking.openURL(url).catch(() => {});
                         }}
                         activeOpacity={0.75}
                       >
@@ -486,7 +492,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                                     const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
                                     const url = Platform.select({
                                       ios: `maps:0,0?q=${query}`,
-                                      android: `geo:0,0?q=${query}(Buddy+Pickup)`,
+                                      android: `https://www.google.com/maps/search/?api=1&query=${query}`,
                                       default: `https://www.google.com/maps/search/?api=1&query=${query}`,
                                     });
                                     Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
@@ -585,7 +591,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                                     const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
                                     const url = Platform.select({
                                       ios: `maps:0,0?q=${query}`,
-                                      android: `geo:0,0?q=${query}(Buddy+Pickup)`,
+                                      android: `https://www.google.com/maps/search/?api=1&query=${query}`,
                                       default: `https://www.google.com/maps/search/?api=1&query=${query}`,
                                     });
                                     Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));

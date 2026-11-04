@@ -592,6 +592,9 @@ function PostsTab({ user }) {
                 if (!uploadingAttachment) {
                   setShowImageEditorModal(false);
                   setStagedAttachment(null);
+                  setTimeout(() => {
+                    pickImageFromLibrary();
+                  }, 350);
                 }
               }}
               style={{ padding: 6, marginRight: 12 }}
@@ -610,16 +613,17 @@ function PostsTab({ user }) {
             <CropView ref={cropRef} uri={stagedAttachment?.uri} accent={colors.accent} />
           </View>
 
-          {/* Bottom Floating Bar with ONLY the 4 options: Rotate, Crop, Attach ✓, Cancel ✕ */}
+          {/* Bottom Floating Bar with Rotate and Attach ✓ */}
           <View style={{
-            paddingHorizontal: 8,
-            paddingVertical: 12,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
             backgroundColor: isDark ? '#0a0e17' : '#ffffff',
             borderTopWidth: 1,
             borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
+            gap: 12,
           }}>
             {/* 1. Rotate */}
             <TouchableOpacity
@@ -627,22 +631,21 @@ function PostsTab({ user }) {
               disabled={uploadingAttachment}
               style={{
                 flex: 1,
-                marginHorizontal: 4,
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 5,
+                gap: 6,
                 backgroundColor: isDark ? '#162235' : '#f1f5f9',
                 borderWidth: 1.2,
                 borderColor: colors.accent,
                 borderRadius: radius.md,
-                paddingVertical: 11,
-                paddingHorizontal: 4,
+                paddingVertical: 12,
+                paddingHorizontal: 8,
               }}
               activeOpacity={0.75}
             >
-              <Text style={{ fontSize: 15 }}>⟳</Text>
-              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }} numberOfLines={1}>Rotate</Text>
+              <Text style={{ fontSize: 16 }}>⟳</Text>
+              <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '800' }} numberOfLines={1}>Rotate</Text>
             </TouchableOpacity>
 
             {/* 2. Attach (✓) */}
@@ -651,15 +654,14 @@ function PostsTab({ user }) {
               disabled={uploadingAttachment}
               style={{
                 flex: 1.3,
-                marginHorizontal: 4,
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 5,
+                gap: 6,
                 backgroundColor: '#2dd4a0',
                 borderRadius: radius.md,
-                paddingVertical: 11,
-                paddingHorizontal: 6,
+                paddingVertical: 12,
+                paddingHorizontal: 8,
               }}
               activeOpacity={0.8}
             >
@@ -667,39 +669,10 @@ function PostsTab({ user }) {
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <Text style={{ color: '#000', fontSize: 15, fontWeight: '900' }}>✓</Text>
-                  <Text style={{ color: '#000', fontSize: 13, fontWeight: '900' }} numberOfLines={1}>Attach</Text>
+                  <Text style={{ color: '#000', fontSize: 16, fontWeight: '900' }}>✓</Text>
+                  <Text style={{ color: '#000', fontSize: 14, fontWeight: '900' }} numberOfLines={1}>Attach Photo</Text>
                 </>
               )}
-            </TouchableOpacity>
-
-            {/* 4. Cancel (✕) */}
-            <TouchableOpacity
-              onPress={() => {
-                if (!uploadingAttachment) {
-                  setShowImageEditorModal(false);
-                  setStagedAttachment(null);
-                }
-              }}
-              disabled={uploadingAttachment}
-              style={{
-                flex: 1,
-                marginHorizontal: 3,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                backgroundColor: 'rgba(255, 82, 82, 0.2)',
-                borderWidth: 1.2,
-                borderColor: colors.red,
-                borderRadius: radius.md,
-                paddingVertical: 10,
-                paddingHorizontal: 2,
-              }}
-              activeOpacity={0.75}
-            >
-              <Text style={{ color: colors.red, fontSize: 14, fontWeight: '900' }}>✕</Text>
-              <Text style={{ color: colors.red, fontSize: 12, fontWeight: '800' }} numberOfLines={1}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -973,10 +946,10 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
     >
-      <View style={{ flex: 1, marginBottom: Platform.OS === 'android' ? keyboardHeight : 0 }}>
+      <View style={{ flex: 1 }}>
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
         ) : (

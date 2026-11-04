@@ -19,6 +19,9 @@ router.put('/respond',       controller.respondBooking);
 router.get('/ride/:rideId',  controller.getBookingsForRide);
 
 // ── Parameterized routes ─────────────────────────────────────
+router.get('/:bookingId/pickup-code', controller.getPickupCode);   // seeker only
+router.put('/:bookingId/stop',        controller.updateStop);      // provider only
+
 router.put('/:bookingId/accept', (req, res, next) => {
   req.body.bookingId = req.params.bookingId;
   req.body.status = 'accepted';

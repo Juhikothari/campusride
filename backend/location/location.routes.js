@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const { resolveMapsLink } = require('./mapsLink');
 
 router.get('/search', auth, async (req, res) => {
   try {
@@ -315,6 +316,20 @@ router.get('/route', auth, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: 'Route calculation failed' });
+  }
+});
+
+// ── Read a location from a pasted Google Maps link ─────────────────────────
+router.post('/resolve-maps-link', auth, async (req, res) => {
+  try {
+    const url = String(req.body?.url || '').slice(0, 2000);
+    const out = await resolveMapsLink(url);
+    if (!out) {
+      return res.status(422).json({ message: "Couldn't find a location in that link. In Google Maps tap Share → Copy link, then paste it here." });
+    }
+    return res.json(out);
+  } catch (err) {
+    return res.status(err.status || 400).json({ message: err.status ? err.message : "Couldn't read that link." });
   }
 });
 

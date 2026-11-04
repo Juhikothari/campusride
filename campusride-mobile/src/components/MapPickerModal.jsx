@@ -31,6 +31,52 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
   const [searchResults, setSearchResults] = useState([]);
   const [query,         setQuery]         = useState('');
   const [copied,        setCopied]        = useState(false);
+  const [mapsLink,      setMapsLink]      = useState('');
+  const [resolving,     setResolving]     = useState(false);
+  const [linkError,     setLinkError]     = useState('');
+
+  // ── Google Maps: open it, then read the link the user copies back ──
+  const openGoogleMaps = () => {
+    const url = coords
+      ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`
+      : 'https://www.google.com/maps';
+    Linking.openURL(url).catch(() => setLinkError('Could not open Google Maps'));
+  };
+
+  const applyMapsLink = async () => {
+    const text = mapsLink.trim();
+    if (!text || resolving) return;
+    setResolving(true);
+    setLinkError('');
+    try {
+      const r = await api.resolveMapsLink(text);
+      let lat = parseFloat(r?.lat);
+      let lng = parseFloat(r?.lng);
+      // link had only a place name: look it up with the normal search
+      if ((!Number.isFinite(lat) || !Number.isFinite(lng)) && r?.name) {
+        const found = await api.searchLocation(r.name);
+        const list = Array.isArray(found) ? found : found?.results || [];
+        const first = list[0];
+        lat = parseFloat(first?.lat || first?.latitude);
+        lng = parseFloat(first?.lon || first?.lng || first?.longitude);
+      }
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error("Couldn't find a location in that link.");
+      }
+      setCoords({ lat, lng });
+      try {
+        const g = await api.reverseGeocode(lat, lng);
+        setAddressLabel(g?.label || g?.display_name || g?.address || r?.name || 'Selected location');
+      } catch {
+        setAddressLabel(r?.name || 'Selected location');
+      }
+      setMapsLink('');
+    } catch (e) {
+      setLinkError(e?.message || "Couldn't read that link.");
+    } finally {
+      setResolving(false);
+    }
+  };
 
   const handleCopyLocation = async () => {
     if (!addressLabel) return;
@@ -193,6 +239,41 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               ))}
             </View>
           )}
+
+          {/* Use Google Maps to set the pin */}
+          <View style={[styles.gmapsCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
+            <Text style={[styles.gmapsTitle, { color: isDark ? colors.text : '#0f172a' }]}>🗺️ Pick the spot in Google Maps</Text>
+            <Text style={[styles.gmapsSteps, { color: isDark ? colors.text3 : '#64748b' }]}>
+              1. Tap Open Google Maps and long-press the exact spot.{'\n'}
+              2. Tap Share, then Copy link.{'\n'}
+              3. Come back here and paste it below.
+            </Text>
+            <TouchableOpacity onPress={openGoogleMaps} style={styles.gmapsOpenBtn} activeOpacity={0.8}>
+              <Text style={styles.gmapsOpenText}>Open Google Maps</Text>
+            </TouchableOpacity>
+            <View style={styles.gmapsRow}>
+              <TextInput
+                style={[styles.gmapsInput, { color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1', backgroundColor: isDark ? colors.surface2 : '#f8fafc' }]}
+                value={mapsLink}
+                onChangeText={(t) => { setMapsLink(t); if (linkError) setLinkError(''); }}
+                placeholder="Paste Google Maps link or coordinates"
+                placeholderTextColor={colors.text3}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={applyMapsLink}
+                returnKeyType="go"
+              />
+              <TouchableOpacity
+                onPress={applyMapsLink}
+                disabled={!mapsLink.trim() || resolving}
+                style={[styles.gmapsUseBtn, (!mapsLink.trim() || resolving) && { opacity: 0.5 }]}
+                activeOpacity={0.8}
+              >
+                {resolving ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.gmapsUseText}>Use</Text>}
+              </TouchableOpacity>
+            </View>
+            {!!linkError && <Text style={styles.gmapsError}>{linkError}</Text>}
+          </View>
 
           {/* Interactive Visual Map with Droppable Pin */}
           <View style={{ marginVertical: 10 }}>
@@ -487,4 +568,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  gmapsCard: { borderWidth: 1, borderRadius: 14, padding: 14, marginTop: 4 },
+  gmapsTitle: { fontSize: 14, fontWeight: '800', marginBottom: 6 },
+  gmapsSteps: { fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  gmapsOpenBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 10 },
+  gmapsOpenText: { color: '#000', fontSize: 13, fontWeight: '800' },
+  gmapsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gmapsInput: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13 },
+  gmapsUseBtn: { backgroundColor: colors.accent, borderRadius: 10, paddingHorizontal: 16, height: 40, alignItems: 'center', justifyContent: 'center' },
+  gmapsUseText: { color: '#000', fontSize: 13, fontWeight: '800' },
+  gmapsError: { color: '#dc2626', fontSize: 12, marginTop: 8 },
 });
