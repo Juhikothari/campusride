@@ -593,7 +593,7 @@ function PostsTab({ user }) {
                   setShowImageEditorModal(false);
                   setStagedAttachment(null);
                   setTimeout(() => {
-                    pickImageFromLibrary();
+                    handlePickImage();
                   }, 350);
                 }
               }}

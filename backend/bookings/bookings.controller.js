@@ -93,6 +93,20 @@ exports.requestBooking = async (req, res) => {
       return res.status(400).json({ message: `Invalid seat count. Available: ${ride.seatsAvailable}` });
     }
 
+    const cleanPoint = (p) => {
+      if (!p || typeof p !== 'object') return null;
+      const lat = Number(p.lat), lng = Number(p.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+      return {
+        type: 'Point',
+        coordinates: [lng, lat],
+        address: typeof p.address === 'string' ? p.address.slice(0, 200) : '',
+      };
+    };
+    const seekerPickup = cleanPoint(req.body.pickup);
+    const seekerDrop   = cleanPoint(req.body.drop);
+
 // Create booking WITH seats (seat availability is updated ONLY when provider accepts)
 const booking = new Booking({
   rideId,
@@ -275,11 +289,15 @@ exports.respondBooking = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to respond to this booking' });
     }
 
-    // If rejecting, restore the seat — only if not already rejected
-    if (status === 'rejected' && booking.status === 'pending') {
+    // Deduct seats when provider accepts (seat availability updates only upon acceptance)
+    if (status === 'accepted') {
       const ride = await Ride.findById(booking.rideId._id);
       if (ride) {
-        ride.seatsAvailable += booking.seats || 1;
+        const seatsNeeded = booking.seats || 1;
+        if (ride.seatsAvailable < seatsNeeded) {
+          return res.status(400).json({ message: `Not enough seats available. Only ${ride.seatsAvailable} seat(s) left.` });
+        }
+        ride.seatsAvailable = Math.max(0, ride.seatsAvailable - seatsNeeded);
         await ride.save();
       }
     }
@@ -539,10 +557,10 @@ exports.cancelBooking = async (req, res) => {
       return res.status(400).json({ message: 'Booking already cancelled' });
     }
 
-    // Restore seat if it was accepted/pending
-    if (['accepted', 'pending'].includes(booking.status)) {
+    // Restore seat only if it was accepted (pending bookings do not decrement available seats)
+    if (booking.status === 'accepted') {
       const ride = await Ride.findById(booking.rideId._id || booking.rideId);
-      if (ride) { ride.seatsAvailable += booking.seats || 1; await ride.save(); }
+      if (ride) { ride.seatsAvailable = (ride.seatsAvailable || 0) + (booking.seats || 1); await ride.save(); }
     }
 
     booking.status = 'cancelled';

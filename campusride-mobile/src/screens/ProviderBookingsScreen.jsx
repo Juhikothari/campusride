@@ -99,8 +99,15 @@ export default function ProviderBookingsScreen({ navigation }) {
   const respond = async (bookingId, action) => {
     setActionMap(m => ({ ...m, [bookingId]: { loading: true } }));
     try {
-      if (action === 'accepted') await api.acceptBooking(bookingId);
-      else                       await api.rejectBooking(bookingId);
+      if (action === 'accepted') {
+        await api.acceptBooking(bookingId);
+        const booked = bookings.find(b => b._id === bookingId);
+        const seatCount = booked?.seatsBooked || booked?.seats || 1;
+        setSelectedRide(r => r ? { ...r, seatsAvailable: Math.max(0, (r.seatsAvailable || 0) - seatCount) } : r);
+        setMyRides(prev => prev.map(r => r._id === selectedRide?._id ? { ...r, seatsAvailable: Math.max(0, (r.seatsAvailable || 0) - seatCount) } : r));
+      } else {
+        await api.rejectBooking(bookingId);
+      }
       setActionMap(m => ({ ...m, [bookingId]: { done: true } }));
       setBookings(prev => prev.map(b => b._id === bookingId ? { ...b, status: action } : b));
     } catch (e) {
