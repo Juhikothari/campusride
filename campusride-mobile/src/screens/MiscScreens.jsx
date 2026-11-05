@@ -17,6 +17,7 @@ import BookingPointsModal from '../components/BookingPointsModal';
 import TimePickerModal from '../components/TimePickerModal';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { openGoogleMaps } from '../utils/maps';
 import { formatDateDMY } from '../utils/date';
 
 function getAddr(field) {
@@ -69,7 +70,9 @@ export function RideDetailScreen({ navigation, route }) {
 
   if (loading) return <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}><ActivityIndicator color={colors.accent} style={{ marginTop: 60 }} /></SafeAreaView>;
 
-  const isOwner  = ride && (ride.providerId?._id === user?._id || ride.providerId === user?._id);
+  const myId = user?._id ? String(user._id) : (user?.userId ? String(user.userId) : null);
+  const provId = ride?.providerId?._id ? String(ride.providerId._id) : (ride?.providerId ? String(ride.providerId) : (ride?.provider?._id ? String(ride.provider._id) : null));
+  const isOwner = Boolean(myId && provId && myId === provId);
   const isSeeker = user?.role === 'seeker' || user?.role === 'both';
   const canBook  = isSeeker && !isOwner && !booking.status && ride?.status === 'active';
   const VEHICLE_ICON = { motorcycle: '🏍️', car: '🚗', suv: '🚙', xuv: '🛻' };
@@ -150,7 +153,7 @@ export function RideDetailScreen({ navigation, route }) {
                   const dropAddr = getAddr(ride?.drop) || '';
                   const dest = dropLat && dropLng ? `${dropLat},${dropLng}` : encodeURIComponent(dropAddr);
                   if (dest) {
-                    Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
+                    openGoogleMaps({ destination: dest, travelmode: 'driving' });
                   }
                 }}
                 style={{

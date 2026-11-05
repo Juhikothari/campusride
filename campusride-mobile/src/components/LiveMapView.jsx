@@ -33,15 +33,30 @@ export default function LiveMapView({
     const pinLat = pinLocation?.lat ? parseFloat(pinLocation.lat) : null;
     const pinLng = pinLocation?.lng ? parseFloat(pinLocation.lng) : null;
 
-    const leg1Array = (leg1Coordinates && leg1Coordinates.length > 0)
-      ? leg1Coordinates.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
+    // Combine route coordinates into 1 single unified continuous route:
+    // Start -> Pickups -> Drops -> Finish
+    let unifiedPoints = [];
+    if (coordinates && coordinates.length > 0) {
+      unifiedPoints = coordinates;
+    } else if ((leg1Coordinates && leg1Coordinates.length > 0) || (leg2Coordinates && leg2Coordinates.length > 0)) {
+      unifiedPoints = [...(leg1Coordinates || []), ...(leg2Coordinates || [])];
+    }
+
+    const singleRouteArray = (unifiedPoints && unifiedPoints.length > 0)
+      ? unifiedPoints.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
       : '';
-    const leg2Array = (leg2Coordinates && leg2Coordinates.length > 0)
-      ? leg2Coordinates.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
-      : '';
-    const coordsArray = (coordinates && coordinates.length > 0)
-      ? coordinates.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
-      : (pLat && pLng && dLat && dLng) ? `[${pLat}, ${pLng}], [${dLat}, ${dLng}]` : '';
+
+    // Direct sequential fallback if detailed path coordinates are not loaded yet
+    const fallbackSeq = [];
+    if (drLat && drLng) fallbackSeq.push(`[${drLat}, ${drLng}]`);
+    if (pLat && pLng) fallbackSeq.push(`[${pLat}, ${pLng}]`);
+    (Array.isArray(extraPickups) ? extraPickups : []).forEach(ep => {
+      const eLat = ep?.lat ? parseFloat(ep.lat) : null;
+      const eLng = ep?.lng ? parseFloat(ep.lng) : null;
+      if (eLat && eLng) fallbackSeq.push(`[${eLat}, ${eLng}]`);
+    });
+    if (dLat && dLng) fallbackSeq.push(`[${dLat}, ${dLng}]`);
+    const fallbackSeqArray = fallbackSeq.length > 1 ? fallbackSeq.join(',') : '';
 
     return `
       <!DOCTYPE html>
@@ -54,7 +69,7 @@ export default function LiveMapView({
         <style>
           html, body, #map {
             margin: 0; padding: 0; width: 100%; height: 100%;
-            background: #0b0f17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
           
           /* Eye-Catching Custom Point Symbols */
@@ -178,86 +193,16 @@ export default function LiveMapView({
             touchZoom: ${interactive ? 'true' : 'false'},
           }).setView([${defaultLat}, ${defaultLng}], 14);
 
-          // OpenStreetMap free street tiles
-          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
+          // Google Maps standard street road tiles
+          L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+            maxZoom: 20,
+            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
             attribution: ''
           }).addTo(map);
 
           const markers = [];
 
-          // 1. Eye-Catching Seeker Pickup Marker
-          ${pLat && pLng ? `
-            const pIcon = L.divIcon({
-              className: '',
-              html: \`
-                <div class="pin-container">
-                  <div class="beacon-ring beacon-pickup"></div>
-                  <div class="point-badge badge-pickup">
-                    <span style="font-size: 15px;">📍</span>
-                    <span>PICKUP</span>
-                  </div>
-                  <div class="point-arrow arrow-pickup"></div>
-                  <div class="point-anchor-dot"></div>
-                </div>
-              \`,
-              iconSize: [96, 52],
-              iconAnchor: [48, 50]
-            });
-            const pMarker = L.marker([${pLat}, ${pLng}], { icon: pIcon }).addTo(map).bindPopup('<b>🟢 Seeker Pickup Spot</b><br/>${pickup?.label || "Confirmed Pickup"}');
-            markers.push([${pLat}, ${pLng}]);
-          ` : ''}
-
-          // 1b. Additional Seeker Pickup Markers (Multi-Seeker Commute)
-          ${(Array.isArray(extraPickups) ? extraPickups : []).map((ep, epIdx) => {
-            const epLat = ep?.lat ? parseFloat(ep.lat) : null;
-            const epLng = ep?.lng ? parseFloat(ep.lng) : null;
-            if (!epLat || !epLng) return '';
-            return `
-              const epIcon_${epIdx} = L.divIcon({
-                className: '',
-                html: \`
-                  <div class="pin-container">
-                    <div class="beacon-ring beacon-pickup"></div>
-                    <div class="point-badge badge-pickup">
-                      <span style="font-size: 15px;">📍</span>
-                      <span>BUDDY ${epIdx + 2}</span>
-                    </div>
-                    <div class="point-arrow arrow-pickup"></div>
-                    <div class="point-anchor-dot"></div>
-                  </div>
-                \`,
-                iconSize: [100, 52],
-                iconAnchor: [50, 50]
-              });
-              L.marker([${epLat}, ${epLng}], { icon: epIcon_${epIdx} }).addTo(map).bindPopup('<b>🟢 Buddy ${epIdx + 2} Pickup</b><br/>${ep.label || "Buddy Pickup Location"}');
-              markers.push([${epLat}, ${epLng}]);
-            `;
-          }).join('\n')}
-
-          // 2. Eye-Catching Destination Drop Marker
-          ${dLat && dLng ? `
-            const dIcon = L.divIcon({
-              className: '',
-              html: \`
-                <div class="pin-container">
-                  <div class="beacon-ring beacon-drop"></div>
-                  <div class="point-badge badge-drop">
-                    <span style="font-size: 15px;">🏁</span>
-                    <span>DESTINATION</span>
-                  </div>
-                  <div class="point-arrow arrow-drop"></div>
-                  <div class="point-anchor-dot"></div>
-                </div>
-              \`,
-              iconSize: [126, 52],
-              iconAnchor: [63, 50]
-            });
-            const dMarker = L.marker([${dLat}, ${dLng}], { icon: dIcon }).addTo(map).bindPopup('<b>🏁 Drop-off Destination</b><br/>${drop?.label || "Confirmed Drop Destination"}');
-            markers.push([${dLat}, ${dLng}]);
-          ` : ''}
-
-          // 3. Eye-Catching Provider / Driver Live Marker
+          // 1. Start / Provider Live Marker
           ${drLat && drLng ? `
             const drIcon = L.divIcon({
               className: '',
@@ -266,20 +211,92 @@ export default function LiveMapView({
                   <div class="beacon-ring beacon-driver"></div>
                   <div class="point-badge badge-driver">
                     <span style="font-size: 16px;">🚗</span>
-                    <span>PROVIDER</span>
+                    <span>START / PROVIDER</span>
                   </div>
                   <div class="point-arrow arrow-driver"></div>
                   <div class="point-anchor-dot"></div>
                 </div>
               \`,
-              iconSize: [110, 52],
-              iconAnchor: [55, 50]
+              iconSize: [140, 52],
+              iconAnchor: [70, 50]
             });
-            const drMarker = L.marker([${drLat}, ${drLng}], { icon: drIcon }).addTo(map).bindPopup('<b>🚗 Provider Live Location</b><br/>En Route');
+            L.marker([${drLat}, ${drLng}], { icon: drIcon }).addTo(map).bindPopup('<b>🚗 Provider / Start Location</b><br/>En Route');
             markers.push([${drLat}, ${drLng}]);
           ` : ''}
 
-          // 4. Pin marker for manual coordinate picking
+          // 2. Seeker 1 Pickup Marker
+          ${pLat && pLng ? `
+            const pIcon = L.divIcon({
+              className: '',
+              html: \`
+                <div class="pin-container">
+                  <div class="beacon-ring beacon-pickup"></div>
+                  <div class="point-badge badge-pickup">
+                    <span style="font-size: 15px;">📍</span>
+                    <span>PICKUP 1</span>
+                  </div>
+                  <div class="point-arrow arrow-pickup"></div>
+                  <div class="point-anchor-dot"></div>
+                </div>
+              \`,
+              iconSize: [100, 52],
+              iconAnchor: [50, 50]
+            });
+            L.marker([${pLat}, ${pLng}], { icon: pIcon }).addTo(map).bindPopup('<b>🟢 Seeker 1 Pickup Spot</b><br/>${pickup?.label || "Confirmed Pickup"}');
+            markers.push([${pLat}, ${pLng}]);
+          ` : ''}
+
+          // 3. Additional Seekers Pickups (Multi-Seeker Commute)
+          ${(Array.isArray(extraPickups) ? extraPickups : []).map((ep, epIdx) => {
+            const epLat = ep?.lat ? parseFloat(ep.lat) : null;
+            const epLng = ep?.lng ? parseFloat(ep.lng) : null;
+            if (!epLat || !epLng) return '';
+            const pickupNum = epIdx + 2;
+            return `
+              const epIcon_${epIdx} = L.divIcon({
+                className: '',
+                html: \`
+                  <div class="pin-container">
+                    <div class="beacon-ring beacon-pickup"></div>
+                    <div class="point-badge badge-pickup">
+                      <span style="font-size: 15px;">📍</span>
+                      <span>PICKUP ${pickupNum}</span>
+                    </div>
+                    <div class="point-arrow arrow-pickup"></div>
+                    <div class="point-anchor-dot"></div>
+                  </div>
+                \`,
+                iconSize: [106, 52],
+                iconAnchor: [53, 50]
+              });
+              L.marker([${epLat}, ${epLng}], { icon: epIcon_${epIdx} }).addTo(map).bindPopup('<b>🟢 Pickup ${pickupNum}</b><br/>${ep.label || "Buddy Pickup Location"}');
+              markers.push([${epLat}, ${epLng}]);
+            `;
+          }).join('\n')}
+
+          // 4. Finish / Destination Drop Marker (Always visible to show complete route)
+          ${dLat && dLng ? `
+            const dIcon = L.divIcon({
+              className: '',
+              html: \`
+                <div class="pin-container">
+                  <div class="beacon-ring beacon-drop"></div>
+                  <div class="point-badge badge-drop">
+                    <span style="font-size: 15px;">🏁</span>
+                    <span>FINISH / DROP</span>
+                  </div>
+                  <div class="point-arrow arrow-drop"></div>
+                  <div class="point-anchor-dot"></div>
+                </div>
+              \`,
+              iconSize: [130, 52],
+              iconAnchor: [65, 50]
+            });
+            L.marker([${dLat}, ${dLng}], { icon: dIcon }).addTo(map).bindPopup('<b>🏁 Drop Destination (Finish)</b><br/>${drop?.label || "Confirmed Drop Destination"}');
+            markers.push([${dLat}, ${dLng}]);
+          ` : ''}
+
+          // 5. Pin marker for manual coordinate picking
           ${pinLat && pinLng ? `
             const pinIcon = L.divIcon({
               className: '',
@@ -307,112 +324,39 @@ export default function LiveMapView({
             markers.push([${pinLat}, ${pinLng}]);
           ` : ''}
 
-          // 2-Leg Route Polylines: Driver -> Seeker Pickup (Leg 1) -> Destination (Leg 2)
+          // ── 1 SINGLE CONTINUOUS ROUTE: Start -> Pickup(s) -> Finish ──
           const allRouteBounds = [];
+          const routePathPoints = ${singleRouteArray ? `[${singleRouteArray}]` : (fallbackSeqArray ? `[${fallbackSeqArray}]` : '[]')};
 
-          ${leg1Array ? `
+          if (routePathPoints && routePathPoints.length > 1) {
             try {
-              const leg1Points = [${leg1Array}];
-              if (leg1Points.length > 0) {
-                // Outer glowing halo
-                L.polyline(leg1Points, {
-                  color: '#00E5FF',
-                  weight: 8,
-                  opacity: 0.35,
-                  lineJoin: 'round'
-                }).addTo(map);
-                // Inner dashed active path
-                const poly1 = L.polyline(leg1Points, {
-                  color: '#00E5FF',
-                  weight: 5,
-                  opacity: 0.98,
-                  dashArray: '10, 10',
-                  lineJoin: 'round'
-                }).addTo(map).bindPopup('<b>Leg 1: Provider approaching Seeker</b>');
-                if (poly1.getBounds && poly1.getBounds().isValid()) {
-                  allRouteBounds.push(poly1.getBounds());
-                }
-              }
-            } catch(e) {}
-          ` : (drLat && drLng && pLat && pLng) ? `
-            try {
-              const directLeg1 = [[${drLat}, ${drLng}], [${pLat}, ${pLng}]];
-              L.polyline(directLeg1, {
-                color: '#00E5FF',
+              // Outer vibrant neon halo
+              L.polyline(routePathPoints, {
+                color: '#1d4ed8',
                 weight: 8,
                 opacity: 0.35,
                 lineJoin: 'round'
               }).addTo(map);
-              const poly1 = L.polyline(directLeg1, {
-                color: '#00E5FF',
-                weight: 5,
-                opacity: 0.95,
-                dashArray: '8, 8',
-                lineJoin: 'round'
-              }).addTo(map).bindPopup('<b>Leg 1: Provider heading to Seeker</b>');
-              if (poly1.getBounds && poly1.getBounds().isValid()) {
-                allRouteBounds.push(poly1.getBounds());
-              }
-            } catch(e) {}
-          ` : ''}
 
-          ${leg2Array ? `
-            try {
-              const leg2Points = [${leg2Array}];
-              if (leg2Points.length > 0) {
-                // Outer golden neon glow
-                L.polyline(leg2Points, {
-                  color: '#f5a623',
-                  weight: 8,
-                  opacity: 0.35,
-                  lineJoin: 'round'
-                }).addTo(map);
-                // Inner bold route
-                const poly2 = L.polyline(leg2Points, {
-                  color: '#f5a623',
-                  weight: 5,
-                  opacity: 0.98,
-                  lineJoin: 'round'
-                }).addTo(map).bindPopup('<b>Leg 2: En route to Destination</b>');
-                if (poly2.getBounds && poly2.getBounds().isValid()) {
-                  allRouteBounds.push(poly2.getBounds());
-                }
+              // Inner bold single route line
+              const singleRoute = L.polyline(routePathPoints, {
+                color: '#2563eb',
+                weight: 5,
+                opacity: 0.98,
+                lineJoin: 'round'
+              }).addTo(map).bindPopup('<b>🚗 Campus Ride Route</b><br/>Start → Pickup → Finish');
+
+              if (singleRoute.getBounds && singleRoute.getBounds().isValid()) {
+                allRouteBounds.push(singleRoute.getBounds());
               }
-            } catch(e) {}
-          ` : coordsArray ? `
-            try {
-              const routePoints = [${coordsArray}];
-              if (routePoints.length > 0) {
-                L.polyline(routePoints, {
-                  color: '#a855f7',
-                  weight: 8,
-                  opacity: 0.35,
-                  lineJoin: 'round'
-                }).addTo(map);
-                const polyline = L.polyline(routePoints, {
-                  color: '#c084fc',
-                  weight: 5,
-                  opacity: 0.95,
-                  lineJoin: 'round'
-                }).addTo(map).bindPopup('<b>Confirmed Ride Route</b>');
-                if (polyline.getBounds && polyline.getBounds().isValid()) {
-                  allRouteBounds.push(polyline.getBounds());
-                }
-              }
-            } catch(polyErr) {
-              console.error('Polyline render error:', polyErr);
+            } catch(e) {
+              console.error('Route polyline error:', e);
             }
-          ` : ''}
+          }
 
           if (allRouteBounds.length > 0) {
             try {
-              let combined = allRouteBounds[0];
-              for (let i = 1; i < allRouteBounds.length; i++) {
-                combined = combined.extend(allRouteBounds[i]);
-              }
-              if (combined && combined.isValid()) {
-                map.fitBounds(combined, { padding: [40, 40] });
-              }
+              map.fitBounds(allRouteBounds[0], { padding: [40, 40] });
             } catch(e) {}
           } else if (markers.length > 1) {
             try {

@@ -15,6 +15,7 @@ import { Btn, Alert, EmptyState } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { subscribeToNotifications } from '../hooks/useSocket';
+import { openGoogleMaps } from '../utils/maps';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -476,8 +477,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
     const targetLat = activeStop?.lat || dropCoords?.latitude;
     const targetLng = activeStop?.lng || dropCoords?.longitude;
     if (targetLat && targetLng) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${targetLat},${targetLng}&travelmode=driving`;
-      Linking.openURL(url).catch(() => {});
+      openGoogleMaps({ destination: { lat: targetLat, lng: targetLng }, travelmode: 'driving' });
     } else {
       RNAlert.alert('Navigation', `Guiding to: ${activeStop?.title || 'destination'}`);
     }
@@ -555,41 +555,32 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const openDirectionsInGoogleMaps = () => {
     // Only provider gets external driving directions; seeker uses in-app live tracking
     if (!isDriver) return;
-    const originStr = userLat && userLng ? `&origin=${userLat},${userLng}` : '';
+    const origin = (userLat && userLng)
+      ? { lat: userLat, lng: userLng }
+      : (pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude } : null);
     const acceptedSeekers = (rideInfo?.passengers || []).filter(p => p.status === 'accepted');
 
-    const destPoint = (dropCoords?.latitude && dropCoords?.longitude)
-      ? `${dropCoords.latitude},${dropCoords.longitude}`
-      : (rideInfo?.drop?.address ? encodeURIComponent(rideInfo.drop.address) : null);
+    const destination = (dropCoords?.latitude && dropCoords?.longitude)
+      ? { lat: dropCoords.latitude, lng: dropCoords.longitude }
+      : (rideInfo?.drop?.address || null);
 
     const pickupPoints = acceptedSeekers
       .map(p => {
         const loc = p.pickupLocation || p.seeker?.pickupLocation || pickupCoords;
         const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
         const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-        return lat && lng ? `${lat},${lng}` : null;
+        return (lat && lng) ? { lat, lng } : null;
       })
       .filter(Boolean);
 
-    // If 2 or more seekers accepted, route must visit all seekers' pickup locations then final destination!
-    if (pickupPoints.length > 0 && destPoint) {
-      if (pickupPoints.length > 1) {
-        const waypoints = pickupPoints.join('|');
-        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${destPoint}&waypoints=${waypoints}&travelmode=driving`;
-        Linking.openURL(url).catch(() => {});
-        return;
-      } else if (!isTripToDestination) {
-        // Leg 1: go to single seeker pickup
-        const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${pickupPoints[0]}&travelmode=driving`;
-        Linking.openURL(url).catch(() => {});
-        return;
-      }
-    }
-
-    if (destPoint) {
-      const url = `https://www.google.com/maps/dir/?api=1${originStr}&destination=${destPoint}&travelmode=driving`;
-      Linking.openURL(url).catch(() => {});
-    }
+    // One single route with all points directly in Google Maps:
+    // Origin -> all seekers' pickups as waypoints -> final Destination
+    openGoogleMaps({
+      origin,
+      destination,
+      waypoints: pickupPoints,
+      travelmode: 'driving',
+    });
   };
 
   const openExternalNavigation = (destLat, destLng, label = 'Destination') => {
@@ -842,11 +833,10 @@ export default function LiveTrackingScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            {/* Interactive OpenStreetMap Live Map with Eye-Catching Markers */}
-            {/* If 2 seekers have accepted, both pickup spots and destination are marked */}
+            {/* Interactive Google Street Live Map with Single Unified Route & Eye-Catching Markers */}
             <LiveMapView
               pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
-              drop={isTripToDestination && dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
+              drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
               driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
               extraPickups={isDriver ? (rideInfo?.passengers || [])
                 .filter(p => p.status === 'accepted')
@@ -858,9 +848,9 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   return lat && lng ? { lat, lng, label: `Buddy ${usn}: Pickup` } : null;
                 })
                 .filter(Boolean) : []}
-              coordinates={isTripToDestination ? routeCoordinates : []}
-              leg1Coordinates={!isTripToDestination ? leg1Coords : []}
-              leg2Coordinates={isTripToDestination ? leg2Coords : []}
+              coordinates={routeCoordinates}
+              leg1Coordinates={leg1Coords}
+              leg2Coordinates={leg2Coords}
               height={isMapExpanded ? 460 : 320}
               style={{ marginBottom: 12 }}
             />
@@ -1055,8 +1045,8 @@ export default function LiveTrackingScreen({ navigation, route }) {
                                 const loc = p.pickupLocation || p.seeker?.pickupLocation || rideInfo?.pickup;
                                 const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
                                 const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-                                const dest = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.address || 'Buddy Pickup');
-                                Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`).catch(() => {});
+                                const dest = (lat && lng) ? { lat, lng } : (loc?.address || 'Buddy Pickup');
+                                openGoogleMaps({ destination: dest });
                               }}
                               activeOpacity={0.75}
                             >

@@ -9,6 +9,7 @@ import LiveMapView from './LiveMapView';
 import { colors, radius, spacing } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import * as api from '../services/api';
+import { openGoogleMaps } from '../utils/maps';
 
 const POPULAR_CAMPUS_SPOTS = [
   'Campus Main Gate',
@@ -36,11 +37,8 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
   const [linkError,     setLinkError]     = useState('');
 
   // ── Google Maps: open it, then read the link the user copies back ──
-  const openGoogleMaps = () => {
-    const url = coords
-      ? `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`
-      : 'https://www.google.com/maps';
-    Linking.openURL(url).catch(() => setLinkError('Could not open Google Maps'));
+  const handleOpenMaps = () => {
+    openGoogleMaps({ query: coords ? `${coords.lat},${coords.lng}` : 'Bengaluru' });
   };
 
   const applyMapsLink = async () => {
@@ -248,7 +246,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               2. Tap Share, then Copy link.{'\n'}
               3. Come back here and paste it below.
             </Text>
-            <TouchableOpacity onPress={openGoogleMaps} style={styles.gmapsOpenBtn} activeOpacity={0.8}>
+            <TouchableOpacity onPress={handleOpenMaps} style={styles.gmapsOpenBtn} activeOpacity={0.8}>
               <Text style={styles.gmapsOpenText}>Open Google Maps</Text>
             </TouchableOpacity>
             <View style={styles.gmapsRow}>

@@ -12,6 +12,7 @@ import FloatingChatBot from '../components/FloatingChatBot';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { openGoogleMaps } from '../utils/maps';
 import { getDisplayUSN } from '../utils/usn';
 
 // ════════════════════════════════════════════════════════════════
@@ -1617,12 +1618,7 @@ export function PreRideChecklistScreen({ route, navigation }) {
                 const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
                 const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
                 const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
-                const url = Platform.select({
-                  ios: `maps:0,0?q=${query}`,
-                  android: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                  default: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                });
-                Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                openGoogleMaps({ query });
               }}
               activeOpacity={0.75}
             >

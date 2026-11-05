@@ -17,6 +17,7 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { getDisplayUSN } from '../utils/usn';
 import { formatDateDMY } from '../utils/date';
+import { openGoogleMaps } from '../utils/maps';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -833,8 +834,8 @@ export default function DashboardScreen({ navigation }) {
                           const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
                           const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
                           const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
-                          const url = `https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`;
-                          Linking.openURL(url).catch(() => {});
+                          const destination = (lat && lng) ? { lat, lng } : (loc?.name || loc?.address || 'Pickup');
+                          openGoogleMaps({ destination, travelmode: 'driving' });
                         }}
                         style={{
                           flexDirection: 'row',

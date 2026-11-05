@@ -13,6 +13,7 @@ import { RatingModal } from './ExtraScreens';
 import { useSocket } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { openGoogleMaps } from '../utils/maps';
 import { getDisplayUSN } from '../utils/usn';
 import { formatDateDMY } from '../utils/date';
 
@@ -332,10 +333,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                           alignSelf: 'flex-start',
                           gap: 6,
                         }}
-                        onPress={() => {
-                          const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
-                          Linking.openURL(url).catch(() => {});
-                        }}
+                        onPress={() => { openGoogleMaps({ query }); }}
                         activeOpacity={0.75}
                       >
                         <Text style={{ fontSize: 13 }}>🗺️</Text>
@@ -496,13 +494,8 @@ export default function ProviderBookingsScreen({ navigation }) {
                                     const coords = loc?.coordinates;
                                     const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
                                     const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
-                                    const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
-                                    const url = Platform.select({
-                                      ios: `maps:0,0?q=${query}`,
-                                      android: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                                      default: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                                    });
-                                    Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                                    const query = (lat && lng) ? `${lat},${lng}` : (loc?.name || loc?.address || 'Pickup');
+                                    openGoogleMaps({ query });
                                   }}
                                   activeOpacity={0.75}
                                 >
@@ -595,13 +588,8 @@ export default function ProviderBookingsScreen({ navigation }) {
                                     const coords = loc?.coordinates;
                                     const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
                                     const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
-                                    const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
-                                    const url = Platform.select({
-                                      ios: `maps:0,0?q=${query}`,
-                                      android: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                                      default: `https://www.google.com/maps/search/?api=1&query=${query}`,
-                                    });
-                                    Linking.openURL(url).catch(() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`));
+                                    const query = (lat && lng) ? `${lat},${lng}` : (loc?.name || loc?.address || 'Pickup');
+                                    openGoogleMaps({ query });
                                   }}
                                   activeOpacity={0.75}
                                 >

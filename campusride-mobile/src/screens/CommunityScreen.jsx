@@ -552,13 +552,7 @@ function PostsTab({ user }) {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.attachModalCancelBtn}
-              onPress={() => setShowAttachModal(false)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.attachModalCancelText}>Cancel</Text>
-            </TouchableOpacity>
+            
           </View>
         </TouchableOpacity>
       </Modal>
@@ -946,8 +940,8 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={{ flex: 1 }}>
         {loading ? (
