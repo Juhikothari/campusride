@@ -405,7 +405,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                 }
               ]}>
                 <Text style={{ fontSize: 32, marginBottom: 8 }}>🔒</Text>
-                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Ride Completed</Text>
+                <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Ride Completed</Text>
                 <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 18 }}>
                   Seeker personal and contact details are hidden once a ride is completed in accordance with student safety and privacy policy.
                 </Text>

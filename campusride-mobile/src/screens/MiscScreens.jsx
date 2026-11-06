@@ -144,35 +144,7 @@ export function RideDetailScreen({ navigation, route }) {
               </View>
             </View>
 
-            {/* Directions ↗ to Google Maps — Provider only */}
-            {isOwner && (
-              <TouchableOpacity
-                onPress={() => {
-                  const dropLat = ride?.drop?.lat || ride?.drop?.latitude;
-                  const dropLng = ride?.drop?.lng || ride?.drop?.longitude;
-                  const dropAddr = getAddr(ride?.drop) || '';
-                  const dest = dropLat && dropLng ? `${dropLat},${dropLng}` : encodeURIComponent(dropAddr);
-                  if (dest) {
-                    openGoogleMaps({ destination: dest, travelmode: 'driving' });
-                  }
-                }}
-                style={{
-                  backgroundColor: colors.accent,
-                  borderRadius: radius.md,
-                  paddingVertical: 11,
-                  paddingHorizontal: 16,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  marginBottom: 12,
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 16 }}>🧭</Text>
-                <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>Directions ↗</Text>
-              </TouchableOpacity>
-            )}
+            {/* Directions removed from RideDetailScreen: seekers do not drive; provider navigates via ProviderBookings and LiveTracking */}
 
             {/* Details */}
             <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
@@ -197,9 +169,7 @@ export function RideDetailScreen({ navigation, route }) {
             {/* Confirmed Provider Card — ONLY AFTER ACCEPTANCE */}
             {booking.status === 'accepted' && (
               <View style={[
-                styles.card,
-                {
-                  backgroundColor: isDark ? colors.surface : '#ffffff',
+                styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff',
                   borderColor: isDark ? colors.green : '#86efac',
                   borderWidth: 1.5,
                 }

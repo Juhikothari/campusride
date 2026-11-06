@@ -734,7 +734,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
             icon="📍"
             title="No Active Ride to Track"
             subtitle="When you start or book a ride, your live route, GPS location, and ETA will show here in real time."
-            action={() => navigation.navigate('SearchMatch')}
+            action={() => navigation.navigate('SearchRides')}
             actionLabel="Find a Ride →"
           />
         </View>

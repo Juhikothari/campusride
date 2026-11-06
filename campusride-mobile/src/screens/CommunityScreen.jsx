@@ -937,10 +937,13 @@ function CollegeChatTab({ user }) {
 
   const myId = user?._id || user?.userId;
 
-  const androidKeyboardPad = (Platform.OS === 'android' && keyboardVisible && keyboardHeight > 0) ? keyboardHeight : 0;
-
-  const chatContent = (
-    <View style={{ flex: 1, marginBottom: androidKeyboardPad }}>
+    return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 35}
+    >
+      <View style={{ flex: 1 }}>
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
         ) : (
@@ -1026,17 +1029,8 @@ function CollegeChatTab({ user }) {
           </TouchableOpacity>
         </View>
       </View>
+    </KeyboardAvoidingView>
   );
-
-  if (Platform.OS === 'ios') {
-    return (
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={88}>
-        {chatContent}
-      </KeyboardAvoidingView>
-    );
-  }
-
-  return chatContent;
 }
 
 // ── Main Screen ───────────────────────────────────────────────────

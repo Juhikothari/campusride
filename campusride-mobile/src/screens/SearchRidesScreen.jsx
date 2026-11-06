@@ -399,7 +399,7 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Search Your Buddy" subtitle="Find verified campus commuters" showBack={navigation.canGoBack()} />
+      <TopHeader title="Find a Ride" subtitle="Find verified campus rides & buddies" showBack={navigation.canGoBack()} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -630,7 +630,7 @@ export default function SearchRidesScreen({ navigation }) {
 
         <Alert message={error} />
 
-        <Btn label="🔍 Search Your Buddy" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
+        <Btn label="🔍 Find a Ride" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
 
         {/* Results */}
         <View style={{ marginTop: spacing.lg }}>
@@ -648,9 +648,9 @@ export default function SearchRidesScreen({ navigation }) {
               }
             ]}>
               <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>🧭</Text>
-              <Text style={[styles.preSearchTitle, { color: isDark ? '#edf0f7' : '#0f172a' }]}>Ready to Find a Buddy?</Text>
+              <Text style={[styles.preSearchTitle, { color: isDark ? '#edf0f7' : '#0f172a' }]}>Ready to Find a Ride?</Text>
               <Text style={[styles.preSearchSub, { color: isDark ? '#8b96b0' : '#475569' }]}>
-                Enter your pickup & drop locations above, then tap "Search Your Buddy" to find verified rides along your route within 5km.
+                Enter your pickup & drop locations above, then tap "Find a Ride" to find verified rides along your route within 5km.
               </Text>
             </View>
           ) : rides.length === 0 ? (

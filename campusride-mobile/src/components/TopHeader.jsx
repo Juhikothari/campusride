@@ -121,7 +121,16 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
         <View style={styles.brandContainer}>
           {canGoBack && (
             <TouchableOpacity
-              style={[styles.backBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)', borderRadius: 18, width: 34, height: 34, justifyContent: 'center', alignItems: 'center' }]}
+              style={[styles.backBtn, {
+                backgroundColor: isDark ? '#1a2232' : '#f1f5f9',
+                borderWidth: 1.5,
+                borderColor: isDark ? '#2a374d' : '#cbd5e1',
+                borderRadius: 18,
+                width: 36,
+                height: 36,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }]}
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
