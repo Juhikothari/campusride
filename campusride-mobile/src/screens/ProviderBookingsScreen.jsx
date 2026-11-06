@@ -514,13 +514,39 @@ export default function ProviderBookingsScreen({ navigation }) {
                           </View>
                         </View>
 
+                        {/* Prominent Price Display for Provider to Review */}
+                        <View style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          backgroundColor: isDark ? 'rgba(245,166,35,0.1)' : '#fffbeb',
+                          borderWidth: 1,
+                          borderColor: isDark ? 'rgba(245,166,35,0.3)' : '#fde047',
+                          borderRadius: radius.md,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          marginTop: 8
+                        }}>
+                          <Text style={{ fontSize: 12, fontWeight: '800', color: isDark ? colors.text : '#0f172a' }}>
+                            💰 Fare to Collect from Buddy:
+                          </Text>
+                          <Text style={{ fontSize: 16, fontWeight: '900', color: colors.accent }}>
+                            ₹{b.cost || ((b.seats || 1) * (selectedRide?.costPerSeat || 49))}
+                          </Text>
+                        </View>
+
                         <Alert message={am.error} />
                         {am.done ? (
                           <Text style={{ color: colors.green, fontSize: 13, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>✓ Action taken</Text>
                         ) : (
                           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                            <Btn label={am.loading ? '…' : '✓ Accept'} onPress={() => respond(b._id, 'accepted')} loading={am.loading} style={{ flex: 1 }} />
-                            <Btn label="✕ Reject" onPress={() => respond(b._id, 'rejected')} variant="danger" disabled={am.loading} style={{ flex: 1 }} />
+                            <Btn
+                              label={am.loading ? '…' : `✓ Accept (₹${b.cost || ((b.seats || 1) * (selectedRide?.costPerSeat || 49))})`}
+                              onPress={() => respond(b._id, 'accepted')}
+                              loading={am.loading}
+                              style={{ flex: 1.3 }}
+                            />
+                            <Btn label="✕ Reject" onPress={() => respond(b._id, 'rejected')} variant="danger" disabled={am.loading} style={{ flex: 0.9 }} />
                           </View>
                         )}
                       </View>

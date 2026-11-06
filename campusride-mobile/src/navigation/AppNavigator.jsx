@@ -14,6 +14,7 @@ import CreateRideScreen   from '../screens/CreateRideScreen';
 import ChatBotScreen      from '../screens/ChatBotScreen';
 import CommunityScreen    from '../screens/CommunityScreen';
 import ProfileScreen      from '../screens/ProfileScreen';
+import RewardsScreen      from '../screens/RewardsScreen';
 
 // ── Stack screens ─────────────────────────────────────────────
 import LiveTrackingScreen     from '../screens/LiveTrackingScreen';
@@ -94,6 +95,7 @@ function AppStack() {
       <Stack.Screen name="IncidentReport"    component={IncidentReportScreen}   options={{ title: 'Report Incident' }} />
 
       {/* Profile & Account */}
+      <Stack.Screen name="Rewards"           component={RewardsScreen}          options={{ headerShown: false }} />
       <Stack.Screen name="Profile"           component={ProfileScreen}          options={{ title: 'My Profile' }} />
       <Stack.Screen name="KYC"               component={KYCScreen}              options={{ title: 'KYC Verification' }} />
       <Stack.Screen name="Ratings"           component={RatingsScreen}          options={{ title: 'Ratings & Reviews' }} />

@@ -23,8 +23,7 @@ export default function StopsPanel({ rideId, driverLocation, onPlan }) {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [codeFor, setCodeFor] = useState(null);   // bookingId being confirmed
-  const [code, setCode] = useState('');
+  // OTP / pickupCode removed by user request
 
   const load = useCallback(async () => {
     try {
@@ -43,8 +42,7 @@ export default function StopsPanel({ rideId, driverLocation, onPlan }) {
   const act = async (stop, action) => {
     setBusyId(stop.bookingId);
     try {
-      await updateBookingStop(stop.bookingId, action, action === 'pickup' ? code : undefined);
-      setCodeFor(null); setCode('');
+      await updateBookingStop(stop.bookingId, action);
       await load();                       // order is recalculated from the new position
     } catch (e) {
       RNAlert.alert(action === 'pickup' ? 'Pickup' : 'Drop', e.message || 'Something went wrong');
@@ -88,38 +86,14 @@ export default function StopsPanel({ rideId, driverLocation, onPlan }) {
               </Text>
               {!!s.address && <Text style={{ color: colors.text2, fontSize: 11 }} numberOfLines={2}>{s.address}</Text>}
 
-              {isNext && actionable && s.type === 'pickup' && codeFor !== s.bookingId && (
+              {isNext && actionable && s.type === 'pickup' && (
                 <TouchableOpacity
-                  onPress={() => { setCodeFor(s.bookingId); setCode(''); }}
-                  style={btn(colors.accent)}
+                  disabled={busyId === s.bookingId}
+                  onPress={() => act(s, 'pickup')}
+                  style={btn(colors.green)}
                 >
-                  <Text style={btnText}>Picked up</Text>
+                  <Text style={btnText}>{busyId === s.bookingId ? '…' : '👤 Picked up'}</Text>
                 </TouchableOpacity>
-              )}
-
-              {isNext && s.type === 'pickup' && codeFor === s.bookingId && (
-                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' }}>
-                  <TextInput
-                    value={code}
-                    onChangeText={(t) => setCode(t.replace(/\D/g, '').slice(0, 4))}
-                    placeholder="4-digit code"
-                    placeholderTextColor={colors.text3}
-                    keyboardType="number-pad"
-                    maxLength={4}
-                    style={{
-                      flex: 1, color: colors.text, backgroundColor: colors.surface2,
-                      borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
-                      paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, letterSpacing: 4,
-                    }}
-                  />
-                  <TouchableOpacity
-                    disabled={code.length !== 4 || busyId === s.bookingId}
-                    onPress={() => act(s, 'pickup')}
-                    style={[btn(colors.green), { marginTop: 0, opacity: code.length === 4 ? 1 : 0.5 }]}
-                  >
-                    <Text style={btnText}>{busyId === s.bookingId ? '…' : 'Confirm'}</Text>
-                  </TouchableOpacity>
-                </View>
               )}
 
               {isNext && actionable && s.type === 'drop' && (

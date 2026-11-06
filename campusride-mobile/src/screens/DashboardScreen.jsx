@@ -671,6 +671,56 @@ export default function DashboardScreen({ navigation }) {
           })}
         </View>
 
+        {/* 🎁 Campus Rewards Card */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: isDark ? '#111827' : '#ffffff',
+            borderRadius: radius.xl,
+            borderWidth: 1.5,
+            borderColor: colors.accent,
+            padding: 16,
+            marginTop: 14,
+            marginBottom: 6,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            shadowColor: colors.accent,
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.15,
+            shadowRadius: 8,
+            elevation: 3,
+          }}
+          onPress={() => navigation.navigate('Rewards')}
+          activeOpacity={0.85}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }}>
+            <View style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: 'rgba(245, 166, 35, 0.15)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: 'rgba(245, 166, 35, 0.4)'
+            }}>
+              <Text style={{ fontSize: 24 }}>🎁</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 16, fontWeight: '800' }}>Campus Rewards</Text>
+                <View style={{ backgroundColor: colors.accent, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                  <Text style={{ color: '#000000', fontSize: 10, fontWeight: '900' }}>NEW</Text>
+                </View>
+              </View>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginTop: 2 }}>
+                GPay style milestone perks • Scratch & unlock rewards
+              </Text>
+            </View>
+          </View>
+          <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '800' }}>→</Text>
+        </TouchableOpacity>
+
         {/* ACTIVE TRIP STATUS (Matching Image 3) */}
         {/* Active Trip Live Card (Hidden after completed or cancelled) */}
         {activeTrip && activeTrip.status !== 'completed' && activeTrip.status !== 'cancelled' && (

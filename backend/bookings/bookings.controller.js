@@ -625,16 +625,7 @@ exports.updateStop = async (req, res) => {
       if (booking.stopStatus !== 'waiting') {
         return res.status(400).json({ message: 'Passenger is already picked up' });
       }
-      if (booking.pickupCode) {
-        if ((booking.codeAttempts || 0) >= 5) {
-          return res.status(429).json({ message: 'Too many wrong codes. Ask the passenger to contact support.' });
-        }
-        if (String(code || '') !== booking.pickupCode) {
-          booking.codeAttempts = (booking.codeAttempts || 0) + 1;
-          await booking.save();
-          return res.status(400).json({ message: 'Wrong pickup code' });
-        }
-      }
+      // OTP / pickupCode removed by user request
       booking.stopStatus = 'picked_up';
       booking.pickedUpAt = new Date();
     } else {
