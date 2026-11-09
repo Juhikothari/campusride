@@ -53,28 +53,50 @@ router.post('/message', auth, async (req, res) => {
       })),
     ];
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${groqKey}`,
-      },
-      body: JSON.stringify({
-        model:      'llama-3.1-8b-instant',
-        max_tokens: 1000,
-        messages:   groqMessages,
-      }),
-    });
+        let reply = null;
+    const modelsToTry = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama3-8b-8192'];
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      console.error('Groq API error:', err);
-      return res.status(502).json({ message: err.error?.message || 'AI service error' });
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${groqKey}`,
+          },
+          body: JSON.stringify({
+            model:      modelName,
+            max_tokens: 800,
+            messages:   groqMessages,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const rawReply = data.choices?.[0]?.message?.content;
+          if (rawReply) {
+            reply = rawReply.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ').replace(/\*/g, '');
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn(`Model ${modelName} failed:`, err.message);
+      }
     }
 
-    const data  = await response.json();
-    const rawReply = data.choices?.[0]?.message?.content || "Sorry, I couldn't generate a response.";
-    const reply = rawReply.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ').replace(/\*/g, '');
+    if (!reply) {
+      // Smart offline campus assistant fallback if Groq is unavailable
+      const q = lastUserMsg.toLowerCase();
+      if (q.includes('ride') && (q.includes('cancel') || q.includes('policy'))) {
+        reply = "❌ Ride Cancellation Policy:\n• You can cancel your booking anytime before departure from the active ride screen or Dashboard.\n• Verified peers receive instant alerts so alternative transit can be arranged.\n• Free campus rides feature zero cancellation charges.";
+      } else if (q.includes('price') || q.includes('fare') || q.includes('cost') || q.includes('pay')) {
+        reply = "💰 Campus Commute Fares:\n• Fares are calculated dynamically based on real distance between pickup and drop points.\n• Fare is visible to seekers when searching and booking, and to providers when accepting.\n• Payment is settled directly between peers via UPI or Cash upon arrival.";
+      } else if (q.includes('checklist') || q.includes('safety') || q.includes('start')) {
+        reply = "🛡️ Pre-Ride Safety Checklist:\n• Driver arrives at pickup spot and taps 'I Have Reached Seeker's Location'.\n• Seeker receives arrival notification and verifies driver photo, vehicle plate, and USN.\n• Once seeker submits the checklist, the driver starts the ride for live destination tracking.";
+      } else {
+        reply = `Hello ${user?.name ? user.name.split(' ')[0] : 'there'}! 👋 I am RideBot, your HOGO assistant.\n\n• 🔍 Find a Ride: Search verified campus rides along your route.\n• 🚗 Share Your Ride: Post your commute route and travel together.\n• 👥 Community: Chat with classmates from ${user?.college || 'your college'}.\n• 🛡️ KYC & Safety: Pre-ride checklists and 24/7 SOS safety alerts.\n\nHow can I help with your campus commute today?`;
+      }
+    }
 
     return res.json({ reply });
 

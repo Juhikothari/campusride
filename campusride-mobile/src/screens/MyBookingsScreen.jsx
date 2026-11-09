@@ -49,13 +49,21 @@ export default function MyBookingsScreen({ navigation }) {
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState('');
 
-  const loadData = async () => {
+  const cacheKey = `@cached_my_bookings_${user?._id || user?.userId || 'guest'}`;
+
+  const loadData = async (isBackground = false) => {
     try {
-      setError('');
+      if (!isBackground) setError('');
       const data = await api.getMyBookings();
-      setBookings(Array.isArray(data) ? data : data?.bookings || []);
+      const list = Array.isArray(data) ? data : data?.bookings || [];
+      setBookings(list);
+      AsyncStorage.setItem(cacheKey, JSON.stringify(list)).catch(() => {});
+      setError('');
     } catch (e) {
-      setError(e.message || 'Failed to load bookings');
+      // If we already have cached bookings loaded, do not display full-screen error banner
+      if (bookings.length === 0) {
+        setError(e.message || 'Failed to load bookings');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -63,8 +71,22 @@ export default function MyBookingsScreen({ navigation }) {
   };
 
   useEffect(() => {
-    if (isSeeker) loadData();
-  }, [isSeeker]);
+    if (isSeeker) {
+      // Load cached bookings first for instantaneous display
+      AsyncStorage.getItem(cacheKey).then(raw => {
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setBookings(parsed);
+              setLoading(false);
+            }
+          } catch (_) {}
+        }
+      }).catch(() => {});
+      loadData();
+    }
+  }, [isSeeker, cacheKey]);
 
   if (!isSeeker) return (
     <SafeAreaView style={styles.safe}>
@@ -97,7 +119,7 @@ export default function MyBookingsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="My Bookings" subtitle="Track your rides and bookings" showBack={navigation.canGoBack()} />
+      <TopHeader title="My Bookings" subtitle="Track your rides and bookings" showBack={true} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}

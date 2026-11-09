@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert as RNAlert, Dimensions, Linking, Modal, Platform,
+  ActivityIndicator, Alert as RNAlert, Dimensions, Linking, Modal, Platform, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -27,6 +27,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const { rideId: paramRideId } = route?.params || {};
   const { user } = useAuth();
   const { isDark } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
 
   const [activeRideId,     setActiveRideId]     = useState(paramRideId || null);
   const [tracking,         setTracking]         = useState(true);
@@ -739,7 +740,28 @@ export default function LiveTrackingScreen({ navigation, route }) {
           />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              if (activeRideId) {
+                setRefreshing(true);
+                try {
+                  const d = await api.getRideById(activeRideId);
+                  if (d) setRideInfo(d);
+                } catch (_) {}
+                finally {
+                  setRefreshing(false);
+                }
+              }
+            }}
+            tintColor={colors.accent}
+          />
+        }
+      >
           {/* If ride is completed or cancelled, show clean summary card (no live map, elapsed timers, or active controls) */}
           {(rideInfo.status === 'completed' || rideInfo.status === 'cancelled') ? (
             <View style={[styles.terminalStatusCard, { backgroundColor: isDark ? '#101520' : '#ffffff', borderColor: isDark ? '#1e2430' : '#e2e8f0' }]}>

@@ -557,23 +557,45 @@ exports.cancelBooking = async (req, res) => {
       return res.status(400).json({ message: 'Booking already cancelled' });
     }
 
-    // Restore seat only if it was accepted (pending bookings do not decrement available seats)
+    // Restore seat and remove passenger from ride if accepted
+    const rideIdVal = booking.rideId?._id || booking.rideId;
     if (booking.status === 'accepted') {
-      const ride = await Ride.findById(booking.rideId._id || booking.rideId);
-      if (ride) { ride.seatsAvailable = (ride.seatsAvailable || 0) + (booking.seats || 1); await ride.save(); }
+      const ride = await Ride.findById(rideIdVal);
+      if (ride) {
+        ride.seatsAvailable = (ride.seatsAvailable || 0) + (booking.seats || 1);
+        if (Array.isArray(ride.passengers)) {
+          ride.passengers = ride.passengers.filter(p => {
+            const pSeeker = p.seeker?._id || p.seeker;
+            const pBooking = p.bookingId?._id || p.bookingId;
+            return String(pSeeker) !== String(seekerId) && String(pBooking) !== String(bookingId);
+          });
+        }
+        await ride.save();
+      }
     }
 
     booking.status = 'cancelled';
     booking.cancelledAt = new Date();
     await booking.save();
 
-    // Notify provider via socket
+    // Notify provider and update active trips via socket
     const io = req.app.get('io');
-    if (io && booking.rideId?.providerId) {
-      io.to(`user-${booking.rideId.providerId}`).emit('booking-cancelled', {
+    if (io) {
+      const cancelPayload = {
         bookingId: booking._id,
+        rideId: rideIdVal,
+        seekerId: seekerId,
+        recipientId: String(booking.rideId?.providerId || ''),
         seekerName: req.user.name || 'A seeker',
-      });
+      };
+      if (booking.rideId?.providerId) {
+        io.to(`user-${booking.rideId.providerId}`).emit('booking-cancelled', cancelPayload);
+      }
+      io.to(`user-${seekerId}`).emit('booking-cancelled', cancelPayload);
+      if (rideIdVal) {
+        io.to(`ride-${rideIdVal}`).emit('booking-cancelled', cancelPayload);
+        io.to(`ride-${rideIdVal}`).emit('active-trip-changed', { rideId: rideIdVal });
+      }
     }
 
     res.json({ message: 'Booking cancelled successfully', booking });

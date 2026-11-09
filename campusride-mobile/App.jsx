@@ -110,11 +110,9 @@ export function handleNotificationResponse(response) {
       return;
     }
 
-    // Safe fallback: MyBookings (NEVER navigate to Home!)
-    navigateFromNotification('MyBookings');
+    // If notification has no matching target, stay on Home / current screen without redirecting
   } catch (err) {
     console.log('[NotificationResponse] Error:', err?.message);
-    navigateFromNotification('MyBookings');
   }
 }
 
@@ -314,8 +312,9 @@ export default function App() {
         const notifDate = resp.notification?.date ? resp.notification.date * 1000 : null;
         const lastHandled = await AsyncStorage.getItem('@last_handled_notif_response_id');
 
-        // If notification is already handled or older than 20 seconds, ignore stale cold-start cache
+        // If notification is already handled or older than 10 seconds, ignore stale cold-start cache
         if (lastHandled && lastHandled === notifId) return;
+        if (notifDate && (Date.now() - notifDate > 10000)) return;
         
         setTimeout(() => handleNotificationResponse(resp), 900);
       } catch {}

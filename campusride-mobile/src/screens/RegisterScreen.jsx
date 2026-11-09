@@ -34,6 +34,7 @@ export default function RegisterScreen({ navigation }) {
   const [email,    setEmail]    = useState('');
   const [phone,    setPhone]    = useState('');
   const [college,  setCollege]  = useState('');
+  const [isCustomCollege, setIsCustomCollege] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm,  setConfirm]  = useState('');
   const [usn,      setUsn]      = useState('');
@@ -386,10 +387,20 @@ export default function RegisterScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Text style={college ? styles.dropdownTextActive : styles.dropdownTextPlaceholder} numberOfLines={1}>
-                  {college || 'Search your college or ...'}
+                  {isCustomCollege ? (college || '✏️ Enter Custom College Below') : (college || 'Search your college or ...')}
                 </Text>
                 <Text style={{ color: colors.text3, fontSize: 12 }}>▼</Text>
               </TouchableOpacity>
+              {isCustomCollege && (
+                <TextInput
+                  style={[styles.textInput, { marginTop: 6, borderColor: colors.accent }]}
+                  value={college}
+                  onChangeText={setCollege}
+                  placeholder="Type your college name..."
+                  placeholderTextColor={colors.text3}
+                  autoFocus
+                />
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>EMERGENCY CONTACT</Text>
@@ -588,7 +599,13 @@ export default function RegisterScreen({ navigation }) {
                 <TouchableOpacity
                   style={[styles.collegeItem, college === item.name && styles.collegeItemActive]}
                   onPress={() => {
-                    setCollege(item.name);
+                    if (item.isOther) {
+                      setIsCustomCollege(true);
+                      setCollege('');
+                    } else {
+                      setIsCustomCollege(false);
+                      setCollege(item.name);
+                    }
                     setShowCollegeModal(false);
                     setCollegeSearch('');
                   }}

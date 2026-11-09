@@ -24,16 +24,16 @@ const PER_KM_RATES = {
 };
 
 const calculateFare = (distanceKm, vehicleType) => {
-  if (!distanceKm || distanceKm <= 0) return 0;
   const vt = (vehicleType || 'car').toLowerCase();
-  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 20 : 25);
-  const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 5 : 7));
-  const d = Math.min(distanceKm, 100);
-  // Within 1 km it should be base fare; above that it should be base fare + per km price
-  if (d <= 1.0) {
+  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 15 : 25);
+  const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 4 : 6));
+  
+  // Real road distance in cities is ~1.25x straight-line distance
+  const effDist = distanceKm && distanceKm > 0 ? Math.min(distanceKm * 1.25, 80) : 3.0;
+  if (effDist <= 1.0) {
     return base;
   }
-  return Math.round(base + (d * perKm));
+  return Math.round(base + (effDist * perKm));
 };
 exports.calculateFare = calculateFare;
 
@@ -802,6 +802,7 @@ exports.arrivedAtSeeker = async (req, res) => {
           io.to(`user-${b.seekerId._id}`).to(`seeker-${b.seekerId._id}`).emit('new-notification', notifObj);
           io.to(`user-${b.seekerId._id}`).to(`seeker-${b.seekerId._id}`).emit('rider-arrived', {
             rideId: ride._id,
+            recipientId: String(b.seekerId._id),
             arrivedAt: ride.riderReachedSeekerAt
           });
         }

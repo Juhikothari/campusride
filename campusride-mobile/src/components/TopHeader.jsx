@@ -121,23 +121,26 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
         <View style={styles.brandContainer}>
           {canGoBack && (
             <TouchableOpacity
-              style={[styles.backBtn, {
-                backgroundColor: isDark ? '#1a2232' : '#f1f5f9',
-                borderWidth: 1.5,
-                borderColor: isDark ? '#2a374d' : '#cbd5e1',
-                borderRadius: 18,
-                width: 36,
-                height: 36,
+              style={{
+                paddingRight: 8,
+                paddingLeft: 2,
+                paddingVertical: 4,
                 justifyContent: 'center',
-                alignItems: 'center'
-              }]}
-              onPress={() => navigation.goBack()}
+                alignItems: 'center',
+              }}
+              onPress={() => {
+                if (navigation?.canGoBack && navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('Home');
+                }
+              }}
               activeOpacity={0.7}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               accessibilityRole="button"
-              accessibilityLabel="Go back to previous screen"
+              accessibilityLabel="Go back"
             >
-              <Text style={{ fontSize: 20, fontWeight: '800', color: isDark ? '#ffffff' : '#0f172a', lineHeight: 22 }}>←</Text>
+              <Text style={{ fontSize: 26, fontWeight: '700', color: isDark ? '#ffffff' : '#0f172a' }}>←</Text>
             </TouchableOpacity>
           )}
           <Text style={styles.brandLogo}>{emoji}</Text>

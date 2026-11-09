@@ -178,11 +178,29 @@ export const getSharedSocket = (userId, userType) => {
     globalSocket.on('rideCancelled', (data) => {
       if (!isForMe(data)) return;
       notifyAll('rideCancelled', data);
+      notifyAll('active-trip-changed', data);
       showPushNotification({
         title: '⚠️ Ride Cancelled',
         body: data?.reason ? `Ride was cancelled: ${data.reason}` : 'A ride you were part of has been cancelled.',
         data,
       });
+    });
+
+    // ── Booking Cancelled ──
+    globalSocket.on('booking-cancelled', (data) => {
+      notifyAll('booking-cancelled', data);
+      notifyAll('active-trip-changed', data);
+      if (isForMe(data)) {
+        showPushNotification({
+          title: '⚠️ Booking Cancelled',
+          body: data?.seekerName ? `${data.seekerName} cancelled their booking request.` : 'A booking was cancelled.',
+          data,
+        });
+      }
+    });
+
+    globalSocket.on('active-trip-changed', (data) => {
+      notifyAll('active-trip-changed', data);
     });
 
     // ── Community Post Replies ──

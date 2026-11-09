@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, ActivityIndicator, Alert as RNAlert, Modal,
+  StyleSheet, ActivityIndicator, Alert as RNAlert, Modal, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -43,6 +43,7 @@ export default function ProfileScreen({ navigation }) {
   const [emergencyError,   setEmergencyError]   = useState('');
   const [photoUri,     setPhotoUri]     = useState(user?.profilePhoto || null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Vehicle registration modal state
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -362,7 +363,21 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await fetchProfileAndVehicles();
+              setRefreshing(false);
+            }}
+            tintColor={colors.accent}
+          />
+        }
+      >
         <Alert message={error} />
 
         {/* Avatar hero */}

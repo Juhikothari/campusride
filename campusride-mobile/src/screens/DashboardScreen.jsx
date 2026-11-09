@@ -11,7 +11,7 @@ import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
 import LiveMapView from '../components/LiveMapView';
 import FloatingChatBot from '../components/FloatingChatBot';
-import { subscribeToCommunityUnread, getCommunityUnreadCount } from '../hooks/useSocket';
+import { subscribeToCommunityUnread, getCommunityUnreadCount, subscribeToNotifications } from '../hooks/useSocket';
 import { Btn } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -436,7 +436,19 @@ export default function DashboardScreen({ navigation }) {
   useEffect(() => {
     fetchActiveTrip();
     const interval = setInterval(fetchActiveTrip, 15000);
-    return () => clearInterval(interval);
+    const unsubSocket = subscribeToNotifications((event) => {
+      if ([
+        'booking-cancelled', 'rideCancelled', 'active-trip-changed',
+        'rider-arrived', 'riderArrivedAtSeeker', 'checklistCompleted',
+        'rideStarted', 'rideCompleted', 'booking-response', 'new-booking'
+      ].includes(event)) {
+        fetchActiveTrip();
+      }
+    });
+    return () => {
+      clearInterval(interval);
+      unsubSocket();
+    };
   }, [fetchActiveTrip]);
 
   const handleManualRefresh = async () => {
@@ -671,55 +683,7 @@ export default function DashboardScreen({ navigation }) {
           })}
         </View>
 
-        {/* 🎁 Campus Rewards Card */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: isDark ? '#111827' : '#ffffff',
-            borderRadius: radius.xl,
-            borderWidth: 1.5,
-            borderColor: colors.accent,
-            padding: 16,
-            marginTop: 14,
-            marginBottom: 6,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            shadowColor: colors.accent,
-            shadowOffset: { width: 0, height: 3 },
-            shadowOpacity: 0.15,
-            shadowRadius: 8,
-            elevation: 3,
-          }}
-          onPress={() => navigation.navigate('Rewards')}
-          activeOpacity={0.85}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }}>
-            <View style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: 'rgba(245, 166, 35, 0.15)',
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderWidth: 1,
-              borderColor: 'rgba(245, 166, 35, 0.4)'
-            }}>
-              <Text style={{ fontSize: 24 }}>🎁</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 16, fontWeight: '800' }}>Campus Rewards</Text>
-                <View style={{ backgroundColor: colors.accent, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                  <Text style={{ color: '#000000', fontSize: 10, fontWeight: '900' }}>NEW</Text>
-                </View>
-              </View>
-              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginTop: 2 }}>
-                GPay style milestone perks • Scratch & unlock rewards
-              </Text>
-            </View>
-          </View>
-          <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '800' }}>→</Text>
-        </TouchableOpacity>
+
 
         {/* ACTIVE TRIP STATUS (Matching Image 3) */}
         {/* Active Trip Live Card (Hidden after completed or cancelled) */}
@@ -982,7 +946,31 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={styles.openGpsBtnText}>📍 Open Live GPS & Tracking →</Text>
                 </TouchableOpacity>
               ) : tripRole === 'driver' ? (
-                <View style={{ gap: 6 }}>
+                <View style={{ gap: 8 }}>
+                  {!activeTrip.riderReachedSeeker ? (
+                    <TouchableOpacity
+                      style={[
+                        styles.openGpsBtn,
+                        { backgroundColor: '#0284c7', borderWidth: 1, borderColor: '#38bdf8' }
+                      ]}
+                      onPress={async () => {
+                        const rId = activeTrip._id || activeTrip.id;
+                        try {
+                          await api.markArrivedAtSeeker(rId);
+                          setActiveTrip(prev => prev ? ({ ...prev, riderReachedSeeker: true }) : prev);
+                          RNAlert.alert('📍 Arrived at Seeker', 'Arrival confirmed! Your buddy has been notified to complete their safety checklist before departure.');
+                        } catch (err) {
+                          RNAlert.alert('Error', err.message || 'Failed to update arrival status');
+                        }
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.openGpsBtnText, { color: '#ffffff' }]}>
+                        📍 I Have Reached Seeker's Location →
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
                   {activeTrip.seekerChecklistCompleted ? (
                     <>
                       <TouchableOpacity
@@ -1002,7 +990,7 @@ export default function DashboardScreen({ navigation }) {
                         activeOpacity={0.85}
                       >
                         <Text style={[styles.openGpsBtnText, { color: '#000' }]}>
-                          🚀 Start Ride Now →
+                          🚀 Start Ride (Checklist Verified ✓) →
                         </Text>
                       </TouchableOpacity>
                       <Text style={{ color: colors.green, fontSize: 11.5, textAlign: 'center', fontWeight: '600' }}>
@@ -1010,17 +998,19 @@ export default function DashboardScreen({ navigation }) {
                       </Text>
                     </>
                   ) : (
-                    <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 20, marginBottom: 4 }}>⏳</Text>
-                      <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Buddy Checklist</Text>
-                      <Text style={{ color: colors.text2, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 2 }}>
-                        The buddy must complete their safety checklist before departure. Start option will appear once verified.
-                      </Text>
-                    </View>
+                    activeTrip.riderReachedSeeker ? (
+                      <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
+                        <Text style={{ fontSize: 20, marginBottom: 4 }}>⏳</Text>
+                        <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Buddy Checklist</Text>
+                        <Text style={{ color: colors.text2, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 2 }}>
+                          Your buddy has been notified of your arrival. Departure unlocks as soon as they submit their safety checklist.
+                        </Text>
+                      </View>
+                    ) : null
                   )}
                 </View>
               ) : (
-                <View style={{ gap: 6 }}>
+                <View style={{ gap: 8 }}>
                   {!activeTrip.seekerChecklistCompleted ? (
                     <TouchableOpacity
                       style={[styles.openGpsBtn, { backgroundColor: colors.accent }]}
@@ -1032,13 +1022,19 @@ export default function DashboardScreen({ navigation }) {
                   ) : (
                     <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, alignItems: 'center' }}>
                       <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
-                        ✅ Safety checklist verified! Waiting for driver to start ride.
+                        ✅ Safety checklist verified! Ready to start ride.
                       </Text>
                     </View>
                   )}
-                  <Text style={{ color: colors.accent, fontSize: 11.5, textAlign: 'center', fontWeight: '600', marginTop: 2 }}>
-                    ⏳ Pre-ride matched. Live tracking map will activate once driver taps Start Ride.
-                  </Text>
+                  <TouchableOpacity
+                    style={[styles.openGpsBtn, { backgroundColor: isDark ? '#141d2e' : '#e0e7ff', borderWidth: 1, borderColor: '#6366f1' }]}
+                    onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.openGpsBtnText, { color: isDark ? '#818cf8' : '#4338ca' }]}>
+                      📍 Track Ride & View Route →
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
 

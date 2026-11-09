@@ -3,6 +3,12 @@
 
 export const INDIAN_COLLEGES = [
   {
+    "name": "Other / Other College (Enter Below)",
+    "short": "OTHER",
+    "city": "All India",
+    "isOther": true
+  },
+  {
     "name": "RNS Institute of Technology (RNSIT)",
     "short": "RNSIT",
     "city": "Bengaluru"

@@ -375,26 +375,34 @@ export default function SearchRidesScreen({ navigation }) {
     }
   }, [pickup, drop, schedMode, date, time, womenOnly, vehicle, isFemale]);
 
-  const [pointsRide, setPointsRide] = useState(null);
-
   const startBook = (ride) => {
-    // Open points modal so seeker can customize/confirm their pickup & drop spot
-    setPointsRide(ride);
-  };
-
-  const confirmBook = async (pickupPt, dropPt) => {
-    const ride = pointsRide;
     if (!ride) return;
     const rideId = ride._id;
-    setBookingMap(m => ({ ...m, [rideId]: { loading: true } }));
-    try {
-      await api.bookRide(rideId, 1, pickupPt, dropPt);
-      setBookingMap(m => ({ ...m, [rideId]: { status: 'pending' } }));
-    } catch (e) {
-      setBookingMap(m => ({ ...m, [rideId]: { error: e.message } }));
-    } finally {
-      setPointsRide(null);
-    }
+    const fare = ride.costPerSeat || 50;
+    const pAddr = typeof ride.pickup === 'string' ? ride.pickup : (ride.pickup?.address || 'Pickup point');
+    const dAddr = typeof ride.drop === 'string' ? ride.drop : (ride.drop?.address || 'Destination point');
+
+    RNAlert.alert(
+      'Confirm Booking Request',
+      `🚗 Vehicle: ${(ride.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${pAddr}\n🎯 Destination: ${dAddr}\n\nSend ride request to provider?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Request Ride (₹${fare})`,
+          onPress: async () => {
+            setBookingMap(m => ({ ...m, [rideId]: { loading: true } }));
+            try {
+              await api.bookRide(rideId, 1, ride.pickup, ride.drop);
+              setBookingMap(m => ({ ...m, [rideId]: { status: 'pending' } }));
+              RNAlert.alert('Request Sent', 'Your ride request has been sent to the provider. You will be notified once they accept!');
+            } catch (e) {
+              setBookingMap(m => ({ ...m, [rideId]: { error: e.message } }));
+              RNAlert.alert('Booking Error', e.message || 'Failed to send ride request');
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -444,6 +452,14 @@ export default function SearchRidesScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={true}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={search}
+              tintColor={colors.accent}
+              colors={[colors.accent]}
+            />
+          }
         >
 
         {/* Quick Campus Shortcuts */}
@@ -705,13 +721,7 @@ export default function SearchRidesScreen({ navigation }) {
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
 
-      {/* Choose customized pickup & drop points modal */}
-      <BookingPointsModal
-        visible={!!pointsRide}
-        ride={pointsRide}
-        onCancel={() => setPointsRide(null)}
-        onConfirm={confirmBook}
-      />
+
     </SafeAreaView>
   );
 }

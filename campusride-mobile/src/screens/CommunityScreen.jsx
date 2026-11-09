@@ -940,8 +940,8 @@ function CollegeChatTab({ user }) {
     return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 35}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
       <View style={{ flex: 1 }}>
         {loading ? (
@@ -988,7 +988,7 @@ function CollegeChatTab({ user }) {
           {
             backgroundColor: isDark ? '#0c121e' : '#ffffff',
             borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
-            paddingBottom: keyboardVisible ? 8 : Math.max(insets.bottom, 10),
+            paddingBottom: Math.max(androidPadding, keyboardVisible ? 8 : insets.bottom, 10),
           }
         ]}>
           <TouchableOpacity

@@ -56,16 +56,33 @@ export function RideDetailScreen({ navigation, route }) {
       .catch(() => {});
   }, [rideId]);
 
-  const [showPoints, setShowPoints] = useState(false);
-  const doBook = async (pickupPt, dropPt) => {
-    setShowPoints(false);
-    setBooking(b => ({ ...b, loading: true, error: '' }));
-    try {
-      await api.bookRide(rideId, 1, pickupPt, dropPt);
-      setBooking({ loading: false, status: 'pending', error: '' });
-    } catch (e) {
-      setBooking(b => ({ ...b, loading: false, error: e.message }));
-    }
+  const startBookRide = (r) => {
+    if (!r) return;
+    const fare = r.costPerSeat || 50;
+    const pAddr = getAddr(r.pickup);
+    const dAddr = getAddr(r.drop);
+
+    RNAlert.alert(
+      'Confirm Booking Request',
+      `🚗 Vehicle: ${(r.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${pAddr}\n🎯 Destination: ${dAddr}\n\nSend ride request to provider?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Request Ride (₹${fare})`,
+          onPress: async () => {
+            setBooking(b => ({ ...b, loading: true, error: '' }));
+            try {
+              await api.bookRide(rideId, 1, r.pickup, r.drop);
+              setBooking({ loading: false, status: 'pending', error: '' });
+              RNAlert.alert('Request Sent', 'Your ride request has been sent to the provider. You will be notified once they accept!');
+            } catch (e) {
+              setBooking(b => ({ ...b, loading: false, error: e.message }));
+              RNAlert.alert('Booking Error', e.message || 'Failed to send ride request');
+            }
+          }
+        }
+      ]
+    );
   };
 
   if (loading) return <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}><ActivityIndicator color={colors.accent} style={{ marginTop: 60 }} /></SafeAreaView>;
@@ -79,7 +96,7 @@ export function RideDetailScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Ride Details" subtitle="Verified campus ride" showBack={navigation.canGoBack()} />
+      <TopHeader title="Ride Details" subtitle="Verified campus ride" showBack={true} />
       <ScrollView contentContainerStyle={styles.scroll}>
 
         <Alert message={error} />
@@ -228,7 +245,7 @@ export function RideDetailScreen({ navigation, route }) {
             {booking.status === 'rejected' && <Alert message="❌ Booking was rejected." />}
 
             {canBook && (
-              <Btn label="Book This Ride" onPress={() => setShowPoints(true)} loading={booking.loading} style={{ marginTop: 8 }} />
+              <Btn label="Book This Ride" onPress={() => startBookRide(ride)} loading={booking.loading} style={{ marginTop: 8 }} />
             )}
 
             {booking.status === 'accepted' && (
@@ -260,13 +277,7 @@ export function RideDetailScreen({ navigation, route }) {
         )}
       </ScrollView>
 
-      {/* Choose customized pickup & drop points modal */}
-      <BookingPointsModal
-        visible={showPoints}
-        ride={ride}
-        onCancel={() => setShowPoints(false)}
-        onConfirm={doBook}
-      />
+
     </SafeAreaView>
   );
 }
@@ -1976,11 +1987,11 @@ export function ForgotPasswordScreen({ navigation }) {
   };
 
   const inputStyle = {
-    backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
-    borderWidth: 1,
-    borderColor: isDark ? colors.border : '#cbd5e1',
+    backgroundColor: isDark ? '#141a24' : '#f1f5f9',
+    borderWidth: 1.5,
+    borderColor: isDark ? '#2a374d' : '#cbd5e1',
     borderRadius: radius.md,
-    color: isDark ? colors.text : '#0f172a',
+    color: isDark ? '#ffffff' : '#0f172a',
     paddingHorizontal: 14,
     paddingVertical: 13,
     fontSize: 14,
@@ -2000,7 +2011,7 @@ export function ForgotPasswordScreen({ navigation }) {
           showsVerticalScrollIndicator={true}
         >
           <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
-            <Text style={{ color: isDark ? colors.text2 : '#475569' }}>← Back to Login</Text>
+            <Text style={{ color: isDark ? '#f5a623' : '#d97706', fontSize: 16, fontWeight: '700' }}>← Back to Login</Text>
           </TouchableOpacity>
 
           <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 24, fontWeight: '800', marginBottom: 4 }}>

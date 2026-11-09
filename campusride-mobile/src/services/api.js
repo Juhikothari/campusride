@@ -26,15 +26,22 @@ const request = async (path, options = {}) => {
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const controller = new AbortController();
-  const timeoutMs  = options.timeout || 12000;
+  const timeoutMs  = options.timeout || 30000; // Increased to 30s to allow Render free tier wakeups
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let res;
   try {
     res = await fetch(`${BASE}${path}`, { ...options, headers, signal: controller.signal });
   } catch (networkErr) {
+    clearTimeout(timer);
+    // Automatic retry once for GET requests during backend spin-up
+    if (!options._retry && (!options.method || options.method === 'GET')) {
+      try {
+        return await request(path, { ...options, _retry: true, timeout: 35000 });
+      } catch (_) {}
+    }
     if (networkErr.name === 'AbortError') {
-      const err = new Error(`Request timed out (12s). Server may be busy or waking up.`);
+      const err = new Error(`Request timed out. Server may be busy or waking up. Please retry in a moment.`);
       err.isTimeout = true;
       throw err;
     }

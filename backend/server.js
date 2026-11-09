@@ -86,7 +86,7 @@ io.on("connection", (socket) => {
   console.log("✅ Socket Connected:", socket.id, "Transport:", socket.conn.transport.name);
   socket.emit('connected', { socketId: socket.id, timestamp: new Date().toISOString() });
 
-  socket.on('authenticate', (data) => {
+  socket.on('authenticate', async (data) => {
     try {
       const { userId, userType } = data;
       if (userId) {
@@ -101,6 +101,18 @@ io.on("connection", (socket) => {
           socket.join('admin');
           socket.join('admins');
         }
+        // Auto-join user to college room on authenticate
+        try {
+          const User = require('./users/users.model');
+          const u = await User.findById(userId).select('college');
+          if (u?.college) {
+            const collegeRoom = `college-${u.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
+            socket.join(collegeRoom);
+            socket.collegeRoom = collegeRoom;
+            socket.userCollege = u.college;
+            console.log(`✅ User ${userId} auto-joined college room: ${collegeRoom}`);
+          }
+        } catch (_) {}
         console.log(`✅ User ${userId} (${userType}) authenticated in all personal rooms`);
         socket.emit('authenticated', { success: true, userId, userType });
       }
@@ -251,6 +263,8 @@ app.get('/', (req, res) => res.json({
   socketConnections: connectedUsers.size
 }));
 
+app.get('/api/health', (req, res) => res.json({ status: 'OK', uptime: process.uptime() }));
+app.get('/api/ping', (req, res) => res.send('pong'));
 app.get('/health', (req, res) => res.json({
   status: 'OK',
   database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
