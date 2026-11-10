@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet,
-  ActivityIndicator, Alert as RNAlert, Image, Modal,
+  ActivityIndicator, Alert as RNAlert, Image, Modal, Dimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -879,25 +879,38 @@ function CollegeChatTab({ user }) {
   const { isDark } = useTheme();
 
   useEffect(() => {
-    const showSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardVisible(true);
-        setKeyboardHeight(e.endCoordinates?.height || 0);
-        setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    const handleShow = (e) => {
+      setKeyboardVisible(true);
+      const kh = e.endCoordinates?.height || 0;
+      setKeyboardHeight(kh);
+      if (Platform.OS === 'android') {
+        const winH = Dimensions.get('window').height;
+        const scrH = Dimensions.get('screen').height;
+        if ((scrH - winH) > kh * 0.6) {
+          setAndroidPadding(0);
+        } else {
+          setAndroidPadding(kh);
+        }
       }
-    );
-    const hideSub = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-        setKeyboardHeight(0);
-        setAndroidPadding(0);
-      }
-    );
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
+    };
+
+    const handleHide = () => {
+      setKeyboardVisible(false);
+      setKeyboardHeight(0);
+      setAndroidPadding(0);
+    };
+
+    const showSub1 = Keyboard.addListener('keyboardDidShow', handleShow);
+    const hideSub1 = Keyboard.addListener('keyboardDidHide', handleHide);
+    const showSub2 = Platform.OS === 'ios' ? Keyboard.addListener('keyboardWillShow', handleShow) : null;
+    const hideSub2 = Platform.OS === 'ios' ? Keyboard.addListener('keyboardWillHide', handleHide) : null;
+
     return () => {
-      showSub.remove();
-      hideSub.remove();
+      showSub1.remove();
+      hideSub1.remove();
+      showSub2?.remove();
+      hideSub2?.remove();
     };
   }, []);
 
@@ -939,12 +952,13 @@ function CollegeChatTab({ user }) {
 
   const myId = user?._id || user?.userId;
 
-    return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
-    >
+  const Container = Platform.OS === 'ios' ? KeyboardAvoidingView : View;
+  const containerProps = Platform.OS === 'ios'
+    ? { style: { flex: 1 }, behavior: 'padding', keyboardVerticalOffset: 90 }
+    : { style: { flex: 1, paddingBottom: androidPadding } };
+
+  return (
+    <Container {...containerProps}>
       <View style={{ flex: 1 }}>
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
@@ -990,7 +1004,7 @@ function CollegeChatTab({ user }) {
           {
             backgroundColor: isDark ? '#0c121e' : '#ffffff',
             borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
-            paddingBottom: keyboardVisible ? 10 : Math.max(insets.bottom, 10),
+            paddingBottom: (keyboardVisible || androidPadding > 0) ? 8 : Math.max(insets.bottom, 10),
           }
         ]}>
           <TouchableOpacity
@@ -1031,7 +1045,7 @@ function CollegeChatTab({ user }) {
           </TouchableOpacity>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </Container>
   );
 }
 

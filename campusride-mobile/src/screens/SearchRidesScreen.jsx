@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Alert as RNAlert, ActivityIndicator,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -407,7 +407,7 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Find a Ride" subtitle="Find verified campus rides & buddies" showBack={navigation.canGoBack()} />
+      <TopHeader title="Find a Ride" subtitle="Find verified campus rides & buddies" showBack={Boolean(navigation?.canGoBack && navigation.canGoBack())} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
