@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, PanResponder, Animated,
   ActivityIndicator, Alert as RNAlert, TextInput,
   KeyboardAvoidingView, Platform, Modal, DeviceEventEmitter, Linking,
 } from 'react-native';
@@ -73,6 +73,7 @@ export function RideDetailScreen({ navigation, route }) {
             setBooking(b => ({ ...b, loading: true, error: '' }));
             try {
               await api.bookRide(rideId, 1, r.pickup, r.drop);
+              DeviceEventEmitter.emit('BOOKING_STATUS_CHANGED', { rideId, status: 'pending' });
               setBooking({ loading: false, status: 'pending', error: '' });
               RNAlert.alert('Request Sent', 'Your ride request has been sent to the provider. You will be notified once they accept!');
             } catch (e) {
@@ -171,7 +172,7 @@ export function RideDetailScreen({ navigation, route }) {
                   { label: '📅 Date',   value: formatDateDMY(ride.date) },
                   { label: '🕐 Time',   value: ride.time },
                   { label: '💺 Seats',  value: `${ride.seatsAvailable} available` },
-                  { label: '₹ Cost',    value: `₹${ride.costPerSeat} / seat` },
+                  ...(!isOwner ? [{ label: '₹ Cost', value: `₹${ride.costPerSeat} / seat` }] : []),
                   { label: '🚗 Vehicle',value: ride.vehicleType },
                   { label: '🏫 College',value: ride.college },
                 ].map(d => (
@@ -238,25 +239,46 @@ export function RideDetailScreen({ navigation, route }) {
               </View>
             )}
 
-            {/* Booking */}
+            {/* Booking & Ride Status */}
             <Alert message={booking.error} />
-            {booking.status === 'pending'  && <Alert message="⏳ Booking request sent! Waiting for provider to accept." type="warning" />}
-            {booking.status === 'accepted' && <Alert message="✅ Your booking is confirmed! Complete safety checklist to start." type="success" />}
-            {booking.status === 'rejected' && <Alert message="❌ Booking was rejected." />}
 
-            {canBook && (
-              <Btn label="Book This Ride" onPress={() => startBookRide(ride)} loading={booking.loading} style={{ marginTop: 8 }} />
+            {ride.status === 'completed' && (
+              <Alert message="🏁 This ride has completed successfully." type="success" />
             )}
 
-            {booking.status === 'accepted' && (
-              <Btn
-                label="🛡️ Safety Checklist & Live Track →"
-                onPress={() => navigation.navigate('PreRideChecklist', { rideId: ride._id })}
-                style={{ marginTop: 8 }}
-              />
+            {ride.status === 'cancelled' && (
+              <Alert message="⚠️ This ride was cancelled." />
             )}
 
-            {isOwner && (
+            {ride.status !== 'completed' && ride.status !== 'cancelled' && (
+              <>
+                {booking.status === 'pending' && (
+                  <Alert message="⏳ Booking request sent! Waiting for provider to accept." type="warning" />
+                )}
+                {booking.status === 'rejected' && (
+                  <Alert message="❌ Booking was rejected." />
+                )}
+                {booking.status === 'accepted' && !ride?.seekerChecklistCompleted && !booking?.seekerChecklistCompleted && (
+                  <>
+                    <Alert message="✅ Your booking is confirmed! Complete safety checklist to start." type="success" />
+                    <Btn
+                      label="🛡️ Complete Safety Checklist →"
+                      onPress={() => navigation.navigate('PreRideChecklist', { rideId: ride._id })}
+                      style={{ marginTop: 8 }}
+                    />
+                  </>
+                )}
+                {booking.status === 'accepted' && (ride?.seekerChecklistCompleted || booking?.seekerChecklistCompleted) && (
+                  <Alert message="✅ Safety checklist completed. Live commute is in progress." type="success" />
+                )}
+
+                {canBook && (
+                  <Btn label="Book This Ride" onPress={() => startBookRide(ride)} loading={booking.loading} style={{ marginTop: 8 }} />
+                )}
+              </>
+            )}
+
+            {isOwner && ride.status !== 'completed' && (
               <Btn label="View Booking Requests →" onPress={() => navigation.navigate('ProviderBookings')} variant="outline" style={{ marginTop: 8 }} />
             )}
           </>
@@ -285,6 +307,97 @@ export function RideDetailScreen({ navigation, route }) {
 // ═══════════════════════════════════════════════════════════════
 //  NOTIFICATIONS SCREEN
 // ═══════════════════════════════════════════════════════════════
+function SwipeableNotificationItem({ n, isUnread, isDark, colors, timeAgo, onPress, onClear }) {
+  const pan = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dy) < 15;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dx < 0) {
+          pan.setValue(Math.max(-100, gestureState.dx));
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < -65) {
+          Animated.parallel([
+            Animated.timing(pan, { toValue: -400, duration: 200, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+          ]).start(() => onClear(n.id));
+        } else {
+          Animated.spring(pan, { toValue: 0, friction: 6, useNativeDriver: true }).start();
+        }
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View style={{ marginBottom: 10, opacity, transform: [{ translateX: pan }] }} {...panResponder.panHandlers}>
+      <TouchableOpacity
+        style={[
+          styles.card,
+          {
+            flexDirection: 'row',
+            gap: 12,
+            marginBottom: 0,
+            backgroundColor: isUnread
+              ? (isDark ? 'rgba(245, 166, 35, 0.14)' : 'rgba(245, 166, 35, 0.08)')
+              : (isDark ? colors.surface : '#ffffff'),
+            borderColor: isUnread
+              ? '#f5a623'
+              : (isDark ? colors.border : '#e2e8f0'),
+            borderWidth: isUnread ? 1.5 : 1,
+            position: 'relative',
+          }
+        ]}
+        onPress={() => onPress(n)}
+        activeOpacity={0.8}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: n.color + '22', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ fontSize: 18 }}>{n.icon}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {isUnread && (
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#f5a623', marginRight: 2 }} />
+              )}
+              <Text style={{ color: n.color, fontSize: 11, fontWeight: '800' }}>{n.label}</Text>
+              {isUnread && (
+                <View style={{ backgroundColor: '#f5a623', paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 3 }}>
+                  <Text style={{ color: '#000000', fontSize: 9, fontWeight: '900' }}>NEW</Text>
+                </View>
+              )}
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11 }}>{timeAgo(n.time)}</Text>
+              <TouchableOpacity
+                onPress={() => onClear(n.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{ padding: 2 }}
+              >
+                <Text style={{ color: isDark ? '#64748b' : '#94a3b8', fontSize: 12, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14.5, fontWeight: isUnread ? '900' : '600', marginTop: 3 }}>
+            {n.title}
+          </Text>
+          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12.5, marginTop: 2, lineHeight: 17, fontWeight: isUnread ? '500' : '400' }}>
+            {n.body}
+          </Text>
+          <Text style={{ color: isDark ? '#4b5563' : '#9ca3af', fontSize: 10, marginTop: 4, fontStyle: 'italic' }}>
+            ← Slide left to clear
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
 export function NotificationsScreen({ navigation }) {
   const { user } = useAuth();
   const { isDark } = useTheme();
@@ -292,9 +405,11 @@ export function NotificationsScreen({ navigation }) {
   const [myRides,   setMyRides]   = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [readIds,   setReadIds]   = useState(new Set());
+  const [clearedIds,setClearedIds]= useState(new Set());
 
   const userId = user?._id || user?.userId;
   const storageKey = userId ? `@read_notif_ids_${userId}` : '@read_notif_ids';
+  const clearedStorageKey = userId ? `@cleared_notif_ids_${userId}` : '@cleared_notif_ids';
 
   const isSeeker   = user?.role === 'seeker'   || user?.role === 'both';
   const isProvider = user?.role === 'provider' || user?.role === 'both';
@@ -307,6 +422,11 @@ export function NotificationsScreen({ navigation }) {
         try { setReadIds(new Set(JSON.parse(raw))); } catch {}
       }
     });
+    AsyncStorage.getItem(clearedStorageKey).then(raw => {
+      if (raw) {
+        try { setClearedIds(new Set(JSON.parse(raw))); } catch {}
+      }
+    });
 
     const promises = [];
     if (isSeeker)   promises.push(api.getMyBookings().then(setBookings).catch(() => {}));
@@ -316,25 +436,11 @@ export function NotificationsScreen({ navigation }) {
         .then(res => {
           const list = Array.isArray(res) ? res : res?.notifications || [];
           setServerNotifs(list);
-          // Automatically mark notifications as read on server & client
-          api.markNotificationsRead().catch(() => {});
-          const notifIds = list.map(n => n._id || n.id).filter(Boolean);
-          AsyncStorage.getItem(storageKey).then(raw => {
-            let next = new Set();
-            if (raw) {
-              try { next = new Set(JSON.parse(raw)); } catch {}
-            }
-            notifIds.forEach(id => next.add(id));
-            setReadIds(next);
-            AsyncStorage.setItem(storageKey, JSON.stringify([...next])).catch(() => {});
-            DeviceEventEmitter.emit('NOTIFICATIONS_READ');
-            DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', 0);
-          }).catch(() => {});
         })
         .catch(() => {})
     );
     Promise.all(promises).finally(() => setLoading(false));
-  }, [storageKey]);
+  }, [storageKey, clearedStorageKey]);
 
   const markAllAsRead = () => {
     const allIds = new Set([...readIds, ...allNotifs.map(n => n.id)]);
@@ -343,6 +449,14 @@ export function NotificationsScreen({ navigation }) {
     api.markNotificationsRead().catch(() => {});
     DeviceEventEmitter.emit('NOTIFICATIONS_READ');
     DeviceEventEmitter.emit('NOTIFICATION_COUNT_CHANGED', 0);
+  };
+
+  const clearNotification = (id) => {
+    setClearedIds(prev => {
+      const next = new Set(prev).add(id);
+      AsyncStorage.setItem(clearedStorageKey, JSON.stringify([...next])).catch(() => {});
+      return next;
+    });
   };
 
   const handleNotifPress = (item) => {
@@ -355,7 +469,7 @@ export function NotificationsScreen({ navigation }) {
         return next;
       });
       if (item.id) {
-        api.markNotificationRead(item.id);
+        api.markNotificationRead(item.id).catch(() => {});
       }
       if (item.onPress) item.onPress();
     } catch (err) {
@@ -414,7 +528,7 @@ export function NotificationsScreen({ navigation }) {
         } else if (type.includes('INCIDENT')) {
           navigation.navigate('AdminIncidents');
         } else {
-          navigation.navigate('MyBookings'); // NEVER FALLBACK TO HOME
+          navigation.navigate('MyBookings');
         }
       } catch (err) {
         navigation.navigate('MyBookings');
@@ -467,6 +581,7 @@ export function NotificationsScreen({ navigation }) {
   );
 
   const allNotifs = [...directNotifs, ...seekerNotifs, ...providerNotifs]
+    .filter(n => !clearedIds.has(n.id))
     .sort((a, b) => new Date(b.time) - new Date(a.time));
 
   function timeAgo(d) {
@@ -499,50 +614,23 @@ export function NotificationsScreen({ navigation }) {
         {loading ? <ActivityIndicator color={colors.accent} /> : allNotifs.length === 0 ? (
           <View style={{ alignItems: 'center', paddingTop: 40 }}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>📭</Text>
-            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 16 }}>No notifications yet</Text>
+            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 16 }}>No notifications</Text>
+            <Text style={{ color: isDark ? colors.text3 : '#94a3b8', fontSize: 12, marginTop: 4 }}>All caught up! Alerts and ride updates will appear here.</Text>
           </View>
         ) : (
           allNotifs.map(n => {
             const isUnread = !readIds.has(n.id) && !n.isRead;
             return (
-              <TouchableOpacity
+              <SwipeableNotificationItem
                 key={n.id}
-                style={[
-                  styles.card,
-                  {
-                    flexDirection: 'row',
-                    gap: 12,
-                    backgroundColor: isUnread
-                      ? (isDark ? 'rgba(245, 166, 35, 0.14)' : 'rgba(245, 166, 35, 0.10)')
-                      : (isDark ? colors.surface : '#ffffff'),
-                    borderColor: isUnread
-                      ? '#f5a623'
-                      : (isDark ? colors.border : '#e2e8f0'),
-                    borderWidth: isUnread ? 1.5 : 1,
-                  }
-                ]}
-                onPress={() => handleNotifPress(n)}
-                activeOpacity={0.8}
-              >
-                <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: n.color + '22', alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 18 }}>{n.icon}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={{ color: n.color, fontSize: 11, fontWeight: '800' }}>{n.label}</Text>
-                      {isUnread && (
-                        <View style={{ backgroundColor: '#f5a623', paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 3 }}>
-                          <Text style={{ color: '#000000', fontSize: 9, fontWeight: '900' }}>NEW</Text>
-                        </View>
-                      )}
-                    </View>
-                    <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11 }}>{timeAgo(n.time)}</Text>
-                  </View>
-                  <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14.5, fontWeight: isUnread ? '800' : '600', marginTop: 3 }}>{n.title}</Text>
-                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12.5, marginTop: 2, lineHeight: 17 }}>{n.body}</Text>
-                </View>
-              </TouchableOpacity>
+                n={n}
+                isUnread={isUnread}
+                isDark={isDark}
+                colors={colors}
+                timeAgo={timeAgo}
+                onPress={handleNotifPress}
+                onClear={clearNotification}
+              />
             );
           })
         )}
@@ -550,7 +638,6 @@ export function NotificationsScreen({ navigation }) {
     </SafeAreaView>
   );
 }
-
 // ═══════════════════════════════════════════════════════════════
 //  WALK TOGETHER SCREEN
 // ═══════════════════════════════════════════════════════════════
@@ -849,29 +936,29 @@ export function WalkTogetherScreen({ navigation }) {
           <View style={{
             width: '100%',
             maxWidth: 380,
-            backgroundColor: '#121824',
+            backgroundColor: isDark ? '#121824' : '#ffffff',
             borderRadius: radius.xl,
             borderWidth: 1.5,
-            borderColor: colors.accent,
+            borderColor: isDark ? colors.accent : '#cbd5e1',
             padding: 18,
           }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ color: colors.text, fontSize: 17, fontWeight: '900' }}>
+              <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 17, fontWeight: '900' }}>
                 👥 Joined Students ({(inspectModalPost?.joinedUsers?.length || 0)})
               </Text>
               <TouchableOpacity onPress={() => setInspectModalPost(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Text style={{ color: colors.text2, fontSize: 18, fontWeight: '700' }}>✕</Text>
+                <Text style={{ color: isDark ? colors.text2 : '#64748b', fontSize: 18, fontWeight: '700' }}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={{ color: colors.text3, fontSize: 12, marginBottom: 12 }} numberOfLines={2}>
+            <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 12, marginBottom: 12 }} numberOfLines={2}>
               {inspectModalPost?.content}
             </Text>
 
             {(inspectModalPost?.joinedUsers?.length || 0) === 0 ? (
               <View style={{ paddingVertical: 20, alignItems: 'center' }}>
                 <Text style={{ fontSize: 28, marginBottom: 6 }}>🚶</Text>
-                <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center' }}>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 13, textAlign: 'center' }}>
                   No students have joined this walk yet.
                 </Text>
               </View>
@@ -884,12 +971,12 @@ export function WalkTogetherScreen({ navigation }) {
                       flexDirection: 'row',
                       alignItems: 'center',
                       gap: 10,
-                      backgroundColor: '#182030',
+                      backgroundColor: isDark ? '#182030' : '#f8fafc',
                       borderRadius: radius.md,
                       padding: 10,
                       marginBottom: 8,
                       borderWidth: 1,
-                      borderColor: '#26334a',
+                      borderColor: isDark ? '#26334a' : '#e2e8f0',
                     }}
                   >
                     <Text style={{ fontSize: 20 }}>🎓</Text>
@@ -897,7 +984,7 @@ export function WalkTogetherScreen({ navigation }) {
                       <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>
                         👤 {item.name || item.userId?.name || 'Verified Student'}
                       </Text>
-                      <Text style={{ color: colors.text3, fontSize: 10.5, marginTop: 2 }}>
+                      <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 10.5, marginTop: 2 }}>
                         Joined: {new Date(item.joinedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                       </Text>
                     </View>

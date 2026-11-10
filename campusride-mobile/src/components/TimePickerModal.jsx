@@ -8,7 +8,7 @@ import { colors, radius, spacing } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 
 const HOURS = ['12', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'];
-const MINUTES = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
 
 export function TimePickerModal({ visible, value, onConfirm, onClose }) {
   const { isDark } = useTheme();

@@ -213,12 +213,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                     {selectedRide.vehicleNumber ? `Reg: ${selectedRide.vehicleNumber}` : 'Verified Campus Vehicle'}
                   </Text>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '800' }}>
-                    ₹{selectedRide.costPerSeat}
-                  </Text>
-                  <Text style={{ color: colors.text3, fontSize: 11 }}>per seat</Text>
-                </View>
+                
               </View>
 
               {/* Route */}

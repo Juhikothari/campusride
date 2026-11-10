@@ -57,6 +57,20 @@ exports.createPost = async (req, res) => {
 
     await post.save();
     await post.populate('author', 'name college usn');
+
+    // Notify all college members via socket of new post
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const collegeRoom = `college-${user.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
+        io.to(collegeRoom).emit('new-community-post', {
+          post,
+          college: user.college,
+          authorId: req.user.userId,
+        });
+      }
+    } catch (_) {}
+
     res.status(201).json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });

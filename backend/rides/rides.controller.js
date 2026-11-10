@@ -25,15 +25,14 @@ const PER_KM_RATES = {
 
 const calculateFare = (distanceKm, vehicleType) => {
   const vt = (vehicleType || 'car').toLowerCase();
-  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 15 : 25);
-  const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 4 : 6));
+  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 20 : 25);
+  const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 5 : 7));
   
-  // Real road distance in cities is ~1.25x straight-line distance
-  const effDist = distanceKm && distanceKm > 0 ? Math.min(distanceKm * 1.25, 80) : 3.0;
-  if (effDist <= 1.0) {
+  const d = Math.max(1, distanceKm || 1);
+  if (d <= 1.0) {
     return base;
   }
-  return Math.round(base + (effDist * perKm));
+  return Math.round(base + (d * perKm));
 };
 exports.calculateFare = calculateFare;
 

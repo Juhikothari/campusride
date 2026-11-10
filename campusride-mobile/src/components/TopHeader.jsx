@@ -223,7 +223,6 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
               {isProvider && (
                 <MenuItem icon="📬" label="Ride Requests" onPress={() => navTo('ProviderBookings')} isDark={isDark} />
               )}
-              <MenuItem icon="🎁" label="Campus Rewards" onPress={() => navTo('Rewards')} isDark={isDark} />
               <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} isDark={isDark} />
               <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} isDark={isDark} />
 
@@ -232,6 +231,7 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
               )}
 
               <MenuItem icon="📞" label="Contact Support" onPress={() => navTo('ContactSupport')} isDark={isDark} />
+              <MenuItem icon="🎁" label="Campus Rewards" onPress={() => navTo('Rewards')} isDark={isDark} />
 
               <View style={[styles.divider, { backgroundColor: isDark ? colors.border : '#e2e8f0' }]} />
 

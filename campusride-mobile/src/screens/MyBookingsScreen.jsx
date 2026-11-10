@@ -103,6 +103,9 @@ export default function MyBookingsScreen({ navigation }) {
         onPress: async () => {
           try {
             await api.cancelBooking(id);
+            const cancelled = bookings.find(b => b._id === id);
+            const rId = cancelled?.rideId?._id || cancelled?.rideId;
+            if (rId) DeviceEventEmitter.emit('BOOKING_STATUS_CHANGED', { rideId: rId, status: 'cancelled' });
             setBookings(prev => prev.map(b => b._id === id ? { ...b, status: 'cancelled' } : b));
           } catch (e) {
             RNAlert.alert('Error', e.message || 'Failed to cancel');

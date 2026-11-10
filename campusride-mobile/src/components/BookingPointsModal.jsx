@@ -13,9 +13,17 @@ import { colors, radius } from '../theme';
 
 const addrOf = (p) => (typeof p === 'string' ? p : (p?.address || p?.name || ''));
 const fromRide = (p) => {
-  const c = p && p.coordinates;
-  if (Array.isArray(c) && c.length >= 2) return { text: addrOf(p), lat: String(c[1]), lng: String(c[0]) };
-  return { text: addrOf(p), lat: '', lng: '' };
+  if (!p) return { text: '', lat: '', lng: '' };
+  const text = addrOf(p);
+  if (Array.isArray(p.coordinates) && p.coordinates.length >= 2) {
+    return { text, lat: String(p.coordinates[1]), lng: String(p.coordinates[0]) };
+  }
+  const lat = p.lat ?? p.latitude;
+  const lng = p.lng ?? p.longitude;
+  if (lat != null && lng != null) {
+    return { text, lat: String(lat), lng: String(lng) };
+  }
+  return { text, lat: '', lng: '' };
 };
 
 export default function BookingPointsModal({ visible, ride, loading, onCancel, onConfirm }) {
@@ -38,7 +46,23 @@ export default function BookingPointsModal({ visible, ride, loading, onCancel, o
     );
   };
 
-  const fareAmount = ride?.costPerSeat || 49;
+  const calcDistance = (p, d) => {
+    const lat1 = parseFloat(p?.lat), lng1 = parseFloat(p?.lng), lat2 = parseFloat(d?.lat), lng2 = parseFloat(d?.lng);
+    if (!Number.isFinite(lat1) || !Number.isFinite(lat2)) return 0;
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  const distKm = calcDistance(pickup, drop);
+  const vt = (ride?.vehicleType || 'car').toLowerCase();
+  const baseRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 20 : 25;
+  const kmRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 5 : 7;
+  const fareAmount = (distKm > 0.3)
+    ? Math.round(baseRate + (distKm * kmRate))
+    : (Number.isFinite(ride?.costPerSeat) && ride.costPerSeat > 0 && ride.costPerSeat <= 35 ? ride.costPerSeat : baseRate);
 
   return (
     <Modal visible={!!visible} animationType="slide" transparent onRequestClose={onCancel}>

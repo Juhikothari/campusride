@@ -24,7 +24,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAIN_SERVICES = [
   {
     key: 'SearchRides',
-    title: 'Search Your Buddy',
+    title: 'Find a Ride',
     sub: 'Match with commuters on your route',
     iconBg: '#1a2233',
   },
@@ -52,6 +52,7 @@ export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [activeTrip, setActiveTrip] = useState(null);
+  const [driverStopIdx, setDriverStopIdx] = useState(1);
   const [tripRole,   setTripRole]   = useState('driver'); // 'driver' | 'rider'
   const [loading,    setLoading]    = useState(false);
 
@@ -233,7 +234,7 @@ export default function DashboardScreen({ navigation }) {
       step: 2,
       icon: '🔍',
       tagline: 'NEVER COMMUTE ALONE',
-      title: 'Search Your Buddy',
+      title: 'Find a Ride',
       desc: 'Need a ride? Connect with verified peers heading along your exact route in seconds. Commute together effortlessly.',
       btnLabel: 'Next →',
       targetKey: 'SearchRides',
@@ -349,6 +350,39 @@ export default function DashboardScreen({ navigation }) {
   };
   const TOUR_STEPS = ONBOARDING_STEPS;
   const [refreshing, setRefreshing] = useState(false);
+
+    useEffect(() => {
+    if (activeTrip?._id || activeTrip?.id) {
+      const rId = activeTrip._id || activeTrip.id;
+      AsyncStorage.getItem(`@ride_stop_idx_${rId}`).then(val => {
+        if (val) setDriverStopIdx(parseInt(val, 10) || 1);
+      }).catch(() => {});
+    }
+  }, [activeTrip?._id, activeTrip?.id]);
+
+  const advanceDriverStop = (nextIdx) => {
+    setDriverStopIdx(nextIdx);
+    const rId = activeTrip?._id || activeTrip?.id;
+    if (rId) {
+      AsyncStorage.setItem(`@ride_stop_idx_${rId}`, String(nextIdx)).catch(() => {});
+      DeviceEventEmitter.emit('RIDE_STOP_UPDATED', { rideId: rId, stopIdx: nextIdx });
+    }
+  };
+
+  const tripStops = useMemo(() => {
+    if (!activeTrip) return [];
+    const list = [];
+    list.push({ type: 'start', label: 'Start', address: activeTrip.pickup?.address || 'Start' });
+    const passengers = activeTrip.passengersList || [];
+    passengers.forEach((p, i) => {
+      list.push({ type: 'pickup', label: `Pickup ${p.usn || i + 1}`, usn: p.usn || `Seeker ${i + 1}`, address: p.pickupAddress || 'Pickup' });
+    });
+    passengers.forEach((p, i) => {
+      list.push({ type: 'drop', label: `Drop ${p.usn || i + 1}`, usn: p.usn || `Seeker ${i + 1}`, address: p.dropAddress || 'Drop' });
+    });
+    list.push({ type: 'destination', label: 'Destination', address: activeTrip.drop?.address || 'Destination' });
+    return list;
+  }, [activeTrip]);
 
   // Load active trip status
   const fetchActiveTrip = useCallback(async () => {
@@ -691,385 +725,295 @@ export default function DashboardScreen({ navigation }) {
           <View style={styles.activeTripSection}>
             <Text style={[styles.sectionLabel, { color: isDark ? colors.text2 : '#475569' }]}>ACTIVE TRIP STATUS</Text>
             <View style={[styles.activeTripCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: isDark ? colors.accent : '#f5a623' }]}>
-              {/* Provider Live Route Map on Main Screen */}
-              {tripRole === 'driver' && activeTrip && (
-                <TouchableOpacity
-                  activeOpacity={0.9}
-                  onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
-                  style={{
-                    borderRadius: radius.lg,
-                    overflow: 'hidden',
-                    marginVertical: 10,
-                    borderWidth: 1.5,
-                    borderColor: isDark ? colors.border : '#cbd5e1'
-                  }}
-                >
-                  <LiveMapView
-                    pickup={activeTrip.pickup}
-                    drop={activeTrip.drop}
-                    driverLocation={
-                      activeTrip?.currentLocation?.coordinates
-                        ? { lat: activeTrip.currentLocation.coordinates[1], lng: activeTrip.currentLocation.coordinates[0] }
-                        : (activeTrip?.pickup?.coordinates
-                            ? { lat: activeTrip.pickup.coordinates[1], lng: activeTrip.pickup.coordinates[0] }
-                            : (activeTrip?.pickup?.lat && activeTrip?.pickup?.lng
-                                ? { lat: activeTrip.pickup.lat, lng: activeTrip.pickup.lng }
-                                : null))
-                    }
-                    extraPickups={Array.isArray(activeTrip.passengers) ? activeTrip.passengers.map((p, i) => {
-                      const loc = p.pickupLocation || p.seeker?.pickupLocation || activeTrip.pickup;
-                      const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
-                      const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-                      return lat && lng ? { lat, lng, label: `Buddy ${i + 1}: ${p.seeker?.usn || 'Pickup'}` } : null;
-                    }).filter(Boolean) : []}
-                    height={190}
-                    interactive={false}
-                  />
-                  <View style={{
-                    position: 'absolute',
-                    top: 8,
-                    left: 8,
-                    backgroundColor: 'rgba(0,0,0,0.75)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 4,
-                    borderRadius: radius.sm,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 5
-                  }}>
-                    <Text style={{ fontSize: 11 }}>📍</Text>
-                    <Text style={{ color: '#00E5FF', fontSize: 10.5, fontWeight: '800' }}>LIVE ROUTE MAP (TAP TO NAVIGATE)</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              {/* Trip Header */}
-              <View style={styles.tripHeaderRow}>
-                <View style={styles.tripStatusIndicator}>
-                  <View style={[styles.liveGreenDot, activeTrip.status !== 'in-progress' && { backgroundColor: colors.accent }]} />
-                  <Text style={styles.tripHeaderText}>
-                    {activeTrip.status === 'in-progress'
-                      ? (tripRole === 'driver' ? '🚀 YOU ARE DRIVING (LIVE TRIP)' : '🚗 YOU ARE RIDING (LIVE TRIP)')
-                      : (tripRole === 'driver' ? '🚗 UPCOMING TRIP (READY TO START)' : '🚗 MATCHED TRIP (WAITING TO START)')}
-                  </Text>
-                </View>
-                <View style={[styles.liveBadge, activeTrip.status !== 'in-progress' && { backgroundColor: colors.accentDim, borderColor: colors.accent }]}>
-                  <Text style={[styles.liveBadgeText, activeTrip.status !== 'in-progress' && { color: colors.accent }]}>
-                    {activeTrip.status === 'in-progress' ? 'LIVE' : 'CONFIRMED'}
-                  </Text>
-                </View>
+
+              {/* 1. Live Route Map (Provider & Seeker) */}
+              <View style={{ borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1.5, borderColor: isDark ? colors.border : '#cbd5e1' }}>
+                <LiveMapView
+                  pickup={activeTrip.pickup}
+                  drop={activeTrip.drop}
+                  driverLocation={
+                    activeTrip?.currentLocation?.coordinates
+                      ? { lat: activeTrip.currentLocation.coordinates[1], lng: activeTrip.currentLocation.coordinates[0] }
+                      : (activeTrip?.pickup?.coordinates
+                          ? { lat: activeTrip.pickup.coordinates[1], lng: activeTrip.pickup.coordinates[0] }
+                          : (activeTrip?.pickup?.lat && activeTrip?.pickup?.lng
+                              ? { lat: activeTrip.pickup.lat, lng: activeTrip.pickup.lng }
+                              : null))
+                  }
+                  extraPickups={Array.isArray(activeTrip.passengers) ? activeTrip.passengers.map((p, i) => {
+                    const loc = p.pickupLocation || p.seeker?.pickupLocation || activeTrip.pickup;
+                    const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
+                    const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
+                    return lat && lng ? { lat, lng, label: `Buddy ${i + 1}: ${p.seeker?.usn || 'Pickup'}` } : null;
+                  }).filter(Boolean) : []}
+                  height={190}
+                  interactive={false}
+                />
               </View>
 
-              {activeTrip.date && (
-                <Text style={[styles.tripDateSub, { color: isDark ? colors.text3 : '#64748b' }]}>
-                  {formatDateDMY(activeTrip.date)} {activeTrip.time ? `• ${activeTrip.time}` : ''}
-                </Text>
-              )}
-
-              {/* Driver & Vehicle Box / Buddy Box */}
-              {tripRole === 'driver' && activeTrip.passengersList && activeTrip.passengersList.length > 1 ? (
-                <View style={{ marginBottom: 10 }}>
-                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, fontWeight: '800', marginBottom: 6, letterSpacing: 0.5 }}>
-                    👥 BUDDIES ({activeTrip.passengersList.length})
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                    {activeTrip.passengersList.map((p, pIdx) => (
-                      <View
-                        key={p.bookingId || pIdx}
-                        style={[
-                          styles.driverBox,
-                          {
-                            width: 250,
-                            backgroundColor: isDark ? '#131822' : '#f1f5f9',
-                            borderColor: isDark ? '#1e2636' : '#cbd5e1',
-                            marginBottom: 0,
-                          }
-                        ]}
-                      >
-                        <View style={[styles.driverIconCircle, { backgroundColor: 'rgba(33,150,243,0.15)', borderColor: colors.blue }]}>
-                          <Text style={{ fontSize: 16 }}>👤</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.driverTitle, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>
-                            {p.usn ? `🪪 ${p.usn}` : p.name}
-                          </Text>
-                          <Text style={[styles.driverVehicle, { color: isDark ? colors.text2 : '#475569' }]} numberOfLines={1}>
-                            💺 {p.seats} seat(s) • {p.college}
-                          </Text>
-                          {p.phone ? (
-                            <TouchableOpacity
-                              onPress={() => Linking.openURL(`tel:${p.phone}`)}
-                              style={styles.phoneContactRow}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={styles.phoneContactText}>📞 {p.phone}</Text>
-                              <View style={styles.phoneCallBadge}>
-                                <Text style={styles.phoneCallBadgeText}>Call</Text>
-                              </View>
-                            </TouchableOpacity>
-                          ) : null}
-                        </View>
-                      </View>
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : (
-                <View style={[styles.driverBox, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}>
-                  <View style={[styles.driverIconCircle, tripRole === 'driver' && { backgroundColor: 'rgba(33,150,243,0.15)', borderColor: colors.blue }]}>
-                    <Text style={{ fontSize: 18 }}>{tripRole === 'driver' ? '👤' : '🚗'}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.driverTitle, { color: isDark ? colors.text : '#0f172a' }]}>
-                      {tripRole === 'driver'
-                        ? `Buddy: ${activeTrip.matchedPassengerName && activeTrip.matchedPassengerName.toUpperCase() !== 'STUDENT' ? activeTrip.matchedPassengerName : 'Buddy'}`
-                        : (activeTrip.providerId?.name || 'Assigned Driver')}
-                    </Text>
-                    <Text style={[styles.driverVehicle, { color: isDark ? colors.text2 : '#475569' }]}>
-                      {tripRole === 'driver'
-                        ? `🎓 ${activeTrip.matchedPassengerCollege || 'Campus Commuter'}`
-                        : `${activeTrip.vehicleName || activeTrip.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • ${activeTrip.vehicleNumber || activeTrip.providerId?.kycDocuments?.vehicleNumber || activeTrip.providerId?.vehicleNumber || activeTrip.vehicleType || 'Verified Vehicle'}`}
-                    </Text>
-                    {tripRole === 'driver' && activeTrip.matchedPassengerPhone ? (
-                      <TouchableOpacity
-                        onPress={() => Linking.openURL(`tel:${activeTrip.matchedPassengerPhone}`)}
-                        style={styles.phoneContactRow}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.phoneContactText}>📞 {activeTrip.matchedPassengerPhone}</Text>
-                        <View style={styles.phoneCallBadge}>
-                          <Text style={styles.phoneCallBadgeText}>Call</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ) : null}
-                    {tripRole === 'driver' && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          const loc = activeTrip.pickup;
-                          const coords = loc?.coordinates;
-                          const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
-                          const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
-                          const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
-                          const destination = (lat && lng) ? { lat, lng } : (loc?.name || loc?.address || 'Pickup');
-                          openGoogleMaps({ destination, travelmode: 'driving' });
-                        }}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          backgroundColor: 'rgba(0,229,255,0.12)',
-                          borderWidth: 1,
-                          borderColor: '#00E5FF',
-                          borderRadius: radius.md,
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          alignSelf: 'flex-start',
-                          marginTop: 6,
-                          gap: 6,
-                        }}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={{ fontSize: 13 }}>🧭</Text>
-                        <Text style={{ color: '#00E5FF', fontSize: 11, fontWeight: '800' }}>
-                          Directions ↗
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    {tripRole === 'rider' && activeTrip.providerId?.phone ? (
-                      <TouchableOpacity
-                        onPress={() => Linking.openURL(`tel:${activeTrip.providerId.phone}`)}
-                        style={styles.phoneContactRow}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.phoneContactText}>📞 {activeTrip.providerId.phone}</Text>
-                        <View style={styles.phoneCallBadge}>
-                          <Text style={styles.phoneCallBadgeText}>Call Driver</Text>
-                        </View>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                </View>
-              )}
-
-              {/* Route Points — Full address display */}
-              <View style={styles.routeBox}>
-                <View style={styles.routePointRow}>
-                  <View style={[styles.routeDot, { backgroundColor: colors.green }]} />
-                  <Text style={[styles.routeAddressText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
-                    {getAddress(activeTrip.pickup)}
-                  </Text>
-                </View>
-                <View style={styles.routeConnectingLine} />
-                <View style={styles.routePointRow}>
-                  <View style={[styles.routeDot, { backgroundColor: colors.red }]} />
-                  <Text style={[styles.routeAddressText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
-                    {getAddress(activeTrip.drop)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Seats & Cost */}
-              <View style={[styles.tripMetaRow, { borderTopColor: isDark ? '#1e2636' : '#e2e8f0' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 14 }}>👥</Text>
-                  <Text style={[styles.tripMetaText, { color: isDark ? colors.text2 : '#475569' }]}>
-                    {(() => {
-                      const avail = (activeTrip.seatsAvailable !== undefined && activeTrip.seatsAvailable !== null)
-                        ? Number(activeTrip.seatsAvailable)
-                        : 1;
-                      return `${avail} seat${avail === 1 ? '' : 's'}`;
-                    })()}
-                  </Text>
-                </View>
-                <Text style={styles.tripCostText}>₹{activeTrip.costPerSeat || 49} / seat</Text>
-              </View>
-
-              {/* Price displayed to seeker to pay upon provider acceptance */}
-              {tripRole === 'rider' && (
-                <View style={styles.riderFareBox}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <View>
-                      <Text style={styles.riderFareTag}>💰 FARE TO PAY DRIVER</Text>
-                      <Text style={styles.riderFareSub}>Pay directly to driver via UPI or cash</Text>
-                    </View>
-                    <Text style={styles.riderFareAmount}>
-                      ₹{(activeTrip.costPerSeat || 49) * (activeTrip.bookedSeats || 1)}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Action Buttons based on in-progress vs pre-start */}
-              {activeTrip.status === 'in-progress' ? (
-                <TouchableOpacity
-                  style={styles.openGpsBtn}
-                  onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.openGpsBtnText}>📍 Open Live GPS & Tracking →</Text>
-                </TouchableOpacity>
-              ) : tripRole === 'driver' ? (
-                <View style={{ gap: 8 }}>
-                  {!activeTrip.riderReachedSeeker ? (
-                    <TouchableOpacity
-                      style={[
-                        styles.openGpsBtn,
-                        { backgroundColor: '#0284c7', borderWidth: 1, borderColor: '#38bdf8' }
-                      ]}
-                      onPress={async () => {
-                        const rId = activeTrip._id || activeTrip.id;
-                        try {
-                          await api.markArrivedAtSeeker(rId);
-                          setActiveTrip(prev => prev ? ({ ...prev, riderReachedSeeker: true }) : prev);
-                          RNAlert.alert('📍 Arrived at Seeker', 'Arrival confirmed! Your buddy has been notified to complete their safety checklist before departure.');
-                        } catch (err) {
-                          RNAlert.alert('Error', err.message || 'Failed to update arrival status');
-                        }
-                      }}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.openGpsBtnText, { color: '#ffffff' }]}>
-                        📍 I Have Reached Seeker's Location →
-                      </Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {activeTrip.seekerChecklistCompleted ? (
-                    <>
-                      <TouchableOpacity
-                        style={[
-                          styles.openGpsBtn,
-                          { backgroundColor: colors.green, borderWidth: 1, borderColor: colors.green }
-                        ]}
-                        onPress={async () => {
-                          const rId = activeTrip._id || activeTrip.id;
-                          try {
-                            await api.startRide(rId);
-                            navigation.navigate('LiveTracking', { rideId: rId });
-                          } catch (err) {
-                            RNAlert.alert('Cannot Start Ride', err.message || 'Wait for buddy to complete safety checklist.');
-                          }
-                        }}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={[styles.openGpsBtnText, { color: '#000' }]}>
-                          🚀 Start Ride (Checklist Verified ✓) →
-                        </Text>
-                      </TouchableOpacity>
-                      <Text style={{ color: colors.green, fontSize: 11.5, textAlign: 'center', fontWeight: '600' }}>
-                        ✓ Buddy verified safety checklist! Ready to depart.
-                      </Text>
-                    </>
-                  ) : (
-                    activeTrip.riderReachedSeeker ? (
-                      <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
-                        <Text style={{ fontSize: 20, marginBottom: 4 }}>⏳</Text>
-                        <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>Waiting for Buddy Checklist</Text>
-                        <Text style={{ color: colors.text2, fontSize: 11, textAlign: 'center', lineHeight: 16, marginTop: 2 }}>
-                          Your buddy has been notified of your arrival. Departure unlocks as soon as they submit their safety checklist.
-                        </Text>
-                      </View>
-                    ) : null
-                  )}
-                </View>
-              ) : (
-                <View style={{ gap: 8 }}>
-                  {!activeTrip.seekerChecklistCompleted ? (
-                    <TouchableOpacity
-                      style={[styles.openGpsBtn, { backgroundColor: colors.accent }]}
-                      onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeTrip._id || activeTrip.id })}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.openGpsBtnText, { color: '#000' }]}>🛡️ Complete Safety Checklist to Start →</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={{ backgroundColor: 'rgba(0,230,118,0.12)', borderWidth: 1, borderColor: colors.green, borderRadius: radius.md, padding: 10, alignItems: 'center' }}>
-                      <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
-                        ✅ Safety checklist verified! Ready to start ride.
-                      </Text>
-                    </View>
-                  )}
+              {/* 2. Provider Section: Tap to Navigate, Trip Stops, Requests, Cancel */}
+              {tripRole === 'driver' && (
+                <View style={{ marginTop: 12, gap: 10 }}>
+                  {/* Tap to Navigate Button */}
                   <TouchableOpacity
-                    style={[styles.openGpsBtn, { backgroundColor: isDark ? '#141d2e' : '#e0e7ff', borderWidth: 1, borderColor: '#6366f1' }]}
+                    style={{
+                      backgroundColor: colors.accent,
+                      borderRadius: radius.md,
+                      paddingVertical: 14,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      elevation: 3,
+                    }}
                     onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.openGpsBtnText, { color: isDark ? '#818cf8' : '#4338ca' }]}>
-                      📍 Track Ride & View Route →
+                    <Text style={{ color: '#000000', fontSize: 15, fontWeight: '900', letterSpacing: 0.5 }}>
+                      Tap to Navigate
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Trip Stops (Ordered Commute Route renamed) */}
+                  <View style={{
+                    backgroundColor: isDark ? '#101522' : '#f8fafc',
+                    borderRadius: radius.lg,
+                    borderWidth: 1,
+                    borderColor: isDark ? '#1e283d' : '#e2e8f0',
+                    padding: 12,
+                  }}>
+                    <Text style={{ color: isDark ? colors.accent : '#d97706', fontSize: 11.5, fontWeight: '800', letterSpacing: 0.8, marginBottom: 8 }}>
+                      📍 TRIP STOPS
+                    </Text>
+
+                    {/* Sequential Stop Action in sync */}
+                    {activeTrip.status !== 'in-progress' ? (
+                      <View style={{ gap: 8 }}>
+                        {!activeTrip.riderReachedSeeker ? (
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: '#0284c7',
+                              borderRadius: radius.md,
+                              paddingVertical: 12,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            onPress={async () => {
+                              const rId = activeTrip._id || activeTrip.id;
+                              try {
+                                await api.markArrivedAtSeeker(rId);
+                                setActiveTrip(prev => prev ? ({ ...prev, riderReachedSeeker: true }) : prev);
+                                RNAlert.alert('📍 Arrived at Seeker', 'Arrival confirmed! Your buddy has been notified to complete their safety checklist before departure.');
+                              } catch (err) {
+                                RNAlert.alert('Error', err.message || 'Failed to update arrival status');
+                              }
+                            }}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={{ color: '#ffffff', fontSize: 13.5, fontWeight: '800' }}>
+                              📍 Arrived at Pickup Spot
+                            </Text>
+                          </TouchableOpacity>
+                        ) : !activeTrip.seekerChecklistCompleted ? (
+                          <View style={{ backgroundColor: 'rgba(245,166,35,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, alignItems: 'center' }}>
+                            <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '800' }}>⏳ Waiting for Buddy Checklist</Text>
+                            <Text style={{ color: isDark ? colors.text2 : '#64748b', fontSize: 11, textAlign: 'center', marginTop: 2 }}>
+                              Buddy is completing pre-ride checklist. Departure unlocks automatically.
+                            </Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: colors.green,
+                              borderRadius: radius.md,
+                              paddingVertical: 12,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            onPress={async () => {
+                              const rId = activeTrip._id || activeTrip.id;
+                              try {
+                                await api.startRide(rId);
+                                setActiveTrip(prev => prev ? ({ ...prev, status: 'in-progress' }) : prev);
+                                navigation.navigate('LiveTracking', { rideId: rId });
+                              } catch (err) {
+                                RNAlert.alert('Cannot Start Ride', err.message || 'Wait for buddy to complete safety checklist.');
+                              }
+                            }}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={{ color: '#000000', fontSize: 13.5, fontWeight: '800' }}>
+                              🚀 Start Ride (Checklist Verified ✓)
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ) : (
+                      /* Ride in progress - Stop-by-stop progression */
+                      (() => {
+                        const safeIdx = Math.min(driverStopIdx, Math.max(0, tripStops.length - 1));
+                        const curStop = tripStops[safeIdx] || tripStops[0] || {};
+                        return (
+                          <View style={{ gap: 8 }}>
+                            <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 12.5, fontWeight: '700' }}>
+                              Next: {curStop.type === 'pickup' ? `Pick up ${curStop.usn}` : curStop.type === 'drop' ? `Drop ${curStop.usn}` : 'Final Destination'}
+                            </Text>
+
+                            {curStop.type === 'pickup' && (
+                              <TouchableOpacity
+                                style={{ backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 11, alignItems: 'center' }}
+                                onPress={() => {
+                                  advanceDriverStop(safeIdx + 1);
+                                  RNAlert.alert('Picked Up ✓', `USN ${curStop.usn} picked up. Next stop updated.`);
+                                }}
+                                activeOpacity={0.85}
+                              >
+                                <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
+                                  ✓ Picked Up (USN: ${curStop.usn})
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+
+                            {curStop.type === 'drop' && (
+                              <TouchableOpacity
+                                style={{ backgroundColor: '#10b981', borderRadius: radius.md, paddingVertical: 11, alignItems: 'center' }}
+                                onPress={() => {
+                                  advanceDriverStop(safeIdx + 1);
+                                  RNAlert.alert('Dropped ✓', `USN ${curStop.usn} dropped at destination. Next stop updated.`);
+                                }}
+                                activeOpacity={0.85}
+                              >
+                                <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
+                                  🏁 Dropped (USN: ${curStop.usn})
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+
+                            {(curStop.type === 'destination' || safeIdx >= tripStops.length - 1) && (
+                              <TouchableOpacity
+                                style={{ backgroundColor: colors.green, borderRadius: radius.md, paddingVertical: 11, alignItems: 'center' }}
+                                onPress={handleFinishTrip}
+                                activeOpacity={0.85}
+                              >
+                                <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
+                                  🏁 Complete & Finish Ride
+                                </Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        );
+                      })()
+                    )}
+                  </View>
+
+                  {/* Requests & Cancel Ride Buttons */}
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: isDark ? '#141c2c' : '#f1f5f9',
+                        borderRadius: radius.md,
+                        paddingVertical: 11,
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: isDark ? '#233047' : '#cbd5e1',
+                      }}
+                      onPress={() => navigation.navigate('ProviderBookings')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 12.5, fontWeight: '700' }}>
+                        📬 Ride Requests
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        backgroundColor: 'rgba(239,68,68,0.12)',
+                        borderRadius: radius.md,
+                        paddingVertical: 11,
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: '#ef4444',
+                      }}
+                      onPress={handleCancelDriverTrip}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#ef4444', fontSize: 12.5, fontWeight: '700' }}>
+                        ❌ Cancel Ride
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* 3. Seeker Section: Only Track Ride once checklist is completed */}
+              {tripRole === 'rider' && (
+                <View style={{ marginTop: 12, gap: 10 }}>
+                  {!activeTrip.seekerChecklistCompleted ? (
+                    <View style={{ gap: 8 }}>
+                      {activeTrip.riderReachedSeeker ? (
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: colors.accent,
+                            borderRadius: radius.md,
+                            paddingVertical: 13,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeTrip._id || activeTrip.id })}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>
+                            🛡️ Complete Safety Checklist Now →
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={{ backgroundColor: isDark ? '#121824' : '#f1f5f9', borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
+                          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, textAlign: 'center' }}>
+                            ⏳ Waiting for driver to arrive at pickup spot...
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    /* After checklist is completed: ONLY track ride visible */
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: colors.accent,
+                        borderRadius: radius.md,
+                        paddingVertical: 13,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        elevation: 3,
+                      }}
+                      onPress={() => navigation.navigate('LiveTracking', { rideId: activeTrip._id || activeTrip.id })}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ color: '#000000', fontSize: 14, fontWeight: '900' }}>
+                        📍 Track My Ride →
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Cancel Booking for Seeker */}
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: 'rgba(239,68,68,0.08)',
+                      borderRadius: radius.md,
+                      paddingVertical: 10,
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: 'rgba(239,68,68,0.3)',
+                    }}
+                    onPress={handleCancelRiderBooking}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700' }}>
+                      Cancel Booking
                     </Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              {/* Secondary Buttons Row — Details button removed per request */}
-              <View style={styles.secondaryBtnRow}>
-                {tripRole === 'driver' && activeTrip.status === 'in-progress' && (
-                  <TouchableOpacity
-                    style={[styles.secondaryBtn, { backgroundColor: 'rgba(0,230,118,0.15)', borderColor: colors.green }]}
-                    onPress={handleFinishTrip}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.secondaryBtnText, { color: colors.green, fontWeight: '900' }]}>🏁 Finish Ride</Text>
-                  </TouchableOpacity>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.secondaryBtn, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: isDark ? '#1e2636' : '#cbd5e1' }]}
-                  onPress={() => navigation.navigate(tripRole === 'driver' ? 'ProviderBookings' : 'MyBookings')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.secondaryBtnText, { color: isDark ? colors.text2 : '#475569' }]}>
-                    {tripRole === 'driver' ? 'Requests' : 'Bookings'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.secondaryBtn, { backgroundColor: isDark ? '#131822' : '#f1f5f9', borderColor: colors.red + '66' }]}
-                  onPress={handleCancelTrip}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.secondaryBtnText, { color: colors.red, fontWeight: '700' }]}>
-                    {tripRole === 'driver' ? '❌ Cancel Ride' : '❌ Cancel'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
           </View>
         )}

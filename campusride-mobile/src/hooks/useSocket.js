@@ -234,6 +234,20 @@ export const getSharedSocket = (userId, userType) => {
       }
     });
 
+    // ── Community New Posts ──
+    globalSocket.on('new-community-post', (data) => {
+      notifyAll('new-community-post', data);
+      const postAuthor = data?.post?.author?._id || data?.post?.author || data?.authorId;
+      if (postAuthor && String(postAuthor) !== String(userId)) {
+        incrementCommunityUnread();
+        showPushNotification({
+          title: `📢 New Campus Post (${(data?.post?.type || 'community').toUpperCase()})`,
+          body: data?.post?.content?.slice(0, 80) || 'New post shared in your campus community.',
+          data,
+        });
+      }
+    });
+
     // ── Walk Together (Nadi) Companion Joined ──
     globalSocket.on('walk-joined', (data) => {
       notifyAll('walk-joined', data);

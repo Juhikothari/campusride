@@ -200,6 +200,11 @@ export default function LiveTrackingScreen({ navigation, route }) {
         if (!data?.rideId || data.rideId === activeRideId) {
           setRideInfo(prev => prev ? ({ ...prev, status: 'in-progress' }) : prev);
         }
+      } else if (event === 'rideCompleted') {
+        if (!data?.rideId || data.rideId === activeRideId) {
+          setRideInfo(prev => prev ? ({ ...prev, status: 'completed' }) : prev);
+          setShowRatingModal(true);
+        }
       }
     });
     return () => unsub();
@@ -1149,40 +1154,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
           {isDriver && (
             <View style={[styles.driverControlCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: colors.accent }]}>
               
-              {/* Ordered Stops List Chain: Start → Pickup A → Pickup B/Drop A → Drop B → Destination */}
-              <View style={{ marginBottom: 14 }}>
-                <Text style={[styles.driverControlTitle, { marginBottom: 8 }]}>📍 ORDERED COMMUTE ROUTE</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}>
-                  {orderedStops.map((stop, sIdx) => {
-                    const isCurrent = sIdx === safeStopIdx;
-                    const isPassed = sIdx < safeStopIdx;
-                    return (
-                      <React.Fragment key={stop.id || sIdx}>
-                        <View style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: radius.md,
-                          backgroundColor: isCurrent ? colors.accent : (isPassed ? '#10b981' : (isDark ? '#1a2234' : '#e2e8f0')),
-                          borderWidth: 1,
-                          borderColor: isCurrent ? colors.accent : (isPassed ? '#10b981' : (isDark ? '#2e384d' : '#cbd5e1')),
-                        }}>
-                          <Text style={{
-                            fontSize: 11,
-                            fontWeight: '800',
-                            color: (isCurrent || isPassed) ? '#000000' : (isDark ? '#94a3b8' : '#475569')
-                          }}>
-                            {sIdx === 0 ? '🏁 Start' : sIdx === orderedStops.length - 1 ? '🏁 Dest' : stop.label}
-                          </Text>
-                        </View>
-                        {sIdx < orderedStops.length - 1 && (
-                          <Text style={{ color: isDark ? '#4b5563' : '#9ca3af', fontWeight: '800', fontSize: 13 }}>→</Text>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-
               {/* One Start Navigation Button */}
               <TouchableOpacity
                 style={{
@@ -1344,48 +1315,25 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     )}
 
                     {activeStop.type === 'drop' && (
-                      <>
-                        <TouchableOpacity
-                          style={{
-                            flex: 1,
-                            backgroundColor: isDark ? 'rgba(0,229,255,0.15)' : '#e0f2fe',
-                            borderWidth: 1.5,
-                            borderColor: isDark ? '#00E5FF' : '#0284c7',
-                            borderRadius: radius.md,
-                            paddingVertical: 10,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                          onPress={() => {
-                            RNAlert.alert('📍 Arrived', `Arrived at drop point for USN ${activeStop.usn}.`);
-                          }}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 12, fontWeight: '800' }}>
-                            📍 Arrived
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={{
-                            flex: 1.2,
-                            backgroundColor: '#10b981',
-                            borderRadius: radius.md,
-                            paddingVertical: 10,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                          onPress={() => {
-                            advanceStop(safeStopIdx + 1);
-                            RNAlert.alert('Dropped ✓', `USN ${activeStop.usn} dropped at destination! Next stop updated.`);
-                          }}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={{ color: '#000000', fontSize: 12, fontWeight: '800' }}>
-                            🏁 Dropped
-                          </Text>
-                        </TouchableOpacity>
-                      </>
+                      <TouchableOpacity
+                        style={{
+                          width: '100%',
+                          backgroundColor: '#10b981',
+                          borderRadius: radius.md,
+                          paddingVertical: 12,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        onPress={() => {
+                          advanceStop(safeStopIdx + 1);
+                          RNAlert.alert('Dropped ✓', `USN ${activeStop.usn} dropped at destination! Next stop updated.`);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
+                          🏁 Dropped (USN: ${activeStop.usn})
+                        </Text>
+                      </TouchableOpacity>
                     )}
 
                     {activeStop.type === 'destination' && (
@@ -1474,28 +1422,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       <Text style={styles.completeRideBtnText}>🛡️ Complete Safety Checklist Now →</Text>
                     </TouchableOpacity>
                   </>
-                ) : (
-                  <View style={{
-                    backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fefce8',
-                    borderWidth: 1,
-                    borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : '#fde047',
-                    borderRadius: radius.md,
-                    padding: 12,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 10,
-                  }}>
-                    <Text style={{ fontSize: 22 }}>🛡️</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: isDark ? colors.accent : '#b45309', fontSize: 13, fontWeight: '800' }}>
-                        Safety Checklist Completed
-                      </Text>
-                      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, marginTop: 2, lineHeight: 15 }}>
-                        Live in-app tracking active. Commute will begin shortly once driver starts trip.
-                      </Text>
-                    </View>
-                  </View>
-                )
+                ) : null
               )}
 
               <TouchableOpacity

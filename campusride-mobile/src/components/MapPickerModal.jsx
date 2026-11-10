@@ -197,13 +197,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
             <Text style={[styles.closeBtnText, { color: isDark ? colors.text2 : '#475569' }]}>✕ Close</Text>
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>{title}</Text>
-          <TouchableOpacity onPress={locateUser} disabled={locating} style={styles.gpsBtn} activeOpacity={0.7}>
-            {locating ? (
-              <ActivityIndicator color={colors.accent} size="small" />
-            ) : (
-              <Text style={{ fontSize: 13, color: colors.accent, fontWeight: '700' }}>📍 GPS</Text>
-            )}
-          </TouchableOpacity>
+          <View style={{ width: 60 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -238,41 +232,6 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
             </View>
           )}
 
-          {/* Use Google Maps to set the pin */}
-          <View style={[styles.gmapsCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
-            <Text style={[styles.gmapsTitle, { color: isDark ? colors.text : '#0f172a' }]}>🗺️ Pick the spot in Google Maps</Text>
-            <Text style={[styles.gmapsSteps, { color: isDark ? colors.text3 : '#64748b' }]}>
-              1. Tap Open Google Maps and long-press the exact spot.{'\n'}
-              2. Tap Share, then Copy link.{'\n'}
-              3. Come back here and paste it below.
-            </Text>
-            <TouchableOpacity onPress={handleOpenMaps} style={styles.gmapsOpenBtn} activeOpacity={0.8}>
-              <Text style={styles.gmapsOpenText}>Open Google Maps</Text>
-            </TouchableOpacity>
-            <View style={styles.gmapsRow}>
-              <TextInput
-                style={[styles.gmapsInput, { color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1', backgroundColor: isDark ? colors.surface2 : '#f8fafc' }]}
-                value={mapsLink}
-                onChangeText={(t) => { setMapsLink(t); if (linkError) setLinkError(''); }}
-                placeholder="Paste Google Maps link or coordinates"
-                placeholderTextColor={colors.text3}
-                autoCapitalize="none"
-                autoCorrect={false}
-                onSubmitEditing={applyMapsLink}
-                returnKeyType="go"
-              />
-              <TouchableOpacity
-                onPress={applyMapsLink}
-                disabled={!mapsLink.trim() || resolving}
-                style={[styles.gmapsUseBtn, (!mapsLink.trim() || resolving) && { opacity: 0.5 }]}
-                activeOpacity={0.8}
-              >
-                {resolving ? <ActivityIndicator size="small" color="#000" /> : <Text style={styles.gmapsUseText}>Use</Text>}
-              </TouchableOpacity>
-            </View>
-            {!!linkError && <Text style={styles.gmapsError}>{linkError}</Text>}
-          </View>
-
           {/* Interactive Visual Map with Droppable Pin */}
           <View style={{ marginVertical: 10 }}>
             <LiveMapView
@@ -299,61 +258,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               </View>
             </View>
 
-            {/* Action Bar: Detect GPS & Copy Location */}
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: isDark ? colors.border : '#e2e8f0' }}>
-              <TouchableOpacity
-                onPress={locateUser}
-                disabled={locating}
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
-                  paddingVertical: 8,
-                  borderRadius: radius.md,
-                  borderWidth: 1,
-                  borderColor: isDark ? colors.border : '#cbd5e1',
-                  gap: 4,
-                }}
-                activeOpacity={0.7}
-              >
-                {locating ? (
-                  <ActivityIndicator color={colors.accent} size="small" />
-                ) : (
-                  <>
-                    <Text style={{ fontSize: 13 }}>📍</Text>
-                    <Text style={{ fontSize: 11.5, fontWeight: '700', color: isDark ? colors.text : '#0f172a' }}>Detect GPS</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleCopyLocation}
-                disabled={!addressLabel}
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
-                  paddingVertical: 8,
-                  borderRadius: radius.md,
-                  borderWidth: 1,
-                  borderColor: isDark ? colors.border : '#cbd5e1',
-                  gap: 4,
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={{ fontSize: 13 }}>{copied ? '✅' : '📋'}</Text>
-                <Text style={{ fontSize: 11.5, fontWeight: '700', color: copied ? colors.green : (isDark ? colors.text : '#0f172a') }}>
-                  {copied ? 'Copied!' : 'Copy'}
-                </Text>
-              </TouchableOpacity>
-
-              
             </View>
-          </View>
 
           {/* Quick Campus Landmarks */}
           <Text style={[styles.sectionTitle, { color: isDark ? colors.text2 : '#475569' }]}>🏫 QUICK CAMPUS LANDMARKS</Text>

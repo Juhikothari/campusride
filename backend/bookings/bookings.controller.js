@@ -54,11 +54,22 @@ exports.requestBooking = async (req, res) => {
       return res.status(403).json({ message: 'This is a women-only ride.' });
     }
 
-    // Check if user already requested this ride
-    const existingBooking = await Booking.findOne({ rideId, seekerId });
-    if (existingBooking) {
+    // Check if user already requested this ride with an active or pending booking
+    const existingActiveBooking = await Booking.findOne({
+      rideId,
+      seekerId,
+      status: { $in: ['pending', 'accepted'] }
+    });
+    if (existingActiveBooking) {
       return res.status(400).json({ message: 'You already requested this ride' });
     }
+
+    // Clean up any previously cancelled or rejected booking for this ride so re-booking is allowed
+    await Booking.deleteMany({
+      rideId,
+      seekerId,
+      status: { $in: ['cancelled', 'rejected'] }
+    });
 
     // ── Block seeker if they are currently offering an active ride ────────────
     const activeProviderRide = await Ride.findOne({
@@ -107,11 +118,31 @@ exports.requestBooking = async (req, res) => {
     const seekerPickup = cleanPoint(req.body.pickup);
     const seekerDrop   = cleanPoint(req.body.drop);
 
+    // Calculate distance-based fare for seeker's segment
+    let bookingFare = Number(req.body.fare);
+    if (!Number.isFinite(bookingFare) || bookingFare <= 0) {
+      const pCoords = seekerPickup?.coordinates || ride.pickup?.coordinates;
+      const dCoords = seekerDrop?.coordinates || ride.drop?.coordinates;
+      if (Array.isArray(pCoords) && Array.isArray(dCoords)) {
+        const dLat = (dCoords[1] - pCoords[1]) * Math.PI / 180;
+        const dLng = (dCoords[0] - pCoords[0]) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 + Math.cos(pCoords[1] * Math.PI / 180) * Math.cos(dCoords[1] * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+        const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const vt = (ride.vehicleType || 'car').toLowerCase();
+        const base = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 20 : 25;
+        const perKm = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 5 : 7;
+        bookingFare = Math.round(base + (Math.max(1, distKm) * perKm));
+      } else {
+        bookingFare = ride.costPerSeat || 30;
+      }
+    }
+
 // Create booking WITH seats (seat availability is updated ONLY when provider accepts)
 const booking = new Booking({
   rideId,
   seekerId,
   seats: requestedSeats,
+  fare: bookingFare,
   status: 'pending',
   pickup: seekerPickup || { type: 'Point', coordinates: ride.pickup?.coordinates, address: ride.pickup?.address || '' },
   drop:   seekerDrop   || { type: 'Point', coordinates: ride.drop?.coordinates,   address: ride.drop?.address   || '' },

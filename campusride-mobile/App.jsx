@@ -157,7 +157,8 @@ function AppNotificationBanner() {
   useEffect(() => {
     const unsub = addNotificationListener(async (notif) => {
       try {
-        const storedUser = await AsyncStorage.getItem('@user').then(s => s ? JSON.parse(s) : null).catch(() => null);
+        const userRaw = (await AsyncStorage.getItem('cr_user')) || (await AsyncStorage.getItem('@user'));
+        const storedUser = userRaw ? JSON.parse(userRaw) : null;
         const myId = storedUser?._id || storedUser?.id || storedUser?.userId;
         const targetId = notif?.data?.recipientId || notif?.data?.userId;
         if (myId && targetId && String(targetId) !== String(myId)) {

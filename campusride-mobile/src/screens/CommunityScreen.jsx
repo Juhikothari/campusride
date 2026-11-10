@@ -884,13 +884,7 @@ function CollegeChatTab({ user }) {
       const kh = e.endCoordinates?.height || 0;
       setKeyboardHeight(kh);
       if (Platform.OS === 'android') {
-        const winH = Dimensions.get('window').height;
-        const scrH = Dimensions.get('screen').height;
-        if ((scrH - winH) > kh * 0.6) {
-          setAndroidPadding(0);
-        } else {
-          setAndroidPadding(kh);
-        }
+        setAndroidPadding(kh);
       }
       setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 100);
     };
@@ -989,8 +983,18 @@ function CollegeChatTab({ user }) {
                     )}
                     <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
                     {isMe && (
-                      <TouchableOpacity onPress={() => deleteMsg(item._id)} style={{ marginTop: 4, alignSelf: 'flex-end' }}>
-                        <Text style={{ color: 'rgba(0,0,0,0.4)', fontSize: 10 }}>Delete</Text>
+                      <TouchableOpacity
+                        onPress={() => deleteMsg(item._id)}
+                        style={{
+                          marginTop: 4,
+                          alignSelf: 'flex-end',
+                          padding: 4,
+                          borderRadius: 6,
+                          backgroundColor: 'rgba(0,0,0,0.08)',
+                        }}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Text style={{ fontSize: 12 }}>🗑️</Text>
                       </TouchableOpacity>
                     )}
                   </View>

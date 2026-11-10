@@ -13,6 +13,7 @@ const bookingSchema = new mongoose.Schema({
     required: true 
   },
   seats: { type: Number, required: true, min: 1 },
+  fare: { type: Number, default: 0 },
   // FIXED: Added 'cancelled' to enum
   status: { 
     type: String, 

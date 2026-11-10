@@ -140,10 +140,35 @@ export default function SearchRidesScreen({ navigation }) {
         const activeB = bList.find(b => b.status === 'accepted' && (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active'));
         const activeR = rList.find(r => r.status === 'in-progress' || r.status === 'active');
         setActiveRide(activeR || activeB?.rideId || null);
+
+        const bMap = {};
+        bList.forEach(b => {
+          const rId = b.rideId?._id || b.rideId;
+          if (rId && (b.status === 'pending' || b.status === 'accepted')) {
+            bMap[rId] = { status: b.status };
+          }
+        });
+        setBookingMap(bMap);
       } catch {}
     };
     checkActiveRide();
     return () => { mounted = false; };
+  }, []);
+
+    useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('BOOKING_STATUS_CHANGED', ({ rideId, status }) => {
+      if (!rideId) return;
+      setBookingMap(prev => {
+        const next = { ...prev };
+        if (status === 'cancelled' || status === 'rejected') {
+          delete next[rideId];
+        } else {
+          next[rideId] = { status };
+        }
+        return next;
+      });
+    });
+    return () => sub.remove();
   }, []);
 
   if (!isSeeker) return (
@@ -378,7 +403,11 @@ export default function SearchRidesScreen({ navigation }) {
   const startBook = (ride) => {
     if (!ride) return;
     const rideId = ride._id;
-    const fare = ride.costPerSeat || 50;
+    const distCalc = (pickup.lat && drop.lat) ? haversineKm(parseFloat(pickup.lat), parseFloat(pickup.lng), parseFloat(drop.lat), parseFloat(drop.lng)) : 3;
+    const vt = (ride.vehicleType || 'car').toLowerCase();
+    const baseRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 20 : 25;
+    const kmRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 5 : 7;
+    const fare = (ride.costPerSeat && ride.costPerSeat !== 50) ? ride.costPerSeat : Math.round(baseRate + (distCalc * kmRate));
     const pAddr = typeof ride.pickup === 'string' ? ride.pickup : (ride.pickup?.address || 'Pickup point');
     const dAddr = typeof ride.drop === 'string' ? ride.drop : (ride.drop?.address || 'Destination point');
 
@@ -407,7 +436,7 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Find a Ride" subtitle="Find verified campus rides & buddies" showBack={Boolean(navigation?.canGoBack && navigation.canGoBack())} />
+      <TopHeader title="Find a Ride" subtitle="Find verified campus rides & buddies" showBack={true} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -416,7 +445,7 @@ export default function SearchRidesScreen({ navigation }) {
       >
         {/* Pinned Location Inputs: Always visible when scrolling or typing */}
         <View style={[styles.pinnedSearchHeader, { backgroundColor: isDark ? colors.bg : '#f8fafc', borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
-          <Text style={[styles.sectionTitle, { marginTop: spacing.xs, color: isDark ? colors.text3 : '#64748b' }]}>SEARCH YOUR BUDDY</Text>
+          <Text style={[styles.sectionTitle, { marginTop: spacing.xs, color: isDark ? colors.text3 : '#64748b' }]}>FIND A RIDE</Text>
 
           {/* Pickup */}
           <LocationSearch
