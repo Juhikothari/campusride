@@ -19,8 +19,8 @@ export const getUser     = async () => {
 export const setUser     = (u)  => AsyncStorage.setItem('cr_user', JSON.stringify(u));
 export const removeUser  = ()   => AsyncStorage.removeItem('cr_user');
 
-// ── Base fetch wrapper with 10-second timeout ─────────
-const request = async (path, options = {}) => {
+// ── Base fetch wrapper with 30-second timeout ─────────
+export const request = async (path, options = {}) => {
   const token = await getToken();
   const headers = { 'Content-Type': 'application/json', ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -186,6 +186,7 @@ export const deleteChatMessage   = (id)          => request(`/community/chat/${i
 // ── Notifications ─────────────────────────────────────
 export const getNotifications  = ()     => request('/notifications');
 export const markNotificationsRead = () => request('/notifications/read-all', { method:'PUT' });
+export const markNotificationRead  = (id) => request(`/notifications/${id}/read`, { method:'PUT' }).catch(() => ({}));
 
 // ── SOS & Safety ──────────────────────────────────────
 export const triggerSOS        = (body) => request('/sos', { method:'POST', body: JSON.stringify(body) });

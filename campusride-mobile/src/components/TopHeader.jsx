@@ -218,12 +218,12 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
             <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
               <Text style={[styles.menuHeader, { color: isDark ? colors.text3 : '#64748b' }]}>QUICK ACCESS</Text>
 
-              <MenuItem icon="🎁" label="Campus Rewards" onPress={() => navTo('Rewards')} isDark={isDark} />
               <MenuItem icon="👤" label="My Profile" onPress={() => navTo('Profile')} isDark={isDark} />
               <MenuItem icon="📋" label="My Bookings" onPress={() => navTo('MyBookings')} isDark={isDark} />
               {isProvider && (
                 <MenuItem icon="📬" label="Ride Requests" onPress={() => navTo('ProviderBookings')} isDark={isDark} />
               )}
+              <MenuItem icon="🎁" label="Campus Rewards" onPress={() => navTo('Rewards')} isDark={isDark} />
               <MenuItem icon="🛡️" label="KYC Verification" onPress={() => navTo('KYC')} isDark={isDark} />
               <MenuItem icon="⚠️" label="Report Incident" onPress={() => navTo('IncidentReport')} isDark={isDark} />
 

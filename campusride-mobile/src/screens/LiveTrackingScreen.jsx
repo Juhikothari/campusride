@@ -722,7 +722,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="HOGO Track" subtitle="Live Route & Navigation" />
+      <TopHeader title="HOGO Track" subtitle="Live Route & Navigation" showBack={navigation?.canGoBack ? navigation.canGoBack() : true} />
 
       {lookingUp || loading ? (
         <View style={styles.centerContainer}>
@@ -741,6 +741,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
         </View>
       ) : (
         <ScrollView
+        style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={

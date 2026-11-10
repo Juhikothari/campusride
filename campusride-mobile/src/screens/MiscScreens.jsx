@@ -355,7 +355,7 @@ export function NotificationsScreen({ navigation }) {
         return next;
       });
       if (item.id) {
-        api.request(`/notifications/${item.id}/read`, { method: 'PUT' }).catch(() => {});
+        api.markNotificationRead(item.id);
       }
       if (item.onPress) item.onPress();
     } catch (err) {
@@ -1987,7 +1987,7 @@ export function ForgotPasswordScreen({ navigation }) {
   };
 
   const inputStyle = {
-    backgroundColor: isDark ? '#141a24' : '#f1f5f9',
+    backgroundColor: isDark ? '#141a24' : '#ffffff',
     borderWidth: 1.5,
     borderColor: isDark ? '#2a374d' : '#cbd5e1',
     borderRadius: radius.md,
@@ -1999,7 +1999,8 @@ export function ForgotPasswordScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
+      <TopHeader title="Forgot Password" subtitle="Account Recovery" showBack={true} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -2010,11 +2011,7 @@ export function ForgotPasswordScreen({ navigation }) {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={true}
         >
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
-            <Text style={{ color: isDark ? '#f5a623' : '#d97706', fontSize: 16, fontWeight: '700' }}>← Back to Login</Text>
-          </TouchableOpacity>
-
-          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 24, fontWeight: '800', marginBottom: 4 }}>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 24, fontWeight: '800', marginBottom: 4, marginTop: 4 }}>
             {step === 3 ? '🎉 All Set!' : 'Reset Password'}
           </Text>
           <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, marginBottom: spacing.lg }}>
@@ -2029,7 +2026,7 @@ export function ForgotPasswordScreen({ navigation }) {
           {step === 1 && (
             <View>
               <TextInput
-                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
+                style={[inputStyle, { backgroundColor: isDark ? '#141a24' : '#ffffff', color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#2a374d' : '#cbd5e1' }]}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="you@college.edu"
@@ -2046,7 +2043,7 @@ export function ForgotPasswordScreen({ navigation }) {
           {step === 2 && (
             <View>
               <TextInput
-                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1', letterSpacing: 4, fontWeight: '700', textAlign: 'center', fontSize: 18 }]}
+                style={[inputStyle, { backgroundColor: isDark ? '#141a24' : '#ffffff', color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#2a374d' : '#cbd5e1', letterSpacing: 4, fontWeight: '700', textAlign: 'center', fontSize: 18 }]}
                 value={otp}
                 onChangeText={setOtp}
                 placeholder="Enter 6-digit OTP"
@@ -2055,7 +2052,7 @@ export function ForgotPasswordScreen({ navigation }) {
                 maxLength={6}
               />
               <TextInput
-                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
+                style={[inputStyle, { backgroundColor: isDark ? '#141a24' : '#ffffff', color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#2a374d' : '#cbd5e1' }]}
                 value={newPassword}
                 onChangeText={setNewPassword}
                 placeholder="New password (min 6 chars)"
@@ -2063,7 +2060,7 @@ export function ForgotPasswordScreen({ navigation }) {
                 secureTextEntry
               />
               <TextInput
-                style={[inputStyle, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
+                style={[inputStyle, { backgroundColor: isDark ? '#141a24' : '#ffffff', color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#2a374d' : '#cbd5e1' }]}
                 value={confirmPwd}
                 onChangeText={setConfirmPwd}
                 placeholder="Confirm new password"

@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Btn, Alert, Card } from '../components/UI';
+import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, radius } from '../theme';
@@ -1336,7 +1337,8 @@ export function ResetPasswordScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
+      <TopHeader title="Reset Password" subtitle="Account Security" showBack={true} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1347,10 +1349,7 @@ export function ResetPasswordScreen({ navigation }) {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={true}
         >
-          <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 20 }}>
-            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 14 }}>← Back to Login</Text>
-          </TouchableOpacity>
-          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 22, fontWeight: '800', marginBottom: 6 }}>🔐 Reset Password</Text>
+          <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 22, fontWeight: '800', marginBottom: 6, marginTop: 4 }}>🔐 Reset Password</Text>
           <Alert message={error} />
 
           {step === STEP.EMAIL && (

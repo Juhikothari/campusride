@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator, Alert as RNAlert, RefreshControl, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Alert, EmptyState, Btn } from '../components/UI';
@@ -134,8 +135,8 @@ export default function MyBookingsScreen({ navigation }) {
           bookings.map(b => {
             const ride = b.rideId && typeof b.rideId === 'object' ? b.rideId : null;
             const rideIdStr = ride?._id || (typeof b.rideId === 'string' ? b.rideId : '');
-            const isCompleted = b.status === 'completed' || ride?.status === 'completed';
-            const isCancelled = b.status === 'cancelled' || ride?.status === 'cancelled';
+            const isCompleted = b.status === 'completed' || b.status === 'finished' || ride?.status === 'completed' || ride?.status === 'finished';
+            const isCancelled = b.status === 'cancelled' || b.status === 'rejected' || ride?.status === 'cancelled';
             const canCancel   = ['pending', 'accepted'].includes(b.status) && !isCancelled && !isCompleted;
             const isChecklistDone = b.checklistCompleted || ride?.seekerChecklistCompleted;
             const canTrack    = b.status === 'accepted' && (!ride || (ride.status !== 'cancelled' && ride.status !== 'completed')) && !isCompleted;

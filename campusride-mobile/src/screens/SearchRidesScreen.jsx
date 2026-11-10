@@ -455,7 +455,7 @@ export default function SearchRidesScreen({ navigation }) {
           refreshControl={
             <RefreshControl
               refreshing={loading}
-              onRefresh={search}
+              onRefresh={doSearch}
               tintColor={colors.accent}
               colors={[colors.accent]}
             />

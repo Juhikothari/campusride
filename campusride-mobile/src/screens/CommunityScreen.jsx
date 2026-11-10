@@ -872,6 +872,7 @@ function CollegeChatTab({ user }) {
   const [anonymous,setAnonymous]= useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [androidPadding, setAndroidPadding] = useState(0);
   const socketRef  = useRef(null);
   const flatRef    = useRef(null);
   const insets     = useSafeAreaInsets();
@@ -891,6 +892,7 @@ function CollegeChatTab({ user }) {
       () => {
         setKeyboardVisible(false);
         setKeyboardHeight(0);
+        setAndroidPadding(0);
       }
     );
     return () => {
@@ -940,8 +942,8 @@ function CollegeChatTab({ user }) {
     return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 25}
     >
       <View style={{ flex: 1 }}>
         {loading ? (
@@ -988,7 +990,7 @@ function CollegeChatTab({ user }) {
           {
             backgroundColor: isDark ? '#0c121e' : '#ffffff',
             borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
-            paddingBottom: Math.max(androidPadding, keyboardVisible ? 8 : insets.bottom, 10),
+            paddingBottom: keyboardVisible ? 10 : Math.max(insets.bottom, 10),
           }
         ]}>
           <TouchableOpacity
