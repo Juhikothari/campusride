@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  RIDE DETAIL SCREEN
 // ═══════════════════════════════════════════════════════════════
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, PanResponder, Animated,
   ActivityIndicator, Alert as RNAlert, TextInput,

@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, Alert as RNAlert, ActivityIndicator,
   KeyboardAvoidingView, Platform, RefreshControl,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +19,16 @@ import { Btn, Alert, TogglePill, EmptyState, Input } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { TimePickerModal } from '../components/TimePickerModal';
+
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  if (!Number.isFinite(lat1) || !Number.isFinite(lng1) || !Number.isFinite(lat2) || !Number.isFinite(lng2)) return 0;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 function formatDisplayTime(timeStr) {
   if (!timeStr || !timeStr.includes(':')) return 'Select Time';

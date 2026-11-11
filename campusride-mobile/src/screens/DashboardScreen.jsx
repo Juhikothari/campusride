@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert as RNAlert, Linking, Modal,
   Animated, Easing, Dimensions, Platform, RefreshControl,
+  DeviceEventEmitter,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -934,7 +935,7 @@ export default function DashboardScreen({ navigation }) {
                         borderWidth: 1,
                         borderColor: '#ef4444',
                       }}
-                      onPress={handleCancelDriverTrip}
+                      onPress={handleCancelTrip}
                       activeOpacity={0.8}
                     >
                       <Text style={{ color: '#ef4444', fontSize: 12.5, fontWeight: '700' }}>
@@ -1004,7 +1005,7 @@ export default function DashboardScreen({ navigation }) {
                       borderWidth: 1,
                       borderColor: 'rgba(239,68,68,0.3)',
                     }}
-                    onPress={handleCancelRiderBooking}
+                    onPress={handleCancelTrip}
                     activeOpacity={0.8}
                   >
                     <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700' }}>
