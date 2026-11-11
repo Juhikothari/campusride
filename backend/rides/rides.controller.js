@@ -1,3 +1,4 @@
+const { sendPushToUser } = require('../notifications/push.helper');
 // backend/rides/rides.controller.js - CORRECTED
 const Ride = require('./rides.model');
 const Booking = require('../bookings/bookings.model');
@@ -794,6 +795,11 @@ exports.arrivedAtSeeker = async (req, res) => {
           channels: ['in_app', 'push', 'socket']
         });
         await notif.save();
+        sendPushToUser(b.seekerId._id, {
+          title: '📍 Your Buddy Has Arrived!',
+          body: 'Your buddy has arrived at your pickup spot! Please meet them and complete your safety checklist.',
+          data: { screen: 'Dashboard', rideId: String(ride._id), bookingId: String(b._id) }
+        }).catch(() => {});
 
         const io = req.app.get('io');
         if (io) {

@@ -15,7 +15,7 @@ import CropView from '../components/CropView';
 import { DarkScope } from '../theme/themed';
 import { API_BASE, getCommunityPosts, createCommunityPost, toggleCommunityLike, addCommunityReply, deleteCommunityPost, deleteCommunityReply, getChatMessages } from '../services/api';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
-import { resetCommunityUnreadCount } from '../hooks/useSocket';
+import { resetCommunityUnreadCount, subscribeToTabUnreadCounts, resetTabUnread } from '../hooks/useSocket';
 import { colors, spacing, radius } from '../theme';
 import { Btn, Alert } from '../components/UI';
 import { getDisplayUSN } from '../utils/usn';
@@ -42,6 +42,14 @@ export function getCategoryBadge(type) {
     default:
       return { label: '💬 GENERAL', bg: 'rgba(168, 85, 247, 0.15)', border: '#a855f7', text: '#c084fc' };
   }
+}
+
+
+function formatChatTime(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
 }
 
 function timeAgo(dateStr) {
@@ -946,13 +954,12 @@ function CollegeChatTab({ user }) {
 
   const myId = user?._id || user?.userId;
 
-  const Container = Platform.OS === 'ios' ? KeyboardAvoidingView : View;
-  const containerProps = Platform.OS === 'ios'
-    ? { style: { flex: 1 }, behavior: 'padding', keyboardVerticalOffset: 90 }
-    : { style: { flex: 1, paddingBottom: androidPadding } };
-
   return (
-    <Container {...containerProps}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       <View style={{ flex: 1 }}>
         {loading ? (
           <ActivityIndicator color={colors.accent} style={{ flex: 1, marginTop: 40 }} />
@@ -969,12 +976,29 @@ function CollegeChatTab({ user }) {
             onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
             renderItem={({ item }) => {
               const isMe = item.senderId === myId;
+              const timeStr = formatChatTime(item.createdAt);
               return (
                 <View style={[styles.msgRow, isMe && styles.msgRowMe]}>
-                  <View style={[
-                    styles.msgBubble,
-                    isMe ? styles.msgBubbleMe : { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#e2e8f0', borderWidth: 1 }
-                  ]}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onLongPress={() => {
+                      if (isMe) {
+                        RNAlert.alert(
+                          'Delete Message',
+                          'Do you want to delete this message for everyone in college chat?',
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: () => deleteMsg(item._id) }
+                          ]
+                        );
+                      }
+                    }}
+                    delayLongPress={400}
+                    style={[
+                      styles.msgBubble,
+                      isMe ? styles.msgBubbleMe : { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#e2e8f0', borderWidth: 1 }
+                    ]}
+                  >
                     {!isMe && (
                       <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700', marginBottom: 2 }}>
                         {item.anonymous ? 'Anonymous' : item.senderName}
@@ -982,22 +1006,18 @@ function CollegeChatTab({ user }) {
                       </Text>
                     )}
                     <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
-                    {isMe && (
-                      <TouchableOpacity
-                        onPress={() => deleteMsg(item._id)}
-                        style={{
-                          marginTop: 4,
-                          alignSelf: 'flex-end',
-                          padding: 4,
-                          borderRadius: 6,
-                          backgroundColor: 'rgba(0,0,0,0.08)',
-                        }}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <Text style={{ fontSize: 12 }}>🗑️</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                    {timeStr ? (
+                      <Text style={{
+                        fontSize: 9.5,
+                        marginTop: 4,
+                        alignSelf: 'flex-end',
+                        color: isMe ? 'rgba(0,0,0,0.6)' : (isDark ? '#8b96b0' : '#64748b'),
+                        fontWeight: '500'
+                      }}>
+                        {timeStr}
+                      </Text>
+                    ) : null}
+                  </TouchableOpacity>
                 </View>
               );
             }}
@@ -1049,7 +1069,7 @@ function CollegeChatTab({ user }) {
           </TouchableOpacity>
         </View>
       </View>
-    </Container>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1058,10 +1078,20 @@ export default function CommunityScreen({ navigation }) {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
+  const [tabCounts, setTabCounts] = useState({ unreadPosts: 0, unreadChat: 0 });
 
   useEffect(() => {
-    resetCommunityUnreadCount();
-  }, []);
+    resetTabUnread(activeTab === 0 ? 'posts' : 'chat');
+    const unsub = subscribeToTabUnreadCounts((counts) => {
+      setTabCounts(counts);
+    });
+    return () => unsub();
+  }, [activeTab]);
+
+  const handleTabPress = (idx) => {
+    setActiveTab(idx);
+    resetTabUnread(idx === 0 ? 'posts' : 'chat');
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }} edges={['top']}>
@@ -1071,17 +1101,35 @@ export default function CommunityScreen({ navigation }) {
         showBack={navigation?.canGoBack ? navigation.canGoBack() : false} 
       />
 
-      {/* Tabs */}
+      {/* Tabs with unopened count badges */}
       <View style={[styles.tabBar, { backgroundColor: isDark ? colors.surface : '#ffffff', borderBottomColor: isDark ? colors.border : '#e2e8f0' }]}>
-        {TABS.map((tab, i) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === i && styles.tabActive]}
-            onPress={() => setActiveTab(i)}
-          >
-            <Text style={[styles.tabText, activeTab === i && styles.tabTextActive]}>{tab}</Text>
-          </TouchableOpacity>
-        ))}
+        {TABS.map((tab, i) => {
+          const count = i === 0 ? tabCounts.unreadPosts : tabCounts.unreadChat;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === i && styles.tabActive, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]}
+              onPress={() => handleTabPress(i)}
+            >
+              <Text style={[styles.tabText, activeTab === i && styles.tabTextActive]}>{tab}</Text>
+              {count > 0 && (
+                <View style={{
+                  backgroundColor: '#f5a623',
+                  paddingHorizontal: 7,
+                  paddingVertical: 2,
+                  borderRadius: 10,
+                  minWidth: 20,
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Text style={{ color: '#000000', fontSize: 11, fontWeight: '900' }}>
+                    {count > 9 ? '9+' : count}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Content */}

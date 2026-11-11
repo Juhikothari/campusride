@@ -253,15 +253,7 @@ export default function ProviderBookingsScreen({ navigation }) {
               </View>
             </View>
 
-            {/* Stop-by-stop plan: every seeker's pickup & drop in the best order */}
-            {['active', 'in-progress'].includes(selectedRide.status) && bookings.some(b => b.status === 'accepted') && (
-              <Btn
-                label="🧭 Route plan: all pickups & drops"
-                onPress={() => navigation.navigate('StopPlan', { rideId: selectedRide._id })}
-                variant="outline"
-                style={{ marginBottom: spacing.md }}
-              />
-            )}
+
 
             {/* Ride status controls */}
             {selectedRide.status === 'active' && (() => {

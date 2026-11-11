@@ -10,6 +10,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from '../
 import { useTheme } from '../context/ThemeContext';
 import LocationSearch from './LocationSearch';
 import { colors, radius } from '../theme';
+import { getEstimatedFare, haversineDistanceKm } from '../utils/pricing';
 
 const addrOf = (p) => (typeof p === 'string' ? p : (p?.address || p?.name || ''));
 const fromRide = (p) => {
@@ -46,23 +47,7 @@ export default function BookingPointsModal({ visible, ride, loading, onCancel, o
     );
   };
 
-  const calcDistance = (p, d) => {
-    const lat1 = parseFloat(p?.lat), lng1 = parseFloat(p?.lng), lat2 = parseFloat(d?.lat), lng2 = parseFloat(d?.lng);
-    if (!Number.isFinite(lat1) || !Number.isFinite(lat2)) return 0;
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
-
-  const distKm = calcDistance(pickup, drop);
-  const vt = (ride?.vehicleType || 'car').toLowerCase();
-  const baseRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 20 : 25;
-  const kmRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 5 : 7;
-  const fareAmount = (distKm > 0.3)
-    ? Math.round(baseRate + (distKm * kmRate))
-    : (Number.isFinite(ride?.costPerSeat) && ride.costPerSeat > 0 && ride.costPerSeat <= 35 ? ride.costPerSeat : baseRate);
+  const fareAmount = getEstimatedFare(pickup, drop, ride?.vehicleType, null);
 
   return (
     <Modal visible={!!visible} animationType="slide" transparent onRequestClose={onCancel}>

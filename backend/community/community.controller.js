@@ -15,8 +15,14 @@ exports.getPosts = async (req, res) => {
     // If 'walk' requested, filter to walk only; if not specified or 'community', exclude walk posts
     if (req.query.type === 'walk') {
       queryFilter.type = 'walk';
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      queryFilter.createdAt = { $gte: twentyFourHoursAgo };
+      // Automatically purge walks older than 4 hours
+      const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+      try {
+        await Post.deleteMany({ type: 'walk', createdAt: { $lt: fourHoursAgo } });
+      } catch (delErr) {
+        console.error('[WalkPurge] Error auto-deleting stale walks:', delErr?.message);
+      }
+      queryFilter.createdAt = { $gte: fourHoursAgo };
     } else if (req.query.type !== 'all') {
       queryFilter.type = { $ne: 'walk' };
     }

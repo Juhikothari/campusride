@@ -26,7 +26,7 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
       else if (h > 12) h -= 12;
 
       setSelectedHour(String(h).padStart(2, '0'));
-      setSelectedMin(String(Math.round(m / 5) * 5 % 60).padStart(2, '0'));
+      setSelectedMin(String(m).padStart(2, '0'));
       setSelectedPeriod(period);
     }
   }, [value, visible]);
@@ -50,7 +50,7 @@ export function TimePickerModal({ visible, value, onConfirm, onClose }) {
     else if (h > 12) h -= 12;
 
     setSelectedHour(String(h).padStart(2, '0'));
-    setSelectedMin(String(Math.round(m / 5) * 5 % 60).padStart(2, '0'));
+    setSelectedMin(String(m).padStart(2, '0'));
     setSelectedPeriod(period);
   };
 

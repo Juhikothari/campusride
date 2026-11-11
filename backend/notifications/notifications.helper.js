@@ -1,3 +1,4 @@
+const { sendPushToUser } = require('./push.helper');
 // backend/notifications/notifications.helper.js - Centralized Admin & Push Notification Helper
 const User = require('../users/users.model');
 const Notification = require('./notifications.model');
@@ -68,6 +69,7 @@ async function notifyAdmins({ title, message, type = 'admin_alert', data = {}, p
       for (const admin of admins) {
         global.io.to(`user-${admin._id}`).emit('admin-notification', payload);
         global.io.to(`user-${admin._id}`).emit('new-notification', payload);
+        sendPushToUser(admin._id, { title, body: message, data }).catch(() => {});
       }
     }
 

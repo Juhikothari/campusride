@@ -9,6 +9,34 @@ let activeUserId = null;
 const notificationSubscribers = new Set();
 const communityUnreadSubscribers = new Set();
 let communityUnreadCount = 0;
+let unreadPostsCount = 0;
+let unreadChatCount = 0;
+const tabUnreadSubscribers = new Set();
+
+export const subscribeToTabUnreadCounts = (callback) => {
+  tabUnreadSubscribers.add(callback);
+  callback({ unreadPosts: unreadPostsCount, unreadChat: unreadChatCount });
+  return () => tabUnreadSubscribers.delete(callback);
+};
+
+export const resetTabUnread = (tabName) => {
+  if (tabName === 'posts') {
+    unreadPostsCount = 0;
+  } else if (tabName === 'chat') {
+    unreadChatCount = 0;
+  } else {
+    unreadPostsCount = 0;
+    unreadChatCount = 0;
+  }
+  communityUnreadCount = unreadPostsCount + unreadChatCount;
+  if (activeUserId) {
+    AsyncStorage.setItem(`@unread_posts_${activeUserId}`, String(unreadPostsCount)).catch(() => {});
+    AsyncStorage.setItem(`@unread_chat_${activeUserId}`, String(unreadChatCount)).catch(() => {});
+    AsyncStorage.setItem(`@unread_community_${activeUserId}`, String(communityUnreadCount)).catch(() => {});
+  }
+  communityUnreadSubscribers.forEach(cb => { try { cb(communityUnreadCount); } catch (e) {} });
+  tabUnreadSubscribers.forEach(cb => { try { cb({ unreadPosts: unreadPostsCount, unreadChat: unreadChatCount }); } catch (e) {} });
+};
 
 export const disconnectGlobalSocket = () => {
   if (globalSocket) {
@@ -85,6 +113,28 @@ export const getSharedSocket = (userId, userType) => {
       notificationSubscribers.forEach(cb => {
         try { cb(event, data); } catch (e) {}
       });
+    };
+
+    const incrementPostsUnread = () => {
+      unreadPostsCount += 1;
+      communityUnreadCount = unreadPostsCount + unreadChatCount;
+      if (userId) {
+        AsyncStorage.setItem(`@unread_posts_${userId}`, String(unreadPostsCount)).catch(() => {});
+        AsyncStorage.setItem(`@unread_community_${userId}`, String(communityUnreadCount)).catch(() => {});
+      }
+      communityUnreadSubscribers.forEach(cb => { try { cb(communityUnreadCount); } catch (e) {} });
+      tabUnreadSubscribers.forEach(cb => { try { cb({ unreadPosts: unreadPostsCount, unreadChat: unreadChatCount }); } catch (e) {} });
+    };
+
+    const incrementChatUnread = () => {
+      unreadChatCount += 1;
+      communityUnreadCount = unreadPostsCount + unreadChatCount;
+      if (userId) {
+        AsyncStorage.setItem(`@unread_chat_${userId}`, String(unreadChatCount)).catch(() => {});
+        AsyncStorage.setItem(`@unread_community_${userId}`, String(communityUnreadCount)).catch(() => {});
+      }
+      communityUnreadSubscribers.forEach(cb => { try { cb(communityUnreadCount); } catch (e) {} });
+      tabUnreadSubscribers.forEach(cb => { try { cb({ unreadPosts: unreadPostsCount, unreadChat: unreadChatCount }); } catch (e) {} });
     };
 
     const incrementCommunityUnread = () => {
@@ -239,7 +289,7 @@ export const getSharedSocket = (userId, userType) => {
       notifyAll('new-community-post', data);
       const postAuthor = data?.post?.author?._id || data?.post?.author || data?.authorId;
       if (postAuthor && String(postAuthor) !== String(userId)) {
-        incrementCommunityUnread();
+        incrementPostsUnread();
         showPushNotification({
           title: `📢 New Campus Post (${(data?.post?.type || 'community').toUpperCase()})`,
           body: data?.post?.content?.slice(0, 80) || 'New post shared in your campus community.',

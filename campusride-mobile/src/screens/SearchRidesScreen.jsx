@@ -18,6 +18,7 @@ import FloatingChatBot from '../components/FloatingChatBot';
 import { Btn, Alert, TogglePill, EmptyState, Input } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
+import { calculateRideFare, haversineDistanceKm } from '../utils/pricing';
 import { TimePickerModal } from '../components/TimePickerModal';
 
 
@@ -414,11 +415,8 @@ export default function SearchRidesScreen({ navigation }) {
   const startBook = (ride) => {
     if (!ride) return;
     const rideId = ride._id;
-    const distCalc = (pickup.lat && drop.lat) ? haversineKm(parseFloat(pickup.lat), parseFloat(pickup.lng), parseFloat(drop.lat), parseFloat(drop.lng)) : 3;
-    const vt = (ride.vehicleType || 'car').toLowerCase();
-    const baseRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 20 : 25;
-    const kmRate = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 5 : 7;
-    const fare = (ride.costPerSeat && ride.costPerSeat !== 50) ? ride.costPerSeat : Math.round(baseRate + (distCalc * kmRate));
+    const distCalc = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : 3;
+    const fare = calculateRideFare(distCalc, ride.vehicleType || 'car');
     const pAddr = typeof ride.pickup === 'string' ? ride.pickup : (ride.pickup?.address || 'Pickup point');
     const dAddr = typeof ride.drop === 'string' ? ride.drop : (ride.drop?.address || 'Destination point');
 

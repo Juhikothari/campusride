@@ -16,6 +16,7 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { subscribeToNotifications } from '../hooks/useSocket';
 import { openGoogleMaps } from '../utils/maps';
+import { getDisplayUSN } from '../utils/usn';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -355,6 +356,15 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 message: 'Emergency SOS triggered from HOGO live tracking',
               });
               setSosSent(true);
+
+              // Send SMS to Emergency Contact
+              const emergencyPhone = user?.emergencyContact || user?.phone;
+              const mapUrl = userLat && userLng ? `https://maps.google.com/?q=${userLat},${userLng}` : '';
+              const smsBody = encodeURIComponent(`EMERGENCY SOS: I need help during my campus commute on HOGO! My location: ${mapUrl}`);
+              if (emergencyPhone) {
+                const smsUrl = Platform.OS === 'ios' ? `sms:${emergencyPhone}&body=${smsBody}` : `sms:${emergencyPhone}?body=${smsBody}`;
+                Linking.openURL(smsUrl).catch(() => {});
+              }
             } catch (e) {
               Linking.openURL('tel:112').catch(() => {});
               RNAlert.alert(
@@ -893,7 +903,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.nodeLabel, { color: '#00E5FF' }]}>1. PROVIDER LOCATION</Text>
                   <Text style={[styles.nodeAddress, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>
-                    {isDriver ? 'Your Live Location' : `${rideInfo?.providerId?.name || rideInfo?.providerName || 'Provider'} (${isTripToDestination ? 'Trip in Progress' : 'En Route to Pickup'})`}
+                    {isDriver ? 'Your Live Location' : `🪪 USN: ${getDisplayUSN(rideInfo?.providerId || rideInfo?.providerUsn, 'Buddy')} (${isTripToDestination ? 'Trip in Progress' : 'En Route to Pickup'})`}
                   </Text>
                 </View>
               </View>
@@ -1103,7 +1113,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                       <Text style={styles.driverAvatarText}>🪪</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.driverName, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {rideInfo?.providerId?.usn && rideInfo.providerId.usn.toUpperCase() !== 'STUDENT' ? rideInfo.providerId.usn : (rideInfo?.providerId?.name || 'Campus Provider')}</Text>
+                      <Text style={[styles.driverName, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {getDisplayUSN(rideInfo?.providerId || rideInfo?.providerUsn, 'Buddy')}</Text>
                       <Text style={styles.driverVehicleName}>
                         🚘 {rideInfo?.vehicleName || rideInfo?.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(rideInfo?.vehicleType || 'Car').toUpperCase()}
                       </Text>
@@ -1203,7 +1213,27 @@ export default function LiveTrackingScreen({ navigation, route }) {
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {activeStop.type === 'pickup' && (
                       <View style={{ gap: 8, width: '100%' }}>
-                        {!rideInfo?.riderReachedSeeker ? (
+                        {rideInfo?.status === 'in-progress' ? (
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: colors.accent,
+                              borderRadius: radius.md,
+                              paddingVertical: 13,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '100%',
+                            }}
+                            onPress={() => {
+                              advanceStop(safeStopIdx + 1);
+                              RNAlert.alert('Picked Up ✓', `USN ${activeStop.usn} picked up. Next stop updated.`);
+                            }}
+                            activeOpacity={0.85}
+                          >
+                            <Text style={{ color: '#000000', fontSize: 13.5, fontWeight: '800' }}>
+                              ✓ Picked Up (USN: {activeStop.usn})
+                            </Text>
+                          </TouchableOpacity>
+                        ) : !rideInfo?.riderReachedSeeker ? (
                           <TouchableOpacity
                             style={{
                               backgroundColor: isDark ? 'rgba(0,229,255,0.18)' : '#e0f2fe',
@@ -1331,7 +1361,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                         activeOpacity={0.85}
                       >
                         <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
-                          🏁 Dropped (USN: ${activeStop.usn})
+                          🏁 Dropped (USN: {activeStop.usn})
                         </Text>
                       </TouchableOpacity>
                     )}

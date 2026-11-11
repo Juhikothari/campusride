@@ -1,3 +1,4 @@
+const { sendPushToUser } = require('../notifications/push.helper');
 // backend/bookings/bookings.controller.js - CORRECTED
 const Booking = require('./bookings.model');
 const Ride = require('../rides/rides.model');
@@ -172,6 +173,11 @@ await booking.save();
         channels: ['in_app', 'socket']
       });
       await providerNotification.save();
+      sendPushToUser(ride.providerId._id || ride.providerId, {
+        title: '🚗 New Ride Request!',
+        body: providerNotification.body,
+        data: { screen: 'ProviderBookings', rideId: String(ride._id), bookingId: String(booking._id) }
+      }).catch(() => {});
 
       // Real-time socket notification
       const io = req.app.get('io');
@@ -423,6 +429,11 @@ exports.respondBooking = async (req, res) => {
         channels: ['in_app', 'socket']
       });
       await seekerNotification.save();
+      sendPushToUser(booking.seekerId._id || booking.seekerId, {
+        title: seekerNotification.title,
+        body: seekerNotification.body,
+        data: { screen: 'MyBookings', rideId: String(booking.rideId?._id || booking.rideId) }
+      }).catch(() => {});
 
       // Real-time notification to seeker
       const io = req.app.get('io');

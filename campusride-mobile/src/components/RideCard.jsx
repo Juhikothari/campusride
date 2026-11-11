@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Badge } from './UI';
 import { getDisplayUSN } from '../utils/usn';
 import { formatDateDMY } from '../utils/date';
+import { calculateRideFare, haversineDistanceKm } from '../utils/pricing';
 
 const STATUS_COLOR = {
   active:       colors.green,
@@ -94,7 +95,15 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
         <DetailChip icon="📅" text={formatDate(ride.date)} isDark={isDark} />
         <DetailChip icon="🕐" text={formatTime(ride.date, ride.time)} isDark={isDark} />
         <DetailChip icon="💺" text={`${ride.seatsAvailable} seat${ride.seatsAvailable !== 1 ? 's' : ''}`} />
-        <DetailChip icon="₹" text={`${ride.costPerSeat}/seat`} />
+        {(() => {
+          const pLat = ride.pickup?.coordinates?.[1] || ride.pickup?.lat;
+          const pLng = ride.pickup?.coordinates?.[0] || ride.pickup?.lng;
+          const dLat = ride.drop?.coordinates?.[1] || ride.drop?.lat;
+          const dLng = ride.drop?.coordinates?.[0] || ride.drop?.lng;
+          const km = (pLat && dLat) ? haversineDistanceKm(pLat, pLng, dLat, dLng) : 3;
+          const fare = calculateRideFare(km, ride.vehicleType || 'car');
+          return <DetailChip icon="₹" text={`${fare}/seat`} isDark={isDark} />;
+        })()}
       </View>
 
       {/* Actions */}

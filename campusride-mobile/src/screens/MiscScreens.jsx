@@ -19,6 +19,7 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 import { openGoogleMaps } from '../utils/maps';
 import { formatDateDMY } from '../utils/date';
+import { getDisplayUSN } from '../utils/usn';
 
 function getAddr(field) {
   if (!field) return '—';
@@ -201,7 +202,7 @@ export function RideDetailScreen({ navigation, route }) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 15, fontWeight: '800' }}>
-                      {ride.providerId?.name || 'Provider'}
+                      🪪 USN: {getDisplayUSN(ride.providerId, 'Buddy')}
                     </Text>
                     <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginTop: 2 }}>
                       {ride.vehicleName || 'Vehicle'} • {(ride.vehicleType || 'Car').toUpperCase()}
@@ -259,14 +260,7 @@ export function RideDetailScreen({ navigation, route }) {
                   <Alert message="❌ Booking was rejected." />
                 )}
                 {booking.status === 'accepted' && !ride?.seekerChecklistCompleted && !booking?.seekerChecklistCompleted && (
-                  <>
-                    <Alert message="✅ Your booking is confirmed! Complete safety checklist to start." type="success" />
-                    <Btn
-                      label="🛡️ Complete Safety Checklist →"
-                      onPress={() => navigation.navigate('PreRideChecklist', { rideId: ride._id })}
-                      style={{ marginTop: 8 }}
-                    />
-                  </>
+                  <Alert message="✅ Your booking is confirmed! Complete safety checklist on Dashboard once driver arrives." type="success" />
                 )}
                 {booking.status === 'accepted' && (ride?.seekerChecklistCompleted || booking?.seekerChecklistCompleted) && (
                   <Alert message="✅ Safety checklist completed. Live commute is in progress." type="success" />
@@ -713,7 +707,7 @@ export function WalkTogetherScreen({ navigation }) {
 
   const currentUserId = (user?._id || user?.userId || '').toString();
   const now = Date.now();
-  const isWalkActive = (p) => (now - new Date(p.createdAt).getTime()) < 24 * 60 * 60 * 1000;
+  const isWalkActive = (p) => (now - new Date(p.createdAt).getTime()) < 4 * 60 * 60 * 1000;
 
   // Past rides disappear after 24 hrs - only show active walks within 24h
   const activeWalks = posts.filter(isWalkActive);
@@ -776,7 +770,7 @@ export function WalkTogetherScreen({ navigation }) {
             🚶 Active Campus Walks ({activeWalks.length})
           </Text>
           <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11 }}>
-            Auto-disappears after 24 hrs
+            Auto-disappears after 4 hrs
           </Text>
         </View>
 
@@ -786,7 +780,7 @@ export function WalkTogetherScreen({ navigation }) {
           <View style={{ alignItems: 'center', paddingVertical: 36 }}>
             <Text style={{ fontSize: 40, marginBottom: 8 }}>🚶</Text>
             <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 14, textAlign: 'center' }}>
-              No active walk requests in the last 24h. Post one above!
+              No active walk requests in the last 4h. Post one above!
             </Text>
           </View>
         ) : (

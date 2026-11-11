@@ -247,9 +247,15 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
           <View style={[styles.selectedCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
             <Text style={styles.cardHeader}>SELECTED LOCATION</Text>
             <View style={styles.selectedRow}>
-              <View style={styles.pinCircle}>
+              <TouchableOpacity
+                style={styles.pinCircle}
+                onPress={locateUser}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Detect my location"
+              >
                 <Text style={{ fontSize: 18 }}>📍</Text>
-              </View>
+              </TouchableOpacity>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.selectedAddress, { color: isDark ? colors.text : '#0f172a' }]}>{addressLabel || 'Locating...'}</Text>
                 {coords && (

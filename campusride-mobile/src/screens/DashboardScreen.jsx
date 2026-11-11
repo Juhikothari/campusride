@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import TopHeader from '../components/TopHeader';
+import { RatingModal } from './ExtraScreens';
 import LiveMapView from '../components/LiveMapView';
 import FloatingChatBot from '../components/FloatingChatBot';
 import { subscribeToCommunityUnread, getCommunityUnreadCount, subscribeToNotifications } from '../hooks/useSocket';
@@ -53,6 +54,10 @@ export default function DashboardScreen({ navigation }) {
   const { user } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [activeTrip, setActiveTrip] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [hasRated, setHasRated] = useState(false);
+  const [inlineChecks, setInlineChecks] = useState({ idVerified: false, vehicleVerified: false, safetyVerified: false });
+  const [inlineSubmitting, setInlineSubmitting] = useState(false);
   const [driverStopIdx, setDriverStopIdx] = useState(1);
   const [tripRole,   setTripRole]   = useState('driver'); // 'driver' | 'rider'
   const [loading,    setLoading]    = useState(false);
@@ -385,6 +390,20 @@ export default function DashboardScreen({ navigation }) {
     return list;
   }, [activeTrip]);
 
+  // Show RatingModal for seeker when activeTrip completes
+  useEffect(() => {
+    if (activeTrip?.status === 'completed' && !hasRated && !showRatingModal) {
+      const rId = activeTrip._id || activeTrip.id;
+      if (rId) {
+        AsyncStorage.getItem(`@has_rated_${rId}`).then(val => {
+          if (val !== 'true') {
+            setShowRatingModal(true);
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [activeTrip?.status, hasRated, showRatingModal, activeTrip?._id]);
+
   // Load active trip status
   const fetchActiveTrip = useCallback(async () => {
     try {
@@ -683,9 +702,7 @@ export default function DashboardScreen({ navigation }) {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Text style={[styles.serviceTitle, { color: isDark ? colors.text : '#0f172a' }]}>{item.title}</Text>
                       {item.key === 'Community' && unreadCommunityCount > 0 && (
-                        <View style={styles.whatsappBadge}>
-                          <Text style={styles.whatsappBadgeText}>{unreadCommunityCount}</Text>
-                        </View>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#f5a623', marginLeft: 4 }} />
                       )}
                     </View>
                     <Text style={[styles.serviceSub, { color: isDark ? colors.text2 : '#475569' }]}>{item.sub}</Text>
@@ -868,7 +885,7 @@ export default function DashboardScreen({ navigation }) {
                                 activeOpacity={0.85}
                               >
                                 <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
-                                  ✓ Picked Up (USN: ${curStop.usn})
+                                  ✓ Picked Up (USN: {curStop.usn})
                                 </Text>
                               </TouchableOpacity>
                             )}
@@ -883,7 +900,7 @@ export default function DashboardScreen({ navigation }) {
                                 activeOpacity={0.85}
                               >
                                 <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
-                                  🏁 Dropped (USN: ${curStop.usn})
+                                  🏁 Dropped (USN: {curStop.usn})
                                 </Text>
                               </TouchableOpacity>
                             )}
@@ -946,27 +963,118 @@ export default function DashboardScreen({ navigation }) {
                 </View>
               )}
 
-              {/* 3. Seeker Section: Only Track Ride once checklist is completed */}
+              {/* 3. Seeker Section: My Bookings, Inline Checklist & Track */}
               {tripRole === 'rider' && (
                 <View style={{ marginTop: 12, gap: 10 }}>
+                  {/* Bookings shortcut button */}
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                      borderWidth: 1.5,
+                      borderColor: isDark ? colors.border : '#cbd5e1',
+                      borderRadius: radius.md,
+                      paddingVertical: 11,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'row',
+                      gap: 8,
+                    }}
+                    onPress={() => navigation.navigate('MyBookings')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={{ fontSize: 16 }}>📋</Text>
+                    <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '700' }}>
+                      My Bookings
+                    </Text>
+                  </TouchableOpacity>
+
                   {!activeTrip.seekerChecklistCompleted ? (
                     <View style={{ gap: 8 }}>
                       {activeTrip.riderReachedSeeker ? (
-                        <TouchableOpacity
-                          style={{
-                            backgroundColor: colors.accent,
-                            borderRadius: radius.md,
-                            paddingVertical: 13,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                          onPress={() => navigation.navigate('PreRideChecklist', { rideId: activeTrip._id || activeTrip.id })}
-                          activeOpacity={0.85}
-                        >
-                          <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>
-                            🛡️ Complete Safety Checklist Now →
+                        <View style={{
+                          backgroundColor: isDark ? '#111827' : '#f8fafc',
+                          borderRadius: radius.lg,
+                          borderWidth: 1.5,
+                          borderColor: colors.accent,
+                          padding: 14,
+                          gap: 10,
+                        }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={{ fontSize: 16 }}>🛡️</Text>
+                            <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>PRE-RIDE SAFETY CHECKLIST</Text>
+                          </View>
+                          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12 }}>
+                            Driver has arrived! Confirm checks below to unlock live tracking:
                           </Text>
-                        </TouchableOpacity>
+
+                          {[
+                            { key: 'idVerified', label: 'Verified driver USN & campus identity' },
+                            { key: 'vehicleVerified', label: 'Verified vehicle model & license plate' },
+                            { key: 'safetyVerified', label: 'Helmet / Seatbelt on & safe route confirmed' },
+                          ].map(item => (
+                            <TouchableOpacity
+                              key={item.key}
+                              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}
+                              onPress={() => setInlineChecks(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+                              activeOpacity={0.8}
+                            >
+                              <View style={{
+                                width: 22, height: 22, borderRadius: 6,
+                                borderWidth: 2,
+                                borderColor: inlineChecks[item.key] ? colors.green : (isDark ? colors.border : '#94a3b8'),
+                                backgroundColor: inlineChecks[item.key] ? colors.green : 'transparent',
+                                alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                {inlineChecks[item.key] && <Text style={{ color: '#fff', fontSize: 12, fontWeight: '900' }}>✓</Text>}
+                              </View>
+                              <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 12.5, flex: 1 }}>{item.label}</Text>
+                            </TouchableOpacity>
+                          ))}
+
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: (inlineChecks.idVerified && inlineChecks.vehicleVerified && inlineChecks.safetyVerified)
+                                ? colors.accent
+                                : (isDark ? '#1f2937' : '#e2e8f0'),
+                              borderRadius: radius.md,
+                              paddingVertical: 12,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginTop: 4,
+                            }}
+                            disabled={!(inlineChecks.idVerified && inlineChecks.vehicleVerified && inlineChecks.safetyVerified) || inlineSubmitting}
+                            onPress={async () => {
+                              const rId = activeTrip._id || activeTrip.id;
+                              if (!rId) return;
+                              setInlineSubmitting(true);
+                              try {
+                                await api.submitChecklist(rId, { seekerCompleted: true, checklist: inlineChecks }).catch(() => {});
+                                await AsyncStorage.setItem(`@checklist_done_${rId}_${user?._id || 'user'}`, 'true').catch(() => {});
+                                setActiveTrip(prev => ({ ...prev, seekerChecklistCompleted: true }));
+                                RNAlert.alert('Checklist Submitted ✓', 'Safety checklist verified. You can now track your ride live!');
+                              } catch (e) {
+                                setActiveTrip(prev => ({ ...prev, seekerChecklistCompleted: true }));
+                              } finally {
+                                setInlineSubmitting(false);
+                              }
+                            }}
+                            activeOpacity={0.85}
+                          >
+                            {inlineSubmitting ? (
+                              <ActivityIndicator color="#000" size="small" />
+                            ) : (
+                              <Text style={{
+                                color: (inlineChecks.idVerified && inlineChecks.vehicleVerified && inlineChecks.safetyVerified)
+                                  ? '#000000'
+                                  : (isDark ? '#9ca3af' : '#64748b'),
+                                fontSize: 13.5,
+                                fontWeight: '800'
+                              }}>
+                                ✓ Submit Checklist & Unlock Ride
+                              </Text>
+                            )}
+                          </TouchableOpacity>
+                        </View>
                       ) : (
                         <View style={{ backgroundColor: isDark ? '#121824' : '#f1f5f9', borderRadius: radius.md, padding: 12, alignItems: 'center' }}>
                           <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, textAlign: 'center' }}>
@@ -1235,6 +1343,28 @@ export default function DashboardScreen({ navigation }) {
           </View>
         </View>
       )}
+
+      {/* Post-Ride Rating Modal */}
+      <RatingModal
+        visible={showRatingModal}
+        rideId={activeTrip?._id || activeTrip?.id}
+        targetUser={activeTrip?.providerId || activeTrip?.provider}
+        targetRole={tripRole === 'rider' ? 'provider' : 'rider'}
+        onClose={() => {
+          setShowRatingModal(false);
+          setHasRated(true);
+          const rId = activeTrip?._id || activeTrip?.id;
+          if (rId) AsyncStorage.setItem(`@has_rated_${rId}`, 'true').catch(() => {});
+          setActiveTrip(null);
+        }}
+        onSubmitted={() => {
+          setShowRatingModal(false);
+          setHasRated(true);
+          const rId = activeTrip?._id || activeTrip?.id;
+          if (rId) AsyncStorage.setItem(`@has_rated_${rId}`, 'true').catch(() => {});
+          setActiveTrip(null);
+        }}
+      />
 
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
