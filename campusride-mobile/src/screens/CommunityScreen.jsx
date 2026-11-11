@@ -45,6 +45,21 @@ export function getCategoryBadge(type) {
 }
 
 
+function formatChatDateHeader(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  if (msgDate.getTime() === today.getTime()) return 'Today';
+  if (msgDate.getTime() === yesterday.getTime()) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 function formatChatTime(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -957,7 +972,7 @@ function CollegeChatTab({ user }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <View style={{ flex: 1 }}>
@@ -974,11 +989,33 @@ function CollegeChatTab({ user }) {
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={true}
             onContentSizeChange={() => flatRef.current?.scrollToEnd({ animated: false })}
-            renderItem={({ item }) => {
+            renderItem={({ item, index }) => {
               const isMe = item.senderId === myId;
               const timeStr = formatChatTime(item.createdAt);
+              const currentDateHeader = formatChatDateHeader(item.createdAt);
+              const prevMsg = index > 0 ? messages[index - 1] : null;
+              const prevDateHeader = prevMsg ? formatChatDateHeader(prevMsg.createdAt) : null;
+              const showDateHeader = !prevMsg || (currentDateHeader && currentDateHeader !== prevDateHeader);
+
               return (
-                <View style={[styles.msgRow, isMe && styles.msgRowMe]}>
+                <View>
+                  {showDateHeader && (
+                    <View style={{ alignItems: 'center', marginVertical: 12 }}>
+                      <View style={{
+                        backgroundColor: isDark ? 'rgba(30, 41, 59, 0.85)' : '#e2e8f0',
+                        paddingHorizontal: 12,
+                        paddingVertical: 4,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: isDark ? '#334155' : '#cbd5e1',
+                      }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#94a3b8' : '#475569' }}>
+                          {currentDateHeader}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  <View style={[styles.msgRow, isMe && styles.msgRowMe]}>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onLongPress={() => {
@@ -1019,6 +1056,7 @@ function CollegeChatTab({ user }) {
                     ) : null}
                   </TouchableOpacity>
                 </View>
+                </View>
               );
             }}
           />
@@ -1028,6 +1066,7 @@ function CollegeChatTab({ user }) {
           {
             backgroundColor: isDark ? '#0c121e' : '#ffffff',
             borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
+            marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
             paddingBottom: (keyboardVisible || androidPadding > 0) ? 8 : Math.max(insets.bottom, 10),
           }
         ]}>

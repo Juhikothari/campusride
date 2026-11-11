@@ -20,6 +20,7 @@ import * as api from '../services/api';
 import { openGoogleMaps } from '../utils/maps';
 import { formatDateDMY } from '../utils/date';
 import { getDisplayUSN } from '../utils/usn';
+import { getEstimatedFare, calculateRideFare } from '../utils/pricing';
 
 function getAddr(field) {
   if (!field) return '—';
@@ -57,9 +58,11 @@ export function RideDetailScreen({ navigation, route }) {
       .catch(() => {});
   }, [rideId]);
 
+  const calculatedCost = ride ? getEstimatedFare(ride.pickup, ride.drop, ride.vehicleType, ride.costPerSeat) : 35;
+
   const startBookRide = (r) => {
     if (!r) return;
-    const fare = r.costPerSeat || 50;
+    const fare = getEstimatedFare(r.pickup, r.drop, r.vehicleType, r.costPerSeat);
     const pAddr = getAddr(r.pickup);
     const dAddr = getAddr(r.drop);
 
@@ -73,7 +76,7 @@ export function RideDetailScreen({ navigation, route }) {
           onPress: async () => {
             setBooking(b => ({ ...b, loading: true, error: '' }));
             try {
-              await api.bookRide(rideId, 1, r.pickup, r.drop);
+              await api.bookRide(rideId, 1, r.pickup, r.drop, fare);
               DeviceEventEmitter.emit('BOOKING_STATUS_CHANGED', { rideId, status: 'pending' });
               setBooking({ loading: false, status: 'pending', error: '' });
               RNAlert.alert('Request Sent', 'Your ride request has been sent to the provider. You will be notified once they accept!');
@@ -173,7 +176,7 @@ export function RideDetailScreen({ navigation, route }) {
                   { label: '📅 Date',   value: formatDateDMY(ride.date) },
                   { label: '🕐 Time',   value: ride.time },
                   { label: '💺 Seats',  value: `${ride.seatsAvailable} available` },
-                  ...(!isOwner ? [{ label: '₹ Cost', value: `₹${ride.costPerSeat} / seat` }] : []),
+                  ...(!isOwner ? [{ label: '₹ Cost', value: `₹${calculatedCost} / seat` }] : []),
                   { label: '🚗 Vehicle',value: ride.vehicleType },
                   { label: '🏫 College',value: ride.college },
                 ].map(d => (
@@ -530,7 +533,20 @@ export function NotificationsScreen({ navigation }) {
     }
   }));
 
-  const seekerNotifs = bookings.map(b => ({
+  const serverBookingIds = new Set(
+    serverNotifs.map(n => {
+      try {
+        const inner = (typeof n.data === 'string' ? JSON.parse(n.data) : n.data) || {};
+        return String(inner.bookingId || inner.rideId || n.rideId || '');
+      } catch {
+        return String(n.rideId || '');
+      }
+    }).filter(Boolean)
+  );
+
+  const seekerNotifs = bookings
+    .filter(b => !serverBookingIds.has(String(b._id)) && !serverBookingIds.has(String(b.rideId?._id || b.rideId || '')))
+    .map(b => ({
     id: b._id,
     isRead: readIds.has(b._id) || b.status === 'completed' || b.status === 'cancelled' || b.status === 'rejected',
     icon:  (NOTIF_TYPE[b.status] || NOTIF_TYPE.pending).icon,
@@ -1605,13 +1621,13 @@ export function IncidentReportScreen({ navigation }) {
                 >
                   <Text style={{
                     color: selectedRide ? (isDark ? '#FFFFFF' : '#0f172a') : (isDark ? '#7E8B9F' : '#64748b'),
-                    fontSize: 13.5,
+                    fontSize: 13,
                     fontWeight: selectedRide ? '600' : '400',
                     flex: 1,
                     marginRight: 8,
-                  }} numberOfLines={1}>
+                  }} numberOfLines={2}>
                     {selectedRide
-                      ? `${getRideDateTime(selectedRide).date} • ${getRidePickup(selectedRide).split(',')[0]} → ${getRideDrop(selectedRide).split(',')[0]}`
+                      ? `${getRideDateTime(selectedRide).date} at ${getRideDateTime(selectedRide).time}\n${getRidePickup(selectedRide)} → ${getRideDrop(selectedRide)}`
                       : '— Select a ride —'}
                   </Text>
                   <Text style={{ color: '#7E8B9F', fontSize: 13 }}>▾</Text>
@@ -1871,8 +1887,8 @@ export function IncidentReportScreen({ navigation }) {
                   const id = r._id || r.rideId?._id;
                   const isSel = selectedRide && (selectedRide._id || selectedRide.rideId?._id) === id;
                   const dt = getRideDateTime(r);
-                  const p = getRidePickup(r).split(',')[0];
-                  const d = getRideDrop(r).split(',')[0];
+                  const p = getRidePickup(r);
+                  const d = getRideDrop(r);
 
                   return (
                     <TouchableOpacity
@@ -1893,13 +1909,18 @@ export function IncidentReportScreen({ navigation }) {
                       }}
                     >
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={{ color: isSel ? '#FFFFFF' : '#F5A623', fontSize: 12, fontWeight: '800' }}>
-                          📅 {dt.date} • {dt.time}
+                        <Text style={{ color: isSel ? '#FFFFFF' : '#F5A623', fontSize: 12.5, fontWeight: '800' }}>
+                          {dt.date} • {dt.time}
                         </Text>
                       </View>
-                      <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontSize: 13, fontWeight: '700' }} numberOfLines={1}>
-                        🟢 {p} → 🔴 {d}
-                      </Text>
+                      <View style={{ gap: 2, marginTop: 2 }}>
+                        <Text style={{ color: isSel ? '#E2E8F0' : (isDark ? '#cbd5e1' : '#334155'), fontSize: 12, lineHeight: 17 }}>
+                          Pickup: <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontWeight: '700' }}>{p}</Text>
+                        </Text>
+                        <Text style={{ color: isSel ? '#E2E8F0' : (isDark ? '#cbd5e1' : '#334155'), fontSize: 12, lineHeight: 17 }}>
+                          Drop: <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontWeight: '700' }}>{d}</Text>
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
@@ -2114,6 +2135,12 @@ export function ForgotPasswordScreen({ navigation }) {
                 placeholderTextColor={isDark ? colors.text3 : '#64748b'}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                cursorColor="#f5a623"
+                selectionColor="rgba(245,166,35,0.3)"
               />
               <TouchableOpacity onPress={handleSendOtp} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }]}>
                 <Text style={styles.btnText}>{loading ? 'Sending OTP…' : 'Send Verification OTP ✉️'}</Text>
@@ -2131,6 +2158,11 @@ export function ForgotPasswordScreen({ navigation }) {
                 placeholderTextColor={isDark ? colors.text3 : '#64748b'}
                 keyboardType="number-pad"
                 maxLength={6}
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                cursorColor="#f5a623"
+                selectionColor="rgba(245,166,35,0.3)"
               />
               <TextInput
                 style={[inputStyle, { backgroundColor: isDark ? '#141a24' : '#ffffff', color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#2a374d' : '#cbd5e1' }]}
@@ -2139,6 +2171,11 @@ export function ForgotPasswordScreen({ navigation }) {
                 placeholder="New password (min 6 chars)"
                 placeholderTextColor={isDark ? colors.text3 : '#64748b'}
                 secureTextEntry
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                cursorColor="#f5a623"
+                selectionColor="rgba(245,166,35,0.3)"
               />
               <TextInput
                 style={[inputStyle, { backgroundColor: isDark ? '#141a24' : '#ffffff', color: isDark ? '#ffffff' : '#0f172a', borderColor: isDark ? '#2a374d' : '#cbd5e1' }]}
@@ -2147,6 +2184,11 @@ export function ForgotPasswordScreen({ navigation }) {
                 placeholder="Confirm new password"
                 placeholderTextColor={isDark ? colors.text3 : '#64748b'}
                 secureTextEntry
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                cursorColor="#f5a623"
+                selectionColor="rgba(245,166,35,0.3)"
               />
 
               <TouchableOpacity onPress={handleResetPassword} disabled={loading} style={[styles.btn, loading && { opacity: 0.5 }, { marginTop: 4 }]}>

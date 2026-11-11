@@ -38,16 +38,17 @@ export default function BookingPointsModal({ visible, ride, loading, onCancel, o
 
   const valid = (p) => Number.isFinite(parseFloat(p.lat)) && Number.isFinite(parseFloat(p.lng));
 
+  const fareAmount = getEstimatedFare(pickup, drop, ride?.vehicleType, null);
+
   const confirm = () => {
     if (!valid(pickup)) { RNAlert.alert('Pickup point', 'Please choose your pickup point from the suggestions.'); return; }
     if (!valid(drop))   { RNAlert.alert('Drop point',   'Please choose your drop point from the suggestions.'); return; }
     onConfirm(
       { lat: parseFloat(pickup.lat), lng: parseFloat(pickup.lng), address: pickup.text },
       { lat: parseFloat(drop.lat),   lng: parseFloat(drop.lng),   address: drop.text },
+      fareAmount
     );
   };
-
-  const fareAmount = getEstimatedFare(pickup, drop, ride?.vehicleType, null);
 
   return (
     <Modal visible={!!visible} animationType="slide" transparent onRequestClose={onCancel}>

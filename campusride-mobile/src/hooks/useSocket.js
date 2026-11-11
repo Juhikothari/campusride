@@ -275,7 +275,7 @@ export const getSharedSocket = (userId, userType) => {
     globalSocket.on('receive-community-message', (data) => {
       notifyAll('receive-community-message', data);
       if (data?.senderId && String(data.senderId) !== String(userId)) {
-        incrementCommunityUnread();
+        incrementChatUnread();
         showPushNotification({
           title: `💬 Campus Chat: ${data.senderName || 'Student'}`,
           body: data.message || 'New community message received.',

@@ -122,9 +122,9 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
           {canGoBack && (
             <TouchableOpacity
               style={{
-                paddingRight: 8,
-                paddingLeft: 2,
-                paddingVertical: 4,
+                paddingRight: 10,
+                paddingLeft: 4,
+                paddingVertical: 6,
                 justifyContent: 'center',
                 alignItems: 'center',
               }}
@@ -136,11 +136,11 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
                 }
               }}
               activeOpacity={0.7}
-              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <Text style={{ fontSize: 26, fontWeight: '700', color: isDark ? '#ffffff' : '#0f172a' }}>←</Text>
+              <Text style={{ fontSize: 26, fontWeight: '900', color: isDark ? '#ffffff' : '#0f172a' }}>←</Text>
             </TouchableOpacity>
           )}
           <Text style={styles.brandLogo}>{emoji}</Text>

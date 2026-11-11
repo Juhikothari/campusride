@@ -280,21 +280,24 @@ export default function SearchRidesScreen({ navigation }) {
     } catch {}
   };
 
-  // Search history state
+  // Search history state (isolated per user account)
+  const historyKey = `cr_search_history_${user?._id || user?.id || 'guest'}`;
   const [searchHistory, setSearchHistory] = useState([]);
 
-  // Load search history from AsyncStorage
+  // Load search history from AsyncStorage for this user
   useEffect(() => {
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem('cr_search_history');
+        const raw = await AsyncStorage.getItem(historyKey);
         if (raw) {
           const list = JSON.parse(raw);
           if (Array.isArray(list)) setSearchHistory(list.slice(0, 6));
+        } else {
+          setSearchHistory([]);
         }
       } catch {}
     })();
-  }, []);
+  }, [historyKey]);
 
   const saveSearchHistoryItem = async (p, d) => {
     if (!p?.label && !d?.label) return;
@@ -309,7 +312,7 @@ export default function SearchRidesScreen({ navigation }) {
           !(item.pickup?.label === p.label && item.drop?.label === d.label)
         );
         const updated = [newItem, ...filtered].slice(0, 6);
-        AsyncStorage.setItem('cr_search_history', JSON.stringify(updated)).catch(() => {});
+        AsyncStorage.setItem(historyKey, JSON.stringify(updated)).catch(() => {});
         return updated;
       });
     } catch {}
@@ -430,7 +433,7 @@ export default function SearchRidesScreen({ navigation }) {
           onPress: async () => {
             setBookingMap(m => ({ ...m, [rideId]: { loading: true } }));
             try {
-              await api.bookRide(rideId, 1, ride.pickup, ride.drop);
+              await api.bookRide(rideId, 1, ride.pickup, ride.drop, fare);
               setBookingMap(m => ({ ...m, [rideId]: { status: 'pending' } }));
               RNAlert.alert('Request Sent', 'Your ride request has been sent to the provider. You will be notified once they accept!');
             } catch (e) {

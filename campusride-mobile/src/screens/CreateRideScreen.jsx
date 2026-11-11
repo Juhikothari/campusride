@@ -837,8 +837,8 @@ export default function CreateRideScreen({ navigation }) {
                 <Btn
                   label="⏳ Verification Pending (Within 24h)"
                   onPress={() => RNAlert.alert('Vehicle Under Review', 'Your vehicle was submitted for verification and will be reviewed within 24 hours. You will be able to post rides as soon as admin approves it.')}
-                  style={{ backgroundColor: '#2a2214', borderColor: colors.accent, borderWidth: 1 }}
-                  textStyle={{ color: colors.accent }}
+                  style={{ backgroundColor: isDark ? '#2a2214' : '#fffbeb', borderColor: colors.accent, borderWidth: 1.5 }}
+                  textStyle={{ color: colors.accent, fontWeight: '800' }}
                 />
                 <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginTop: 6 }}>
                   Rides cannot be offered until admin verification is complete.
@@ -851,7 +851,13 @@ export default function CreateRideScreen({ navigation }) {
             <Btn
               label="🚗 Add Vehicle in Profile to Offer Ride"
               onPress={() => navigation.navigate('Profile')}
-              style={{ marginTop: spacing.md, backgroundColor: '#2a2214', borderColor: colors.accent, borderWidth: 1 }}
+              style={{
+                marginTop: spacing.md,
+                backgroundColor: isDark ? '#2a2214' : '#fffbeb',
+                borderColor: colors.accent,
+                borderWidth: 1.5,
+              }}
+              textStyle={{ color: colors.accent, fontWeight: '800' }}
             />
           )}
         </ScrollView>

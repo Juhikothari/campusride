@@ -256,103 +256,6 @@ export default function ProviderBookingsScreen({ navigation }) {
 
 
             {/* Ride status controls */}
-            {selectedRide.status === 'active' && (() => {
-              const hasAccepted = bookings.some(b => b.status === 'accepted');
-              const hasChecklist = selectedRide.seekerChecklistCompleted || bookings.some(b => b.status === 'accepted' && b.checklistCompleted);
-              
-              if (!hasAccepted) {
-                return (
-                  <View style={{ marginBottom: spacing.md }}>
-                    <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
-                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                        ⏳ Waiting for Buddy: Accept a booking request below before starting.
-                      </Text>
-                    </View>
-                    <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" />
-                  </View>
-                );
-              }
-
-              if (!hasChecklist) {
-                const acceptedB = bookings.find(b => b.status === 'accepted');
-                const seekerObj = acceptedB?.seekerId;
-                const loc = selectedRide?.pickup;
-                const coords = loc?.coordinates;
-                const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
-                const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
-                const query = (lat && lng) ? `${lat},${lng}` : encodeURIComponent(loc?.name || loc?.address || 'Pickup');
-
-                return (
-                  <View style={{ marginBottom: spacing.md }}>
-                    {/* Seeker Location on Top of Checklist */}
-                    <View style={{
-                      backgroundColor: isDark ? 'rgba(0,229,255,0.08)' : '#f0fdf4',
-                      borderWidth: 1,
-                      borderColor: isDark ? '#00E5FF' : '#86efac',
-                      borderRadius: radius.md,
-                      padding: 12,
-                      marginBottom: 10,
-                    }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={{ color: isDark ? '#00E5FF' : '#059669', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>
-                          📍 SEEKER PICKUP LOCATION
-                        </Text>
-                        {seekerObj?.phone ? (
-                          <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '700' }}>📞 {seekerObj.phone}</Text>
-                        ) : null}
-                      </View>
-                      <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 13, fontWeight: '700', marginBottom: 2 }}>
-                        🪪 USN: {getDisplayUSN(seekerObj, 'Buddy')}
-                      </Text>
-                      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, marginBottom: 8 }} numberOfLines={2}>
-                        {getAddr(selectedRide.pickup)}
-                      </Text>
-                      <TouchableOpacity
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          backgroundColor: isDark ? 'rgba(0,229,255,0.15)' : '#e0f2fe',
-                          borderWidth: 1,
-                          borderColor: isDark ? '#00E5FF' : '#0284c7',
-                          borderRadius: radius.md,
-                          paddingHorizontal: 12,
-                          paddingVertical: 7,
-                          alignSelf: 'flex-start',
-                          gap: 6,
-                        }}
-                        onPress={() => { openGoogleMaps({ query }); }}
-                        activeOpacity={0.75}
-                      >
-                        <Text style={{ fontSize: 13 }}>🗺️</Text>
-                        <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 11.5, fontWeight: '800' }}>
-                          Seeker Location Map →
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    <View style={{ backgroundColor: 'rgba(255,160,0,0.12)', borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md, padding: 10, marginBottom: 8 }}>
-                      <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
-                        ⏳ Buddy Checklist Pending: Buddy must complete pre-ride safety checklist before departure.
-                      </Text>
-                    </View>
-                    <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" />
-                  </View>
-                );
-              }
-
-              return (
-                <View style={styles.statusRow}>
-                  <Btn label="▶ Start Ride & Track" onPress={() => updateRideStatus(selectedRide._id, 'in-progress')} style={{ flex: 1 }} />
-                  <Btn label="✕ Cancel Ride" onPress={() => updateRideStatus(selectedRide._id, 'cancelled')} variant="danger" style={{ flex: 1 }} />
-                </View>
-              );
-            })()}
-            {selectedRide.status === 'in-progress' && (
-              <View style={{ gap: 8, marginBottom: spacing.md }}>
-                <Btn label="📍 Open Live Route & Tracking" onPress={() => navigation.navigate('LiveTracking', { rideId: selectedRide._id })} />
-                <Btn label="🏁 Complete Ride" onPress={() => updateRideStatus(selectedRide._id, 'completed')} variant="outline" />
-              </View>
-            )}
             {selectedRide.status === 'cancelled' && (
               <View style={{ marginBottom: spacing.md }}>
                 <Alert message={`🔴 Ride Cancelled${selectedRide.cancelReason ? `: ${selectedRide.cancelReason}` : ''}`} />
@@ -442,57 +345,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                               </Text>
                             <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
                             {seeker?.college && <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>🏫 {seeker.college}</Text>}
-                            {/* Calculated Fare for Provider Review */}
-                            <View style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              backgroundColor: isDark ? 'rgba(45,212,160,0.12)' : '#ecfdf5',
-                              borderWidth: 1,
-                              borderColor: isDark ? '#2dd4a0' : '#10b981',
-                              borderRadius: radius.sm,
-                              paddingHorizontal: 8,
-                              paddingVertical: 4,
-                              alignSelf: 'flex-start',
-                              marginTop: 6,
-                              gap: 4
-                            }}>
-                              <Text style={{ fontSize: 12 }}>💰</Text>
-                              <Text style={{ color: isDark ? '#2dd4a0' : '#047857', fontSize: 12, fontWeight: '800' }}>
-                                Fare: ₹{b.cost || ((b.seats || 1) * (selectedRide?.costPerSeat || 0))} ({(b.seats || 1)} seat{(b.seats || 1) > 1 ? 's' : ''})
-                              </Text>
-                            </View>
-                              {isAccepted && (
-                                <TouchableOpacity
-                                  style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    backgroundColor: 'rgba(0,229,255,0.12)',
-                                    borderWidth: 1,
-                                    borderColor: '#00E5FF',
-                                    borderRadius: radius.md,
-                                    paddingHorizontal: 10,
-                                    paddingVertical: 6,
-                                    alignSelf: 'flex-start',
-                                    marginTop: 6,
-                                    gap: 6,
-                                  }}
-                                  onPress={() => {
-                                    const loc = selectedRide?.pickup;
-                                    const coords = loc?.coordinates;
-                                    const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
-                                    const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
-                                    const query = (lat && lng) ? `${lat},${lng}` : (loc?.name || loc?.address || 'Pickup');
-                                    openGoogleMaps({ query });
-                                  }}
-                                  activeOpacity={0.75}
-                                >
-                                  <Text style={{ fontSize: 13 }}>🗺️</Text>
-                                  <Text style={{ color: '#00E5FF', fontSize: 11, fontWeight: '800' }}>
-                                    Seeker Location Map →
-                                  </Text>
-                                </TouchableOpacity>
-                              )}
-                            <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 2 }]}>
+                            <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 4 }]}>
                               🔒 Phone revealed after accepting
                             </Text>
                             <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 10, marginTop: 2 }]}>
@@ -501,7 +354,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                           </View>
                         </View>
 
-                        {/* Prominent Price Display for Provider to Review */}
+                        {/* Calculated Fare for Provider to Review */}
                         <View style={{
                           flexDirection: 'row',
                           alignItems: 'center',
@@ -518,7 +371,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                             💰 Fare to Collect from Buddy:
                           </Text>
                           <Text style={{ fontSize: 16, fontWeight: '900', color: colors.accent }}>
-                            ₹{b.cost || ((b.seats || 1) * (selectedRide?.costPerSeat || 49))}
+                            ₹{b.fare || b.cost || ((b.seats || 1) * (selectedRide?.costPerSeat || 30))}
                           </Text>
                         </View>
 
@@ -528,7 +381,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                         ) : (
                           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                             <Btn
-                              label={am.loading ? '…' : `✓ Accept (₹${b.cost || ((b.seats || 1) * (selectedRide?.costPerSeat || 49))})`}
+                              label={am.loading ? '…' : '✓ Accept'}
                               onPress={() => respond(b._id, 'accepted')}
                               loading={am.loading}
                               style={{ flex: 1.3 }}
@@ -579,38 +432,6 @@ export default function ProviderBookingsScreen({ navigation }) {
                                 <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>
                                   🏫 {seeker.college}
                                 </Text>
-                              )}
-                              {/* Directions & Seeker location only while active/not completed */}
-                              {isAccepted && !isCompletedOrCancelled && (
-                                <TouchableOpacity
-                                  style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    backgroundColor: isDark ? 'rgba(0,229,255,0.12)' : '#e0f2fe',
-                                    borderWidth: 1,
-                                    borderColor: isDark ? '#00E5FF' : '#0284c7',
-                                    borderRadius: radius.md,
-                                    paddingHorizontal: 10,
-                                    paddingVertical: 6,
-                                    alignSelf: 'flex-start',
-                                    marginTop: 6,
-                                    gap: 6,
-                                  }}
-                                  onPress={() => {
-                                    const loc = selectedRide?.pickup;
-                                    const coords = loc?.coordinates;
-                                    const lat = Array.isArray(coords) ? coords[1] : (loc?.lat || loc?.latitude);
-                                    const lng = Array.isArray(coords) ? coords[0] : (loc?.lng || loc?.longitude);
-                                    const query = (lat && lng) ? `${lat},${lng}` : (loc?.name || loc?.address || 'Pickup');
-                                    openGoogleMaps({ query });
-                                  }}
-                                  activeOpacity={0.75}
-                                >
-                                  <Text style={{ fontSize: 13 }}>🗺️</Text>
-                                  <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 11, fontWeight: '800' }}>
-                                    Seeker Location Map →
-                                  </Text>
-                                </TouchableOpacity>
                               )}
                             </View>
                             <Text style={[styles.statusBadge, {

@@ -182,68 +182,6 @@ export default function MyBookingsScreen({ navigation }) {
                   </View>
                 )}
 
-                {/* Provider details — only while active/pending completion */}
-                {b.status === 'accepted' && !isCompleted && provider && (
-                  <View style={[
-                    styles.providerCard,
-                    {
-                      backgroundColor: isDark ? 'rgba(245,166,35,0.07)' : '#fffbeb',
-                      borderColor: isDark ? 'rgba(245,166,35,0.2)' : '#fef08a',
-                    }
-                  ]}>
-                    <Text style={styles.providerLabel}>CONFIRMED PROVIDER & VEHICLE</Text>
-                    <View style={styles.providerHeaderRow}>
-                      <View style={styles.avatarMini}>
-                        <Text style={styles.avatarMiniText}>🪪</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.providerNameText, { color: isDark ? colors.text : '#0f172a' }]}>🪪 USN: {getDisplayUSN(provider, 'Buddy')}</Text>
-                        <Text style={styles.vehicleNameBadge}>
-                          🚘 {ride?.vehicleName || provider.kycDocuments?.vehicleName || 'Vehicle'} • {(ride?.vehicleType || 'CAR').toUpperCase()}
-                        </Text>
-                      </View>
-                      {(provider.kycDocuments?.vehicleNumber || ride?.vehicleNumber) && (
-                        <View style={styles.plateBadge}>
-                          <Text style={styles.plateBadgeText}>
-                            {provider.kycDocuments?.vehicleNumber || ride?.vehicleNumber}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.providerMetaGrid}>
-                      <Text style={styles.providerMetaText}>🪪 USN: <Text style={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}>{getDisplayUSN(provider, 'Buddy')}</Text></Text>
-                      {provider.phone ? (
-                        <Text style={styles.providerMetaText}>📞 Phone: <Text style={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}>{provider.phone}</Text></Text>
-                      ) : null}
-                    </View>
-                  </View>
-                )}
-
-                
-
-                {/* Price displayed to seeker to pay upon provider acceptance */}
-                {b.status === 'accepted' && !isCompleted && (
-                  <View style={styles.farePayBox}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <View style={{ flex: 1, marginRight: 10 }}>
-                        <Text style={styles.farePayTag}>💰 FARE TO PAY PROVIDER</Text>
-                        <Text style={styles.farePaySub}>
-                          Pay directly to provider (USN: {getDisplayUSN(provider, 'Buddy')}) via UPI / Cash
-                        </Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={styles.farePayAmount}>
-                          ₹{(ride?.costPerSeat || 0) * (b.seatsBooked || b.seats || 1)}
-                        </Text>
-                        <Text style={styles.farePayDetail}>
-                          {b.seatsBooked || b.seats || 1} seat{(b.seatsBooked || b.seats || 1) > 1 ? 's' : ''} (₹{ride?.costPerSeat || 0}/seat)
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                )}
-
                 {/* Actions */}
                 <View style={{ gap: 8, marginTop: 12 }}>
                   {isCompleted && (
@@ -264,10 +202,7 @@ export default function MyBookingsScreen({ navigation }) {
                   {b.status === 'pending' && (
                     <Alert message="⏳ Booking request submitted. Ride starts once provider accepts." />
                   )}
-                  {canTrack && rideIdStr && (
-                    <Btn
-                      label={isChecklistDone ? "📍 Live Track Ride →" : "🛡️ Safety Checklist & Track Ride →"}
-                      onPress={() => navigation.navigate(isChecklistDone ? 'LiveTracking' : 'PreRideChecklist', { rideId: rideIdStr })}
+                  
                     />
                   )}
                   {rideIdStr && !isCancelled && !isCompleted && (

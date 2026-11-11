@@ -490,7 +490,10 @@ export default function DashboardScreen({ navigation }) {
   useEffect(() => {
     fetchActiveTrip();
     const interval = setInterval(fetchActiveTrip, 15000);
-    const unsubSocket = subscribeToNotifications((event) => {
+    const unsubSocket = subscribeToNotifications((event, data) => {
+      if (event === 'rider-arrived' || event === 'riderArrivedAtSeeker') {
+        setActiveTrip(prev => prev ? ({ ...prev, riderReachedSeeker: true }) : prev);
+      }
       if ([
         'booking-cancelled', 'rideCancelled', 'active-trip-changed',
         'rider-arrived', 'riderArrivedAtSeeker', 'checklistCompleted',
@@ -744,30 +747,184 @@ export default function DashboardScreen({ navigation }) {
             <Text style={[styles.sectionLabel, { color: isDark ? colors.text2 : '#475569' }]}>ACTIVE TRIP STATUS</Text>
             <View style={[styles.activeTripCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: isDark ? colors.accent : '#f5a623' }]}>
 
-              {/* 1. Live Route Map (Provider & Seeker) */}
-              <View style={{ borderRadius: radius.lg, overflow: 'hidden', borderWidth: 1.5, borderColor: isDark ? colors.border : '#cbd5e1' }}>
-                <LiveMapView
-                  pickup={activeTrip.pickup}
-                  drop={activeTrip.drop}
-                  driverLocation={
-                    activeTrip?.currentLocation?.coordinates
-                      ? { lat: activeTrip.currentLocation.coordinates[1], lng: activeTrip.currentLocation.coordinates[0] }
-                      : (activeTrip?.pickup?.coordinates
-                          ? { lat: activeTrip.pickup.coordinates[1], lng: activeTrip.pickup.coordinates[0] }
-                          : (activeTrip?.pickup?.lat && activeTrip?.pickup?.lng
-                              ? { lat: activeTrip.pickup.lat, lng: activeTrip.pickup.lng }
-                              : null))
-                  }
-                  extraPickups={Array.isArray(activeTrip.passengers) ? activeTrip.passengers.map((p, i) => {
-                    const loc = p.pickupLocation || p.seeker?.pickupLocation || activeTrip.pickup;
-                    const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
-                    const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-                    return lat && lng ? { lat, lng, label: `Buddy ${i + 1}: ${p.seeker?.usn || 'Pickup'}` } : null;
-                  }).filter(Boolean) : []}
-                  height={190}
-                  interactive={false}
-                />
-              </View>
+              {/* Seeker: Confirmed Provider and Vehicle with Fare (In place of Map) */}
+              {tripRole === 'rider' && (
+                <View style={{ gap: 10 }}>
+                  <View style={{
+                    backgroundColor: isDark ? 'rgba(245,166,35,0.08)' : '#fffbeb',
+                    borderRadius: radius.lg,
+                    borderWidth: 1.5,
+                    borderColor: isDark ? 'rgba(245,166,35,0.3)' : '#fde047',
+                    padding: 14,
+                  }}>
+                    <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 8 }}>
+                      🚗 CONFIRMED PROVIDER & VEHICLE
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: isDark ? '#1f293d' : '#f1f5f9',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 1,
+                        borderColor: isDark ? colors.border : '#cbd5e1',
+                      }}>
+                        <Text style={{ fontSize: 20 }}>🪪</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 15, fontWeight: '800' }}>
+                          🪪 USN: {getDisplayUSN(activeTrip.providerId || activeTrip.providerUsn, 'Buddy')}
+                        </Text>
+                        <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12.5, marginTop: 2 }}>
+                          🚘 {activeTrip.vehicleName || activeTrip.providerId?.kycDocuments?.vehicleName || 'Vehicle'} • {(activeTrip.vehicleType || 'Car').toUpperCase()}
+                        </Text>
+                      </View>
+                      {(activeTrip.vehicleNumber || activeTrip.providerId?.kycDocuments?.vehicleNumber) ? (
+                        <View style={{
+                          backgroundColor: isDark ? '#000000' : '#ffffff',
+                          borderWidth: 1.5,
+                          borderColor: isDark ? '#334155' : '#0f172a',
+                          borderRadius: radius.sm,
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                        }}>
+                          <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 11, fontWeight: '900', letterSpacing: 0.5 }}>
+                            {activeTrip.vehicleNumber || activeTrip.providerId?.kycDocuments?.vehicleNumber}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    {activeTrip.providerId?.phone && activeTrip.status !== 'completed' && activeTrip.status !== 'cancelled' ? (
+                      <TouchableOpacity
+                        onPress={() => Linking.openURL(`tel:${activeTrip.providerId.phone}`)}
+                        activeOpacity={0.7}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0' }}
+                      >
+                        <Text style={{ fontSize: 13 }}>📞</Text>
+                        <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700' }}>
+                          Phone (Tap to call): {activeTrip.providerId.phone}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+
+                  {/* Confirmed Fare Box */}
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: isDark ? 'rgba(45,212,160,0.1)' : '#ecfdf5',
+                    borderWidth: 1.5,
+                    borderColor: isDark ? '#2dd4a0' : '#10b981',
+                    borderRadius: radius.md,
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                  }}>
+                    <View>
+                      <Text style={{ color: isDark ? '#2dd4a0' : '#047857', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>
+                        💰 FARE TO PAY PROVIDER
+                      </Text>
+                      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, marginTop: 2 }}>
+                        Direct to provider via UPI or Cash
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ color: isDark ? '#2dd4a0' : '#047857', fontSize: 20, fontWeight: '900' }}>
+                        ₹{activeTrip.fare || activeTrip.costPerSeat || 30}
+                      </Text>
+                      <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 10 }}>
+                        {activeTrip.bookedSeats || 1} seat{(activeTrip.bookedSeats || 1) > 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Provider: Assigned Buddy Card with strictly USN and Phone (In place of Map) */}
+              {tripRole === 'driver' && (
+                <View style={{
+                  backgroundColor: isDark ? 'rgba(0,229,255,0.08)' : '#f0fdf4',
+                  borderRadius: radius.lg,
+                  borderWidth: 1.5,
+                  borderColor: isDark ? '#00E5FF' : '#86efac',
+                  padding: 14,
+                }}>
+                  <Text style={{ color: isDark ? '#00E5FF' : '#059669', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, marginBottom: 8 }}>
+                    👤 ASSIGNED BUDDY
+                  </Text>
+                  {(activeTrip.passengersList && activeTrip.passengersList.length > 0) ? (
+                    activeTrip.passengersList.map((buddy, bIdx) => (
+                      <View key={buddy.bookingId || bIdx} style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingVertical: 6,
+                        borderTopWidth: bIdx > 0 ? 1 : 0,
+                        borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+                      }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14, fontWeight: '800' }}>
+                            🪪 USN: {buddy.usn}
+                          </Text>
+                          {buddy.college ? (
+                            <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, marginTop: 2 }}>
+                              🏫 {buddy.college}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {buddy.phone ? (
+                          <TouchableOpacity
+                            onPress={() => Linking.openURL(`tel:${buddy.phone}`)}
+                            activeOpacity={0.7}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 6,
+                              backgroundColor: isDark ? 'rgba(245,166,35,0.18)' : '#fef3c7',
+                              paddingHorizontal: 12,
+                              paddingVertical: 6,
+                              borderRadius: radius.md,
+                              borderWidth: 1,
+                              borderColor: colors.accent,
+                            }}
+                          >
+                            <Text style={{ fontSize: 12 }}>📞</Text>
+                            <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>{buddy.phone}</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                    ))
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 14, fontWeight: '800' }}>
+                        🪪 USN: {activeTrip.matchedPassengerName || 'Buddy'}
+                      </Text>
+                      {activeTrip.matchedPassengerPhone ? (
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL(`tel:${activeTrip.matchedPassengerPhone}`)}
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            backgroundColor: isDark ? 'rgba(245,166,35,0.18)' : '#fef3c7',
+                            paddingHorizontal: 12,
+                            paddingVertical: 6,
+                            borderRadius: radius.md,
+                            borderWidth: 1,
+                            borderColor: colors.accent,
+                          }}
+                        >
+                          <Text style={{ fontSize: 12 }}>📞</Text>
+                          <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '800' }}>{activeTrip.matchedPassengerPhone}</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  )}
+                </View>
+              )}
 
               {/* 2. Provider Section: Tap to Navigate, Trip Stops, Requests, Cancel */}
               {tripRole === 'driver' && (

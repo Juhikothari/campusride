@@ -43,6 +43,9 @@ export default function RegisterScreen({ navigation }) {
   const [emergency,setEmergency]= useState('');
   const [adminKey, setAdminKey] = useState('');
   const [selfieUri, setSelfieUri] = useState(null);
+  const [stagedSelfieUri, setStagedSelfieUri] = useState(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const cropRef = useRef(null);
 
   // College Dropdown Modal state
   const [showCollegeModal, setShowCollegeModal] = useState(false);
@@ -153,8 +156,8 @@ export default function RegisterScreen({ navigation }) {
                 quality: 0.7,
               });
               if (!result.canceled && result.assets && result.assets[0]?.uri) {
-                setSelfieUri(result.assets[0].uri);
-                setError('');
+                setStagedSelfieUri(result.assets[0].uri);
+                setShowCropModal(true);
               }
             } catch (err) {
               RNAlert.alert('Error', err.message || 'Failed to capture selfie');
@@ -177,8 +180,8 @@ export default function RegisterScreen({ navigation }) {
                 quality: 0.7,
               });
               if (!result.canceled && result.assets && result.assets[0]?.uri) {
-                setSelfieUri(result.assets[0].uri);
-                setError('');
+                setStagedSelfieUri(result.assets[0].uri);
+                setShowCropModal(true);
               }
             } catch (err) {
               RNAlert.alert('Error', err.message || 'Failed to pick photo');

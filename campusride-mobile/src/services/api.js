@@ -145,8 +145,8 @@ export const updateRideStatus  = (id, status) => {
 
 // ── Bookings ──────────────────────────────────────────
 // pickup / drop are optional: { lat, lng, address }. If omitted the ride's own points are used.
-export const bookRide          = (rideId, seats = 1, pickup = null, drop = null) =>
-  request('/booking/request', { method:'POST', body: JSON.stringify({ rideId, seats, pickup, drop }) });
+export const bookRide          = (rideId, seats = 1, pickup = null, drop = null, fare = null) =>
+  request('/booking/request', { method:'POST', body: JSON.stringify({ rideId, seats, pickup, drop, ...(fare ? { fare } : {}) }) });
 export const getPickupCode     = (bookingId) => request(`/booking/${bookingId}/pickup-code`);
 export const updateBookingStop = (bookingId, action, code) =>
   request(`/booking/${bookingId}/stop`, { method:'PUT', body: JSON.stringify({ action, code }) });

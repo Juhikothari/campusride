@@ -585,16 +585,25 @@ export default function LiveTrackingScreen({ navigation, route }) {
         const loc = p.pickupLocation || p.seeker?.pickupLocation || pickupCoords;
         const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
         const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-        return (lat && lng) ? { lat, lng } : null;
+        return (lat && lng) ? { lat, lng } : (loc?.address || null);
+      })
+      .filter(Boolean);
+
+    const dropPoints = acceptedSeekers
+      .map(p => {
+        const loc = p.dropLocation || p.seeker?.dropLocation || p.drop || null;
+        const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
+        const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
+        return (lat && lng) ? { lat, lng } : (loc?.address || null);
       })
       .filter(Boolean);
 
     // One single route with all points directly in Google Maps:
-    // Origin -> all seekers' pickups as waypoints -> final Destination
+    // Origin -> all seekers' pickups as waypoints -> all seekers' drops as waypoints -> final Destination
     openGoogleMaps({
       origin,
       destination,
-      waypoints: pickupPoints,
+      waypoints: [...pickupPoints, ...dropPoints],
       travelmode: 'driving',
     });
   };
@@ -1063,36 +1072,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
                                 </Text>
                               </View>
                             ) : null}
-
-                            {/* View Seeker Location Map Button */}
-                            <TouchableOpacity
-                              style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                backgroundColor: isDark ? 'rgba(0, 229, 255, 0.12)' : '#e0f2fe',
-                                borderWidth: 1,
-                                borderColor: isDark ? '#00E5FF' : '#0284c7',
-                                borderRadius: radius.md,
-                                paddingHorizontal: 10,
-                                paddingVertical: 6,
-                                marginTop: 6,
-                                gap: 6,
-                                alignSelf: 'flex-start',
-                              }}
-                              onPress={() => {
-                                const loc = p.pickupLocation || p.seeker?.pickupLocation || rideInfo?.pickup;
-                                const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
-                                const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-                                const dest = (lat && lng) ? { lat, lng } : (loc?.address || 'Buddy Pickup');
-                                openGoogleMaps({ destination: dest });
-                              }}
-                              activeOpacity={0.75}
-                            >
-                              <Text style={{ fontSize: 13 }}>📍</Text>
-                              <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 11, fontWeight: '800' }}>
-                                View Seeker Location →
-                              </Text>
-                            </TouchableOpacity>
                           </View>
                         </View>
                       ))}
@@ -1159,245 +1138,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
           )}
 
           <Alert message={error} />
-
-          {/* ── DRIVER TRIP CONTROLS CARD ── */}
-          {isDriver && (
-            <View style={[styles.driverControlCard, { backgroundColor: isDark ? '#0c1017' : '#ffffff', borderColor: colors.accent }]}>
-              
-              {/* One Start Navigation Button */}
-              <TouchableOpacity
-                style={{
-                  backgroundColor: colors.accent,
-                  borderRadius: radius.md,
-                  paddingVertical: 14,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: 14,
-                  shadowColor: colors.accent,
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 5,
-                }}
-                onPress={handleStartNavigation}
-                activeOpacity={0.85}
-              >
-                <Text style={{ color: '#000000', fontSize: 15, fontWeight: '800' }}>
-                  🧭 Start Navigation →
-                </Text>
-              </TouchableOpacity>
-
-              {/* Simple Step Progress Card: “Next: pick up or drop users usn” with action buttons */}
-              {activeStop && (
-                <View style={{
-                  backgroundColor: isDark ? '#141c2b' : '#f8fafc',
-                  borderWidth: 1.5,
-                  borderColor: isDark ? '#26344d' : '#cbd5e1',
-                  borderRadius: radius.lg,
-                  padding: 14,
-                  marginBottom: 10,
-                }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Text style={{ fontSize: 18 }}>
-                      {activeStop.type === 'pickup' ? '👤' : activeStop.type === 'drop' ? '🏁' : '📍'}
-                    </Text>
-                    <Text style={{ color: colors.accent, fontSize: 14, fontWeight: '800', flex: 1 }}>
-                      Next: {activeStop.type === 'pickup' ? `Pick up USN: ${activeStop.usn}` : activeStop.type === 'drop' ? `Drop USN: ${activeStop.usn}` : 'Reach Destination'}
-                    </Text>
-                  </View>
-                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 12, lineHeight: 16, marginBottom: 12 }} numberOfLines={2}>
-                    📍 {activeStop.address}
-                  </Text>
-
-                  {/* Action buttons: Arrived, Picked up, Dropped, or Complete */}
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {activeStop.type === 'pickup' && (
-                      <View style={{ gap: 8, width: '100%' }}>
-                        {rideInfo?.status === 'in-progress' ? (
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor: colors.accent,
-                              borderRadius: radius.md,
-                              paddingVertical: 13,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '100%',
-                            }}
-                            onPress={() => {
-                              advanceStop(safeStopIdx + 1);
-                              RNAlert.alert('Picked Up ✓', `USN ${activeStop.usn} picked up. Next stop updated.`);
-                            }}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={{ color: '#000000', fontSize: 13.5, fontWeight: '800' }}>
-                              ✓ Picked Up (USN: {activeStop.usn})
-                            </Text>
-                          </TouchableOpacity>
-                        ) : !rideInfo?.riderReachedSeeker ? (
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor: isDark ? 'rgba(0,229,255,0.18)' : '#e0f2fe',
-                              borderWidth: 1.5,
-                              borderColor: isDark ? '#00E5FF' : '#0284c7',
-                              borderRadius: radius.md,
-                              paddingVertical: 12,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '100%',
-                            }}
-                            onPress={handleArrivedAtSeeker}
-                            disabled={actionLoading}
-                            activeOpacity={0.85}
-                          >
-                            <Text style={{ color: isDark ? '#00E5FF' : '#0369a1', fontSize: 13, fontWeight: '800' }}>
-                              📍 Tap when Arrived at Pickup Spot
-                            </Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <>
-                            <View style={{
-                              backgroundColor: isDark ? 'rgba(0,230,118,0.12)' : '#ecfdf5',
-                              borderWidth: 1,
-                              borderColor: colors.green,
-                              borderRadius: radius.md,
-                              padding: 10,
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 8,
-                            }}>
-                              <Text style={{ fontSize: 16 }}>✅</Text>
-                              <Text style={{ color: colors.green, fontSize: 12, fontWeight: '800', flex: 1 }}>
-                                Arrived at Seeker Pickup
-                              </Text>
-                            </View>
-
-                            {!rideInfo?.seekerChecklistCompleted ? (
-                              <View style={{
-                                backgroundColor: isDark ? 'rgba(245,166,35,0.1)' : '#fffbeb',
-                                borderWidth: 1,
-                                borderColor: colors.accent,
-                                borderRadius: radius.md,
-                                padding: 10,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                              }}>
-                                <Text style={{ fontSize: 16 }}>⏳</Text>
-                                <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700', flex: 1 }}>
-                                  Waiting for buddy to complete safety checklist...
-                                </Text>
-                              </View>
-                            ) : (
-                              <View style={{
-                                backgroundColor: isDark ? 'rgba(45,212,160,0.12)' : '#ecfdf5',
-                                borderWidth: 1,
-                                borderColor: '#10b981',
-                                borderRadius: radius.md,
-                                padding: 10,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                gap: 8,
-                              }}>
-                                <Text style={{ fontSize: 16 }}>🛡️</Text>
-                                <Text style={{ color: '#10b981', fontSize: 12, fontWeight: '800', flex: 1 }}>
-                                  Buddy Checklist Verified ✓
-                                </Text>
-                              </View>
-                            )}
-
-                            {/* Only once buddy completes checklist can provider start ride */}
-                            <TouchableOpacity
-                              style={{
-                                backgroundColor: rideInfo?.seekerChecklistCompleted ? colors.green : (isDark ? '#1a2233' : '#e2e8f0'),
-                                borderRadius: radius.md,
-                                paddingVertical: 12,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                width: '100%',
-                                opacity: rideInfo?.seekerChecklistCompleted ? 1 : 0.6,
-                              }}
-                              onPress={() => {
-                                if (!rideInfo?.seekerChecklistCompleted) {
-                                  RNAlert.alert(
-                                    '⏳ Waiting for Buddy Checklist',
-                                    'For campus safety, your buddy must complete their pre-ride safety checklist before departure. Once they submit it, this button unlocks instantly.'
-                                  );
-                                  return;
-                                }
-                                handleStartRide().then(() => {
-                                  advanceStop(safeStopIdx + 1);
-                                });
-                              }}
-                              disabled={actionLoading}
-                              activeOpacity={0.85}
-                            >
-                              <Text style={{
-                                color: rideInfo?.seekerChecklistCompleted ? '#000000' : (isDark ? '#94a3b8' : '#64748b'),
-                                fontSize: 14,
-                                fontWeight: '900'
-                              }}>
-                                {rideInfo?.seekerChecklistCompleted ? '🚀 Start Ride →' : '🔒 Start Ride (Waiting for Buddy Checklist)'}
-                              </Text>
-                            </TouchableOpacity>
-                          </>
-                        )}
-                      </View>
-                    )}
-
-                    {activeStop.type === 'drop' && (
-                      <TouchableOpacity
-                        style={{
-                          width: '100%',
-                          backgroundColor: '#10b981',
-                          borderRadius: radius.md,
-                          paddingVertical: 12,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        onPress={() => {
-                          advanceStop(safeStopIdx + 1);
-                          RNAlert.alert('Dropped ✓', `USN ${activeStop.usn} dropped at destination! Next stop updated.`);
-                        }}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={{ color: '#000000', fontSize: 13, fontWeight: '800' }}>
-                          🏁 Dropped (USN: {activeStop.usn})
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-
-                    {activeStop.type === 'destination' && (
-                      <TouchableOpacity
-                        style={{
-                          flex: 1,
-                          backgroundColor: '#10b981',
-                          borderRadius: radius.md,
-                          paddingVertical: 12,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        onPress={handleCompleteRide}
-                        disabled={actionLoading}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>
-                          🏁 Complete & Finish Ride
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              )}
-
-              {/* Cancel ride option */}
-              <TouchableOpacity
-                style={{ paddingVertical: 8, alignItems: 'center' }}
-                onPress={handleCancelRide}
-              >
-                <Text style={{ color: colors.red, fontSize: 12, fontWeight: '700' }}>✕ Cancel Ride</Text>
-              </TouchableOpacity>
-            </View>
-          )}
 
           {/* Passenger Checklist & Cancel Booking Option */}
           {!isDriver && (rideInfo?.status === 'active' || rideInfo?.status === 'in-progress') && (
