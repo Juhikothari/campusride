@@ -1066,8 +1066,8 @@ function CollegeChatTab({ user }) {
           {
             backgroundColor: isDark ? '#0c121e' : '#ffffff',
             borderTopColor: isDark ? '#1c2638' : '#e2e8f0',
-            marginBottom: Platform.OS === 'android' ? keyboardHeight : 0,
-            paddingBottom: (keyboardVisible || androidPadding > 0) ? 8 : Math.max(insets.bottom, 10),
+            marginBottom: Platform.OS === 'android' ? (keyboardHeight > 0 ? keyboardHeight + 24 : 0) : 0,
+            paddingBottom: (keyboardVisible || androidPadding > 0) ? 10 : Math.max(insets.bottom, 10),
           }
         ]}>
           <TouchableOpacity

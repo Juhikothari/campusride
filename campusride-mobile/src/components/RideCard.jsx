@@ -42,7 +42,7 @@ function getAddress(field) {
   return '—';
 }
 
-export default function RideCard({ ride, onView, onBook, bookingStatus }) {
+export default function RideCard({ ride, seekerPickup, seekerDrop, onView, onBook, bookingStatus }) {
   const { isDark } = useTheme();
   const vehicleIcon = VEHICLE_ICON[ride.vehicleType] || '🚗';
   const statusColor = STATUS_COLOR[ride.status] || colors.text2;
@@ -96,10 +96,10 @@ export default function RideCard({ ride, onView, onBook, bookingStatus }) {
         <DetailChip icon="🕐" text={formatTime(ride.date, ride.time)} isDark={isDark} />
         <DetailChip icon="💺" text={`${ride.seatsAvailable} seat${ride.seatsAvailable !== 1 ? 's' : ''}`} />
         {(() => {
-          const pLat = ride.pickup?.coordinates?.[1] || ride.pickup?.lat;
-          const pLng = ride.pickup?.coordinates?.[0] || ride.pickup?.lng;
-          const dLat = ride.drop?.coordinates?.[1] || ride.drop?.lat;
-          const dLng = ride.drop?.coordinates?.[0] || ride.drop?.lng;
+          const pLat = seekerPickup?.lat || ride.pickup?.coordinates?.[1] || ride.pickup?.lat;
+          const pLng = seekerPickup?.lng || ride.pickup?.coordinates?.[0] || ride.pickup?.lng;
+          const dLat = seekerDrop?.lat || ride.drop?.coordinates?.[1] || ride.drop?.lat;
+          const dLng = seekerDrop?.lng || ride.drop?.coordinates?.[0] || ride.drop?.lng;
           const km = (pLat && dLat) ? haversineDistanceKm(pLat, pLng, dLat, dLng) : 3;
           const fare = calculateRideFare(km, ride.vehicleType || 'car');
           return <DetailChip icon="₹" text={`${fare}/seat`} isDark={isDark} />;

@@ -582,7 +582,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
     const pickupPoints = acceptedSeekers
       .map(p => {
-        const loc = p.pickupLocation || p.seeker?.pickupLocation || pickupCoords;
+        const loc = p.pickupLocation || p.seeker?.pickupLocation || p.pickup || null;
         const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
         const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
         return (lat && lng) ? { lat, lng } : (loc?.address || null);
@@ -598,12 +598,32 @@ export default function LiveTrackingScreen({ navigation, route }) {
       })
       .filter(Boolean);
 
-    // One single route with all points directly in Google Maps:
-    // Origin -> all seekers' pickups as waypoints -> all seekers' drops as waypoints -> final Destination
+    // Deduplicate waypoints and prevent provider destination from appearing multiple times
+    const isSamePoint = (a, b) => {
+      if (!a || !b) return false;
+      if (typeof a === 'object' && typeof b === 'object' && a.lat != null && b.lat != null) {
+        return Math.abs(Number(a.lat) - Number(b.lat)) < 0.0008 && Math.abs(Number(a.lng) - Number(b.lng)) < 0.0008;
+      }
+      if (typeof a === 'string' && typeof b === 'string') {
+        return a.trim().toLowerCase() === b.trim().toLowerCase();
+      }
+      return false;
+    };
+
+    const rawWaypoints = [...pickupPoints, ...dropPoints];
+    const uniqueWaypoints = [];
+    for (const wp of rawWaypoints) {
+      if (isSamePoint(wp, origin) || isSamePoint(wp, destination)) continue;
+      if (uniqueWaypoints.some(existing => isSamePoint(existing, wp))) continue;
+      uniqueWaypoints.push(wp);
+    }
+
+    // One single route with all distinct points directly in Google Maps:
+    // Origin -> all seekers' unique pickups -> all seekers' unique drops -> final Destination
     openGoogleMaps({
       origin,
       destination,
-      waypoints: [...pickupPoints, ...dropPoints],
+      waypoints: uniqueWaypoints,
       travelmode: 'driving',
     });
   };
@@ -1069,6 +1089,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
                                 <Text style={styles.driverGridLabel}>SEEKER PICKUP SPOT</Text>
                                 <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
                                   📍 {p.pickupLocation?.address || p.seeker?.pickupLocation?.address || p.pickupAddress || rideInfo?.pickup?.address}
+                                </Text>
+                              </View>
+                            ) : null}
+                            {(p.dropLocation?.address || p.seeker?.dropLocation?.address || p.dropAddress || rideInfo?.drop?.address) ? (
+                              <View style={[styles.driverGridItem, { width: '100%', marginTop: 4 }]}>
+                                <Text style={styles.driverGridLabel}>SEEKER DROP SPOT</Text>
+                                <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
+                                  🎯 {p.dropLocation?.address || p.seeker?.dropLocation?.address || p.dropAddress || rideInfo?.drop?.address}
                                 </Text>
                               </View>
                             ) : null}

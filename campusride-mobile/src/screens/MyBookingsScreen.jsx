@@ -157,17 +157,17 @@ export default function MyBookingsScreen({ navigation }) {
                   </View>
                 </View>
 
-                {/* Route — Full complete address */}
+                {/* Route — Seeker's chosen pickup and drop address */}
                 {ride && (
                   <View style={styles.route}>
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.green }]} />
-                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(ride.pickup)}</Text>
+                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(b.pickup || ride.pickup)}</Text>
                     </View>
                     <View style={styles.routeLineDot} />
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.red }]} />
-                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(ride.drop)}</Text>
+                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(b.drop || ride.drop)}</Text>
                     </View>
                   </View>
                 )}
@@ -177,7 +177,7 @@ export default function MyBookingsScreen({ navigation }) {
                   <View style={styles.metaGrid}>
                     <MetaItem isDark={isDark} label="DATE"    value={fmtDate(ride.date)} />
                     <MetaItem isDark={isDark} label="TIME"    value={ride.time || '—'} />
-                    <MetaItem isDark={isDark} label="COST"    value={`₹${ride.costPerSeat}/seat`} accent />
+                    <MetaItem isDark={isDark} label="COST"    value={`₹${b.fare || ride.costPerSeat || 35}/seat`} accent />
                     <MetaItem isDark={isDark} label="VEHICLE" value={`${VEHICLE_ICON[ride.vehicleType] || '🚗'} ${ride.vehicleType || '—'}`} />
                   </View>
                 )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   KeyboardAvoidingView, Platform, StyleSheet, Modal, TextInput, FlatList,
@@ -12,6 +12,7 @@ import { Input, Btn, Alert, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import { INDIAN_COLLEGES } from '../data/colleges';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
+import CropView from '../components/CropView';
 import * as api from '../services/api';
 
 const ROLES = [
@@ -636,6 +637,100 @@ export default function RegisterScreen({ navigation }) {
             />
           </View>
         </View>
+      </Modal>
+
+      {/* Selfie Crop Modal */}
+      <Modal visible={showCropModal} animationType="slide" transparent={false} onRequestClose={() => setShowCropModal(false)}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0e17' }}>
+          <View style={{
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            backgroundColor: '#0a0e17',
+            borderBottomWidth: 1,
+            borderBottomColor: '#1c2638',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+          }}>
+            <TouchableOpacity onPress={() => { setShowCropModal(false); takeSelfie(); }} style={{ padding: 4 }}>
+              <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: '700' }}>←</Text>
+            </TouchableOpacity>
+            <View>
+              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '800' }}>Crop & Verify Selfie</Text>
+              <Text style={{ color: '#8b96b0', fontSize: 11 }}>Position your face clearly inside the frame, then tap ✓</Text>
+            </View>
+          </View>
+
+          <View style={{ flex: 1, backgroundColor: '#000000' }}>
+            {stagedSelfieUri && (
+              <CropView ref={cropRef} uri={stagedSelfieUri} accent={colors.accent} />
+            )}
+          </View>
+
+          <View style={{
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            backgroundColor: '#0a0e17',
+            borderTopWidth: 1,
+            borderTopColor: '#1c2638',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <TouchableOpacity
+              onPress={() => {
+                setShowCropModal(false);
+                takeSelfie();
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                backgroundColor: '#141d2b',
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: '#1c2638',
+              }}
+            >
+              <Text style={{ fontSize: 14 }}>📷</Text>
+              <Text style={{ color: '#e2e8f0', fontSize: 13, fontWeight: '700' }}>Retake</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={async () => {
+                try {
+                  if (cropRef.current && cropRef.current.crop) {
+                    const cropped = await cropRef.current.crop();
+                    if (cropped && cropped.uri) {
+                      setSelfieUri(cropped.uri);
+                      setShowCropModal(false);
+                      return;
+                    }
+                  }
+                  setSelfieUri(stagedSelfieUri);
+                  setShowCropModal(false);
+                } catch (e) {
+                  console.log('Selfie crop error:', e);
+                  setSelfieUri(stagedSelfieUri);
+                  setShowCropModal(false);
+                }
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingVertical: 10,
+                paddingHorizontal: 22,
+                backgroundColor: colors.accent,
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>Apply Selfie ✓</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );

@@ -107,13 +107,15 @@ exports.requestBooking = async (req, res) => {
 
     const cleanPoint = (p) => {
       if (!p || typeof p !== 'object') return null;
-      const lat = Number(p.lat), lng = Number(p.lng);
+      const lat = Number(p.lat != null ? p.lat : (Array.isArray(p.coordinates) ? p.coordinates[1] : (p.latitude != null ? p.latitude : null)));
+      const lng = Number(p.lng != null ? p.lng : (Array.isArray(p.coordinates) ? p.coordinates[0] : (p.longitude != null ? p.longitude : null)));
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
       if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+      const addr = typeof p.address === 'string' ? p.address : (typeof p.label === 'string' ? p.label : (typeof p.text === 'string' ? p.text : ''));
       return {
         type: 'Point',
         coordinates: [lng, lat],
-        address: typeof p.address === 'string' ? p.address.slice(0, 200) : '',
+        address: addr.slice(0, 250),
       };
     };
     const seekerPickup = cleanPoint(req.body.pickup);

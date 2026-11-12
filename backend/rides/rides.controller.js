@@ -646,9 +646,9 @@ exports.getRide = async (req, res) => {
           bookingId: b._id,
           status: b.status,
           seats: b.seats || 1,
-          cost: b.cost || ((b.seats || 1) * (ride.costPerSeat || 0)),
-          pickupLocation: b.pickupLocation || (s?.pickupLocation || ride.pickup),
-          dropLocation: b.dropLocation || ride.drop,
+          cost: b.fare || b.cost || ((b.seats || 1) * (ride.costPerSeat || 0)),
+          pickupLocation: b.pickup || b.pickupLocation || (s?.pickupLocation || ride.pickup),
+          dropLocation: b.drop || b.dropLocation || ride.drop,
           seeker: s,
         };
       });

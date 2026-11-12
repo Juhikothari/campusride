@@ -280,24 +280,40 @@ export default function SearchRidesScreen({ navigation }) {
     } catch {}
   };
 
-  // Search history state (isolated per user account)
+  // Search history state (isolated per user account with legacy & default campus presets)
   const historyKey = `cr_search_history_${user?._id || user?.id || 'guest'}`;
   const [searchHistory, setSearchHistory] = useState([]);
 
-  // Load search history from AsyncStorage for this user
+  // Load search history from AsyncStorage (check per-user, then global fallback, or default presets)
   useEffect(() => {
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(historyKey);
+        let raw = await AsyncStorage.getItem(historyKey);
+        if (!raw) {
+          raw = await AsyncStorage.getItem('cr_search_history');
+        }
         if (raw) {
           const list = JSON.parse(raw);
-          if (Array.isArray(list)) setSearchHistory(list.slice(0, 6));
-        } else {
-          setSearchHistory([]);
+          if (Array.isArray(list) && list.length > 0) {
+            setSearchHistory(list.slice(0, 6));
+            return;
+          }
         }
+        // If empty, provide default campus search history
+        const defaultHistory = [
+          {
+            pickup: { label: `${user?.college || 'RNSIT'} Campus Main Gate`, lat: '12.9009', lng: '77.5185' },
+            drop: { label: 'Pyramid Temple Bells, Rajarajeshwari Nagar', lat: '12.9150', lng: '77.5180' }
+          },
+          {
+            pickup: { label: `${user?.college || 'RNSIT'} Campus`, lat: '12.9009', lng: '77.5185' },
+            drop: { label: 'Rajarajeshwari Nagar Metro Station', lat: '12.9350', lng: '77.5250' }
+          }
+        ];
+        setSearchHistory(defaultHistory);
       } catch {}
     })();
-  }, [historyKey]);
+  }, [historyKey, user?.college]);
 
   const saveSearchHistoryItem = async (p, d) => {
     if (!p?.label && !d?.label) return;
@@ -313,6 +329,7 @@ export default function SearchRidesScreen({ navigation }) {
         );
         const updated = [newItem, ...filtered].slice(0, 6);
         AsyncStorage.setItem(historyKey, JSON.stringify(updated)).catch(() => {});
+        AsyncStorage.setItem('cr_search_history', JSON.stringify(updated)).catch(() => {});
         return updated;
       });
     } catch {}
@@ -420,12 +437,22 @@ export default function SearchRidesScreen({ navigation }) {
     const rideId = ride._id;
     const distCalc = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : 3;
     const fare = calculateRideFare(distCalc, ride.vehicleType || 'car');
-    const pAddr = typeof ride.pickup === 'string' ? ride.pickup : (ride.pickup?.address || 'Pickup point');
-    const dAddr = typeof ride.drop === 'string' ? ride.drop : (ride.drop?.address || 'Destination point');
+    
+    // Use seeker's customized pickup and drop location entered in search
+    const seekerP = {
+      address: pickup.label || (typeof ride.pickup === 'string' ? ride.pickup : (ride.pickup?.address || 'Pickup point')),
+      lat: pickup.lat || ride.pickup?.coordinates?.[1] || ride.pickup?.lat,
+      lng: pickup.lng || ride.pickup?.coordinates?.[0] || ride.pickup?.lng,
+    };
+    const seekerD = {
+      address: drop.label || (typeof ride.drop === 'string' ? ride.drop : (ride.drop?.address || 'Destination point')),
+      lat: drop.lat || ride.drop?.coordinates?.[1] || ride.drop?.lat,
+      lng: drop.lng || ride.drop?.coordinates?.[0] || ride.drop?.lng,
+    };
 
     RNAlert.alert(
       'Confirm Booking Request',
-      `🚗 Vehicle: ${(ride.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${pAddr}\n🎯 Destination: ${dAddr}\n\nSend ride request to provider?`,
+      `🚗 Vehicle: ${(ride.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${seekerP.address}\n🎯 Destination: ${seekerD.address}\n\nSend ride request to provider?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -433,7 +460,7 @@ export default function SearchRidesScreen({ navigation }) {
           onPress: async () => {
             setBookingMap(m => ({ ...m, [rideId]: { loading: true } }));
             try {
-              await api.bookRide(rideId, 1, ride.pickup, ride.drop, fare);
+              await api.bookRide(rideId, 1, seekerP, seekerD, fare);
               setBookingMap(m => ({ ...m, [rideId]: { status: 'pending' } }));
               RNAlert.alert('Request Sent', 'Your ride request has been sent to the provider. You will be notified once they accept!');
             } catch (e) {
@@ -736,7 +763,9 @@ export default function SearchRidesScreen({ navigation }) {
                   <View key={ride._id}>
                     <RideCard
                       ride={ride}
-                      onView={id => navigation.navigate('RideDetail', { rideId: id })}
+                      seekerPickup={pickup}
+                      seekerDrop={drop}
+                      onView={id => navigation.navigate('RideDetail', { rideId: id, seekerPickup: pickup, seekerDrop: drop })}
                       onBook={bm?.status ? null : () => startBook(ride)}
                       bookingStatus={bm?.status}
                     />
