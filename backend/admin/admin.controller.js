@@ -696,6 +696,7 @@ exports.updateIncidentStatus = async (req, res) => {
 // ── POST /api/admin/notifications/broadcast ──────────────────────
 exports.broadcastNotification = async (req, res) => {
   try {
+    const { sendExpoPushNotification } = require('../notifications/push.helper');
     const { title, message, audience = 'all', college } = req.body;
     if (!title?.trim() || !message?.trim()) {
       return res.status(400).json({ message: 'Title and message are required' });
@@ -706,7 +707,7 @@ exports.broadcastNotification = async (req, res) => {
     if (audience === 'seekers')   query.role = { $in: ['seeker', 'both'] };
     if (audience === 'college' && college) query.college = { $regex: college, $options: 'i' };
 
-    const targetUsers = await User.find(query).select('_id');
+    const targetUsers = await User.find(query).select('_id pushToken');
 
     // Create notifications in batch
     const docs = targetUsers.map(u => ({
@@ -732,13 +733,32 @@ exports.broadcastNotification = async (req, res) => {
       });
     }
 
+    // Deliver push notification outside the app to all targeted users
+    const pushTokens = targetUsers
+      .map(u => u.pushToken)
+      .filter(t => t && typeof t === 'string' && (t.startsWith('ExponentPushToken') || t.startsWith('ExpoPushToken')));
+    
+    // Send in parallel background tasks
+    pushTokens.forEach(token => {
+      sendExpoPushNotification(token, {
+        title: title.trim(),
+        body: message.trim(),
+        data: { type: 'broadcast', audience, college },
+      }).catch(err => console.error('[Broadcast Push Error]:', err.message));
+    });
+
     await AuditLog.create({
       action: 'BROADCAST',
       adminId: req.user.userId,
-      meta: { title, message, audience, college, count: targetUsers.length }
+      meta: { title, message, audience, college, count: targetUsers.length, pushCount: pushTokens.length }
     });
 
-    res.json({ success: true, sent: targetUsers.length, message: `Delivered to ${targetUsers.length} commuters` });
+    res.json({
+      success: true,
+      sent: targetUsers.length,
+      pushSent: pushTokens.length,
+      message: `Delivered to ${targetUsers.length} commuters (${pushTokens.length} external push notifications delivered)`
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -811,19 +831,65 @@ exports.getUserDetail = async (req, res) => {
 exports.getPendingColleges = async (req, res) => {
   try {
     const College = require('../colleges/colleges.model');
-    const pending = await College.find({ status: 'pending' }).sort({ createdAt: -1 });
+    const { COLLEGES } = require('../colleges/colleges.routes');
 
-    const enriched = await Promise.all(pending.map(async (p) => {
-      const reg = new RegExp(`^${p.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    const pendingDocs = await College.find({ status: 'pending' }).sort({ createdAt: -1 }).lean();
+    const approvedDocs = await College.find({ status: 'approved' }).sort({ name: 1 }).lean();
+
+    // Set of all approved names (lowercase)
+    const approvedSet = new Set([
+      ...(COLLEGES || []).map(c => (c.name || '').trim().toLowerCase()),
+      ...approvedDocs.map(c => (c.name || '').trim().toLowerCase()),
+    ]);
+
+    const pendingMap = new Map();
+    for (const p of pendingDocs) {
+      if (p.name && !approvedSet.has(p.name.trim().toLowerCase())) {
+        pendingMap.set(p.name.trim().toLowerCase(), p);
+      }
+    }
+
+    // Auto-discover unregistered college names from User collection
+    const userColleges = await User.distinct('college', {
+      college: { $exists: true, $nin: ['', null] }
+    });
+
+    for (const uCollege of userColleges) {
+      if (!uCollege || typeof uCollege !== 'string') continue;
+      const clean = uCollege.trim();
+      const lower = clean.toLowerCase();
+      if (!lower || lower === 'other' || lower.includes('other college (enter')) continue;
+
+      if (!approvedSet.has(lower) && !pendingMap.has(lower)) {
+        const sampleUser = await User.findOne({ college: clean }).select('name email');
+        const doc = await College.findOneAndUpdate(
+          { name: { $regex: new RegExp(`^${clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+          {
+            $setOnInsert: {
+              name: clean,
+              rawRequestedName: clean,
+              status: 'pending',
+              requestedBy: sampleUser?._id || null,
+              requestedByName: sampleUser?.name || 'Student Commuter',
+              requestedByEmail: sampleUser?.email || '',
+            }
+          },
+          { upsert: true, new: true }
+        ).lean();
+        pendingMap.set(lower, doc);
+      }
+    }
+
+    const enriched = await Promise.all(Array.from(pendingMap.values()).map(async (p) => {
+      const reg = new RegExp(`^${(p.name || '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
       const studentCount = await User.countDocuments({ college: { $regex: reg } });
       return {
-        ...p.toObject(),
+        ...p,
         studentCount,
       };
     }));
 
-    const approved = await College.find({ status: 'approved' }).sort({ name: 1 });
-    res.json({ pending: enriched, approved });
+    res.json({ pending: enriched, approved: approvedDocs });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

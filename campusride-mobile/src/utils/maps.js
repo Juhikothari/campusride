@@ -6,10 +6,29 @@ import { Linking, Platform } from 'react-native';
 function formatPoint(pt) {
   if (!pt) return '';
   if (typeof pt === 'string') return pt.trim();
-  const lat = pt.lat ?? pt.latitude ?? (Array.isArray(pt.coordinates) ? pt.coordinates[1] : null);
-  const lng = pt.lng ?? pt.longitude ?? (Array.isArray(pt.coordinates) ? pt.coordinates[0] : null);
+  let lat = pt.lat ?? pt.latitude;
+  let lng = pt.lng ?? pt.longitude;
+  if ((lat == null || lng == null) && Array.isArray(pt.coordinates) && pt.coordinates.length >= 2) {
+    const c0 = parseFloat(pt.coordinates[0]);
+    const c1 = parseFloat(pt.coordinates[1]);
+    if (c0 > 50 && c1 < 40) {
+      lng = c0;
+      lat = c1;
+    } else if (c1 > 50 && c0 < 40) {
+      lat = c0;
+      lng = c1;
+    } else {
+      lng = c0;
+      lat = c1;
+    }
+  }
   if (lat != null && lng != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
-    return `${lat},${lng}`;
+    const nLat = Number(lat);
+    const nLng = Number(lng);
+    if (nLat > 50 && nLng < 40) {
+      return `${nLng},${nLat}`;
+    }
+    return `${nLat},${nLng}`;
   }
   return pt.address || pt.name || pt.label || '';
 }

@@ -626,6 +626,7 @@ export default function RegisterScreen({ navigation }) {
                   <TouchableOpacity
                     style={styles.customCollegeBtn}
                     onPress={() => {
+                      setIsCustomCollege(true);
                       setCollege(collegeSearch.trim());
                       setShowCollegeModal(false);
                     }}

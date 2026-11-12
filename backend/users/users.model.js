@@ -71,6 +71,8 @@ const userSchema = new mongoose.Schema({
   kycRemarks: { type: String },
 
   emergencyContact: { type: String, default: '' },
+  pushToken:        { type: String, default: null },
+  pushPlatform:     { type: String, default: null },
 
   // ── Single-device login ─────────────────────────────────────────
   // Rotated on every login. The JWT carries this seed; if it doesn't

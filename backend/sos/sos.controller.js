@@ -56,9 +56,10 @@ exports.triggerSOS = async (req, res) => {
     
     await sos.save();
     
-    // Get emergency contacts
+    // Get emergency contact
     const user = await User.findById(userId);
-    const emergencyContacts = user.emergencyContacts || [];
+    const emergencyContact = user?.emergencyContact || '';
+    const emergencyContacts = emergencyContact ? [emergencyContact] : (user?.emergencyContacts || []);
     
     // TODO: Send actual notifications
     // - SMS to emergency contacts
@@ -106,6 +107,7 @@ exports.triggerSOS = async (req, res) => {
     res.status(201).json({
       message: 'SOS triggered successfully',
       sos,
+      emergencyContact,
       emergencyContactsNotified: emergencyContacts.length
     });
   } catch (error) {

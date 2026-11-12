@@ -1835,4 +1835,6 @@ router.get('/all', async (req, res) => {
   res.json(all);
 });
 
+router.COLLEGES = COLLEGES;
+router.getAllApprovedColleges = getAllApprovedColleges;
 module.exports = router;

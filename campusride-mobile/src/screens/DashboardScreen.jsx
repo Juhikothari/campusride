@@ -20,6 +20,7 @@ import * as api from '../services/api';
 import { getDisplayUSN } from '../utils/usn';
 import { formatDateDMY } from '../utils/date';
 import { openGoogleMaps } from '../utils/maps';
+import { calculateRideFare, haversineDistanceKm } from '../utils/pricing';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -469,11 +470,39 @@ export default function DashboardScreen({ navigation }) {
         (b.rideId?.status === 'in-progress' || b.rideId?.status === 'active')
       );
       if (activeSeekerBooking?.rideId) {
+        let seekerFare = activeSeekerBooking.fare;
+        if (!seekerFare && activeSeekerBooking.pickup && activeSeekerBooking.drop) {
+          const pLat = activeSeekerBooking.pickup.coordinates?.[1] || activeSeekerBooking.pickup.lat;
+          const pLng = activeSeekerBooking.pickup.coordinates?.[0] || activeSeekerBooking.pickup.lng;
+          const dLat = activeSeekerBooking.drop.coordinates?.[1] || activeSeekerBooking.drop.lat;
+          const dLng = activeSeekerBooking.drop.coordinates?.[0] || activeSeekerBooking.drop.lng;
+          if (pLat && dLat) {
+            const dist = haversineDistanceKm(pLat, pLng, dLat, dLng);
+            seekerFare = calculateRideFare(dist, activeSeekerBooking.rideId?.vehicleType || 'car');
+          }
+        }
+        if (!seekerFare) {
+          const ridePickup = activeSeekerBooking.rideId?.pickup;
+          const rideDrop = activeSeekerBooking.rideId?.drop;
+          const rLat1 = ridePickup?.coordinates?.[1] || ridePickup?.lat;
+          const rLng1 = ridePickup?.coordinates?.[0] || ridePickup?.lng;
+          const rLat2 = rideDrop?.coordinates?.[1] || rideDrop?.lat;
+          const rLng2 = rideDrop?.coordinates?.[0] || rideDrop?.lng;
+          if (rLat1 && rLat2) {
+            const dist = haversineDistanceKm(rLat1, rLng1, rLat2, rLng2);
+            seekerFare = calculateRideFare(dist, activeSeekerBooking.rideId?.vehicleType || 'car');
+          }
+        }
+
         setActiveTrip({
           ...activeSeekerBooking.rideId,
+          fare: seekerFare || activeSeekerBooking.fare || 35,
+          seekerFare: seekerFare || activeSeekerBooking.fare || 35,
           bookedSeats: activeSeekerBooking.seats || 1,
           seatsAvailable: activeSeekerBooking.rideId?.seatsAvailable,
           seekerChecklistCompleted: activeSeekerBooking.checklistCompleted || activeSeekerBooking.rideId?.seekerChecklistCompleted,
+          pickupLocation: activeSeekerBooking.pickup || activeSeekerBooking.rideId?.pickup,
+          dropLocation: activeSeekerBooking.drop || activeSeekerBooking.rideId?.drop,
         });
         setActiveBookingId(activeSeekerBooking._id || activeSeekerBooking.id);
         setTripRole('rider');
@@ -832,7 +861,7 @@ export default function DashboardScreen({ navigation }) {
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={{ color: isDark ? '#2dd4a0' : '#047857', fontSize: 20, fontWeight: '900' }}>
-                        ₹{activeTrip.fare || activeTrip.costPerSeat || 30}
+                        ₹{activeTrip.fare || activeTrip.seekerFare || 35}
                       </Text>
                       <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 10 }}>
                         {activeTrip.bookedSeats || 1} seat{(activeTrip.bookedSeats || 1) > 1 ? 's' : ''}

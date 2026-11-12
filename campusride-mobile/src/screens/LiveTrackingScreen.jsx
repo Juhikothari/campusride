@@ -349,7 +349,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
           onPress: async () => {
             setSosLoading(true);
             try {
-              await api.triggerSOS({
+              const res = await api.triggerSOS({
                 rideId: activeRideId,
                 lat: userLat,
                 lng: userLng,
@@ -358,12 +358,28 @@ export default function LiveTrackingScreen({ navigation, route }) {
               setSosSent(true);
 
               // Send SMS to Emergency Contact
-              const emergencyPhone = user?.emergencyContact || user?.phone;
-              const mapUrl = userLat && userLng ? `https://maps.google.com/?q=${userLat},${userLng}` : '';
-              const smsBody = encodeURIComponent(`EMERGENCY SOS: I need help during my campus commute on HOGO! My location: ${mapUrl}`);
+              let emergencyPhone = user?.emergencyContact || res?.emergencyContact;
+              if (!emergencyPhone) {
+                try {
+                  const prof = await api.getProfile();
+                  emergencyPhone = prof?.emergencyContact;
+                } catch {}
+              }
+              const mapUrl = (userLat && userLng) ? `https://maps.google.com/?q=${userLat},${userLng}` : '';
+              const userName = user?.name || user?.usn || 'Commuter';
+              const smsMsg = `🚨 EMERGENCY SOS: I need help during my campus commute on HOGO!\nSender: ${userName}\nLive GPS: ${mapUrl || 'Active on route'}`;
+              const smsBody = encodeURIComponent(smsMsg);
+
               if (emergencyPhone) {
-                const smsUrl = Platform.OS === 'ios' ? `sms:${emergencyPhone}&body=${smsBody}` : `sms:${emergencyPhone}?body=${smsBody}`;
-                Linking.openURL(smsUrl).catch(() => {});
+                const cleanPhone = String(emergencyPhone).replace(/[^\d+]/g, '');
+                const smsUrl = Platform.OS === 'ios'
+                  ? `sms:${cleanPhone}&body=${smsBody}`
+                  : `sms:${cleanPhone}?body=${smsBody}`;
+                Linking.openURL(smsUrl).catch(() => {
+                  Linking.openURL(`sms:${cleanPhone}`).catch(() => {});
+                });
+              } else {
+                RNAlert.alert('SOS Triggered', 'SOS alert dispatched to campus security. No emergency contact phone is saved in profile.');
               }
             } catch (e) {
               Linking.openURL('tel:112').catch(() => {});
@@ -382,7 +398,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
         },
       ]
     );
-  }, [activeRideId, userLat, userLng]);
+  }, [activeRideId, userLat, userLng, user]);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [currentStopIdx, setCurrentStopIdx] = useState(1);
@@ -571,59 +587,88 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const openDirectionsInGoogleMaps = () => {
     // Only provider gets external driving directions; seeker uses in-app live tracking
     if (!isDriver) return;
-    const origin = (userLat && userLng)
-      ? { lat: userLat, lng: userLng }
-      : (pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude } : null);
-    const acceptedSeekers = (rideInfo?.passengers || []).filter(p => p.status === 'accepted');
 
-    const destination = (dropCoords?.latitude && dropCoords?.longitude)
-      ? { lat: dropCoords.latitude, lng: dropCoords.longitude }
-      : (rideInfo?.drop?.address || null);
-
-    const pickupPoints = acceptedSeekers
-      .map(p => {
-        const loc = p.pickupLocation || p.seeker?.pickupLocation || p.pickup || null;
-        const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
-        const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-        return (lat && lng) ? { lat, lng } : (loc?.address || null);
-      })
-      .filter(Boolean);
-
-    const dropPoints = acceptedSeekers
-      .map(p => {
-        const loc = p.dropLocation || p.seeker?.dropLocation || p.drop || null;
-        const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
-        const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-        return (lat && lng) ? { lat, lng } : (loc?.address || null);
-      })
-      .filter(Boolean);
-
-    // Deduplicate waypoints and prevent provider destination from appearing multiple times
-    const isSamePoint = (a, b) => {
-      if (!a || !b) return false;
-      if (typeof a === 'object' && typeof b === 'object' && a.lat != null && b.lat != null) {
-        return Math.abs(Number(a.lat) - Number(b.lat)) < 0.0008 && Math.abs(Number(a.lng) - Number(b.lng)) < 0.0008;
+    const extractPt = (pt) => {
+      if (!pt) return null;
+      let lat = pt.lat ?? pt.latitude;
+      let lng = pt.lng ?? pt.longitude;
+      if ((lat == null || lng == null) && Array.isArray(pt.coordinates) && pt.coordinates.length >= 2) {
+        const c0 = parseFloat(pt.coordinates[0]);
+        const c1 = parseFloat(pt.coordinates[1]);
+        if (c0 > 50 && c1 < 40) {
+          lng = c0; lat = c1;
+        } else if (c1 > 50 && c0 < 40) {
+          lat = c0; lng = c1;
+        } else {
+          lng = c0; lat = c1;
+        }
       }
-      if (typeof a === 'string' && typeof b === 'string') {
-        return a.trim().toLowerCase() === b.trim().toLowerCase();
+      if (lat != null && lng != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+        const nLat = Number(lat);
+        const nLng = Number(lng);
+        if (nLat > 50 && nLng < 40) {
+          return { lat: nLng, lng: nLat, address: pt.address || pt.name || '' };
+        }
+        return { lat: nLat, lng: nLng, address: pt.address || pt.name || '' };
+      }
+      const addr = (typeof pt === 'string' ? pt : (pt.address || pt.name || pt.label || '')).trim();
+      return addr ? { address: addr } : null;
+    };
+
+    const isMatch = (a, b) => {
+      if (!a || !b) return false;
+      if (a.lat != null && b.lat != null && a.lng != null && b.lng != null) {
+        return Math.abs(a.lat - b.lat) < 0.001 && Math.abs(a.lng - b.lng) < 0.001;
+      }
+      const aStr = (a.address || (typeof a === 'string' ? a : '')).trim().toLowerCase();
+      const bStr = (b.address || (typeof b === 'string' ? b : '')).trim().toLowerCase();
+      if (aStr && bStr) {
+        return aStr === bStr || aStr.includes(bStr) || bStr.includes(aStr);
       }
       return false;
     };
 
-    const rawWaypoints = [...pickupPoints, ...dropPoints];
-    const uniqueWaypoints = [];
-    for (const wp of rawWaypoints) {
-      if (isSamePoint(wp, origin) || isSamePoint(wp, destination)) continue;
-      if (uniqueWaypoints.some(existing => isSamePoint(existing, wp))) continue;
-      uniqueWaypoints.push(wp);
+    // Provider origin: Provider's ride start location (or current live GPS if start missing)
+    const origin = extractPt(rideInfo?.pickup) ||
+      (pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude } : null) ||
+      (userLat && userLng ? { lat: userLat, lng: userLng } : null);
+
+    // Provider destination: Provider's final ride drop destination
+    const destination = extractPt(rideInfo?.drop) ||
+      (dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude } : null) ||
+      (rideInfo?.drop?.address ? { address: rideInfo.drop.address } : null);
+
+    const acceptedSeekers = (rideInfo?.passengers || []).filter(p => p.status === 'accepted');
+
+    // 1. Gather distinct seeker pickup points
+    const pickupWaypoints = [];
+    for (const p of acceptedSeekers) {
+      const loc = extractPt(p.pickupLocation || p.seeker?.pickupLocation || p.pickup);
+      if (!loc) continue;
+      if (isMatch(loc, origin) || isMatch(loc, destination)) continue;
+      if (pickupWaypoints.some(existing => isMatch(existing, loc))) continue;
+      pickupWaypoints.push(loc);
     }
 
-    // One single route with all distinct points directly in Google Maps:
-    // Origin -> all seekers' unique pickups -> all seekers' unique drops -> final Destination
+    // 2. Gather distinct seeker drop points
+    const dropWaypoints = [];
+    for (const p of acceptedSeekers) {
+      const loc = extractPt(p.dropLocation || p.seeker?.dropLocation || p.drop);
+      if (!loc) continue;
+      if (isMatch(loc, destination) || isMatch(loc, origin)) continue;
+      if (pickupWaypoints.some(existing => isMatch(existing, loc))) continue;
+      if (dropWaypoints.some(existing => isMatch(existing, loc))) continue;
+      dropWaypoints.push(loc);
+    }
+
+    // One single common commute route directly in Google Maps:
+    // Provider Start -> all Seekers' unique pickups -> all Seekers' unique drops -> Provider Destination
+    const orderedWaypoints = [...pickupWaypoints, ...dropWaypoints];
+
     openGoogleMaps({
       origin,
       destination,
-      waypoints: uniqueWaypoints,
+      waypoints: orderedWaypoints,
       travelmode: 'driving',
     });
   };
