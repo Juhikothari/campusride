@@ -94,7 +94,12 @@ export default function RideCard({ ride, seekerPickup, seekerDrop, onView, onBoo
       <View style={styles.detailRow}>
         <DetailChip icon="📅" text={formatDate(ride.date)} isDark={isDark} />
         <DetailChip icon="🕐" text={formatTime(ride.date, ride.time)} isDark={isDark} />
-        <DetailChip icon="💺" text={`${ride.seatsAvailable} seat${ride.seatsAvailable !== 1 ? 's' : ''}`} />
+        <DetailChip
+          icon="💺"
+          text={ride.status === 'completed'
+            ? `${ride.bookedSeats || 1} seat${(ride.bookedSeats || 1) !== 1 ? 's' : ''} booked`
+            : `${ride.seatsAvailable} seat${ride.seatsAvailable !== 1 ? 's' : ''}`}
+        />
         {(() => {
           const pLat = seekerPickup?.lat || ride.pickup?.coordinates?.[1] || ride.pickup?.lat;
           const pLng = seekerPickup?.lng || ride.pickup?.coordinates?.[0] || ride.pickup?.lng;

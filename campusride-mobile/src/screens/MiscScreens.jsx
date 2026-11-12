@@ -33,7 +33,7 @@ function getAddr(field) {
 }
 
 export function RideDetailScreen({ navigation, route }) {
-  const { rideId } = route.params || {};
+  const { rideId, seekerPickup, seekerDrop } = route.params || {};
   const { user }   = useAuth();
   const { isDark } = useTheme();
 
@@ -58,13 +58,15 @@ export function RideDetailScreen({ navigation, route }) {
       .catch(() => {});
   }, [rideId]);
 
-  const calculatedCost = ride ? getEstimatedFare(ride.pickup, ride.drop, ride.vehicleType, ride.costPerSeat) : 35;
+  const targetPickup = seekerPickup || ride?.pickup;
+  const targetDrop   = seekerDrop   || ride?.drop;
+  const calculatedCost = ride ? getEstimatedFare(targetPickup, targetDrop, ride.vehicleType, null) : 35;
 
   const startBookRide = (r) => {
     if (!r) return;
-    const fare = getEstimatedFare(r.pickup, r.drop, r.vehicleType, r.costPerSeat);
-    const pAddr = getAddr(r.pickup);
-    const dAddr = getAddr(r.drop);
+    const fare = calculatedCost;
+    const pAddr = getAddr(targetPickup);
+    const dAddr = getAddr(targetDrop);
 
     RNAlert.alert(
       'Confirm Booking Request',
@@ -76,7 +78,7 @@ export function RideDetailScreen({ navigation, route }) {
           onPress: async () => {
             setBooking(b => ({ ...b, loading: true, error: '' }));
             try {
-              await api.bookRide(rideId, 1, r.pickup, r.drop, fare);
+              await api.bookRide(rideId, 1, targetPickup, targetDrop, fare);
               DeviceEventEmitter.emit('BOOKING_STATUS_CHANGED', { rideId, status: 'pending' });
               setBooking({ loading: false, status: 'pending', error: '' });
               RNAlert.alert('Request Sent', 'Your ride request has been sent to the provider. You will be notified once they accept!');
@@ -175,7 +177,12 @@ export function RideDetailScreen({ navigation, route }) {
                 {[
                   { label: '📅 Date',   value: formatDateDMY(ride.date) },
                   { label: '🕐 Time',   value: ride.time },
-                  { label: '💺 Seats',  value: `${ride.seatsAvailable} available` },
+                  {
+                    label: '💺 Seats',
+                    value: (ride.status === 'completed'
+                      ? `${ride.bookedSeats || 1} booked`
+                      : `${ride.seatsAvailable} available`),
+                  },
                   ...(!isOwner ? [{ label: '₹ Cost', value: `₹${calculatedCost} / seat` }] : []),
                   { label: '🚗 Vehicle',value: ride.vehicleType },
                   { label: '🏫 College',value: ride.college },

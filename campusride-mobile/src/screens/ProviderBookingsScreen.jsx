@@ -243,7 +243,11 @@ export default function ProviderBookingsScreen({ navigation }) {
                   <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>⏰ {selectedRide.time}</Text>
                 </View>
                 <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>💺 {selectedRide.seatsAvailable} seats available</Text>
+                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>
+                    💺 {selectedRide.status === 'completed'
+                      ? `${selectedRide.bookedSeats || 1} seats booked`
+                      : `${selectedRide.seatsAvailable} seats available`}
+                  </Text>
                 </View>
                 {Boolean(selectedRide.womenOnly) && (
                   <View style={[styles.metaChip, { backgroundColor: 'rgba(233,30,99,0.15)', borderColor: 'rgba(233,30,99,0.4)' }]}>

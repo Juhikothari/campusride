@@ -52,6 +52,25 @@ export function AdminMoreScreen({ navigation }) {
         />
 
         <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {/* Section 0: College Directory */}
+        <Text style={styles.sectionLabel}>COLLEGE DIRECTORY</Text>
+        <View style={styles.cardGroup}>
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => navigation.navigate('AdminColleges')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuLeft}>
+              <Text style={styles.menuIcon}>🏫</Text>
+              <View>
+                <Text style={styles.menuTitle}>College Approvals & Directory</Text>
+                <Text style={styles.menuSub}>Review user-added colleges & standardize names</Text>
+              </View>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Section 1: Communications */}
         <Text style={styles.sectionLabel}>COMMUNICATIONS</Text>
         <View style={styles.cardGroup}>

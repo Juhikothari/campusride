@@ -162,6 +162,55 @@ const register = async (req, res) => {
 
     await user.save();
 
+    // If the user registered with a custom college name, record it and notify admin
+    if (user.college && role !== 'admin') {
+      try {
+        const College = require('../colleges/colleges.model');
+        const Notification = require('../notifications/notifications.model');
+        const trimmedCollege = user.college.trim();
+        const existingApproved = await College.findOne({
+          name: { $regex: new RegExp(`^${trimmedCollege.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+          status: 'approved'
+        });
+
+        const isCustom = Boolean(req.body.isCustomCollege);
+        if (isCustom || !existingApproved) {
+          await College.findOneAndUpdate(
+            { name: { $regex: new RegExp(`^${trimmedCollege.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+            {
+              $setOnInsert: {
+                name: trimmedCollege,
+                rawRequestedName: trimmedCollege,
+                status: 'pending',
+                requestedBy: user._id,
+                requestedByName: user.name,
+                requestedByEmail: user.email,
+              }
+            },
+            { upsert: true, new: true }
+          );
+
+          const adminUsers = await User.find({ role: 'admin' }).select('_id');
+          for (const adm of adminUsers) {
+            await Notification.create({
+              userId: adm._id,
+              userType: 'admin',
+              type: 'NEW_COLLEGE_REQUEST',
+              title: '🏫 New College Added by User',
+              message: `${user.name} (${user.email}) registered with custom college: "${trimmedCollege}". Please review, standardize the name, and add it to the directory.`,
+              data: {
+                collegeName: trimmedCollege,
+                userId: user._id,
+                userEmail: user.email,
+              }
+            });
+          }
+        }
+      } catch (colErr) {
+        console.error('Error logging new custom college request:', colErr.message);
+      }
+    }
+
     const token = jwt.sign(
       { userId: user._id, sessionSeed, deviceId: user.activeDeviceId },
       process.env.JWT_SECRET,

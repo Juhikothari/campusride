@@ -613,13 +613,34 @@ exports.getRide = async (req, res) => {
     const acceptedBooking = await Booking.findOne({
       rideId: ride._id,
       seekerId: currentUserId,
-      status: 'accepted'
+      status: { $in: ['accepted', 'pending'] }
     });
 
     const rideObj = ride.toObject();
 
+    // Attach seeker's custom calculated fare & booking details
+    if (acceptedBooking) {
+      rideObj.fare = acceptedBooking.fare;
+      rideObj.seekerFare = acceptedBooking.fare;
+      rideObj.myBooking = {
+        _id: acceptedBooking._id,
+        fare: acceptedBooking.fare,
+        seats: acceptedBooking.seats,
+        pickup: acceptedBooking.pickup,
+        drop: acceptedBooking.drop,
+        status: acceptedBooking.status,
+      };
+    }
+
+    // Attach booked seats count from confirmed bookings
+    const confirmedBookings = await Booking.find({
+      rideId: ride._id,
+      status: { $in: ['accepted', 'completed'] }
+    });
+    rideObj.bookedSeats = confirmedBookings.reduce((sum, b) => sum + (b.seats || 1), 0) || (rideObj.status === 'completed' ? 1 : 0);
+
     // Privacy Protection: Only reveal full phone and vehicle plate number after booking is accepted
-    if (!isOwner && !acceptedBooking) {
+    if (!isOwner && (!acceptedBooking || acceptedBooking.status !== 'accepted')) {
       if (rideObj.providerId && typeof rideObj.providerId === 'object') {
         rideObj.providerId.phone = null;
         if (rideObj.providerId.usn) {
@@ -698,7 +719,19 @@ exports.getMyRides = async (req, res) => {
   try {
     const userId = req.user?.userId || req.user?.id;
     const rides = await Ride.find({ providerId: userId }).sort({ createdAt: -1 });
-    res.json(rides);
+    const rideIds = rides.map(r => r._id);
+    const bookings = await Booking.find({ rideId: { $in: rideIds }, status: { $in: ['accepted', 'completed'] } });
+    const bookingCounts = {};
+    for (const b of bookings) {
+      const rId = String(b.rideId);
+      bookingCounts[rId] = (bookingCounts[rId] || 0) + (b.seats || 1);
+    }
+    const ridesWithBooked = rides.map(r => {
+      const obj = r.toObject ? r.toObject() : { ...r };
+      obj.bookedSeats = bookingCounts[String(r._id)] || (obj.status === 'completed' ? 1 : 0);
+      return obj;
+    });
+    res.json(ridesWithBooked);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

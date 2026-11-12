@@ -210,6 +210,10 @@ export const deleteAdminRide   = (id)   => request(`/admin/rides/${id}`, { metho
 export const getAdminIncidents = ()     => request('/admin/incidents');
 export const updateIncidentStatus = (id, status) => request(`/admin/incidents/${id}/status`, { method:'PUT', body: JSON.stringify({ status }) });
 export const getColleges       = (search = '') => request(`/colleges${search ? '?search=' + encodeURIComponent(search) : ''}`);
+export const getPendingColleges = () => request('/admin/colleges/pending');
+export const approveCollege     = (data) => request('/admin/colleges/approve', { method: 'POST', body: JSON.stringify(data) });
+export const addAdminCollege    = (data) => request('/admin/colleges/add', { method: 'POST', body: JSON.stringify(data) });
+export const deleteAdminCollege = (id) => request(`/admin/colleges/${id}`, { method: 'DELETE' });
 export const registerPushToken = (token, platform) => request('/notifications/register-token', { method: 'POST', body: JSON.stringify({ token, platform }) });
 export const unregisterPushToken = () => request('/notifications/unregister-token', { method: 'POST' }).catch(() => {});
 

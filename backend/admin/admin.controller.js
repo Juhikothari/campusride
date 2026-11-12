@@ -102,11 +102,14 @@ exports.getStats = async (req, res) => {
       count: signupsMap.get(label) || 0,
     }));
 
+    const pendingColleges = await require('../colleges/colleges.model').countDocuments({ status: 'pending' }).catch(() => 0);
+
     res.json({
       totalUsers,
       activeRides,
       pendingKyc,
       pendingKYC: pendingKyc,
+      pendingColleges,
       blockedUsers,
       totalRides,
       openIncidents,
@@ -799,6 +802,143 @@ exports.getUserDetail = async (req, res) => {
       rides,
       bookings
     });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ── COLLEGE DIRECTORY MANAGEMENT ──────────────────────────────
+exports.getPendingColleges = async (req, res) => {
+  try {
+    const College = require('../colleges/colleges.model');
+    const pending = await College.find({ status: 'pending' }).sort({ createdAt: -1 });
+
+    const enriched = await Promise.all(pending.map(async (p) => {
+      const reg = new RegExp(`^${p.name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+      const studentCount = await User.countDocuments({ college: { $regex: reg } });
+      return {
+        ...p.toObject(),
+        studentCount,
+      };
+    }));
+
+    const approved = await College.find({ status: 'approved' }).sort({ name: 1 });
+    res.json({ pending: enriched, approved });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.approveCollege = async (req, res) => {
+  try {
+    const College = require('../colleges/colleges.model');
+    const { rawName, standardizedName, short = '', city = 'Bengaluru', collegeId } = req.body;
+    if (!standardizedName || !standardizedName.trim()) {
+      return res.status(400).json({ message: 'Standardized college name is required' });
+    }
+
+    const cleanStd = standardizedName.trim();
+    const cleanRaw = (rawName || '').trim();
+
+    // 1. Update or create the approved College entry
+    let collegeDoc;
+    if (collegeId) {
+      collegeDoc = await College.findByIdAndUpdate(
+        collegeId,
+        {
+          name: cleanStd,
+          short: short.trim().toUpperCase(),
+          city: city.trim(),
+          status: 'approved',
+        },
+        { new: true }
+      );
+    } else {
+      collegeDoc = await College.findOneAndUpdate(
+        { name: { $regex: new RegExp(`^${cleanStd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+        {
+          name: cleanStd,
+          short: short.trim().toUpperCase(),
+          city: city.trim(),
+          status: 'approved',
+        },
+        { upsert: true, new: true }
+      );
+    }
+
+    // 2. Standardize all students who registered with the raw or old name
+    const searchRegex = new RegExp(`^${(cleanRaw || cleanStd).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+    const updateResult = await User.updateMany(
+      { college: { $regex: searchRegex } },
+      { $set: { college: cleanStd } }
+    );
+
+    // 3. Standardize all rides with the old college name
+    await Ride.updateMany(
+      { college: { $regex: searchRegex } },
+      { $set: { college: cleanStd } }
+    );
+
+    // 4. Notify affected students
+    const affectedUsers = await User.find({ college: cleanStd }).select('_id name');
+    for (const u of affectedUsers) {
+      await Notification.create({
+        userId: u._id,
+        userType: 'seeker',
+        type: 'COLLEGE_VERIFIED',
+        title: '🏫 College Standardized & Verified!',
+        message: `Your college has been officially standardized to "${cleanStd}". You are now connected with all classmates under this college directory!`,
+        data: { college: cleanStd }
+      }).catch(() => {});
+    }
+
+    // 5. Audit Log
+    AuditLog.create({
+      action: 'APPROVE_COLLEGE',
+      performedBy: req.user.userId,
+      targetUser: null,
+      details: `Standardized college "${cleanRaw}" -> "${cleanStd}" (${updateResult.modifiedCount} students updated).`
+    }).catch(() => {});
+
+    res.json({
+      message: `College "${cleanStd}" approved and added to dropdown list. ${updateResult.modifiedCount} student(s) updated!`,
+      college: collegeDoc,
+      updatedStudents: updateResult.modifiedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.addCollege = async (req, res) => {
+  try {
+    const College = require('../colleges/colleges.model');
+    const { name, short = '', city = 'Bengaluru' } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ message: 'College name is required' });
+
+    const cleanName = name.trim();
+    const college = await College.findOneAndUpdate(
+      { name: { $regex: new RegExp(`^${cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+      {
+        name: cleanName,
+        short: short.trim().toUpperCase(),
+        city: city.trim(),
+        status: 'approved',
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ message: `College "${cleanName}" added successfully!`, college });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.deleteCollege = async (req, res) => {
+  try {
+    const College = require('../colleges/colleges.model');
+    await College.findByIdAndDelete(req.params.id);
+    res.json({ message: 'College removed' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

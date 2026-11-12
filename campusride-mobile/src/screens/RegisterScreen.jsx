@@ -72,8 +72,9 @@ export default function RegisterScreen({ navigation }) {
     if (showCollegeModal) {
       api.getColleges(collegeSearch)
         .then(res => {
-          if (active && res && Array.isArray(res.colleges)) {
-            setRemoteColleges(res.colleges);
+          if (active && res) {
+            const list = Array.isArray(res) ? res : (Array.isArray(res.colleges) ? res.colleges : null);
+            if (list) setRemoteColleges(list);
           }
         })
         .catch(() => {});
@@ -152,8 +153,7 @@ export default function RegisterScreen({ navigation }) {
               }
               const result = await ImagePicker.launchCameraAsync({
                 cameraType: ImagePicker.CameraType.front,
-                allowsEditing: true,
-                aspect: [1, 1],
+                allowsEditing: false,
                 quality: 0.7,
               });
               if (!result.canceled && result.assets && result.assets[0]?.uri) {
@@ -176,8 +176,7 @@ export default function RegisterScreen({ navigation }) {
               }
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
+                allowsEditing: false,
                 quality: 0.7,
               });
               if (!result.canceled && result.assets && result.assets[0]?.uri) {
@@ -246,6 +245,7 @@ export default function RegisterScreen({ navigation }) {
       await registerUser({
         name: name.trim(), email: email.trim().toLowerCase(),
         phone: phone.trim(), college: college.trim(),
+        isCustomCollege: Boolean(isCustomCollege),
         password, role, usn: usn.trim() || 'STUDENT', gender,
         emergencyContact: emergency.trim(),
         profilePhoto: uploadedDocs.selfie || null,

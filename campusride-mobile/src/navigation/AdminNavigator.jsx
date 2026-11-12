@@ -12,6 +12,7 @@ import { AdminIncidentsScreen } from '../screens/admin/AdminIncidentsScreen';
 import { AdminMoreScreen } from '../screens/admin/AdminMoreScreen';
 import { AdminBroadcastScreen } from '../screens/admin/AdminBroadcastScreen';
 import { AdminAuditLogsScreen } from '../screens/admin/AdminAuditLogsScreen';
+import { AdminCollegesScreen } from '../screens/admin/AdminCollegesScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -25,6 +26,7 @@ function MoreStack() {
       }}
     >
       <Stack.Screen name="MoreHome" component={AdminMoreScreen} />
+      <Stack.Screen name="AdminColleges" component={AdminCollegesScreen} />
       <Stack.Screen name="Broadcast" component={AdminBroadcastScreen} />
       <Stack.Screen name="AuditLogs" component={AdminAuditLogsScreen} />
     </Stack.Navigator>

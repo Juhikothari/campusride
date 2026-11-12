@@ -73,7 +73,7 @@ export function AdminDashboardScreen({ navigation }) {
           <StatCard label="Total Users"    value={stats?.totalUsers}    color="#2dd4a0" />
           <StatCard label="Active Rides"   value={stats?.activeRides}   color="#3b82f6" />
           <StatCard label="Pending KYC"    value={stats?.pendingKyc}    color="#f59e0b" />
-          <StatCard label="Blocked Users"  value={stats?.blockedUsers}  color="#ef4444" />
+          <StatCard label="Pending Colleges" value={stats?.pendingColleges || 0} color="#00E5FF" onPress={() => navigation.navigate('More', { screen: 'AdminColleges' })} />
           <StatCard label="Total Rides"    value={stats?.totalRides}    color="#8b5cf6" />
           <StatCard label="Open Incidents" value={stats?.openIncidents} color="#f97316" />
         </View>

@@ -35,12 +35,12 @@ export function getEstimatedFare(pickup, drop, vehicleType = 'car', existingCost
   const dLat = drop?.lat ?? drop?.latitude ?? (Array.isArray(drop?.coordinates) ? drop.coordinates[1] : null);
   const dLng = drop?.lng ?? drop?.longitude ?? (Array.isArray(drop?.coordinates) ? drop.coordinates[0] : null);
 
-  const km = haversineDistanceKm(pLat, pLng, dLat, dLng);
-  if (km > 0.5) {
+  const km = (pLat && dLat) ? haversineDistanceKm(pLat, pLng, dLat, dLng) : null;
+  if (km && km > 0.5) {
     return calculateRideFare(km, vehicleType);
   }
-  if (Number.isFinite(existingCost) && existingCost > 0 && existingCost !== 50) {
+  if (Number.isFinite(existingCost) && existingCost > 0) {
     return existingCost;
   }
-  return calculateRideFare(km || 3.0, vehicleType);
+  return calculateRideFare(km || 2.5, vehicleType);
 }

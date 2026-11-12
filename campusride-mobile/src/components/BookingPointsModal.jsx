@@ -27,14 +27,33 @@ const fromRide = (p) => {
   return { text, lat: '', lng: '' };
 };
 
-export default function BookingPointsModal({ visible, ride, loading, onCancel, onConfirm }) {
+export default function BookingPointsModal({ visible, ride, initialPickup, initialDrop, loading, onCancel, onConfirm }) {
   const { isDark } = useTheme();
   const [pickup, setPickup] = useState({ text: '', lat: '', lng: '' });
   const [drop, setDrop]     = useState({ text: '', lat: '', lng: '' });
 
   useEffect(() => {
-    if (visible && ride) { setPickup(fromRide(ride.pickup)); setDrop(fromRide(ride.drop)); }
-  }, [visible, ride && ride._id]);
+    if (visible && ride) {
+      const initP = (initialPickup && (initialPickup.lat || initialPickup.text || initialPickup.label))
+        ? {
+            text: initialPickup.label || initialPickup.text || initialPickup.address || addrOf(ride.pickup),
+            lat: String(initialPickup.lat || ''),
+            lng: String(initialPickup.lng || ''),
+          }
+        : fromRide(ride.pickup);
+
+      const initD = (initialDrop && (initialDrop.lat || initialDrop.text || initialDrop.label))
+        ? {
+            text: initialDrop.label || initialDrop.text || initialDrop.address || addrOf(ride.drop),
+            lat: String(initialDrop.lat || ''),
+            lng: String(initialDrop.lng || ''),
+          }
+        : fromRide(ride.drop);
+
+      setPickup(initP);
+      setDrop(initD);
+    }
+  }, [visible, ride && ride._id, initialPickup, initialDrop]);
 
   const valid = (p) => Number.isFinite(parseFloat(p.lat)) && Number.isFinite(parseFloat(p.lng));
 

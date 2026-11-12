@@ -1178,7 +1178,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                     <Text style={[styles.seekerFareSub, { color: isDark ? colors.text2 : '#475569' }]}>Direct to driver via UPI or Cash</Text>
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.seekerFareAmount}>₹{rideInfo?.costPerSeat || 49}</Text>
+                    <Text style={styles.seekerFareAmount}>₹{rideInfo?.seekerFare || rideInfo?.fare || rideInfo?.costPerSeat || 35}</Text>
                     <Text style={styles.seekerFarePerSeat}>per seat</Text>
                   </View>
                 </View>

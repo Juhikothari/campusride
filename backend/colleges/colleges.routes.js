@@ -1785,23 +1785,54 @@ const COLLEGES = [
   }
 ];
 
-// GET /api/colleges/search?q=xyz
-router.get('/search', (req, res) => {
-  const q = (req.query.q || '').trim().toLowerCase();
-  if (!q) {
-    return res.json(COLLEGES.slice(0, 100));
+const College = require('./colleges.model');
+
+// Helper to get combined colleges (static seed + database approved colleges)
+async function getAllApprovedColleges() {
+  try {
+    const dbColleges = await College.find({ status: 'approved' }).lean();
+    const map = new Map();
+    // Static base
+    for (const c of COLLEGES) {
+      map.set(c.name.toLowerCase().trim(), c);
+    }
+    // DB additions / overrides
+    for (const c of dbColleges) {
+      map.set(c.name.toLowerCase().trim(), {
+        name: c.name,
+        short: c.short || '',
+        city: c.city || 'Bengaluru',
+        _id: c._id,
+      });
+    }
+    return Array.from(map.values());
+  } catch (err) {
+    return COLLEGES;
   }
-  const filtered = COLLEGES.filter(c =>
-    c.name.toLowerCase().includes(q) ||
-    c.short.toLowerCase().includes(q) ||
-    c.city.toLowerCase().includes(q)
+}
+
+// GET /api/colleges and /api/colleges/search?q=xyz or ?search=xyz
+async function handleCollegeSearch(req, res) {
+  const q = (req.query.q || req.query.search || '').trim().toLowerCase();
+  const all = await getAllApprovedColleges();
+  if (!q) {
+    return res.json(all);
+  }
+  const filtered = all.filter(c =>
+    (c.name && c.name.toLowerCase().includes(q)) ||
+    (c.short && c.short.toLowerCase().includes(q)) ||
+    (c.city && c.city.toLowerCase().includes(q))
   );
-  res.json(filtered.slice(0, 50));
-});
+  res.json(filtered.slice(0, 100));
+}
+
+router.get('/', handleCollegeSearch);
+router.get('/search', handleCollegeSearch);
 
 // GET /api/colleges/all
-router.get('/all', (req, res) => {
-  res.json(COLLEGES);
+router.get('/all', async (req, res) => {
+  const all = await getAllApprovedColleges();
+  res.json(all);
 });
 
 module.exports = router;

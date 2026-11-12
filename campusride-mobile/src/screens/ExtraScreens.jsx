@@ -909,7 +909,7 @@ export function AdminDashboardScreen({ navigation }) {
                         {/* Schedule & seats */}
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 6, borderTopWidth: 1, borderColor: colors.border }}>
                           <Text style={{ color: colors.text3, fontSize: 11 }}>
-                            📅 {rDate} at {rTime} • 🪑 {r.seatsAvailable} seat(s) left
+                            📅 {rDate} at {rTime} • 🪑 {isCompleted ? `${r.bookedSeats || 1} seat(s) booked` : `${r.seatsAvailable} seat(s) left`}
                           </Text>
                           {isActive && (
                             <TouchableOpacity

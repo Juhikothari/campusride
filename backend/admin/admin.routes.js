@@ -57,4 +57,10 @@ router.post('/settings',         controller.setSetting);
 router.get('/settings/:key',     controller.getSetting);
 router.get('/export/:type',      controller.exportData);
 
+// ── College Directory Management ──────────────────────────────────
+router.get('/colleges/pending',  controller.getPendingColleges);
+router.post('/colleges/approve', controller.approveCollege);
+router.post('/colleges/add',     controller.addCollege);
+router.delete('/colleges/:id',   controller.deleteCollege);
+
 module.exports = router;

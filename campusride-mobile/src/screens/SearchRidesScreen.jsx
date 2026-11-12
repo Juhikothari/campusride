@@ -714,6 +714,38 @@ export default function SearchRidesScreen({ navigation }) {
 
         <Alert message={error} />
 
+        {/* Dynamic Route Fare Estimate — Shown while searching and even when no rides exist */}
+        {(() => {
+          const sDist = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : null;
+          if (!sDist || sDist <= 0) return null;
+          const cFare = calculateRideFare(sDist, 'car');
+          const bFare = calculateRideFare(sDist, 'motorcycle');
+          const chosenFare = vehicle === 'motorcycle' ? bFare : cFare;
+          return (
+            <View style={{
+              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fffbeb',
+              borderRadius: radius.md,
+              borderWidth: 1.2,
+              borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : '#fde68a',
+              padding: 12,
+              marginVertical: 10,
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View>
+                  <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>💰 ROUTE PRICE ESTIMATE</Text>
+                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11.5, marginTop: 2 }}>
+                    Exact distance: ~{sDist} km
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '900' }}>₹{chosenFare}</Text>
+                  <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 10 }}>1 seat ({vehicle === 'motorcycle' ? 'Bike' : 'Car'})</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
+
         <Btn label="🔍 Find a Ride" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
 
         {/* Results */}
@@ -747,9 +779,42 @@ export default function SearchRidesScreen({ navigation }) {
             ]}>
               <Text style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🚗</Text>
               <Text style={{ color: isDark ? '#edf0f7' : '#0f172a', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 6 }}>No rides along your route</Text>
-              <Text style={{ color: isDark ? '#8b96b0' : '#475569', fontSize: 13, textAlign: 'center', marginBottom: 16 }}>
+              <Text style={{ color: isDark ? '#8b96b0' : '#475569', fontSize: 13, textAlign: 'center', marginBottom: 14 }}>
                 No providers are currently offering rides within 5km of your route. You can post a ride request in the campus Community or check back shortly.
               </Text>
+
+              {/* Seeker sees actual price even when no rides match */}
+              {(() => {
+                const sDist = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : null;
+                if (!sDist || sDist <= 0) return null;
+                const cFare = calculateRideFare(sDist, 'car');
+                const bFare = calculateRideFare(sDist, 'motorcycle');
+                return (
+                  <View style={{
+                    backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fffbeb',
+                    borderRadius: radius.md,
+                    borderWidth: 1.2,
+                    borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : '#fde68a',
+                    padding: 12,
+                    marginBottom: 16,
+                    width: '100%',
+                  }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View>
+                        <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800' }}>💰 ACTUAL ROUTE FARE</Text>
+                        <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, marginTop: 2 }}>~{sDist} km</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '800' }}>
+                          ₹{cFare} (Car) · ₹{bFare} (Bike)
+                        </Text>
+                        <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 10 }}>standard price per seat</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })()}
+
               <Btn label="💬 Post in Community" onPress={() => navigation.navigate('Community')} variant="outline" />
             </View>
           ) : (
