@@ -132,7 +132,7 @@ exports.requestBooking = async (req, res) => {
         const a = Math.sin(dLat / 2) ** 2 + Math.cos(pCoords[1] * Math.PI / 180) * Math.cos(dCoords[1] * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
         const distKm = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const vt = (ride.vehicleType || 'car').toLowerCase();
-        const base = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 20 : 25;
+        const base = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 15 : 20;
         const perKm = (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter')) ? 5 : 7;
         bookingFare = Math.round(base + (Math.max(1, distKm) * perKm));
       } else {

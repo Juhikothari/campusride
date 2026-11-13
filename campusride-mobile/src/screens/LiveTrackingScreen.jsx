@@ -338,16 +338,44 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => { isMounted = false; };
   }, [pickupCoords?.latitude, pickupCoords?.longitude, dropCoords?.latitude, dropCoords?.longitude]);
 
+  const notifyEmergencyContactViaSMS = useCallback(async (explicitPhone = null) => {
+    let emergencyPhone = explicitPhone || user?.emergencyContact;
+    if (!emergencyPhone) {
+      try {
+        const prof = await api.getProfile();
+        emergencyPhone = prof?.emergencyContact;
+      } catch {}
+    }
+    const mapUrl = (userLat && userLng) ? `https://maps.google.com/?q=${userLat},${userLng}` : '';
+    const userName = user?.name || user?.usn || 'Campus Commuter';
+    const smsMsg = `🚨 EMERGENCY SOS! I need immediate help during my campus commute on HOGO!\nSender: ${userName}\nLive GPS Location: ${mapUrl || 'Active on route'}`;
+    const smsBody = encodeURIComponent(smsMsg);
+
+    if (emergencyPhone) {
+      const cleanPhone = String(emergencyPhone).replace(/[^\d+]/g, '');
+      const smsUrl = Platform.OS === 'ios'
+        ? `sms:${cleanPhone}&body=${smsBody}`
+        : `sms:${cleanPhone}?body=${smsBody}`;
+      Linking.openURL(smsUrl).catch(() => {
+        Linking.openURL(`sms:${cleanPhone}`).catch(() => {});
+      });
+      return true;
+    }
+    return false;
+  }, [user, userLat, userLng]);
+
   const triggerSOS = useCallback(() => {
     RNAlert.alert(
       '🆘 Send SOS Alert',
-      'This will instantly alert campus security, emergency contacts, and support with your exact live location.',
+      'This will instantly alert campus security, emergency contacts via SMS, and support with your exact live location.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Send SOS', style: 'destructive',
           onPress: async () => {
             setSosLoading(true);
+            // Immediately launch SMS to emergency contact with GPS location
+            notifyEmergencyContactViaSMS().catch(() => {});
             try {
               const res = await api.triggerSOS({
                 rideId: activeRideId,
@@ -356,38 +384,23 @@ export default function LiveTrackingScreen({ navigation, route }) {
                 message: 'Emergency SOS triggered from HOGO live tracking',
               });
               setSosSent(true);
-
-              // Send SMS to Emergency Contact
-              let emergencyPhone = user?.emergencyContact || res?.emergencyContact;
-              if (!emergencyPhone) {
-                try {
-                  const prof = await api.getProfile();
-                  emergencyPhone = prof?.emergencyContact;
-                } catch {}
-              }
-              const mapUrl = (userLat && userLng) ? `https://maps.google.com/?q=${userLat},${userLng}` : '';
-              const userName = user?.name || user?.usn || 'Commuter';
-              const smsMsg = `🚨 EMERGENCY SOS: I need help during my campus commute on HOGO!\nSender: ${userName}\nLive GPS: ${mapUrl || 'Active on route'}`;
-              const smsBody = encodeURIComponent(smsMsg);
-
-              if (emergencyPhone) {
-                const cleanPhone = String(emergencyPhone).replace(/[^\d+]/g, '');
-                const smsUrl = Platform.OS === 'ios'
-                  ? `sms:${cleanPhone}&body=${smsBody}`
-                  : `sms:${cleanPhone}?body=${smsBody}`;
-                Linking.openURL(smsUrl).catch(() => {
-                  Linking.openURL(`sms:${cleanPhone}`).catch(() => {});
-                });
-              } else {
-                RNAlert.alert('SOS Triggered', 'SOS alert dispatched to campus security. No emergency contact phone is saved in profile.');
+              if (res?.emergencyContact) {
+                notifyEmergencyContactViaSMS(res.emergencyContact).catch(() => {});
               }
             } catch (e) {
+              notifyEmergencyContactViaSMS().catch(() => {});
               Linking.openURL('tel:112').catch(() => {});
               RNAlert.alert(
                 'SOS Fallback: Dialing 112',
                 'SOS alert could not connect to server. Dialing emergency 112 immediately.',
                 [
-                  { text: 'Call 112 Now', onPress: () => Linking.openURL('tel:112') },
+                  {
+                    text: 'Call 112 Now',
+                    onPress: () => {
+                      notifyEmergencyContactViaSMS().catch(() => {});
+                      Linking.openURL('tel:112');
+                    }
+                  },
                   { text: 'OK' },
                 ]
               );
@@ -398,7 +411,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
         },
       ]
     );
-  }, [activeRideId, userLat, userLng, user]);
+  }, [activeRideId, userLat, userLng, user, notifyEmergencyContactViaSMS]);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [currentStopIdx, setCurrentStopIdx] = useState(1);

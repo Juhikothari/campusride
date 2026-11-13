@@ -43,11 +43,10 @@ function formatDisplayTime(timeStr) {
 }
 
 const VEHICLE_FILTERS = [
-  { value: '',     label: 'All',  icon: '🚦' },
-  { value: 'bike', label: 'Bike', icon: '🏍️' },
-  { value: 'car',  label: 'Car',  icon: '🚗' },
-  { value: 'suv',  label: 'SUV',  icon: '🚙' },
-  { value: 'xuv',  label: 'XUV',  icon: '🛻' },
+  { value: 'bike', label: 'Bike', icon: '🏍️', desc: 'Fast & economical for 1 buddy' },
+  { value: 'car',  label: 'Car',  icon: '🚗', desc: 'Comfortable everyday campus ride' },
+  { value: 'suv',  label: 'SUV',  icon: '🚙', desc: 'Spacious & smooth ride' },
+  { value: 'xuv',  label: 'XUV',  icon: '🛻', desc: 'Premium & group friendly' },
 ];
 
 const matchesVehicleType = (rideType, selectedFilter) => {
@@ -60,8 +59,11 @@ const matchesVehicleType = (rideType, selectedFilter) => {
   if (sf === 'car' || sf === 'sedan' || sf === 'hatchback') {
     return rt === 'car' || rt === 'sedan' || rt === 'hatchback';
   }
-  if (sf === 'suv' || sf === 'xuv') {
-    return rt === 'suv' || rt === 'xuv';
+  if (sf === 'suv') {
+    return rt === 'suv';
+  }
+  if (sf === 'xuv') {
+    return rt === 'xuv';
   }
   return rt === sf;
 };
@@ -116,7 +118,7 @@ export default function SearchRidesScreen({ navigation }) {
   const [time,       setTime]       = useState('');
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [womenOnly,  setWomenOnly]  = useState(false);
-  const [vehicle,    setVehicle]    = useState('');
+  const [vehicle,    setVehicle]    = useState('car');
   const [rides,      setRides]      = useState([]);
   const [loading,    setLoading]    = useState(false);
   const [geoLoading, setGeoLoading] = useState('');
@@ -280,43 +282,37 @@ export default function SearchRidesScreen({ navigation }) {
     } catch {}
   };
 
-  // Search history state (isolated per user account with legacy & default campus presets)
-  const historyKey = `cr_search_history_${user?._id || user?.id || 'guest'}`;
+  // Search history state (strictly isolated per user account)
+  const userUid = user?._id || user?.id || user?.email || user?.phone;
+  const historyKey = userUid ? `cr_user_search_history_${userUid}` : null;
   const [searchHistory, setSearchHistory] = useState([]);
 
-  // Load search history from AsyncStorage (check per-user, then global fallback, or default presets)
+  // Load search history from AsyncStorage (strictly per-user account only)
   useEffect(() => {
     (async () => {
+      if (!historyKey) {
+        setSearchHistory([]);
+        return;
+      }
       try {
-        let raw = await AsyncStorage.getItem(historyKey);
-        if (!raw) {
-          raw = await AsyncStorage.getItem('cr_search_history');
-        }
+        const raw = await AsyncStorage.getItem(historyKey);
         if (raw) {
           const list = JSON.parse(raw);
-          if (Array.isArray(list) && list.length > 0) {
+          if (Array.isArray(list)) {
             setSearchHistory(list.slice(0, 6));
             return;
           }
         }
-        // If empty, provide default campus search history
-        const defaultHistory = [
-          {
-            pickup: { label: `${user?.college || 'RNSIT'} Campus Main Gate`, lat: '12.9009', lng: '77.5185' },
-            drop: { label: 'Pyramid Temple Bells, Rajarajeshwari Nagar', lat: '12.9150', lng: '77.5180' }
-          },
-          {
-            pickup: { label: `${user?.college || 'RNSIT'} Campus`, lat: '12.9009', lng: '77.5185' },
-            drop: { label: 'Rajarajeshwari Nagar Metro Station', lat: '12.9350', lng: '77.5250' }
-          }
-        ];
-        setSearchHistory(defaultHistory);
-      } catch {}
+        setSearchHistory([]);
+      } catch {
+        setSearchHistory([]);
+      }
     })();
-  }, [historyKey, user?.college]);
+  }, [historyKey]);
 
   const saveSearchHistoryItem = async (p, d) => {
     if (!p?.label && !d?.label) return;
+    if (!historyKey) return;
     try {
       const newItem = {
         pickup: p,
@@ -329,7 +325,6 @@ export default function SearchRidesScreen({ navigation }) {
         );
         const updated = [newItem, ...filtered].slice(0, 6);
         AsyncStorage.setItem(historyKey, JSON.stringify(updated)).catch(() => {});
-        AsyncStorage.setItem('cr_search_history', JSON.stringify(updated)).catch(() => {});
         return updated;
       });
     } catch {}
@@ -661,33 +656,74 @@ export default function SearchRidesScreen({ navigation }) {
           </View>
         )}
 
-        {/* Vehicle filter */}
-        <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569', marginTop: spacing.md }]}>Vehicle Type</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {VEHICLE_FILTERS.map(v => (
-              <TouchableOpacity
-                key={v.value}
-                onPress={() => setVehicle(v.value)}
-                style={[
-                  styles.vehicleChip,
-                  {
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#ffffff',
-                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1',
-                  },
-                  vehicle === v.value && styles.vehicleChipActive
-                ]}
-              >
-                <Text style={{ fontSize: 14 }}>{v.icon}</Text>
-                <Text style={[
-                  styles.vehicleChipText,
-                  { color: isDark ? '#8b96b0' : '#475569' },
-                  vehicle === v.value && styles.vehicleChipTextActive
-                ]}>{v.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        {/* Vertical Vehicle Selection with Live Route Prices for all 4 Vehicles */}
+        <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569', marginTop: spacing.md }]}>
+          SELECT DESIRED VEHICLE & FARE
+        </Text>
+        <View style={{ gap: 8, marginBottom: spacing.md }}>
+          {(() => {
+            const sDist = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : null;
+            return VEHICLE_FILTERS.map(v => {
+              const isSelected = vehicle === v.value;
+              const vPrice = sDist && sDist > 0 ? calculateRideFare(sDist, v.value) : calculateRideFare(3, v.value);
+              return (
+                <TouchableOpacity
+                  key={v.value}
+                  onPress={() => setVehicle(v.value)}
+                  activeOpacity={0.75}
+                  style={[
+                    styles.vehicleVerticalCard,
+                    {
+                      backgroundColor: isSelected
+                        ? (isDark ? 'rgba(245, 166, 35, 0.12)' : '#fffbeb')
+                        : (isDark ? '#161c2a' : '#ffffff'),
+                      borderColor: isSelected
+                        ? colors.accent
+                        : (isDark ? 'rgba(255,255,255,0.08)' : '#cbd5e1'),
+                      borderWidth: isSelected ? 2 : 1,
+                    }
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                    <Text style={{ fontSize: 26 }}>{v.icon}</Text>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={{
+                          fontSize: 15,
+                          fontWeight: '800',
+                          color: isSelected ? colors.accent : (isDark ? '#edf0f7' : '#0f172a'),
+                        }}>
+                          {v.label}
+                        </Text>
+                        {isSelected && (
+                          <View style={{ backgroundColor: colors.accent, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1.5 }}>
+                            <Text style={{ color: '#000', fontSize: 9.5, fontWeight: '900' }}>SELECTED</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11, marginTop: 1 }}>
+                        {v.desc || ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={{ alignItems: 'flex-end', minWidth: 65 }}>
+                    <Text style={{
+                      fontSize: 18,
+                      fontWeight: '900',
+                      color: isSelected ? colors.accent : (isDark ? '#2dd4a0' : '#059669'),
+                    }}>
+                      ₹{vPrice}
+                    </Text>
+                    <Text style={{ fontSize: 10, color: isDark ? colors.text3 : '#94a3b8' }}>
+                      {sDist ? `~${sDist} km` : 'base fare'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            });
+          })()}
+        </View>
 
         {/* Women-only */}
         {isFemale && (
@@ -714,39 +750,6 @@ export default function SearchRidesScreen({ navigation }) {
 
         <Alert message={error} />
 
-        {/* Dynamic Route Fare Estimate — Shown while searching and ONLY when a specific vehicle is selected */}
-        {(() => {
-          if (!vehicle || vehicle === '' || vehicle.toLowerCase() === 'all') return null;
-          const sDist = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : null;
-          if (!sDist || sDist <= 0) return null;
-          const chosenFare = calculateRideFare(sDist, vehicle);
-          const vObj = VEHICLE_FILTERS.find(v => v.value === vehicle);
-          const vehicleLabel = vObj ? vObj.label : vehicle.toUpperCase();
-          return (
-            <View style={{
-              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fffbeb',
-              borderRadius: radius.md,
-              borderWidth: 1.2,
-              borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : '#fde68a',
-              padding: 12,
-              marginVertical: 10,
-            }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                <View>
-                  <Text style={{ color: colors.accent, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>💰 ROUTE PRICE ESTIMATE</Text>
-                  <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11.5, marginTop: 2 }}>
-                    Exact distance: ~{sDist} km
-                  </Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ color: colors.accent, fontSize: 18, fontWeight: '900' }}>₹{chosenFare}</Text>
-                  <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 10 }}>1 seat ({vehicleLabel})</Text>
-                </View>
-              </View>
-            </View>
-          );
-        })()}
-
         <Btn label="🔍 Find a Ride" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
 
         {/* Results */}
@@ -756,21 +759,7 @@ export default function SearchRidesScreen({ navigation }) {
               <ActivityIndicator color={colors.accent} />
               <Text style={{ color: colors.text3, fontSize: 12, marginTop: 8 }}>Searching rides along your route within 5km…</Text>
             </View>
-          ) : !searched ? (
-            <View style={[
-              styles.preSearchCard,
-              {
-                backgroundColor: isDark ? '#101520' : '#ffffff',
-                borderColor: isDark ? '#212840' : '#e2e8f0',
-              }
-            ]}>
-              <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 10 }}>🧭</Text>
-              <Text style={[styles.preSearchTitle, { color: isDark ? '#edf0f7' : '#0f172a' }]}>Ready to Find a Ride?</Text>
-              <Text style={[styles.preSearchSub, { color: isDark ? '#8b96b0' : '#475569' }]}>
-                Enter your pickup & drop locations above, then tap "Find a Ride" to find verified rides along your route within 5km.
-              </Text>
-            </View>
-          ) : rides.length === 0 ? (
+          ) : !searched ? null : rides.length === 0 ? (
             <View style={[
               styles.noRidesCard,
               {
@@ -972,6 +961,14 @@ const styles = StyleSheet.create({
   vehicleChipActive:     { backgroundColor: 'rgba(245,166,35,0.2)', borderColor: colors.accent },
   vehicleChipText:       { color: colors.text2, fontSize: 13, fontWeight: '600' },
   vehicleChipTextActive: { color: colors.accent },
+  vehicleVerticalCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+  },
   womenToggle: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 2,

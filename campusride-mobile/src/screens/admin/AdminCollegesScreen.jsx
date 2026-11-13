@@ -102,6 +102,58 @@ export function AdminCollegesScreen({ navigation }) {
     }
   };
 
+  const handleRemoveApprovedCollege = (item) => {
+    RNAlert.alert(
+      'Remove College',
+      `Are you sure you want to remove "${item.name}" from the approved college dropdown?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (item._id) {
+                await api.deleteAdminCollege(item._id);
+              }
+              setApproved(prev => prev.filter(c => (c._id ? c._id !== item._id : c.name !== item.name)));
+              RNAlert.alert('College Removed', `"${item.name}" was removed from the approved directory.`);
+              fetchColleges();
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to remove college');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleCancelPendingRequest = (item) => {
+    RNAlert.alert(
+      'Cancel College Request',
+      `Cancel and dismiss the custom request for "${item.name}"?`,
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Cancel Request',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (item._id) {
+                await api.deleteAdminCollege(item._id);
+              }
+              setPending(prev => prev.filter(p => (p._id ? p._id !== item._id : p.name !== item.name)));
+              RNAlert.alert('Request Cancelled', `The request for "${item.name}" has been dismissed.`);
+              fetchColleges();
+            } catch (err) {
+              RNAlert.alert('Error', err.message || 'Failed to cancel request');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <AdminHeader
@@ -174,26 +226,43 @@ export function AdminCollegesScreen({ navigation }) {
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => handleOpenApproveModal(item)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.actionBtnText}>⚡ Standardize & Approve for Dropdown →</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { flex: 2 }]}
+                  onPress={() => handleOpenApproveModal(item)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.actionBtnText}>⚡ Approve & Add to Dropdown →</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cancelActionBtn}
+                  onPress={() => handleCancelPendingRequest(item)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.cancelActionBtnText}>✕ Cancel</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
           ListFooterComponent={
             approved.length > 0 ? (
               <View style={{ marginTop: 24 }}>
                 <Text style={styles.sectionTitle}>APPROVED DIRECTORY ({approved.length})</Text>
-                {approved.slice(0, 15).map((c, i) => (
+                {approved.slice(0, 30).map((c, i) => (
                   <View key={c._id || i} style={styles.approvedRow}>
                     <Text style={{ color: '#2dd4a0', fontSize: 14 }}>✓</Text>
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
                       <Text style={{ color: '#edf0f7', fontSize: 13, fontWeight: '700' }}>{c.name}</Text>
                       <Text style={{ color: colors.text3, fontSize: 11 }}>📍 {c.city || 'Bengaluru'} ({c.short || '—'})</Text>
                     </View>
+                    <TouchableOpacity
+                      style={styles.removeApprovedBtn}
+                      onPress={() => handleRemoveApprovedCollege(c)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.removeApprovedBtnText}>🗑️ Remove</Text>
+                    </TouchableOpacity>
                   </View>
                 ))}
               </View>
@@ -368,11 +437,40 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   actionBtnText: {
     color: '#000000',
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '800',
+  },
+  cancelActionBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    borderRadius: radius.sm,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelActionBtnText: {
+    color: '#f87171',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  removeApprovedBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  removeApprovedBtnText: {
+    color: '#f87171',
+    fontSize: 11,
+    fontWeight: '700',
   },
   emptyCard: {
     backgroundColor: '#0e121a',

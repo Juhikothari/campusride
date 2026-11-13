@@ -5,14 +5,14 @@ const Booking = require('../bookings/bookings.model');
 const User = require('../users/users.model');
 const Notification = require('../notifications/notifications.model');
 
-// Base fares & rates per km as configured
+// Base fares & rates per km as configured (Bike: 15, Car/SUV/XUV: 20)
 const BASE_FARES = {
-  motorcycle: 20,
-  bike: 20,
-  scooter: 20,
-  car: 25,
-  suv: 25,
-  xuv: 25,
+  motorcycle: 15,
+  bike: 15,
+  scooter: 15,
+  car: 20,
+  suv: 20,
+  xuv: 20,
 };
 
 const PER_KM_RATES = {
@@ -26,7 +26,7 @@ const PER_KM_RATES = {
 
 const calculateFare = (distanceKm, vehicleType) => {
   const vt = (vehicleType || 'car').toLowerCase();
-  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 20 : 25);
+  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 15 : 20);
   const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 5 : 7));
   
   const d = Math.max(1, distanceKm || 1);
@@ -563,14 +563,56 @@ exports.searchRides = async (req, res) => {
       return geoMatched || textMatched;
     });
 
-    // STRICT COLLEGE ISOLATION:
-    // Do not show rides offered by other college users! Commuters only see rides from their own college.
+    // COLLEGE MATCHING:
+    // Commuters see rides from their own college, OR if colleges have first 3 letters same (e.g. RNS, BMS, PES),
+    // let them see the rides available within 3km of their college / route!
     const sameCollegeRides = matchedRides.filter(r => {
       if (!seeker?.college) return true;
       const sColl = seeker.college.trim().toLowerCase();
       const rColl = (r.college || r.providerId?.college || '').trim().toLowerCase();
       if (!rColl) return false;
-      return rColl.includes(sColl) || sColl.includes(rColl);
+
+      // 1. Direct match (substring / identical)
+      if (rColl.includes(sColl) || sColl.includes(rColl)) {
+        return true;
+      }
+
+      // 2. Check if colleges have first 3 letters same (e.g. "RNSIT" and "RNS Institute")
+      const sClean = sColl.replace(/[^a-z0-9]/g, '');
+      const rClean = rColl.replace(/[^a-z0-9]/g, '');
+      const sPrefix = sClean.slice(0, 3);
+      const rPrefix = rClean.slice(0, 3);
+
+      if (sPrefix.length >= 3 && sPrefix === rPrefix) {
+        // If first 3 letters match, check if ride is within 3km (3000m) of their college / route point
+        const rPick = extractCoords(r.pickup);
+        const rDrop = extractCoords(r.drop);
+
+        if (sPick && rPick) {
+          const dPick = calculateDistance(sPick.lat, sPick.lng, rPick.lat, rPick.lng);
+          if (dPick <= 3000) return true;
+        }
+        if (sDrop && rDrop) {
+          const dDrop = calculateDistance(sDrop.lat, sDrop.lng, rDrop.lat, rDrop.lng);
+          if (dDrop <= 3000) return true;
+        }
+        if (sPick && rDrop) {
+          const dCross = calculateDistance(sPick.lat, sPick.lng, rDrop.lat, rDrop.lng);
+          if (dCross <= 3000) return true;
+        }
+        if (sDrop && rPick) {
+          const dCross2 = calculateDistance(sDrop.lat, sDrop.lng, rPick.lat, rPick.lng);
+          if (dCross2 <= 3000) return true;
+        }
+        if (sPick && rPick && rDrop) {
+          const segDist = distanceToSegment(sPick.lat, sPick.lng, rPick.lat, rPick.lng, rDrop.lat, rDrop.lng);
+          if (segDist <= 3000) return true;
+        }
+        // If text-based query without GPS coordinates, allow within matching campus group
+        if (!sPick && !sDrop) return true;
+      }
+
+      return false;
     });
 
     // Privacy safeguard: Provider's phone is hidden in search, but actual USN (last 3 digits) is preserved

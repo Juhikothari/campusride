@@ -1,4 +1,4 @@
-﻿// backend/admin/admin.controller.js - Complete Multi-Screen Admin Panel Controller
+// backend/admin/admin.controller.js - Complete Multi-Screen Admin Panel Controller
 const User = require('../users/users.model');
 const Ride = require('../rides/rides.model');
 const Booking = require('../bookings/bookings.model');
@@ -1003,8 +1003,13 @@ exports.addCollege = async (req, res) => {
 exports.deleteCollege = async (req, res) => {
   try {
     const College = require('../colleges/colleges.model');
-    await College.findByIdAndDelete(req.params.id);
-    res.json({ message: 'College removed' });
+    const { id } = req.params;
+    if (require('mongoose').Types.ObjectId.isValid(id)) {
+      await College.findByIdAndDelete(id);
+    } else {
+      await College.findOneAndDelete({ name: { $regex: new RegExp(`^${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+    }
+    res.json({ success: true, message: 'College removed from directory' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

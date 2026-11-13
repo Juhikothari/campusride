@@ -151,7 +151,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (user?._id || user?.id) {
-      registerForPushNotificationsAsync().catch(() => {});
+      registerForPushNotificationsAsync(user?._id || user?.id).catch(() => {});
     }
   }, [user?._id, user?.id]);
 
