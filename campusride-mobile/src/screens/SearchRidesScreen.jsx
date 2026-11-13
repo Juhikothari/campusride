@@ -408,13 +408,16 @@ export default function SearchRidesScreen({ navigation }) {
       if (womenOnly) results = (results || []).filter(r => matchesWomenFilter(r, true));
       if (!isFemale) results = (results || []).filter(r => !r.womenOnly);
 
-      // Strict College Isolation: do not show rides offered by other college users
+      // College Isolation: do not show rides from other colleges unless first 3 letters match
       if (user?.college) {
         const myColl = user.college.trim().toLowerCase();
+        const myPrefix = myColl.replace(/[^a-z0-9]/g, '').slice(0, 3);
         results = (results || []).filter(r => {
           const rColl = (r.college || r.providerId?.college || '').trim().toLowerCase();
           if (!rColl) return false;
-          return rColl.includes(myColl) || myColl.includes(rColl);
+          if (rColl.includes(myColl) || myColl.includes(rColl)) return true;
+          const rPrefix = rColl.replace(/[^a-z0-9]/g, '').slice(0, 3);
+          return myPrefix.length >= 3 && myPrefix === rPrefix;
         });
       }
 
@@ -656,74 +659,94 @@ export default function SearchRidesScreen({ navigation }) {
           </View>
         )}
 
-        {/* Vertical Vehicle Selection with Live Route Prices for all 4 Vehicles */}
-        <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569', marginTop: spacing.md }]}>
-          SELECT DESIRED VEHICLE & FARE
-        </Text>
-        <View style={{ gap: 8, marginBottom: spacing.md }}>
-          {(() => {
-            const sDist = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : null;
-            return VEHICLE_FILTERS.map(v => {
-              const isSelected = vehicle === v.value;
-              const vPrice = sDist && sDist > 0 ? calculateRideFare(sDist, v.value) : calculateRideFare(3, v.value);
-              return (
-                <TouchableOpacity
-                  key={v.value}
-                  onPress={() => setVehicle(v.value)}
-                  activeOpacity={0.75}
-                  style={[
-                    styles.vehicleVerticalCard,
-                    {
-                      backgroundColor: isSelected
-                        ? (isDark ? 'rgba(245, 166, 35, 0.12)' : '#fffbeb')
-                        : (isDark ? '#161c2a' : '#ffffff'),
-                      borderColor: isSelected
-                        ? colors.accent
-                        : (isDark ? 'rgba(255,255,255,0.08)' : '#cbd5e1'),
-                      borderWidth: isSelected ? 2 : 1,
-                    }
-                  ]}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                    <Text style={{ fontSize: 26 }}>{v.icon}</Text>
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={{
-                          fontSize: 15,
-                          fontWeight: '800',
-                          color: isSelected ? colors.accent : (isDark ? '#edf0f7' : '#0f172a'),
-                        }}>
-                          {v.label}
-                        </Text>
-                        {isSelected && (
-                          <View style={{ backgroundColor: colors.accent, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1.5 }}>
-                            <Text style={{ color: '#000', fontSize: 9.5, fontWeight: '900' }}>SELECTED</Text>
+        {/* Vertical Vehicle Selection — Prices only shown after user searches */}
+        {(() => {
+          const sDist = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : null;
+          const showPrices = Boolean(searched && sDist && sDist > 0);
+          return (
+            <>
+              <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569', marginTop: spacing.md }]}>
+                {showPrices ? 'SELECT DESIRED VEHICLE & FARE' : 'SELECT DESIRED VEHICLE'}
+              </Text>
+              <View style={{ gap: 8, marginBottom: spacing.md }}>
+                {VEHICLE_FILTERS.map(v => {
+                  const isSelected = vehicle === v.value;
+                  const vPrice = showPrices ? calculateRideFare(sDist, v.value) : null;
+                  return (
+                    <TouchableOpacity
+                      key={v.value}
+                      onPress={() => setVehicle(v.value)}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.vehicleVerticalCard,
+                        {
+                          backgroundColor: isSelected
+                            ? (isDark ? 'rgba(245, 166, 35, 0.12)' : '#fffbeb')
+                            : (isDark ? '#161c2a' : '#ffffff'),
+                          borderColor: isSelected
+                            ? colors.accent
+                            : (isDark ? 'rgba(255,255,255,0.08)' : '#cbd5e1'),
+                          borderWidth: isSelected ? 2 : 1,
+                        }
+                      ]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                        <Text style={{ fontSize: 26 }}>{v.icon}</Text>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={{
+                              fontSize: 15,
+                              fontWeight: '800',
+                              color: isSelected ? colors.accent : (isDark ? '#edf0f7' : '#0f172a'),
+                            }}>
+                              {v.label}
+                            </Text>
+                            {isSelected && (
+                              <View style={{ backgroundColor: colors.accent, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1.5 }}>
+                                <Text style={{ color: '#000', fontSize: 9.5, fontWeight: '900' }}>SELECTED</Text>
+                              </View>
+                            )}
                           </View>
-                        )}
+                          <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11, marginTop: 1 }}>
+                            {v.desc || ''}
+                          </Text>
+                        </View>
                       </View>
-                      <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11, marginTop: 1 }}>
-                        {v.desc || ''}
-                      </Text>
-                    </View>
-                  </View>
 
-                  <View style={{ alignItems: 'flex-end', minWidth: 65 }}>
-                    <Text style={{
-                      fontSize: 18,
-                      fontWeight: '900',
-                      color: isSelected ? colors.accent : (isDark ? '#2dd4a0' : '#059669'),
-                    }}>
-                      ₹{vPrice}
-                    </Text>
-                    <Text style={{ fontSize: 10, color: isDark ? colors.text3 : '#94a3b8' }}>
-                      {sDist ? `~${sDist} km` : 'base fare'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            });
-          })()}
-        </View>
+                      {showPrices ? (
+                        <View style={{ alignItems: 'flex-end', minWidth: 65 }}>
+                          <Text style={{
+                            fontSize: 18,
+                            fontWeight: '900',
+                            color: isSelected ? colors.accent : (isDark ? '#2dd4a0' : '#059669'),
+                          }}>
+                            ₹{vPrice}
+                          </Text>
+                          <Text style={{ fontSize: 10, color: isDark ? colors.text3 : '#94a3b8' }}>
+                            ~{sDist} km
+                          </Text>
+                        </View>
+                      ) : (
+                        <View style={{
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 22,
+                          height: 22,
+                          borderRadius: 11,
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? colors.accent : (isDark ? '#334155' : '#cbd5e1'),
+                          backgroundColor: isSelected ? colors.accent : 'transparent',
+                        }}>
+                          {isSelected && <Text style={{ fontSize: 11, color: '#000', fontWeight: '900' }}>✓</Text>}
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          );
+        })()}
 
         {/* Women-only */}
         {isFemale && (
