@@ -82,16 +82,30 @@ export default function RegisterScreen({ navigation }) {
     return () => { active = false; };
   }, [showCollegeModal, collegeSearch]);
 
-  // Filtered colleges (backend search results or local search fallback)
+  // Filtered colleges (backend search results or local search fallback + Always available "Others" option)
   const filteredColleges = useMemo(() => {
-    if (remoteColleges && remoteColleges.length > 0) return remoteColleges;
-    if (!collegeSearch.trim()) return INDIAN_COLLEGES;
-    const q = collegeSearch.toLowerCase();
-    return INDIAN_COLLEGES.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.short.toLowerCase().includes(q) ||
-      c.city.toLowerCase().includes(q)
-    );
+    let list = [];
+    if (remoteColleges && remoteColleges.length > 0) {
+      list = [...remoteColleges];
+    } else if (!collegeSearch.trim()) {
+      list = [...INDIAN_COLLEGES];
+    } else {
+      const q = collegeSearch.toLowerCase();
+      list = INDIAN_COLLEGES.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.short.toLowerCase().includes(q) ||
+        c.city.toLowerCase().includes(q)
+      );
+    }
+    // Always append "Others (College Not Listed)" option so user can easily choose it anytime
+    const otherOption = {
+      name: collegeSearch.trim() ? `➕ Other: "${collegeSearch.trim()}" (Not in list)` : '➕ Other (College Not in List)',
+      short: 'OTHER',
+      city: 'Custom Campus',
+      isOther: true,
+      customName: collegeSearch.trim(),
+    };
+    return [...list, otherOption];
   }, [collegeSearch, remoteColleges]);
 
   const addVehicleRow = () => {
@@ -575,37 +589,49 @@ export default function RegisterScreen({ navigation }) {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* College Dropdown Search Modal */}
-      <Modal visible={showCollegeModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.collegeModalBox}>
+      {/* College Dropdown Search Modal — Search bar permanently pinned at top above keyboard */}
+      <Modal visible={showCollegeModal} animationType="slide" transparent onRequestClose={() => setShowCollegeModal(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.collegeModalBox, { flex: 1, maxHeight: '88%', marginTop: Platform.OS === 'android' ? 24 : 54 }]}>
             <View style={styles.collegeModalHeader}>
               <Text style={styles.collegeModalTitle}>🏫 Select Your College</Text>
-              <TouchableOpacity onPress={() => setShowCollegeModal(false)}>
+              <TouchableOpacity onPress={() => setShowCollegeModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Text style={{ color: colors.accent, fontSize: 16, fontWeight: '700' }}>✕ Close</Text>
               </TouchableOpacity>
             </View>
 
-            <TextInput
-              style={styles.collegeSearchInput}
-              value={collegeSearch}
-              onChangeText={setCollegeSearch}
-              placeholder="🔍 Search college name, short code or city..."
-              placeholderTextColor={colors.text3}
-              autoFocus
-            />
+            {/* Pinned Search Input at the top */}
+            <View style={{ marginBottom: 12 }}>
+              <TextInput
+                style={styles.collegeSearchInput}
+                value={collegeSearch}
+                onChangeText={setCollegeSearch}
+                placeholder="🔍 Search college name, short code or city..."
+                placeholderTextColor={colors.text3}
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+            </View>
 
             <FlatList
               data={filteredColleges}
-              keyExtractor={(item, index) => item.name + index}
+              keyExtractor={(item, index) => (item.name || 'col') + index}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={true}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={[styles.collegeItem, college === item.name && styles.collegeItemActive]}
+                  style={[
+                    styles.collegeItem,
+                    college === item.name && styles.collegeItemActive,
+                    item.isOther && { backgroundColor: 'rgba(245,166,35,0.08)', borderColor: colors.accent, borderWidth: 1, borderRadius: radius.md, marginVertical: 4 }
+                  ]}
                   onPress={() => {
                     if (item.isOther) {
                       setIsCustomCollege(true);
-                      setCollege('');
+                      setCollege(item.customName || collegeSearch.trim() || '');
                     } else {
                       setIsCustomCollege(false);
                       setCollege(item.name);
@@ -614,10 +640,12 @@ export default function RegisterScreen({ navigation }) {
                     setCollegeSearch('');
                   }}
                 >
-                  <Text style={[styles.collegeItemName, college === item.name && { color: colors.accent }]}>
+                  <Text style={[styles.collegeItemName, (college === item.name || item.isOther) && { color: colors.accent, fontWeight: '800' }]}>
                     {item.name}
                   </Text>
-                  <Text style={styles.collegeItemCity}>📍 {item.city} ({item.short})</Text>
+                  <Text style={styles.collegeItemCity}>
+                    {item.isOther ? '✏️ Tap to enter custom college name' : `📍 ${item.city} (${item.short})`}
+                  </Text>
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
@@ -629,15 +657,16 @@ export default function RegisterScreen({ navigation }) {
                       setIsCustomCollege(true);
                       setCollege(collegeSearch.trim());
                       setShowCollegeModal(false);
+                      setCollegeSearch('');
                     }}
                   >
-                    <Text style={styles.customCollegeText}>Use "{collegeSearch.trim()}"</Text>
+                    <Text style={styles.customCollegeText}>Use "{collegeSearch.trim() || 'Custom College'}"</Text>
                   </TouchableOpacity>
                 </View>
               }
             />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Selfie Crop Modal */}

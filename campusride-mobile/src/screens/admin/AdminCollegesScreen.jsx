@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AdminHeader } from '../../components/admin/AdminHeader';
 import * as api from '../../services/api';
 import { colors, spacing, radius } from '../../theme';
+import SteelDustbin from '../../components/SteelDustbin';
 
 export function AdminCollegesScreen({ navigation }) {
   const [pending, setPending] = useState([]);
@@ -257,11 +258,12 @@ export function AdminCollegesScreen({ navigation }) {
                       <Text style={{ color: colors.text3, fontSize: 11 }}>📍 {c.city || 'Bengaluru'} ({c.short || '—'})</Text>
                     </View>
                     <TouchableOpacity
-                      style={styles.removeApprovedBtn}
+                      style={[styles.removeApprovedBtn, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}
                       onPress={() => handleRemoveApprovedCollege(c)}
                       activeOpacity={0.7}
                     >
-                      <Text style={styles.removeApprovedBtnText}>🗑️ Remove</Text>
+                      <SteelDustbin size={12} />
+                      <Text style={styles.removeApprovedBtnText}>Remove</Text>
                     </TouchableOpacity>
                   </View>
                 ))}

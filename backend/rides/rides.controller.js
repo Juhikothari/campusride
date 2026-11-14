@@ -106,6 +106,22 @@ exports.createRide = async (req, res) => {
       });
     }
 
+    // ── Enforce 1 active ride per provider (can schedule future rides) ──
+    const schedMode = req.body.schedMode || 'now';
+    const isNowRide = schedMode === 'now';
+    const existingActiveRide = await Ride.findOne({
+      providerId: userId,
+      status: { $in: ['active', 'in-progress'] },
+    });
+
+    if (existingActiveRide) {
+      if (isNowRide || existingActiveRide.status === 'in-progress') {
+        return res.status(400).json({
+          message: 'You already have 1 active ride in progress. Complete or cancel your current ride before posting another immediate ride, or schedule this ride for a later time/date.'
+        });
+      }
+    }
+
     // If user provided vehicle details on the fly, save them to profile
     const effectiveVehicleNum = vehicleNumber ? vehicleNumber.toUpperCase().trim() : (user.kycDocuments?.vehicleNumber || '');
     const effectiveVehicleName = vehicleName ? vehicleName.trim() : (user.kycDocuments?.vehicleName || 'Vehicle');

@@ -21,6 +21,7 @@ import { openGoogleMaps } from '../utils/maps';
 import { formatDateDMY } from '../utils/date';
 import { getDisplayUSN } from '../utils/usn';
 import { getEstimatedFare, calculateRideFare } from '../utils/pricing';
+import SteelDustbin from '../components/SteelDustbin';
 
 function getAddr(field) {
   if (!field) return '—';
@@ -915,6 +916,9 @@ export function WalkTogetherScreen({ navigation }) {
                         onPress={() => deleteWalk(post._id)}
                         activeOpacity={0.8}
                         style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
                           backgroundColor: 'rgba(255,82,82,0.15)',
                           borderColor: colors.red,
                           borderWidth: 1,
@@ -923,8 +927,9 @@ export function WalkTogetherScreen({ navigation }) {
                           paddingVertical: 6,
                         }}
                       >
+                        <SteelDustbin size={13} />
                         <Text style={{ color: colors.red, fontSize: 12, fontWeight: '700' }}>
-                          🗑️ Delete
+                          Delete
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -1180,26 +1185,26 @@ export function RouteAlertsScreen({ navigation }) {
 //  INCIDENT REPORT SCREEN (Images 3, 4, 5 UI Redesign)
 // ═══════════════════════════════════════════════════════════════
 const PASSENGER_INCIDENT_CATEGORIES = [
-  'Buddy No Show',
-  'Buddy Rude / Abusive Behaviour',
-  'Buddy Harassment',
-  'Buddy Refused to Pay',
-  'Buddy Cancelled at Last Minute',
-  'Buddy Brought Extra People',
-  'Buddy Damaged Vehicle',
-  'Buddy Under Influence',
-  'Buddy Threatened Driver',
-  'Buddy Privacy Violation',
-  'Fake Booking',
-  'Wrong Pickup Location Given',
-  'Buddy Verbal Abuse',
-  'Buddy Physical Aggression',
-  'Buddy Brought Prohibited Items',
-  'Buddy Inappropriate Behaviour',
-  'Buddy Left Without Confirmation',
-  'Booking Fraud / Identity Mismatch',
-  'Safety Threat by Buddy',
-  'Other',
+  'No Show at Pickup Spot',
+  'Rude / Abusive Behaviour',
+  'Harassment / Misconduct',
+  'Refused to Pay Agreed Fare',
+  'Cancelled Ride at Last Minute',
+  'Brought Extra Unregistered Passengers',
+  'Vehicle Damage / Spills / Littering',
+  'Under Influence of Alcohol or Drugs',
+  'Threatened Driver or Co-passengers',
+  'Privacy Violation / Filming without Consent',
+  'Fake Booking / Identity Mismatch',
+  'Wrong Pickup or Drop Location Given',
+  'Verbal Abuse or Inappropriate Language',
+  'Physical Aggression or Intimidation',
+  'Carried Prohibited / Hazardous Items',
+  'Left Vehicle Without Fare Confirmation',
+  'Safety Threat / Unsafe Commuter Behavior',
+  'Interference with Vehicle Controls / Driving',
+  'Excessive Delay at Pickup (>10 mins)',
+  'Other Passenger Incident',
 ];
 
 const RIDER_ROAD_INCIDENT_CATEGORIES = [
@@ -1213,9 +1218,9 @@ const RIDER_ROAD_INCIDENT_CATEGORIES = [
   'Pothole / Road Hazard Caused Damage',
   'Traffic Signal / Law Enforcement Stop',
   'Vehicle Stolen During Ride',
-  'Vehicle Damage (Not by Buddy)',
+  'Vehicle Damage (External Hazard)',
   'Medical Emergency — Rider',
-  'Medical Emergency — Buddy',
+  'Medical Emergency — Passenger',
   'Natural Hazard (Flooding, Fallen Tree etc.)',
   'Third-Party Collision (Hit by Another Vehicle)',
   'Phone Snatching / Robbery',
@@ -1632,18 +1637,19 @@ export function IncidentReportScreen({ navigation }) {
                     fontWeight: selectedRide ? '600' : '400',
                     flex: 1,
                     marginRight: 8,
-                  }} numberOfLines={2}>
+                    lineHeight: 18,
+                  }}>
                     {selectedRide
-                      ? `${getRideDateTime(selectedRide).date} at ${getRideDateTime(selectedRide).time}\n${getRidePickup(selectedRide)} → ${getRideDrop(selectedRide)}`
+                      ? `${getRideDateTime(selectedRide).date} at ${getRideDateTime(selectedRide).time}\n📍 ${getRidePickup(selectedRide)} \n🏁 ${getRideDrop(selectedRide)}`
                       : '— Select a ride —'}
                   </Text>
                   <Text style={{ color: '#7E8B9F', fontSize: 13 }}>▾</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Buddy Incident vs Rider/Road Incident Toggle matching Image 3 */}
+              {/* Ride & Passenger Incident vs Rider/Road Incident Toggle */}
               <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
-                {/* Buddy Incident Button */}
+                {/* Ride & Passenger Incident Button */}
                 <TouchableOpacity
                   onPress={() => {
                     setIncidentSegment('passenger');
@@ -1673,7 +1679,7 @@ export function IncidentReportScreen({ navigation }) {
                       fontSize: 12.5,
                       fontWeight: '800',
                     }}>
-                      Buddy Incident
+                      Ride Incident
                     </Text>
                   </View>
                   <Text style={{
@@ -1681,7 +1687,7 @@ export function IncidentReportScreen({ navigation }) {
                     fontSize: 10.5,
                     textAlign: 'center',
                   }}>
-                    Issues caused by your buddy
+                    Passenger & ride conduct issues
                   </Text>
                 </TouchableOpacity>
 
@@ -1743,7 +1749,7 @@ export function IncidentReportScreen({ navigation }) {
                 </View>
                 <Text style={{ color: '#8E9BAE', fontSize: 12, marginBottom: 12 }}>
                   {incidentSegment === 'passenger'
-                    ? 'Select the buddy incident category'
+                    ? 'Select the ride / passenger incident category'
                     : 'Select the road / rider incident category'}
                 </Text>
 

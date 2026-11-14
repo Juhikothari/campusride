@@ -27,7 +27,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAIN_SERVICES = [
   {
     key: 'SearchRides',
-    title: 'Find a Ride',
+    title: 'Find a Ride · Need a Ride',
     sub: 'Match with commuters on your route',
     iconBg: '#1a2233',
   },
@@ -241,7 +241,7 @@ export default function DashboardScreen({ navigation }) {
       step: 2,
       icon: '🔍',
       tagline: 'NEVER COMMUTE ALONE',
-      title: 'Find a Ride',
+      title: 'Find a Ride · Need a Ride',
       desc: 'Need a ride? Connect with verified peers heading along your exact route in seconds. Commute together effortlessly.',
       btnLabel: 'Next →',
       targetKey: 'SearchRides',

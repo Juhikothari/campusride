@@ -19,6 +19,7 @@ import { resetCommunityUnreadCount, subscribeToTabUnreadCounts, resetTabUnread }
 import { colors, spacing, radius } from '../theme';
 import { Btn, Alert } from '../components/UI';
 import { getDisplayUSN } from '../utils/usn';
+import SteelDustbin from '../components/SteelDustbin';
 
 const TABS = ['Posts', 'College Chat'];
 const POST_TYPES = [
@@ -28,7 +29,54 @@ const POST_TYPES = [
   { value: 'alert',     label: '🚨 Alert' },
 ];
 
-// Sitcom lounge removed - clean community hub
+export function getCollegeSitcomLounge(collegeName) {
+  const norm = (collegeName || '').toLowerCase().trim();
+  if (norm.includes('rns') || norm.includes('rnsit')) {
+    return { name: 'Central Perk Lounge', tag: '☕ Friends Hangout • RNSIT Community' };
+  }
+  if (norm.includes('pes') || norm.includes('pesu') || norm.includes('pesit')) {
+    return { name: 'The Scranton Branch', tag: '📎 Dunder Mifflin Hub • PES Community' };
+  }
+  if (norm.includes('bms') || norm.includes('bmsce') || norm.includes('bmsit')) {
+    return { name: "MacLaren's Pub Lounge", tag: '🍻 Legendary Hangout • BMS Community' };
+  }
+  if (norm.includes('rv') || norm.includes('rvce')) {
+    return { name: '99th Precinct Hub', tag: '🚨 Brooklyn Nine-Nine • RVCE Community' };
+  }
+  if (norm.includes('msr') || norm.includes('ramaiah') || norm.includes('msrit')) {
+    return { name: 'Big Bang Common Room', tag: '⚛️ Bazinga Lounge • Ramaiah Community' };
+  }
+  if (norm.includes('dsce') || norm.includes('dayananda') || norm.includes('sagar')) {
+    return { name: 'Greendale Study Room', tag: '📚 Study Group • DSCE Community' };
+  }
+  if (norm.includes('sjbit') || norm.includes('bit') || norm.includes('bangalore institute')) {
+    return { name: 'Pawnee Parks Lounge', tag: '🌳 Treat Yo Self • Campus Community' };
+  }
+  if (norm.includes('jss') || norm.includes('jssate')) {
+    return { name: "Monk's Diner", tag: '☕ The Jerry & George Booth • JSS Community' };
+  }
+  if (norm.includes('new horizon') || norm.includes('nhce')) {
+    return { name: 'The Good Place Lounge', tag: '✨ Everything is Fine • NHCE Community' };
+  }
+  if (norm.includes('oxford')) {
+    return { name: 'Dunder Mifflin Annex', tag: '📋 Campus Annex • Oxford Community' };
+  }
+  
+  const sitcomList = [
+    { name: 'Central Perk Lounge', tag: `☕ Friends Spot • ${collegeName || 'Campus'} Hub` },
+    { name: 'The Scranton Branch', tag: `📎 The Office • ${collegeName || 'Campus'} Hub` },
+    { name: "MacLaren's Pub Lounge", tag: `🍻 Legendary Hangout • ${collegeName || 'Campus'} Hub` },
+    { name: '99th Precinct Hub', tag: `🚨 Nine-Nine Squad • ${collegeName || 'Campus'} Hub` },
+    { name: 'Big Bang Common Room', tag: `⚛️ Bazinga Lounge • ${collegeName || 'Campus'} Hub` },
+    { name: 'Greendale Study Room', tag: `📚 Study Group • ${collegeName || 'Campus'} Hub` },
+    { name: 'Pawnee Parks Lounge', tag: `🌳 Parks & Rec • ${collegeName || 'Campus'} Hub` },
+  ];
+  let hash = 0;
+  for (let i = 0; i < (collegeName || 'Campus').length; i++) {
+    hash = (hash * 31 + (collegeName || 'Campus').charCodeAt(i)) % sitcomList.length;
+  }
+  return sitcomList[Math.abs(hash)];
+}
 
 export function getCategoryBadge(type) {
   switch ((type || '').toLowerCase()) {
@@ -80,6 +128,7 @@ function timeAgo(dateStr) {
 // ── Posts Tab ─────────────────────────────────────────────────────
 function PostsTab({ user }) {
   const { isDark } = useTheme();
+  const sitcomLounge = getCollegeSitcomLounge(user?.college);
   const scrollRef = useRef(null);
   const cropRef = useRef(null);
   const [posts,     setPosts]     = useState([]);
@@ -469,7 +518,7 @@ function PostsTab({ user }) {
             }]}
             value={content}
             onChangeText={setContent}
-            placeholder="Share something with your campus community…"
+            placeholder={`Share something with ${sitcomLounge.name}…`}
             placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
             cursorColor="#f5a623"
             selectionColor="rgba(245,166,35,0.3)"
@@ -755,10 +804,11 @@ function PostsTab({ user }) {
               {isOwner && (
                 <TouchableOpacity
                   onPress={() => handleDelete(post._id)}
-                  style={styles.deleteBadgeBtn}
+                  style={[styles.deleteBadgeBtn, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}
                   activeOpacity={0.7}
                 >
-                  <Text style={{ color: colors.red, fontSize: 11, fontWeight: '700' }}>🗑️ Delete</Text>
+                  <SteelDustbin size={13} />
+                  <Text style={{ color: colors.red, fontSize: 11, fontWeight: '700' }}>Delete</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -869,9 +919,11 @@ function PostsTab({ user }) {
                     {canDeleteReply && (
                       <TouchableOpacity
                         onPress={() => handleDeleteReply(post._id, r._id)}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Text style={{ color: colors.red, fontSize: 11, fontWeight: '600' }}>🗑️ Delete</Text>
+                        <SteelDustbin size={12} />
+                        <Text style={{ color: colors.red, fontSize: 11, fontWeight: '600' }}>Delete</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -889,6 +941,7 @@ function PostsTab({ user }) {
 
 // ── College Chat Tab ──────────────────────────────────────────────
 function CollegeChatTab({ user }) {
+  const sitcomLounge = getCollegeSitcomLounge(user?.college);
   const [messages, setMessages] = useState([]);
   const [input,    setInput]    = useState('');
   const [loading,  setLoading]  = useState(true);
@@ -1094,7 +1147,7 @@ function CollegeChatTab({ user }) {
             onFocus={() => {
               setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 150);
             }}
-            placeholder={anonymous ? 'Send anonymously…' : 'Message your college…'}
+            placeholder={anonymous ? 'Send anonymously…' : `Message ${sitcomLounge.name}…`}
             placeholderTextColor={isDark ? '#8b96b0' : '#64748b'}
             cursorColor="#f5a623"
             selectionColor="rgba(245,166,35,0.3)"
@@ -1116,6 +1169,7 @@ function CollegeChatTab({ user }) {
 export default function CommunityScreen({ navigation }) {
   const { user } = useAuth();
   const { isDark } = useTheme();
+  const sitcomLounge = getCollegeSitcomLounge(user?.college);
   const [activeTab, setActiveTab] = useState(0);
   const [tabCounts, setTabCounts] = useState({ unreadPosts: 0, unreadChat: 0 });
 
@@ -1135,8 +1189,8 @@ export default function CommunityScreen({ navigation }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: isDark ? colors.bg : '#f8fafc' }} edges={['top']}>
       <TopHeader 
-        title="Campus Community" 
-        subtitle="Campus Posts & Student Chat" 
+        title={sitcomLounge.name} 
+        subtitle={sitcomLounge.tag} 
         showBack={navigation?.canGoBack ? navigation.canGoBack() : false} 
       />
 

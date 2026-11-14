@@ -50,6 +50,9 @@ export default function MyBookingsScreen({ navigation }) {
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState('');
+  const [expandedBookings, setExpandedBookings] = useState({});
+
+  const toggleDetails = (id) => setExpandedBookings(prev => ({ ...prev, [id]: !prev[id] }));
 
   const cacheKey = `@cached_my_bookings_${user?._id || user?.userId || 'guest'}`;
 
@@ -146,11 +149,31 @@ export default function MyBookingsScreen({ navigation }) {
             const canTrack    = b.status === 'accepted' && (!ride || (ride.status !== 'cancelled' && ride.status !== 'completed')) && !isCompleted;
             const provider    = ride?.providerId;
 
+            const isExpanded = expandedBookings[b._id] ?? true;
+
             return (
               <View key={b._id} style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, isCancelled && styles.cardCancelled]}>
                 {/* Header */}
                 <View style={styles.cardHeader}>
-                  <Text style={[styles.bookingId, { color: isDark ? colors.text : '#0f172a' }]}>Booking #{b._id.slice(-6).toUpperCase()}</Text>
+                  <TouchableOpacity
+                    onPress={() => toggleDetails(b._id)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.bookingId, { color: isDark ? colors.text : '#0f172a' }]}>Booking #{b._id.slice(-6).toUpperCase()}</Text>
+                    <View style={{
+                      backgroundColor: isDark ? 'rgba(245,166,35,0.15)' : '#fef3c7',
+                      paddingHorizontal: 7,
+                      paddingVertical: 2,
+                      borderRadius: radius.full,
+                      borderWidth: 0.8,
+                      borderColor: colors.accent,
+                    }}>
+                      <Text style={{ fontSize: 10, fontWeight: '800', color: colors.accent }}>
+                        {isExpanded ? '▲ Hide' : '▼ Details'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 14 }}>{STATUS_ICON[b.status] || '•'}</Text>
                     <Text style={[styles.statusText, { color: STATUS_COLOR[b.status] || colors.text2 }]}>{b.status}</Text>
@@ -162,70 +185,72 @@ export default function MyBookingsScreen({ navigation }) {
                   <View style={styles.route}>
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.green }]} />
-                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(b.pickup || ride.pickup)}</Text>
+                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={isExpanded ? 3 : 1}>{getAddr(b.pickup || ride.pickup)}</Text>
                     </View>
                     <View style={styles.routeLineDot} />
                     <View style={styles.routeRow}>
                       <View style={[styles.dot, { backgroundColor: colors.red }]} />
-                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>{getAddr(b.drop || ride.drop)}</Text>
+                      <Text style={[styles.routeText, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={isExpanded ? 3 : 1}>{getAddr(b.drop || ride.drop)}</Text>
                     </View>
                   </View>
                 )}
 
-                {/* Meta grid */}
-                {ride && (
-                  <View style={styles.metaGrid}>
-                    <MetaItem isDark={isDark} label="DATE"    value={fmtDate(ride.date)} />
-                    <MetaItem isDark={isDark} label="TIME"    value={ride.time || '—'} />
-                    <MetaItem isDark={isDark} label="COST"    value={`₹${b.fare || ride.costPerSeat || 35}/seat`} accent />
-                    <MetaItem isDark={isDark} label="VEHICLE" value={`${VEHICLE_ICON[ride.vehicleType] || '🚗'} ${ride.vehicleType || '—'}`} />
-                  </View>
-                )}
+                {/* Collapsible Details Dropdown */}
+                {isExpanded && (
+                  <>
+                    {/* Meta grid */}
+                    {ride && (
+                      <View style={styles.metaGrid}>
+                        <MetaItem isDark={isDark} label="DATE"    value={fmtDate(ride.date)} />
+                        <MetaItem isDark={isDark} label="TIME"    value={ride.time || '—'} />
+                        <MetaItem isDark={isDark} label="COST"    value={`₹${b.fare || ride.costPerSeat || 35}/seat`} accent />
+                        <MetaItem isDark={isDark} label="VEHICLE" value={`${VEHICLE_ICON[ride.vehicleType] || '🚗'} ${ride.vehicleType || '—'}`} />
+                      </View>
+                    )}
 
-                {/* Actions */}
-                <View style={{ gap: 8, marginTop: 12 }}>
-                  {isCompleted && (
-                    <View style={{
-                      backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fefce8',
-                      borderWidth: 1,
-                      borderColor: isDark ? 'rgba(245, 166, 35, 0.25)' : '#fde047',
-                      borderRadius: radius.md,
-                      padding: 12,
-                      alignItems: 'center'
-                    }}>
-                      <Text style={{ color: isDark ? colors.accent : '#b45309', fontSize: 13, fontWeight: '800' }}>🏁 Ride Completed</Text>
-                      <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, textAlign: 'center', marginTop: 2 }}>
-                        This trip has ended. Thank you for commuting with HOGO!
-                      </Text>
+                    {/* Actions */}
+                    <View style={{ gap: 8, marginTop: 12 }}>
+                      {isCompleted && (
+                        <View style={{
+                          backgroundColor: isDark ? 'rgba(245, 166, 35, 0.08)' : '#fefce8',
+                          borderWidth: 1,
+                          borderColor: isDark ? 'rgba(245, 166, 35, 0.25)' : '#fde047',
+                          borderRadius: radius.md,
+                          padding: 12,
+                          alignItems: 'center'
+                        }}>
+                          <Text style={{ color: isDark ? colors.accent : '#b45309', fontSize: 13, fontWeight: '800' }}>🏁 Ride Completed</Text>
+                          <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11, textAlign: 'center', marginTop: 2 }}>
+                            This trip has ended. Thank you for commuting with HOGO!
+                          </Text>
+                        </View>
+                      )}
+                      {b.status === 'pending' && (
+                        <Alert message="⏳ Booking request submitted. Ride starts once provider accepts." />
+                      )}
+                      {rideIdStr && !isCancelled && !isCompleted && (
+                        <View style={{ marginTop: 4 }}>
+                          <Btn
+                            label="View Ride Details"
+                            onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })}
+                            variant="outline"
+                            style={{ borderColor: isDark ? colors.border : '#cbd5e1' }}
+                            textStyle={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}
+                          />
+                        </View>
+                      )}
+                      {canCancel && (
+                        <Btn label="✕ Cancel Booking" onPress={() => cancelBooking(b._id)} variant="danger" />
+                      )}
+                      {isCancelled && (
+                        <Alert message={`Ride cancelled${ride?.cancelReason ? `. Reason: ${ride.cancelReason}` : ''}`} />
+                      )}
+                      {b.status === 'rejected' && (
+                        <Alert message="Booking rejected. Try searching for another ride." />
+                      )}
                     </View>
-                  )}
-                  {b.status === 'pending' && (
-                    <Alert message="⏳ Booking request submitted. Ride starts once provider accepts." />
-                  )}
-                  
-                    />
-                  )}
-                  {rideIdStr && !isCancelled && !isCompleted && (
-                    <View style={{ marginTop: 4 }}>
-                      <Btn
-                        label="View Ride Details"
-                        onPress={() => navigation.navigate('RideDetail', { rideId: rideIdStr })}
-                        variant="outline"
-                        style={{ borderColor: isDark ? colors.border : '#cbd5e1' }}
-                        textStyle={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}
-                      />
-                    </View>
-                  )}
-                  {canCancel && (
-                    <Btn label="✕ Cancel Booking" onPress={() => cancelBooking(b._id)} variant="danger" />
-                  )}
-                  {isCancelled && (
-                    <Alert message={`Ride cancelled${ride?.cancelReason ? `. Reason: ${ride.cancelReason}` : ''}`} />
-                  )}
-                  {b.status === 'rejected' && (
-                    <Alert message="Booking rejected. Try searching for another ride." />
-                  )}
-                </View>
+                  </>
+                )}
               </View>
             );
           })

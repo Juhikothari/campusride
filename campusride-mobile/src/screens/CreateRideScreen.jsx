@@ -132,6 +132,9 @@ export default function CreateRideScreen({ navigation }) {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [womenOnly,   setWomenOnly]   = useState(false);
   const [schedMode,   setSchedMode]   = useState('now');
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
+  const [expandedHistoryIndex, setExpandedHistoryIndex] = useState(null);
+  const [hasActiveRide, setHasActiveRide] = useState(false);
   const [loading,     setLoading]     = useState(false);
   const [success,     setSuccess]     = useState(null);
   const [error,       setError]       = useState('');
@@ -221,6 +224,23 @@ export default function CreateRideScreen({ navigation }) {
 
     return () => { mounted = false; };
   }, [isProvider, user]);
+
+  // Check if provider already has 1 active ride in progress
+  useEffect(() => {
+    if (!isProvider) return;
+    let mounted = true;
+    api.getMyRides().then(data => {
+      if (!mounted) return;
+      const list = Array.isArray(data) ? data : data?.rides || [];
+      const active = list.find(r => r.status === 'active' || r.status === 'in-progress');
+      if (active) {
+        setHasActiveRide(true);
+        // Default to scheduling so provider can still plan ahead
+        setSchedMode('later');
+      }
+    }).catch(() => {});
+    return () => { mounted = false; };
+  }, [isProvider]);
 
   const hasRegisteredVehicle = Boolean(
     (userVehicles.length > 0 && userVehicles[0].vehicleNumber) ||
@@ -462,6 +482,11 @@ export default function CreateRideScreen({ navigation }) {
       return;
     }
 
+    if (hasActiveRide && schedMode === 'now') {
+      setError('You already have 1 active ride in progress. You can only offer 1 active ride at a time, but you can schedule future rides using the Schedule option.');
+      return;
+    }
+
     const nowSubmit = new Date();
     const defaultDate = getFormattedDMY(nowSubmit);
     const defaultTime = `${String(nowSubmit.getHours()).padStart(2, '0')}:${String(nowSubmit.getMinutes()).padStart(2, '0')}`;
@@ -486,6 +511,7 @@ export default function CreateRideScreen({ navigation }) {
         },
         date:           toIsoDate(rideDate),
         time:           rideTime,
+        schedMode:      schedMode || 'now',
         seatsAvailable: selectedCap,
         costPerSeat:    computedCost,
         vehicleType,
@@ -599,41 +625,107 @@ export default function CreateRideScreen({ navigation }) {
             </View>
           )}
 
-          {/* ── Recent Commute History Chips ── */}
+          {/* ── Recent Commute History: Vertical with dropdown details ── */}
           {searchHistory.length > 0 && (
             <View style={styles.historySection}>
-              <Text style={[styles.historyLabel, { color: isDark ? colors.text2 : '#475569' }]}>🕒 RECENT COMMUTE ROUTES</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                onPress={() => setShowHistoryDropdown(prev => !prev)}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.historyLabel, { color: isDark ? colors.text2 : '#475569', marginBottom: 0 }]}>
+                  🕒 RECENT COMMUTE ROUTES ({searchHistory.length})
+                </Text>
+                <View style={{
+                  backgroundColor: isDark ? 'rgba(245,166,35,0.15)' : '#fef3c7',
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: radius.full,
+                  borderWidth: 0.8,
+                  borderColor: colors.accent,
+                }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accent }}>
+                    {showHistoryDropdown ? '▲ Hide' : '▼ View History'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {showHistoryDropdown && (
+                <View style={{ gap: 8, marginTop: 8, marginBottom: 12 }}>
                   {searchHistory.map((item, i) => {
-                    const pName = (item.pickup?.label?.split(',')[0] || 'Pickup').trim();
-                    const dName = (item.drop?.label?.split(',')[0] || 'Drop').trim();
+                    const pName = (item.pickup?.label || 'Pickup').trim();
+                    const dName = (item.drop?.label || 'Drop').trim();
+                    const isExpanded = expandedHistoryIndex === i;
                     return (
-                      <TouchableOpacity
+                      <View
                         key={i}
-                        style={[
-                        styles.historyCard,
-                        {
+                        style={{
                           backgroundColor: isDark ? '#161c2a' : '#ffffff',
                           borderColor: isDark ? '#26344d' : '#cbd5e1',
-                        }
-                      ]}
-                        onPress={() => applyHistoryItem(item)}
-                        activeOpacity={0.75}
+                          borderWidth: 1,
+                          borderRadius: radius.md,
+                          padding: 10,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                        }}
                       >
-                        <View style={styles.historyBulletRow}>
-                          <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900' }}>•</Text>
-                          <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{pName}</Text>
-                        </View>
-                        <View style={styles.historyBulletRow}>
-                          <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900' }}>•</Text>
-                          <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{dName}</Text>
-                        </View>
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{ flex: 1, marginRight: 8 }}
+                          onPress={() => applyHistoryItem(item)}
+                          activeOpacity={0.75}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                            <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900', marginTop: 1 }}>📍</Text>
+                            <Text style={{ color: isDark ? '#edf0f7' : '#0f172a', fontSize: 12.5, fontWeight: '600', flex: 1 }} numberOfLines={isExpanded ? undefined : 1}>
+                              {pName}
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 4 }}>
+                            <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900', marginTop: 1 }}>🏁</Text>
+                            <Text style={{ color: isDark ? '#edf0f7' : '#0f172a', fontSize: 12.5, fontWeight: '600', flex: 1 }} numberOfLines={isExpanded ? undefined : 1}>
+                              {dName}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setExpandedHistoryIndex(prev => prev === i ? null : i)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                            backgroundColor: isDark ? '#0f1523' : '#f1f5f9',
+                            borderRadius: radius.sm,
+                          }}
+                        >
+                          <Text style={{ color: colors.accent, fontSize: 10.5, fontWeight: '700' }}>
+                            {isExpanded ? '▲' : '▼ Details'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </View>
-              </ScrollView>
+              )}
+            </View>
+          )}
+
+          {/* Active Ride In-Progress Notice */}
+          {hasActiveRide && (
+            <View style={{
+              backgroundColor: 'rgba(245, 166, 35, 0.1)',
+              borderWidth: 1,
+              borderColor: colors.accent,
+              borderRadius: radius.md,
+              padding: 12,
+              marginBottom: 14,
+            }}>
+              <Text style={{ color: colors.accent, fontSize: 13, fontWeight: '800' }}>
+                ⚠️ 1 Active Ride Already in Progress
+              </Text>
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 11.5, marginTop: 3, lineHeight: 16 }}>
+                You already have an active ride posted. Providers may only offer 1 active ride at a time, but you can schedule future rides using the Schedule option below.
+              </Text>
             </View>
           )}
 

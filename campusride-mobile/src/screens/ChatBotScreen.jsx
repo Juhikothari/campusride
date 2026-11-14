@@ -127,15 +127,25 @@ function getLocalAnswer(query, user) {
     return "🌓 Dark & Light Mode:\n• You can easily switch between Dark and Light mode using the toggle button located directly on your Dashboard greeting hero card (next to your name)!\n• It instantly adapts all screens, maps, and menus to your preferred appearance.";
   }
 
-  // 17. Intelligent Generalized Fallback with Clean Bullet Points (No Markdown Asterisks)
-  return `🤖 Hi ${user?.name ? user.name.split(' ')[0] : 'there'}! I am RideBot, your HOGO assistant. Here is how I can help:\n\n` +
+  // 17. Privacy & USN Identification
+  if (q.includes('privacy') || q.includes('usn') || q.includes('name') || q.includes('real name') || q.includes('identity')) {
+    return "🔒 Privacy & USN Campus Safety:\n• For your privacy and protection, your personal full name is never exposed to public view or unconfirmed seekers.\n• Only your verified university USN is shown on ride cards and booking confirmations.\n• Real identity is verified securely by campus admin KYC.";
+  }
+
+  // 18. Provider Active Ride Limits & Scheduling
+  if (q.includes('active ride') || q.includes('limit') || q.includes('multiple ride') || q.includes('schedule ride')) {
+    return "🚗 Active Ride Policy for Providers:\n• Providers can only have 1 active ride (now/in-progress) at any time to guarantee safety and punctual arrivals.\n• You can, however, schedule as many upcoming rides for future dates and times as you need using the Schedule tab.";
+  }
+
+  // 19. Intelligent Generalized Fallback with Clean Bullet Points (No Markdown Asterisks)
+  return `✨ Hi ${user?.name ? user.name.split(' ')[0] : 'there'}! I am HOGO AI, your smart campus commute assistant. Here is how I can help:\n\n` +
     `• 📜 Ride History: View completed trips in Menu (☰) > My Bookings > History or Profile.\n` +
-    `• 🔍 Search Your Buddy: Match with peers heading your way in Search Your Buddy.\n` +
-    `• 🚗 Offer a Ride: Share seats with verified classmates in Offer Ride.\n` +
+    `• 🔍 Find a Ride: Match with peers heading your way along your exact route.\n` +
+    `• 🚗 Offer a Ride: Share seats with verified classmates (1 active ride + unlimited scheduling).\n` +
     `• 🚶 Walk Together: Join or post walking groups across campus.\n` +
     `• ❌ Cancellations: Cancel trips easily from the Dashboard before departure.\n` +
     `• 🛡️ KYC & Verification: Check verification status in Menu (☰) > KYC.\n` +
-    `• 🆘 SOS Emergency: 24/7 emergency coordinates & contact broadcast.\n\n` +
+    `• 🆘 Automatic SOS: Instant SMS with live GPS and automatic dial to your emergency contact.\n\n` +
     `Feel free to ask me anything specific about your campus commute!`;
 }
 
@@ -146,7 +156,7 @@ export default function ChatBotScreen({ navigation }) {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: `Hello ${user?.name ? user.name.split(' ')[0] : 'there'}! 👋 I am RideBot, your AI assistant for HOGO.\n\nHow can I help with your campus commute today?`,
+      content: `Hello ${user?.name ? user.name.split(' ')[0] : 'there'}! 👋 I am HOGO AI, your intelligent assistant for campus commute.\n\nHow can I help you today?`,
     }
   ]);
   const [input,   setInput]   = useState('');
@@ -222,7 +232,7 @@ export default function ChatBotScreen({ navigation }) {
             <Text style={[styles.backBtnText, { color: isDark ? '#ffffff' : '#0f172a' }]}>←</Text>
           </TouchableOpacity>
           <View style={[styles.botAvatar, { backgroundColor: isDark ? colors.accentDim : 'rgba(245,166,35,0.15)' }]}>
-            <Text style={{ fontSize: 20 }}>🤖</Text>
+            <Text style={{ fontSize: 20 }}>✨</Text>
             <View style={styles.onlineDot} />
           </View>
           <View>
@@ -260,7 +270,7 @@ export default function ChatBotScreen({ navigation }) {
               >
                 {!isUser && (
                   <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
-                    <Text style={{ fontSize: 13 }}>🤖</Text>
+                    <Text style={{ fontSize: 13 }}>✨</Text>
                   </View>
                 )}
                 <View
@@ -280,11 +290,11 @@ export default function ChatBotScreen({ navigation }) {
           {loading && (
             <View style={[styles.msgRow, styles.msgRowAssistant]}>
               <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
-                <Text style={{ fontSize: 13 }}>🤖</Text>
+                <Text style={{ fontSize: 13 }}>✨</Text>
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, { flexDirection: 'row', gap: 6, alignItems: 'center' }]}>
                 <ActivityIndicator color={colors.accent} size="small" />
-                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 12 }}>RideBot is thinking…</Text>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 12 }}>HOGO AI is thinking…</Text>
               </View>
             </View>
           )}

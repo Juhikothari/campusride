@@ -33,19 +33,24 @@ export function AuthProvider({ children }) {
     setUserState(user);
   };
 
-  const logout = useCallback(async () => {
-    try {
-      await api.unregisterPushToken().catch(() => {});
-      await api.logout().catch(() => {});
-    } catch (_) {}
-    disconnectGlobalSocket();
-    await api.removeToken().catch(() => {});
-    await api.removeUser().catch(() => {});
-    // Clear user cached data to prevent cross-account leak
-    AsyncStorage.removeItem('@last_handled_notif_response_id').catch(() => {});
-    // Scoped @read_notif_ids_${userId} preserved across logins
-    AsyncStorage.removeItem('@user_registered_vehicles_list').catch(() => {});
+  const logout = useCallback(() => {
+    // 1. Immediately reset state so UI switches to Login screen with ZERO delay
     setUserState(null);
+    disconnectGlobalSocket();
+
+    // 2. Perform all cleanup & unregistration asynchronously in background
+    (async () => {
+      try {
+        await Promise.all([
+          api.removeToken().catch(() => {}),
+          api.removeUser().catch(() => {}),
+          AsyncStorage.removeItem('@last_handled_notif_response_id').catch(() => {}),
+          AsyncStorage.removeItem('@user_registered_vehicles_list').catch(() => {}),
+        ]);
+        api.unregisterPushToken().catch(() => {});
+        api.logout().catch(() => {});
+      } catch (_) {}
+    })();
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -114,23 +119,32 @@ export function AuthProvider({ children }) {
           api.getUser().catch(() => null)
         ]);
 
-        if (cachedUser && isMounted) {
-          setUserState(cachedUser);
-        }
-
         if (token) {
           try {
+            // Verify session with backend before entering logged-in state
             const u = await api.getMe();
-            if (u && isMounted) {
+            if (u && (u._id || u.id) && isMounted) {
               await api.setUser(u);
               setUserState(u);
+            } else if (isMounted) {
+              logout();
             }
           } catch (e) {
             console.log('Session verification error:', e.message);
-            if (e.status === 401 || e.status === 403) {
-              if (isMounted) await logout();
+            if (e.status === 401 || e.status === 403 || e.message?.includes('token') || e.message?.includes('auth')) {
+              // Stale/expired token: clear out immediately, do not display logged-in dashboard
+              if (isMounted) logout();
+            } else if (cachedUser && isMounted) {
+              // Pure offline fallback when server is unreachable
+              setUserState(cachedUser);
             }
           }
+        } else {
+          // No token found: ensure cached user is also purged so logged-out state is immediate
+          if (cachedUser) {
+            await api.removeUser().catch(() => {});
+          }
+          if (isMounted) setUserState(null);
         }
       } catch (err) {
         console.log('Auth initialization error:', err);

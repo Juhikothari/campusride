@@ -25,7 +25,7 @@ function getHeaderEmoji(title) {
   if (t.includes('support') || t.includes('contact')) return '📞';
   if (t.includes('checklist')) return '🛡️';
   if (t.includes('rating')) return '⭐';
-  if (t.includes('assistant') || t.includes('bot')) return '🤖';
+  if (t.includes('assistant') || t.includes('bot') || t.includes('ai')) return '✨';
   if (t.includes('notification')) return '🔔';
   if (t.includes('booking') || t.includes('request')) return '📋';
   return '🛵';

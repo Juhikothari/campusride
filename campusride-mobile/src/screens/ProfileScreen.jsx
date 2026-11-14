@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Input, Btn, Alert, Card } from '../components/UI';
 import FloatingChatBot from '../components/FloatingChatBot';
+import SteelDustbin from '../components/SteelDustbin';
 import { colors, spacing, radius } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as api from '../services/api';
@@ -582,7 +583,7 @@ export default function ProfileScreen({ navigation }) {
                           style={{ padding: 6, marginRight: 2 }}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Text style={{ fontSize: 16 }}>🗑️</Text>
+                          <SteelDustbin size={16} />
                         </TouchableOpacity>
                         <View style={[
                           styles.vehicleStatusBadge,

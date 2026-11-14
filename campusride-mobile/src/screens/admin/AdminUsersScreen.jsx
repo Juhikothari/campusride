@@ -8,6 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '../../services/api';
 import { AdminHeader } from '../../components/admin/AdminHeader';
+import SteelDustbin from '../../components/SteelDustbin';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -575,9 +576,12 @@ export function AdminUsersScreen({ navigation }) {
                   style={[styles.bigActionBtn, styles.deleteBtnLg]}
                   onPress={() => handleDelete(selectedUser?._id || selectedUser?.id, selectedUser?.name)}
                 >
-                  <Text style={[styles.bigActionBtnText, { color: '#ef4444' }]}>
-                    🗑️ Permanently Delete Account
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <SteelDustbin size={15} />
+                    <Text style={[styles.bigActionBtnText, { color: '#ef4444' }]}>
+                      Permanently Delete Account
+                    </Text>
+                  </View>
                 </TouchableOpacity>
 
                 <TouchableOpacity

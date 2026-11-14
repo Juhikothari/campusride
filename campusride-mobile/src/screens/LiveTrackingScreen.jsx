@@ -34,6 +34,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [tracking,         setTracking]         = useState(true);
   const [sosSent,          setSosSent]          = useState(false);
   const [sosLoading,       setSosLoading]       = useState(false);
+  const [showSosModal,     setShowSosModal]     = useState(false);
   const [elapsed,          setElapsed]          = useState(0);
   const [userLat,          setUserLat]          = useState(null);
   const [userLng,          setUserLng]          = useState(null);
@@ -1303,41 +1304,26 @@ export default function LiveTrackingScreen({ navigation, route }) {
           </>
           )}
 
-          {/* Emergency SOS Dial: Show SMS and Call Icon Only */}
+          {/* Emergency SOS Button (Clicking it automatically dispatches SOS & reveals SMS/Call inside) */}
           {rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
           <View style={{ marginTop: 8, marginBottom: 12 }}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.red, letterSpacing: 0.8, marginBottom: 6 }}>
-              🆘 EMERGENCY SOS
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              {/* 💬 SMS Icon Button */}
-              <TouchableOpacity
-                style={[styles.sosActionButton, { backgroundColor: '#1d4ed8' }, sosLoading && { opacity: 0.6 }]}
-                onPress={handleSendSosSms}
-                disabled={sosLoading}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 20 }}>💬</Text>
-                <View style={{ marginLeft: 8 }}>
-                  <Text style={styles.sosActionTitle}>SMS</Text>
-                  <Text style={styles.sosActionSub}>Live GPS Alert</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* 📞 Call Icon Button */}
-              <TouchableOpacity
-                style={[styles.sosActionButton, { backgroundColor: '#b91c1c' }, sosLoading && { opacity: 0.6 }]}
-                onPress={handleDialSosCall}
-                disabled={sosLoading}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 20 }}>📞</Text>
-                <View style={{ marginLeft: 8 }}>
-                  <Text style={styles.sosActionTitle}>Call</Text>
-                  <Text style={styles.sosActionSub}>Dial Contact / 112</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.sosBtn, { paddingVertical: 14, paddingHorizontal: 16 }, sosSent && { opacity: 0.9 }]}
+              onPress={() => {
+                triggerSOS();
+                setShowSosModal(true);
+              }}
+              disabled={sosLoading}
+              activeOpacity={0.8}
+            >
+              {sosLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={[styles.sosBtnText, { fontSize: 13.5, fontWeight: '800', textAlign: 'center' }]}>
+                  🆘 SOS Emergency
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
           )}
         </ScrollView>
@@ -1410,6 +1396,62 @@ export default function LiveTrackingScreen({ navigation, route }) {
               style={{ paddingVertical: 12, alignItems: 'center' }}
             >
               <Text style={{ color: colors.text3, fontSize: 13, fontWeight: '600' }}>Skip for now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── SOS Emergency Modal: SMS and Call Options Only ── */}
+      <Modal
+        visible={showSosModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSosModal(false)}
+      >
+        <View style={styles.ratingBackdrop}>
+          <View style={[styles.sosModalCard, { backgroundColor: isDark ? '#141a24' : '#ffffff', borderColor: '#ef4444' }]}>
+            <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 4 }}>🆘</Text>
+            <Text style={[styles.sosModalTitle, { color: isDark ? '#f87171' : '#dc2626' }]}>Emergency SOS Activated</Text>
+            <Text style={[styles.sosModalSub, { color: isDark ? colors.text2 : '#475569' }]}>
+              Live GPS location automatically alerted. Choose an action below:
+            </Text>
+
+            <View style={{ gap: 12, marginTop: 16, marginBottom: 16 }}>
+              {/* 💬 SMS Option */}
+              <TouchableOpacity
+                style={[styles.sosModalOption, { backgroundColor: '#1d4ed8' }]}
+                onPress={handleSendSosSms}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 22 }}>💬</Text>
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={styles.sosModalOptionTitle}>Send Live GPS SMS</Text>
+                  <Text style={styles.sosModalOptionSub}>Instant emergency text message to contact</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* 📞 Call Option */}
+              <TouchableOpacity
+                style={[styles.sosModalOption, { backgroundColor: '#b91c1c' }]}
+                onPress={handleDialSosCall}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 22 }}>📞</Text>
+                <View style={{ marginLeft: 12, flex: 1 }}>
+                  <Text style={styles.sosModalOptionTitle}>Call Emergency Contact</Text>
+                  <Text style={styles.sosModalOptionSub}>Direct dial contact or 112 emergency</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.sosModalCloseBtn, { borderColor: isDark ? colors.border : '#cbd5e1' }]}
+              onPress={() => setShowSosModal(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: isDark ? colors.text2 : '#475569', fontWeight: '700', fontSize: 13 }}>
+                ✕ Dismiss Emergency Panel
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1734,6 +1776,49 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     fontSize: 10,
     fontWeight: '600',
+  },
+  sosModalCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 2,
+  },
+  sosModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  sosModalSub: {
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  sosModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: radius.lg,
+  },
+  sosModalOptionTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  sosModalOptionSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  sosModalCloseBtn: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
   },
   detailsBtn: {
     flex: 1,

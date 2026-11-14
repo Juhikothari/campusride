@@ -125,6 +125,8 @@ export default function SearchRidesScreen({ navigation }) {
   const [searched,   setSearched]   = useState(false);
   const [error,      setError]      = useState('');
   const [bookingMap, setBookingMap] = useState({});
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
+  const [expandedHistoryIndex, setExpandedHistoryIndex] = useState(null);
 
   // Background refresh user profile on mount to ensure verified KYC state is loaded
   useEffect(() => {
@@ -473,7 +475,7 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Find a Ride" subtitle="Find verified campus rides & buddies" showBack={true} />
+      <TopHeader title="Find a Ride · Need a Ride" subtitle="Find verified campus rides & buddies" showBack={true} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -548,41 +550,88 @@ export default function SearchRidesScreen({ navigation }) {
           </View>
         )}
 
-        {/* ── Recent Search History Chips ── */}
+        {/* ── Recent Search History: Vertical with dropdown details ── */}
         {searchHistory.length > 0 && (
           <View style={styles.historySection}>
-            <Text style={[styles.historyLabel, { color: isDark ? colors.text2 : '#475569' }]}>🕒 RECENT SEARCHES</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => setShowHistoryDropdown(prev => !prev)}
+              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.historyLabel, { color: isDark ? colors.text2 : '#475569', marginBottom: 0 }]}>
+                🕒 RECENT SEARCHES ({searchHistory.length})
+              </Text>
+              <View style={{
+                backgroundColor: isDark ? 'rgba(245,166,35,0.15)' : '#fef3c7',
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: radius.full,
+                borderWidth: 0.8,
+                borderColor: colors.accent,
+              }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accent }}>
+                  {showHistoryDropdown ? '▲ Hide' : '▼ View History'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {showHistoryDropdown && (
+              <View style={{ gap: 8, marginTop: 8, marginBottom: 12 }}>
                 {searchHistory.map((item, i) => {
-                  const pName = (item.pickup?.label?.split(',')[0] || 'Pickup').trim();
-                  const dName = (item.drop?.label?.split(',')[0] || 'Drop').trim();
+                  const pName = (item.pickup?.label || 'Pickup').trim();
+                  const dName = (item.drop?.label || 'Drop').trim();
+                  const isExpanded = expandedHistoryIndex === i;
                   return (
-                    <TouchableOpacity
+                    <View
                       key={i}
-                      style={[
-                        styles.historyCard,
-                        {
-                          backgroundColor: isDark ? '#161c2a' : '#ffffff',
-                          borderColor: isDark ? '#26344d' : '#cbd5e1',
-                        }
-                      ]}
-                      onPress={() => applyHistorySearch(item)}
-                      activeOpacity={0.75}
+                      style={{
+                        backgroundColor: isDark ? '#161c2a' : '#ffffff',
+                        borderColor: isDark ? '#26344d' : '#cbd5e1',
+                        borderWidth: 1,
+                        borderRadius: radius.md,
+                        padding: 10,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
                     >
-                      <View style={styles.historyBulletRow}>
-                        <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900' }}>•</Text>
-                        <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{pName}</Text>
-                      </View>
-                      <View style={styles.historyBulletRow}>
-                        <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900' }}>•</Text>
-                        <Text style={[styles.historyBulletText, { color: isDark ? '#edf0f7' : '#0f172a' }]} numberOfLines={1}>{dName}</Text>
-                      </View>
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ flex: 1, marginRight: 8 }}
+                        onPress={() => applyHistorySearch(item)}
+                        activeOpacity={0.75}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                          <Text style={{ color: colors.green, fontSize: 13, fontWeight: '900', marginTop: 1 }}>📍</Text>
+                          <Text style={{ color: isDark ? '#edf0f7' : '#0f172a', fontSize: 12.5, fontWeight: '600', flex: 1 }} numberOfLines={isExpanded ? undefined : 1}>
+                            {pName}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 4 }}>
+                          <Text style={{ color: '#ff6b6b', fontSize: 13, fontWeight: '900', marginTop: 1 }}>🏁</Text>
+                          <Text style={{ color: isDark ? '#edf0f7' : '#0f172a', fontSize: 12.5, fontWeight: '600', flex: 1 }} numberOfLines={isExpanded ? undefined : 1}>
+                            {dName}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setExpandedHistoryIndex(prev => prev === i ? null : i)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={{
+                          paddingHorizontal: 8,
+                          paddingVertical: 4,
+                          backgroundColor: isDark ? '#0f1523' : '#f1f5f9',
+                          borderRadius: radius.sm,
+                        }}
+                      >
+                        <Text style={{ color: colors.accent, fontSize: 10.5, fontWeight: '700' }}>
+                          {isExpanded ? '▲' : '▼ Details'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   );
                 })}
               </View>
-            </ScrollView>
+            )}
           </View>
         )}
 

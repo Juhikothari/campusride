@@ -15,7 +15,7 @@ export default function FloatingChatBot() {
       activeOpacity={0.85}
     >
       <View style={[styles.iconCircle, { backgroundColor: isDark ? '#121722' : '#ffffff', borderColor: colors.accent }]}>
-        <Text style={{ fontSize: 24 }}>🤖</Text>
+        <Text style={{ fontSize: 24 }}>✨</Text>
       </View>
       <View style={styles.badge}>
         <Text style={styles.badgeText}>HOGO AI</Text>
