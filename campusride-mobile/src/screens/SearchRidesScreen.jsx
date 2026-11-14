@@ -586,6 +586,30 @@ export default function SearchRidesScreen({ navigation }) {
           </View>
         )}
 
+        {/* Women-only Toggle (Above Ride Now) */}
+        {isFemale && (
+          <TouchableOpacity
+            onPress={() => setWomenOnly(w => !w)}
+            style={[
+              styles.womenToggle,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#ffffff',
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1',
+                marginBottom: 12,
+              },
+              womenOnly && styles.womenToggleActive
+            ]}
+          >
+            <Text style={{ fontSize: 16 }}>{womenOnly ? '🔒' : '♀'}</Text>
+            <Text style={[styles.womenToggleText, { color: isDark ? colors.text2 : '#475569' }, womenOnly && { color: colors.pink }]}>Women-only rides</Text>
+            {womenOnly && (
+              <View style={{ backgroundColor: colors.pink, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
+                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>ON</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+
         {/* Schedule */}
         <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569' }]}>When do you need a ride?</Text>
         <TogglePill
@@ -659,10 +683,10 @@ export default function SearchRidesScreen({ navigation }) {
           </View>
         )}
 
-        {/* Vertical Vehicle Selection — Prices only shown after user searches */}
+        {/* Vertical Vehicle Selection — Prices shown once pickup and drop locations are entered */}
         {(() => {
           const sDist = (pickup.lat && drop.lat) ? haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) : null;
-          const showPrices = Boolean(searched && sDist && sDist > 0);
+          const showPrices = Boolean(sDist && sDist > 0);
           return (
             <>
               <Text style={[styles.filterLabel, { color: isDark ? colors.text2 : '#475569', marginTop: spacing.md }]}>
@@ -747,29 +771,6 @@ export default function SearchRidesScreen({ navigation }) {
             </>
           );
         })()}
-
-        {/* Women-only */}
-        {isFemale && (
-          <TouchableOpacity
-            onPress={() => setWomenOnly(w => !w)}
-            style={[
-              styles.womenToggle,
-              {
-                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#ffffff',
-                borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#cbd5e1',
-              },
-              womenOnly && styles.womenToggleActive
-            ]}
-          >
-            <Text style={{ fontSize: 16 }}>{womenOnly ? '🔒' : '♀'}</Text>
-            <Text style={[styles.womenToggleText, { color: isDark ? colors.text2 : '#475569' }, womenOnly && { color: colors.pink }]}>Women-only rides</Text>
-            {womenOnly && (
-              <View style={{ backgroundColor: colors.pink, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 }}>
-                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>ON</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
 
         <Alert message={error} />
 

@@ -228,7 +228,11 @@ async function planStops({ ride, bookings, from, capacity = Infinity, withGeomet
 // Opens Google Maps with every stop in the optimised order (no API key needed).
 function buildGoogleMapsUrl(stops) {
   if (!stops || stops.length < 2) return null;
-  const f = (s) => `${s.lat},${s.lng}`;
+  const isGeneric = (addr) => !addr ||
+    /^(selected location|current location|start location|destination|pickup spot|drop spot|start|drop)$/i.test(String(addr).trim()) ||
+    /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(String(addr).trim());
+
+  const f = (s) => (s.address && !isGeneric(s.address)) ? String(s.address).trim() : `${s.lat},${s.lng}`;
   const origin = f(stops[0]);
   const destination = f(stops[stops.length - 1]);
   const waypoints = stops.slice(1, -1).map(f).join('|');

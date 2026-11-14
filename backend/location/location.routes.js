@@ -107,9 +107,15 @@ router.get('/search', auth, async (req, res) => {
       }
     }
 
-    // Bangalore / Bengaluru Proximity Sorting:
-    // Prioritize locations in Bengaluru/Karnataka so local students find spots first
+    // Proximity and Relevance Sorting:
+    // Prioritize exact/strong landmark name matches first, then Bengaluru/Karnataka proximity
+    const qLower = q.trim().toLowerCase();
     results.sort((a, b) => {
+      const matchLabelA = (a.label || '').toLowerCase().includes(qLower);
+      const matchLabelB = (b.label || '').toLowerCase().includes(qLower);
+      if (matchLabelA && !matchLabelB) return -1;
+      if (!matchLabelA && matchLabelB) return 1;
+
       const isBlrA = /bengaluru|bangalore|karnataka/i.test(a.display_name) ||
         (a.lat >= 12.75 && a.lat <= 13.25 && a.lng >= 77.35 && a.lng <= 77.85);
       const isBlrB = /bengaluru|bangalore|karnataka/i.test(b.display_name) ||

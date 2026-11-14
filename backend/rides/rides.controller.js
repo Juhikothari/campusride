@@ -961,10 +961,16 @@ exports.pickupPassenger = async (req, res) => {
 
         await passengerNotification.save();
 
-        // Send push notification if FCM token available
-        if (booking.seekerId.fcmToken) {
-          // TODO: Implement FCM push notification
-          console.log(`Would send push notification to ${booking.seekerId.name}`);
+        // Deliver push notification outside the app to passenger
+        sendPushToUser(booking.seekerId._id, {
+          title: passengerNotification.title,
+          body: passengerNotification.body,
+          data: { screen: 'LiveTracking', rideId: String(ride._id) }
+        }).catch(() => {});
+
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user-${booking.seekerId._id}`).to(`seeker-${booking.seekerId._id}`).emit('new-notification', passengerNotification.toObject());
         }
       } catch (notifErr) {
         console.error('Failed to create passenger notification:', notifErr);
@@ -1036,10 +1042,16 @@ exports.dropPassenger = async (req, res) => {
 
         await passengerNotification.save();
 
-        // Send push notification if FCM token available
-        if (booking.seekerId.fcmToken) {
-          // TODO: Implement FCM push notification
-          console.log(`Would send drop notification to ${booking.seekerId.name}`);
+        // Deliver push notification outside the app to passenger
+        sendPushToUser(booking.seekerId._id, {
+          title: passengerNotification.title,
+          body: passengerNotification.body,
+          data: { screen: 'MyBookings', rideId: String(ride._id) }
+        }).catch(() => {});
+
+        const io = req.app.get('io');
+        if (io) {
+          io.to(`user-${booking.seekerId._id}`).to(`seeker-${booking.seekerId._id}`).emit('new-notification', passengerNotification.toObject());
         }
       } catch (notifErr) {
         console.error('Failed to create drop notification:', notifErr);
@@ -1110,6 +1122,11 @@ exports.startRide = async (req, res) => {
           data: { rideId: ride._id, bookingId: b._id }
         });
         await notif.save();
+        sendPushToUser(b.seekerId, {
+          title: notif.title,
+          body: notif.body,
+          data: { screen: 'LiveTracking', rideId: String(ride._id) }
+        }).catch(() => {});
         if (io) {
           const notifObj = notif.toObject();
           io.to(`user-${b.seekerId}`).to(`seeker-${b.seekerId}`).emit('new-notification', notifObj);
@@ -1153,6 +1170,31 @@ exports.completeRide = async (req, res) => {
       });
     }
 
+    // Notify all accepted passengers outside & inside the app
+    const Booking = require('../bookings/bookings.model');
+    const acceptedBookings = await Booking.find({ rideId, status: 'accepted' });
+    for (const b of acceptedBookings) {
+      try {
+        const notif = new Notification({
+          userId: b.seekerId,
+          userType: 'seeker',
+          type: 'RIDE_COMPLETED',
+          title: '🏁 Ride Completed Safely!',
+          body: `You have arrived at ${ride.drop?.name || ride.drop?.address || 'destination'}. Please rate your experience!`,
+          data: { rideId: ride._id, bookingId: b._id }
+        });
+        await notif.save();
+        sendPushToUser(b.seekerId, {
+          title: notif.title,
+          body: notif.body,
+          data: { screen: 'MyBookings', rideId: String(ride._id) }
+        }).catch(() => {});
+        if (io) {
+          io.to(`user-${b.seekerId}`).to(`seeker-${b.seekerId}`).emit('new-notification', notif.toObject());
+        }
+      } catch (e) {}
+    }
+
     res.json({ message: 'Ride completed', ride });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -1177,8 +1219,14 @@ exports.cancelRide = async (req, res) => {
     ride.cancelReason = reason;
     await ride.save();
 
-    // Cancel all pending/accepted bookings
+    // Find affected bookings to notify commuters outside app
     const Booking = require('../bookings/bookings.model');
+    const affectedBookings = await Booking.find({
+      rideId: ride._id,
+      status: { $in: ['pending', 'accepted'] }
+    });
+
+    // Cancel all pending/accepted bookings
     await Booking.updateMany(
       { rideId: ride._id, status: { $in: ['pending', 'accepted'] } },
       { status: 'cancelled' }
@@ -1196,6 +1244,29 @@ exports.cancelRide = async (req, res) => {
       });
       
       console.log(`Emitted rideCancelled event to ride-${rideId}`);
+    }
+
+    // Deliver notification outside & inside app to each affected commuter
+    for (const b of affectedBookings) {
+      try {
+        const notif = new Notification({
+          userId: b.seekerId,
+          userType: 'seeker',
+          type: 'RIDE_CANCELLED',
+          title: '🚫 Ride Cancelled by Provider',
+          body: `Your scheduled ride from ${ride.pickup?.name || 'pickup'} was cancelled by the provider.${reason ? ' Reason: ' + reason : ''}`,
+          data: { rideId: ride._id, bookingId: b._id }
+        });
+        await notif.save();
+        sendPushToUser(b.seekerId, {
+          title: notif.title,
+          body: notif.body,
+          data: { screen: 'MyBookings', rideId: String(ride._id) }
+        }).catch(() => {});
+        if (io) {
+          io.to(`user-${b.seekerId}`).to(`seeker-${b.seekerId}`).emit('new-notification', notif.toObject());
+        }
+      } catch (e) {}
     }
 
     res.json({ message: 'Ride cancelled', ride });

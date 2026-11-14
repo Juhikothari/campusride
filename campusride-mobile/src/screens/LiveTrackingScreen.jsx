@@ -338,29 +338,26 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => { isMounted = false; };
   }, [pickupCoords?.latitude, pickupCoords?.longitude, dropCoords?.latitude, dropCoords?.longitude]);
 
-  const triggerSOS = useCallback(async () => {
+  const getEmergencyContactNumber = useCallback(async () => {
+    let emergencyPhone = user?.emergencyContact;
+    if (!emergencyPhone) {
+      try {
+        const prof = await api.getProfile();
+        emergencyPhone = prof?.emergencyContact;
+      } catch {}
+    }
+    return emergencyPhone ? String(emergencyPhone).replace(/[^\d+]/g, '') : '';
+  }, [user]);
+
+  const handleSendSosSms = useCallback(async () => {
     setSosLoading(true);
-
     try {
-      // 1. Resolve Emergency Phone
-      let emergencyPhone = user?.emergencyContact;
-      if (!emergencyPhone) {
-        try {
-          const prof = await api.getProfile();
-          emergencyPhone = prof?.emergencyContact;
-        } catch {}
-      }
-
-      const cleanPhone = emergencyPhone ? String(emergencyPhone).replace(/[^\d+]/g, '') : '';
-      const dialTarget = cleanPhone || '112';
-
-      // 2. Prepare Live Emergency GPS SMS
+      const cleanPhone = await getEmergencyContactNumber();
       const mapUrl = (userLat && userLng) ? `https://maps.google.com/?q=${userLat},${userLng}` : '';
       const userName = user?.name || user?.usn || 'Campus Commuter';
       const smsMsg = `🚨 EMERGENCY SOS! I need immediate help during my campus commute on HOGO!\nCommuter: ${userName}\nLive GPS Location: ${mapUrl || 'Active on ride route'}`;
       const smsBody = encodeURIComponent(smsMsg);
 
-      // 3. Automatically launch SMS to Emergency Contact
       if (cleanPhone) {
         const smsUrl = Platform.OS === 'ios'
           ? `sms:${cleanPhone}&body=${smsBody}`
@@ -368,29 +365,56 @@ export default function LiveTrackingScreen({ navigation, route }) {
         Linking.openURL(smsUrl).catch(() => {
           Linking.openURL(`sms:${cleanPhone}`).catch(() => {});
         });
+      } else {
+        Linking.openURL(Platform.OS === 'ios' ? `sms:&body=${smsBody}` : `sms:?body=${smsBody}`).catch(() => {});
       }
 
-      // 4. Automatically launch Phone Dialer (to emergency contact or 112)
-      setTimeout(() => {
-        Linking.openURL(`tel:${dialTarget}`).catch(() => {});
-      }, 700);
-
-      // 5. Broadcast to backend & campus admins in background
       api.triggerSOS({
         rideId: activeRideId,
         lat: userLat,
         lng: userLng,
-        message: 'Emergency SOS triggered from HOGO live tracking',
-      }).catch(err => console.log('SOS backend broadcast notice:', err?.message));
+        message: 'Emergency SOS SMS sent from HOGO live tracking',
+      }).catch(err => console.log('SOS backend notice:', err?.message));
 
       setSosSent(true);
     } catch (e) {
-      // Automatic fallback: dial 112
+      console.log('SOS SMS error:', e);
+    } finally {
+      setSosLoading(false);
+    }
+  }, [activeRideId, userLat, userLng, user, getEmergencyContactNumber]);
+
+  const handleDialSosCall = useCallback(async () => {
+    setSosLoading(true);
+    try {
+      const cleanPhone = await getEmergencyContactNumber();
+      const dialTarget = cleanPhone || '112';
+
+      Linking.openURL(`tel:${dialTarget}`).catch(() => {
+        Linking.openURL('tel:112').catch(() => {});
+      });
+
+      api.triggerSOS({
+        rideId: activeRideId,
+        lat: userLat,
+        lng: userLng,
+        message: 'Emergency SOS Phone Call dialed from HOGO live tracking',
+      }).catch(err => console.log('SOS backend notice:', err?.message));
+
+      setSosSent(true);
+    } catch (e) {
       Linking.openURL('tel:112').catch(() => {});
     } finally {
       setSosLoading(false);
     }
-  }, [activeRideId, userLat, userLng, user]);
+  }, [activeRideId, userLat, userLng, getEmergencyContactNumber]);
+
+  const triggerSOS = useCallback(async () => {
+    handleSendSosSms();
+    setTimeout(() => {
+      handleDialSosCall();
+    }, 700);
+  }, [handleSendSosSms, handleDialSosCall]);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [currentStopIdx, setCurrentStopIdx] = useState(1);
@@ -1279,24 +1303,39 @@ export default function LiveTrackingScreen({ navigation, route }) {
           </>
           )}
 
-          {/* Emergency & Action Buttons (only for active rides) */}
+          {/* Emergency SOS Dial: Show SMS and Call Icon Only */}
           {rideInfo.status !== 'completed' && rideInfo.status !== 'cancelled' && (
           <View style={{ marginTop: 8, marginBottom: 12 }}>
-            {/* Emergency Bar: SOS Emergency */}
-            <View style={{ marginTop: 6 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: colors.red, letterSpacing: 0.8, marginBottom: 6 }}>
+              🆘 EMERGENCY SOS
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              {/* 💬 SMS Icon Button */}
               <TouchableOpacity
-                style={[styles.sosBtn, { paddingVertical: 12, paddingHorizontal: 16 }, sosSent && { opacity: 0.5 }]}
-                onPress={triggerSOS}
-                disabled={sosSent || sosLoading}
+                style={[styles.sosActionButton, { backgroundColor: '#1d4ed8' }, sosLoading && { opacity: 0.6 }]}
+                onPress={handleSendSosSms}
+                disabled={sosLoading}
                 activeOpacity={0.8}
               >
-                {sosLoading ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={[styles.sosBtnText, { fontSize: 13, fontWeight: '800', textAlign: 'center' }]} numberOfLines={1}>
-                    🆘 SOS Emergency
-                  </Text>
-                )}
+                <Text style={{ fontSize: 20 }}>💬</Text>
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={styles.sosActionTitle}>SMS</Text>
+                  <Text style={styles.sosActionSub}>Live GPS Alert</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* 📞 Call Icon Button */}
+              <TouchableOpacity
+                style={[styles.sosActionButton, { backgroundColor: '#b91c1c' }, sosLoading && { opacity: 0.6 }]}
+                onPress={handleDialSosCall}
+                disabled={sosLoading}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 20 }}>📞</Text>
+                <View style={{ marginLeft: 8 }}>
+                  <Text style={styles.sosActionTitle}>Call</Text>
+                  <Text style={styles.sosActionSub}>Dial Contact / 112</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
@@ -1676,6 +1715,25 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     fontWeight: '800',
     letterSpacing: 0.3,
+  },
+  sosActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+  },
+  sosActionTitle: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  sosActionSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 10,
+    fontWeight: '600',
   },
   detailsBtn: {
     flex: 1,

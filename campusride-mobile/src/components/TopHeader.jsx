@@ -11,6 +11,7 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
 import { subscribeToNotifications, getSharedSocket } from '../hooks/useSocket';
+import { showPushNotification } from '../services/notificationService';
 
 function getHeaderEmoji(title) {
   const t = (title || '').toLowerCase();
@@ -48,18 +49,46 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
     }
 
     const fetchUnread = () => {
-      AsyncStorage.getItem(userId ? `@read_notif_ids_${userId}` : '@read_notif_ids').then(raw => {
+      const readKey = userId ? `@read_notif_ids_${userId}` : '@read_notif_ids';
+      const pushedKey = userId ? `@pushed_notif_ids_${userId}` : '@pushed_notif_ids';
+
+      Promise.all([
+        AsyncStorage.getItem(readKey),
+        AsyncStorage.getItem(pushedKey),
+      ]).then(([rawRead, rawPushed]) => {
         let localRead = new Set();
-        if (raw) {
-          try { localRead = new Set(JSON.parse(raw)); } catch {}
+        let localPushed = new Set();
+        if (rawRead) {
+          try { localRead = new Set(JSON.parse(rawRead)); } catch {}
         }
+        if (rawPushed) {
+          try { localPushed = new Set(JSON.parse(rawPushed)); } catch {}
+        }
+
         api.getNotifications()
           .then(res => {
             if (!mounted) return;
-            let unread = 0;
             const list = Array.isArray(res) ? res : res?.notifications || [];
-            unread = list.filter(n => !n.readAt && !n.read && !n.isRead && !localRead.has(n._id || n.id)).length;
-            setUnreadCount(unread);
+            const unreadItems = list.filter(n => !n.readAt && !n.read && !n.isRead && !localRead.has(n._id || n.id));
+            setUnreadCount(unreadItems.length);
+
+            // Guarantee every notification is shown outside the app
+            let hasNewPushed = false;
+            unreadItems.forEach(n => {
+              const nid = n._id || n.id;
+              if (nid && !localPushed.has(nid)) {
+                localPushed.add(nid);
+                hasNewPushed = true;
+                showPushNotification({
+                  title: n.title || 'HOGO Notification',
+                  body: n.body || n.message || '',
+                  data: n.data || {},
+                }).catch(() => {});
+              }
+            });
+            if (hasNewPushed) {
+              AsyncStorage.setItem(pushedKey, JSON.stringify([...localPushed])).catch(() => {});
+            }
           })
           .catch(() => {});
       }).catch(() => {});

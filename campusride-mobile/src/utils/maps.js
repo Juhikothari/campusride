@@ -6,6 +6,19 @@ import { Linking, Platform } from 'react-native';
 function formatPoint(pt) {
   if (!pt) return '';
   if (typeof pt === 'string') return pt.trim();
+
+  const addr = (pt.address || pt.name || pt.label || '').trim();
+  const isGeneric = !addr ||
+    /^(selected location|current location|start location|destination|pickup spot|drop spot|start|drop)$/i.test(addr) ||
+    /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(addr);
+
+  // If a meaningful place or landmark address is available, prioritize it
+  // so Google Maps resolves the exact spot (e.g. "Shri Nimishamba Devi Temple")
+  // rather than reverse-geocoding coordinates to a random adjacent building (e.g. "Savishop").
+  if (!isGeneric) {
+    return addr;
+  }
+
   let lat = pt.lat ?? pt.latitude;
   let lng = pt.lng ?? pt.longitude;
   if ((lat == null || lng == null) && Array.isArray(pt.coordinates) && pt.coordinates.length >= 2) {
@@ -30,7 +43,7 @@ function formatPoint(pt) {
     }
     return `${nLat},${nLng}`;
   }
-  return pt.address || pt.name || pt.label || '';
+  return addr || '';
 }
 
 /**
