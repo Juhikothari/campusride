@@ -475,7 +475,7 @@ export default function SearchRidesScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Find a Ride · Need a Ride" subtitle="Find verified campus rides & buddies" showBack={true} />
+      <TopHeader title="Find a Ride" subtitle="Find verified campus rides & buddies" showBack={true} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}

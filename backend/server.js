@@ -149,11 +149,11 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ── Community chat: send message (with optional anonymous) ────
+  // ── Community chat: send message (with optional anonymous & fileAttachment) ────
   socket.on("send-community-message", async (data) => {
     try {
-      const { userId, message, anonymous } = data;   // ← anonymous added
-      if (!message?.trim()) return;
+      const { userId, message, anonymous, fileAttachment } = data;
+      if (!message?.trim() && !fileAttachment?.url) return;
 
       const User    = require('./users/users.model');
       const ChatMsg = require('./community/chatmsg.model');
@@ -173,22 +173,29 @@ io.on("connection", (socket) => {
       const isAnon = !!anonymous;
 
       const saved = await ChatMsg.create({
-        college:   user.college.trim().toLowerCase(),
-        sender:    userId,
-        message:   message.trim(),
-        anonymous: isAnon,             // ← saved to DB
+        college:        user.college.trim().toLowerCase(),
+        sender:         userId,
+        message:        message ? message.trim() : '',
+        anonymous:      isAnon,
+        fileAttachment: fileAttachment ? {
+          url:      fileAttachment.url,
+          name:     fileAttachment.name,
+          size:     fileAttachment.size,
+          fileType: fileAttachment.fileType || 'pdf',
+        } : undefined,
       });
 
       const payload = {
-        _id:        saved._id,
+        _id:            saved._id,
         // Hide identity when anonymous
-        senderId:   isAnon ? null : userId,
-        senderName: isAnon ? 'Anonymous' : user.name,
-        senderUsn:  isAnon ? '' : (user.usn || ''),
-        college:    user.college,
-        message:    message.trim(),
-        anonymous:  isAnon,
-        createdAt:  saved.createdAt.toISOString(),
+        senderId:       isAnon ? null : userId,
+        senderName:     isAnon ? 'Anonymous' : user.name,
+        senderUsn:      isAnon ? '' : (user.usn || ''),
+        college:        user.college,
+        message:        message ? message.trim() : '',
+        anonymous:      isAnon,
+        fileAttachment: saved.fileAttachment || null,
+        createdAt:      saved.createdAt.toISOString(),
       };
 
       io.to(collegeRoom).emit("receive-community-message", payload);

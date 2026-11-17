@@ -99,8 +99,8 @@ const register = async (req, res) => {
         return res.status(400).json({ message: 'Live selfie capture is mandatory for account creation. Please take a selfie.' });
       }
 
-      if (!aadhar || !collegeIdCard) {
-        return res.status(400).json({ message: 'Aadhar Card and College ID Card are compulsory for campus registration.' });
+      if (!collegeIdCard) {
+        return res.status(400).json({ message: 'College ID Card is compulsory for campus registration.' });
       }
     }
 

@@ -15,7 +15,7 @@ import { showPushNotification } from '../services/notificationService';
 
 function getHeaderEmoji(title) {
   const t = (title || '').toLowerCase();
-  if (t.includes('share your ride') || t.includes('get a buddy') || t.includes('offer')) return '🚗';
+  if (t.includes('need a ride') || t.includes('share') || t.includes('offer')) return '🚗';
   if (t.includes('search') || t.includes('find')) return '🔍';
   if (t.includes('walk') || t.includes('nadi')) return '🚶';
   if (t.includes('community') || t.includes('sitcom') || t.includes('lounge') || t.includes('perk') || t.includes('dunder') || t.includes('99th') || t.includes('caltech')) return '🛋️';
@@ -34,7 +34,7 @@ function getHeaderEmoji(title) {
 export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack, highlightProfile = false }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
-  const { isDark, colors: tc } = useTheme();
+  const { isDark, toggleTheme, colors: tc } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   const [unreadCount, setUnreadCount]   = useState(0);
 
@@ -229,16 +229,34 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
           onPress={() => setModalVisible(false)}
         >
           <View style={[styles.dropdownCard, { backgroundColor: isDark ? "#101520" : "#ffffff", borderColor: isDark ? colors.border : "#cbd5e1" }]}>
-            {/* User Header */}
+            {/* User Header with Bulb Theme Switcher */}
             <View style={styles.dropdownUser}>
               <View style={styles.largeAvatar}>
                 <Text style={styles.largeAvatarText}>{initials}</Text>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, marginRight: 6 }}>
                 <Text style={[styles.userName, { color: isDark ? colors.text : "#0f172a" }]} numberOfLines={1}>{user?.name || 'HOGO User'}</Text>
                 <Text style={[styles.userEmail, { color: isDark ? colors.text3 : '#64748b' }]} numberOfLines={1}>{user?.email}</Text>
                 {user?.college && <Text style={[styles.userCollege, { color: isDark ? colors.text2 : '#475569' }]} numberOfLines={1}>🏫 {user.college}</Text>}
               </View>
+
+              {/* Theme Toggle Button with Bulb Symbol */}
+              <TouchableOpacity
+                onPress={toggleTheme}
+                style={[
+                  styles.themeBulbBtn,
+                  {
+                    backgroundColor: isDark ? 'rgba(245,166,35,0.18)' : '#fef3c7',
+                    borderColor: isDark ? '#f5a623' : '#d97706',
+                  }
+                ]}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel="Switch light and dark theme"
+              >
+                <Text style={{ fontSize: 20 }}>💡</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={[styles.divider, { backgroundColor: isDark ? colors.border : '#e2e8f0' }]} />
@@ -364,6 +382,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   dropdownUser: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  themeBulbBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   largeAvatar: {
     width: 46, height: 46, borderRadius: 23,
     backgroundColor: colors.accentDim, borderWidth: 1.5, borderColor: colors.accent,

@@ -32,7 +32,7 @@ export default function KYCScreen({ navigation }) {
   const [uploading,   setUploading]   = useState(false);
   const [submitted,   setSubmitted]   = useState(false);
   const [error,       setError]       = useState('');
-  const [docs,        setDocs]        = useState({ aadhar: null, collegeId: null, license: null, selfie: null });
+  const [docs,        setDocs]        = useState({ collegeId: null, license: null, selfie: null });
   const [vehicleNum,  setVehicleNum]  = useState('');
   const [vehicleName, setVehicleName] = useState('');
   const [vehicleType, setVehicleType] = useState('car');
@@ -84,9 +84,8 @@ export default function KYCScreen({ navigation }) {
   useEffect(() => {
     // Populate docs if already uploaded in registration
     const uDocs = user?.kycDocuments || {};
-    if (uDocs.aadhar || uDocs.collegeIdCard || uDocs.drivingLicense || uDocs.selfie || user?.selfieUrl) {
+    if (uDocs.collegeIdCard || uDocs.drivingLicense || uDocs.selfie || user?.selfieUrl) {
       setDocs(d => ({
-        aadhar: d.aadhar || uDocs.aadhar || null,
         collegeId: d.collegeId || uDocs.collegeIdCard || null,
         license: d.license || uDocs.drivingLicense || null,
         selfie: d.selfie || uDocs.selfie || user?.selfieUrl || null,
@@ -97,7 +96,6 @@ export default function KYCScreen({ navigation }) {
       .then(status => {
         const docObj = status?.documents || {};
         setDocs(d => ({
-          aadhar: d.aadhar || docObj.aadhar || null,
           collegeId: d.collegeId || docObj.collegeIdCard || null,
           license: d.license || docObj.drivingLicense || null,
           selfie: d.selfie || docObj.selfie || null,
@@ -106,7 +104,7 @@ export default function KYCScreen({ navigation }) {
         if (status.vehicleName) setVehicleName(status.vehicleName);
         if (status.vehicleType) setVehicleType(status.vehicleType);
 
-        const isReal = ['pending', 'approved', 'rejected'].includes(status.kycStatus) && (docObj.aadhar || docObj.collegeIdCard);
+        const isReal = ['pending', 'approved', 'rejected'].includes(status.kycStatus) && (docObj.collegeIdCard || docObj.selfie);
         if (isReal) { setKycStatus(status); setSubmitted(true); }
         else setKycStatus(status);
       })
@@ -158,8 +156,8 @@ export default function KYCScreen({ navigation }) {
   };
 
   const submit = async () => {
-    if (!docs.aadhar || !docs.collegeId) {
-      setError('Aadhar Card and College ID are required');
+    if (!docs.collegeId) {
+      setError('College ID Card photo is required');
       return;
     }
     if (!docs.selfie) {
@@ -169,14 +167,12 @@ export default function KYCScreen({ navigation }) {
     setUploading(true); setError('');
     try {
       const uploadedDocs = {};
-      uploadedDocs.aadhar       = await uploadToCloudinaryWithRetry(docs.aadhar);
       uploadedDocs.collegeIdCard = await uploadToCloudinaryWithRetry(docs.collegeId);
       uploadedDocs.selfie       = await uploadToCloudinaryWithRetry(docs.selfie);
       if (docs.license) uploadedDocs.drivingLicense = await uploadToCloudinaryWithRetry(docs.license);
       const vCleanNum = vehicleNum.trim() ? vehicleNum.trim().toUpperCase() : null;
       const vCleanName = vehicleName.trim() || null;
       await api.submitKyc({
-        aadharUrl:         uploadedDocs.aadhar,
         collegeIdCardUrl:  uploadedDocs.collegeIdCard,
         selfieUrl:         uploadedDocs.selfie,
         drivingLicenseUrl: uploadedDocs.drivingLicense || null,
@@ -238,22 +234,20 @@ export default function KYCScreen({ navigation }) {
           </View>
 
           {/* Doc previews */}
-          {(docs_.aadhar || docs_.collegeIdCard || docs_.drivingLicense || docs_.selfie) && (
+          {(docs_.collegeIdCard || docs_.drivingLicense || docs_.selfie) && (
             <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
               <Text style={styles.sectionLabel}>SUBMITTED DOCUMENTS</Text>
               {docs_.selfie       && <DocRow label="Live Selfie Photo" icon="📸" uri={docs_.selfie || docs.selfie} submitted onView={() => openDocPreview('Live Selfie Photo', docs_.selfie || docs.selfie)} />}
-              {docs_.aadhar       && <DocRow label="Aadhar Card"      icon="🪪" uri={docs_.aadhar || docs.aadhar} submitted onView={() => openDocPreview('Aadhar Card', docs_.aadhar || docs.aadhar)} />}
               {docs_.collegeIdCard && <DocRow label="College ID"       icon="🎓" uri={docs_.collegeIdCard || docs.collegeId} submitted onView={() => openDocPreview('College ID Card', docs_.collegeIdCard || docs.collegeId)} />}
               {docs_.drivingLicense && <DocRow label="Driving License"  icon="🚘" uri={docs_.drivingLicense || docs.license} submitted onView={() => openDocPreview('Driving License', docs_.drivingLicense || docs.license)} />}
             </View>
           )}
 
           {st === 'rejected' && (
-            <Btn label="Resubmit KYC" onPress={() => { setSubmitted(false); setDocs({ aadhar: null, collegeId: null, license: null, selfie: null }); }} style={{ marginTop: 8 }} />
+            <Btn label="Resubmit KYC" onPress={() => { setSubmitted(false); setDocs({ collegeId: null, license: null, selfie: null }); }} style={{ marginTop: 8 }} />
           )}
         </ScrollView>
       {renderDocPreviewModal()}
-        {renderDocPreviewModal()}
       </SafeAreaView>
     );
   }
@@ -270,7 +264,6 @@ export default function KYCScreen({ navigation }) {
         <View style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
           <Text style={styles.sectionLabel}>REQUIRED DOCUMENTS</Text>
           <DocRow label="Live Selfie Photo" icon="📸" onUpload={captureSelfie}            uri={docs.selfie}   onView={() => openDocPreview('Live Selfie Photo', docs.selfie)} required />
-          <DocRow label="Aadhar Card"       icon="🪪" onUpload={() => pickDoc('aadhar')}   uri={docs.aadhar}   onView={() => openDocPreview('Aadhar Card', docs.aadhar)} required />
           <DocRow label="College ID"        icon="🎓" onUpload={() => pickDoc('collegeId')} uri={docs.collegeId} onView={() => openDocPreview('College ID Card', docs.collegeId)} required />
           <DocRow label="Driving License"   icon="🚘" onUpload={() => pickDoc('license')}  uri={docs.license}  onView={() => openDocPreview('Driving License', docs.license)} />
           <Text style={{ color: colors.text3, fontSize: 11, marginTop: 4 }}>* Required fields</Text>

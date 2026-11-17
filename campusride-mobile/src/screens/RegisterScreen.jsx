@@ -56,7 +56,7 @@ export default function RegisterScreen({ navigation }) {
     { vehicleNumber: '', vehicleName: '', vehicleType: 'car' }
   ]);
 
-  const [docs,      setDocs]      = useState({ aadhar: null, license: null, collegeId: null });
+  const [docs,      setDocs]      = useState({ license: null, collegeId: null });
   const [uploading, setUploading] = useState(false);
   const [showPass,  setShowPass]  = useState(false);
   const [showConf,  setShowConf]  = useState(false);
@@ -97,9 +97,9 @@ export default function RegisterScreen({ navigation }) {
         c.city.toLowerCase().includes(q)
       );
     }
-    // Always append "Others (College Not Listed)" option so user can easily choose it anytime
+    // Clean "Other (College Not Listed)" option so user can easily choose it anytime
     const otherOption = {
-      name: collegeSearch.trim() ? `➕ Other: "${collegeSearch.trim()}" (Not in list)` : '➕ Other (College Not in List)',
+      name: '➕ Other (College Not Listed)',
       short: 'OTHER',
       city: 'Custom Campus',
       isOther: true,
@@ -220,7 +220,6 @@ export default function RegisterScreen({ navigation }) {
     if (role === 'admin' && adminKey !== 'freewheel') return 'Invalid admin key';
     if (role !== 'admin') {
       if (!selfieUri)      return 'Selfie capture is compulsory. Please take a live selfie using front camera.';
-      if (!docs.aadhar)    return 'Aadhar Card photo is compulsory. Please upload.';
       if (!docs.collegeId) return 'College ID Card photo is compulsory. Please upload.';
     }
     return null;
@@ -240,7 +239,6 @@ export default function RegisterScreen({ navigation }) {
       const uploadedDocs = {};
       setUploading(true);
       if (selfieUri) uploadedDocs.selfie = await uploadToCloudinaryWithRetry(selfieUri);
-      if (kycDocs && kycDocs.aadhar)   uploadedDocs.aadhar          = await uploadToCloudinaryWithRetry(kycDocs.aadhar);
       if (kycDocs && kycDocs.license)  uploadedDocs.drivingLicense  = await uploadToCloudinaryWithRetry(kycDocs.license);
       if (kycDocs && kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinaryWithRetry(kycDocs.collegeId);
       setUploading(false);
@@ -271,7 +269,6 @@ export default function RegisterScreen({ navigation }) {
           vehicleType:    primaryVehicle.vehicleType,
           vehicles:       validVehicles,
         } : {}),
-        aadhar:         uploadedDocs.aadhar || null,
         drivingLicense: uploadedDocs.drivingLicense || null,
         collegeIdCard:  uploadedDocs.collegeIdCard || null,
       });
@@ -569,7 +566,6 @@ export default function RegisterScreen({ navigation }) {
             {/* Compulsory KYC Documents */}
             <Text style={[styles.label, { marginTop: 12, marginBottom: 8 }]}>VERIFICATION DOCUMENTS (COMPULSORY)</Text>
             <DocUploadRow label="Driving License (Required for Providers)" icon="🚘" onUpload={() => showDocPicker('license')} uri={docs.license} />
-            <DocUploadRow label="Aadhar Card *" icon="🪪" onUpload={() => showDocPicker('aadhar')} uri={docs.aadhar} />
             <DocUploadRow label="College ID Card *" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
           </View>
 
@@ -621,6 +617,9 @@ export default function RegisterScreen({ navigation }) {
               keyExtractor={(item, index) => (item.name || 'col') + index}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={true}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 30 }}
+              nestedScrollEnabled={true}
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
@@ -631,7 +630,7 @@ export default function RegisterScreen({ navigation }) {
                   onPress={() => {
                     if (item.isOther) {
                       setIsCustomCollege(true);
-                      setCollege(item.customName || collegeSearch.trim() || '');
+                      setCollege(collegeSearch.trim() || '');
                     } else {
                       setIsCustomCollege(false);
                       setCollege(item.name);
@@ -644,13 +643,13 @@ export default function RegisterScreen({ navigation }) {
                     {item.name}
                   </Text>
                   <Text style={styles.collegeItemCity}>
-                    {item.isOther ? '✏️ Tap to enter custom college name' : `📍 ${item.city} (${item.short})`}
+                    {item.isOther ? '✏️ Tap to enter your custom college name' : `📍 ${item.city} (${item.short})`}
                   </Text>
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
                 <View style={{ padding: 16, alignItems: 'center' }}>
-                  <Text style={{ color: colors.text2, fontSize: 13, marginBottom: 8 }}>College not in list?</Text>
+                  <Text style={{ color: colors.text2, fontSize: 13, marginBottom: 8 }}>College not found?</Text>
                   <TouchableOpacity
                     style={styles.customCollegeBtn}
                     onPress={() => {
@@ -660,7 +659,7 @@ export default function RegisterScreen({ navigation }) {
                       setCollegeSearch('');
                     }}
                   >
-                    <Text style={styles.customCollegeText}>Use "{collegeSearch.trim() || 'Custom College'}"</Text>
+                    <Text style={styles.customCollegeText}>➕ Enter "{collegeSearch.trim() || 'My College'}"</Text>
                   </TouchableOpacity>
                 </View>
               }
@@ -781,7 +780,6 @@ export default function RegisterScreen({ navigation }) {
 
           {/* Verification documents */}
           <Text style={styles.label}>VERIFICATION DOCUMENTS (OPTIONAL)</Text>
-          <DocUploadRow label="Aadhar Card" icon="🪪" onUpload={() => showDocPicker('aadhar')}   uri={docs.aadhar}   />
           <DocUploadRow label="Driving License" icon="🚘" onUpload={() => showDocPicker('license')}  uri={docs.license}  />
           <DocUploadRow label="College ID Card" icon="🎓" onUpload={() => showDocPicker('collegeId')} uri={docs.collegeId} />
 

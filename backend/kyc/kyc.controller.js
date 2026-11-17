@@ -23,9 +23,6 @@ exports.submitKyc = async (req, res) => {
     const { aadharUrl, drivingLicenseUrl, collegeIdCardUrl, selfieUrl, vehiclePhotoUrl, vehicleNumber } = req.body;
 
     // Enhanced validation with specific error messages
-    if (!aadharUrl) {
-      return res.status(400).json({ message: "Aadhar document is required" });
-    }
     if (!collegeIdCardUrl) {
       return res.status(400).json({ message: "College ID document is required" });
     }
@@ -46,7 +43,7 @@ exports.submitKyc = async (req, res) => {
       );
     };
 
-    if (!isValidImageUrl(aadharUrl)) {
+    if (aadharUrl && !isValidImageUrl(aadharUrl)) {
       return res.status(400).json({ message: "Aadhar must be a valid image" });
     }
     if (!isValidImageUrl(collegeIdCardUrl)) {

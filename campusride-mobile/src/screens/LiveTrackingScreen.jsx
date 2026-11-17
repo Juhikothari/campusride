@@ -1310,7 +1310,6 @@ export default function LiveTrackingScreen({ navigation, route }) {
             <TouchableOpacity
               style={[styles.sosBtn, { paddingVertical: 14, paddingHorizontal: 16 }, sosSent && { opacity: 0.9 }]}
               onPress={() => {
-                triggerSOS();
                 setShowSosModal(true);
               }}
               disabled={sosLoading}
@@ -1401,60 +1400,71 @@ export default function LiveTrackingScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* ── SOS Emergency Modal: SMS and Call Options Only ── */}
+      {/* ── SOS Emergency Modal: Open with (SMS & Call Only) ── */}
       <Modal
         visible={showSosModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowSosModal(false)}
       >
-        <View style={styles.ratingBackdrop}>
-          <View style={[styles.sosModalCard, { backgroundColor: isDark ? '#141a24' : '#ffffff', borderColor: '#ef4444' }]}>
-            <Text style={{ fontSize: 36, textAlign: 'center', marginBottom: 4 }}>🆘</Text>
-            <Text style={[styles.sosModalTitle, { color: isDark ? '#f87171' : '#dc2626' }]}>Emergency SOS Activated</Text>
-            <Text style={[styles.sosModalSub, { color: isDark ? colors.text2 : '#475569' }]}>
-              Live GPS location automatically alerted. Choose an action below:
-            </Text>
+        <TouchableOpacity
+          style={styles.sosBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowSosModal(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.openWithSheet,
+              { backgroundColor: isDark ? '#161b22' : '#ffffff', borderColor: isDark ? '#30363d' : '#e2e8f0' }
+            ]}
+          >
+            {/* Sheet Handle */}
+            <View style={styles.sheetHandle} />
 
-            <View style={{ gap: 12, marginTop: 16, marginBottom: 16 }}>
+            <View style={styles.openWithHeader}>
+              <Text style={[styles.openWithTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>Open with</Text>
+              <TouchableOpacity
+                onPress={() => setShowSosModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 16, fontWeight: '700' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.openWithRow}>
               {/* 💬 SMS Option */}
               <TouchableOpacity
-                style={[styles.sosModalOption, { backgroundColor: '#1d4ed8' }]}
-                onPress={handleSendSosSms}
-                activeOpacity={0.8}
+                style={styles.openWithItem}
+                onPress={() => {
+                  setShowSosModal(false);
+                  handleSendSosSms();
+                }}
+                activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 22 }}>💬</Text>
-                <View style={{ marginLeft: 12, flex: 1 }}>
-                  <Text style={styles.sosModalOptionTitle}>Send Live GPS SMS</Text>
-                  <Text style={styles.sosModalOptionSub}>Instant emergency text message to contact</Text>
+                <View style={[styles.openWithIconCircle, { backgroundColor: '#2563eb' }]}>
+                  <Text style={{ fontSize: 28 }}>💬</Text>
                 </View>
+                <Text style={[styles.openWithItemLabel, { color: isDark ? colors.text : '#0f172a' }]}>SMS</Text>
               </TouchableOpacity>
 
               {/* 📞 Call Option */}
               <TouchableOpacity
-                style={[styles.sosModalOption, { backgroundColor: '#b91c1c' }]}
-                onPress={handleDialSosCall}
-                activeOpacity={0.8}
+                style={styles.openWithItem}
+                onPress={() => {
+                  setShowSosModal(false);
+                  handleDialSosCall();
+                }}
+                activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 22 }}>📞</Text>
-                <View style={{ marginLeft: 12, flex: 1 }}>
-                  <Text style={styles.sosModalOptionTitle}>Call Emergency Contact</Text>
-                  <Text style={styles.sosModalOptionSub}>Direct dial contact or 112 emergency</Text>
+                <View style={[styles.openWithIconCircle, { backgroundColor: '#dc2626' }]}>
+                  <Text style={{ fontSize: 28 }}>📞</Text>
                 </View>
+                <Text style={[styles.openWithItemLabel, { color: isDark ? colors.text : '#0f172a' }]}>Call</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              style={[styles.sosModalCloseBtn, { borderColor: isDark ? colors.border : '#cbd5e1' }]}
-              onPress={() => setShowSosModal(false)}
-              activeOpacity={0.7}
-            >
-              <Text style={{ color: isDark ? colors.text2 : '#475569', fontWeight: '700', fontSize: 13 }}>
-                ✕ Dismiss Emergency Panel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Floating HOGO AI Assistant Button */}
@@ -1777,48 +1787,70 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-  sosModalCard: {
-    width: '100%',
-    maxWidth: 360,
-    borderRadius: radius.xl,
-    padding: spacing.lg,
-    borderWidth: 2,
+  sosBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
   },
-  sosModalTitle: {
+  openWithSheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 34,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#64748b',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 16,
+    opacity: 0.5,
+  },
+  openWithHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  openWithTitle: {
     fontSize: 18,
     fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 6,
+    letterSpacing: -0.3,
   },
-  sosModalSub: {
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 17,
-  },
-  sosModalOption: {
+  openWithRow: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: radius.lg,
   },
-  sosModalOptionTitle: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
+  openWithItem: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
-  sosModalOptionSub: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  sosModalCloseBtn: {
-    borderWidth: 1,
-    borderRadius: radius.md,
-    paddingVertical: 11,
+  openWithIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    marginBottom: 8,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  openWithItemLabel: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   detailsBtn: {
     flex: 1,
@@ -1946,7 +1978,7 @@ const styles = StyleSheet.create({
   passengerCancelBtn: {
     backgroundColor: '#141824',
     borderWidth: 1,
-    borderColor: colors.red + '55',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
     borderRadius: radius.lg,
     paddingVertical: 12,
     alignItems: 'center',

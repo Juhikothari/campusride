@@ -4,6 +4,7 @@ import {
   ScrollView, KeyboardAvoidingView, Platform, StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -99,7 +100,7 @@ function getLocalAnswer(query, user) {
 
   // 11. KYC Verification & Documents
   if (q.includes('kyc') || q.includes('verify') || q.includes('document') || q.includes('aadhar') || q.includes('license') || q.includes('usn') || q.includes('selfie')) {
-    return "🛡️ KYC Verification:\n• Ensures 100% verified campus safety. Every student submits College ID, Aadhar card, live front-camera selfie, and USN.\n• Drivers also upload Driving License and vehicle RC details.\n• You can complete or check verification anytime from Top Menu (☰) > KYC Verification. Admins review submissions within 24–48 hours.";
+    return "🛡️ KYC Verification:\n• Ensures 100% verified campus safety. Every student submits College ID, live front-camera selfie, and USN.\n• Drivers also upload Driving License and vehicle RC details.\n• You can complete or check verification anytime from Top Menu (☰) > KYC Verification. Admins review submissions within 24–48 hours.";
   }
 
   // 12. Women-Only Rides
@@ -232,7 +233,7 @@ export default function ChatBotScreen({ navigation }) {
             <Text style={[styles.backBtnText, { color: isDark ? '#ffffff' : '#0f172a' }]}>←</Text>
           </TouchableOpacity>
           <View style={[styles.botAvatar, { backgroundColor: isDark ? colors.accentDim : 'rgba(245,166,35,0.15)' }]}>
-            <Text style={{ fontSize: 20 }}>✨</Text>
+            <MaterialCommunityIcons name="robot-happy-outline" size={22} color={colors.accent} />
             <View style={styles.onlineDot} />
           </View>
           <View>
@@ -270,7 +271,7 @@ export default function ChatBotScreen({ navigation }) {
               >
                 {!isUser && (
                   <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
-                    <Text style={{ fontSize: 13 }}>✨</Text>
+                    <MaterialCommunityIcons name="robot-happy-outline" size={14} color={colors.accent} />
                   </View>
                 )}
                 <View
@@ -290,7 +291,7 @@ export default function ChatBotScreen({ navigation }) {
           {loading && (
             <View style={[styles.msgRow, styles.msgRowAssistant]}>
               <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
-                <Text style={{ fontSize: 13 }}>✨</Text>
+                <MaterialCommunityIcons name="robot-happy-outline" size={14} color={colors.accent} />
               </View>
               <View style={[styles.bubble, styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, { flexDirection: 'row', gap: 6, alignItems: 'center' }]}>
                 <ActivityIndicator color={colors.accent} size="small" />

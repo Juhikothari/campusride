@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { colors, radius } from '../theme';
@@ -15,7 +16,7 @@ export default function FloatingChatBot() {
       activeOpacity={0.85}
     >
       <View style={[styles.iconCircle, { backgroundColor: isDark ? '#121722' : '#ffffff', borderColor: colors.accent }]}>
-        <Text style={{ fontSize: 24 }}>✨</Text>
+        <MaterialCommunityIcons name="robot-happy-outline" size={28} color={colors.accent} />
       </View>
       <View style={styles.badge}>
         <Text style={styles.badgeText}>HOGO AI</Text>

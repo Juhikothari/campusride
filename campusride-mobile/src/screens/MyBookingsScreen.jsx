@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert as RNAlert, RefreshControl, Linking,
-  DeviceEventEmitter,
+  DeviceEventEmitter, Modal, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +25,16 @@ const STATUS_COLOR = {
 };
 const STATUS_ICON = { pending: '⏳', accepted: '✅', rejected: '❌', cancelled: '🚫' };
 const VEHICLE_ICON = { motorcycle: '🏍️', car: '🚗', suv: '🚙', xuv: '🛻' };
+
+const CANCELLATION_REASONS = [
+  'Change in Plans',
+  'Found Another Ride',
+  'Rider Delay',
+  'Pickup / Destination Changed',
+  'Safety Concerns',
+  'Emergency / Personal Reason',
+  'Other Reason',
+];
 
 function getAddr(field) {
   if (!field) return '—';
@@ -51,8 +61,35 @@ export default function MyBookingsScreen({ navigation }) {
   const [refreshing,  setRefreshing]  = useState(false);
   const [error,       setError]       = useState('');
   const [expandedBookings, setExpandedBookings] = useState({});
+  const [cancelModalBooking, setCancelModalBooking] = useState(null);
+  const [selectedReason, setSelectedReason] = useState(CANCELLATION_REASONS[0]);
+  const [customReason, setCustomReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   const toggleDetails = (id) => setExpandedBookings(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const openCancelModal = (b) => {
+    setCancelModalBooking(b);
+    setSelectedReason(CANCELLATION_REASONS[0]);
+    setCustomReason('');
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelModalBooking) return;
+    const finalReason = selectedReason === 'Other Reason' ? (customReason.trim() || 'Other Reason') : selectedReason;
+    setCancelling(true);
+    try {
+      await api.cancelBooking(cancelModalBooking._id, finalReason);
+      const rId = cancelModalBooking.rideId?._id || cancelModalBooking.rideId;
+      if (rId) DeviceEventEmitter.emit('BOOKING_STATUS_CHANGED', { rideId: rId, status: 'cancelled' });
+      setBookings(prev => prev.map(b => b._id === cancelModalBooking._id ? { ...b, status: 'cancelled', cancelReason: finalReason } : b));
+      setCancelModalBooking(null);
+    } catch (e) {
+      RNAlert.alert('Error', e.message || 'Failed to cancel');
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const cacheKey = `@cached_my_bookings_${user?._id || user?.userId || 'guest'}`;
 
@@ -98,26 +135,6 @@ export default function MyBookingsScreen({ navigation }) {
       <EmptyState icon="🚫" title="Access Denied" subtitle="Only seekers can view their bookings." action={() => navigation.goBack()} actionLabel="Go Back" />
     </SafeAreaView>
   );
-
-  const cancelBooking = (id) => {
-    RNAlert.alert('Cancel Booking', 'Are you sure you want to cancel this booking?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.cancelBooking(id);
-            const cancelled = bookings.find(b => b._id === id);
-            const rId = cancelled?.rideId?._id || cancelled?.rideId;
-            if (rId) DeviceEventEmitter.emit('BOOKING_STATUS_CHANGED', { rideId: rId, status: 'cancelled' });
-            setBookings(prev => prev.map(b => b._id === id ? { ...b, status: 'cancelled' } : b));
-          } catch (e) {
-            RNAlert.alert('Error', e.message || 'Failed to cancel');
-          }
-        },
-      },
-    ]);
-  };
 
   if (loading) return (
     <SafeAreaView style={styles.safe}>
@@ -240,7 +257,7 @@ export default function MyBookingsScreen({ navigation }) {
                         </View>
                       )}
                       {canCancel && (
-                        <Btn label="✕ Cancel Booking" onPress={() => cancelBooking(b._id)} variant="danger" />
+                        <Btn label="✕ Cancel Booking" onPress={() => openCancelModal(b)} variant="danger" />
                       )}
                       {isCancelled && (
                         <Alert message={`Ride cancelled${ride?.cancelReason ? `. Reason: ${ride.cancelReason}` : ''}`} />
@@ -256,6 +273,92 @@ export default function MyBookingsScreen({ navigation }) {
           })
         )}
       </ScrollView>
+
+      {/* ── Cancellation Reason Modal ── */}
+      <Modal
+        visible={!!cancelModalBooking}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!cancelling) setCancelModalBooking(null); }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: isDark ? '#141a24' : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
+            <Text style={[styles.modalTitle, { color: isDark ? colors.text : '#0f172a' }]}>Reason for Cancellation</Text>
+            <Text style={[styles.modalSubtitle, { color: isDark ? colors.text2 : '#64748b' }]}>
+              Please select why you are cancelling this booking:
+            </Text>
+
+            <ScrollView style={{ maxHeight: 260, marginVertical: 10 }}>
+              {CANCELLATION_REASONS.map((reason) => {
+                const isSel = selectedReason === reason;
+                return (
+                  <TouchableOpacity
+                    key={reason}
+                    style={[
+                      styles.reasonOption,
+                      {
+                        backgroundColor: isSel
+                          ? (isDark ? 'rgba(245,166,35,0.15)' : '#fffbeb')
+                          : (isDark ? colors.surface2 : '#f8fafc'),
+                        borderColor: isSel ? colors.accent : (isDark ? colors.border : '#e2e8f0'),
+                      }
+                    ]}
+                    onPress={() => setSelectedReason(reason)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.radioCircle, { borderColor: isSel ? colors.accent : '#94a3b8' }]}>
+                      {isSel && <View style={styles.radioDot} />}
+                    </View>
+                    <Text style={[styles.reasonText, { color: isSel ? (isDark ? colors.accent : '#b45309') : (isDark ? colors.text : '#1e293b'), fontWeight: isSel ? '700' : '500' }]}>
+                      {reason}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {selectedReason === 'Other Reason' && (
+              <TextInput
+                style={[
+                  styles.customReasonInput,
+                  {
+                    color: isDark ? colors.text : '#0f172a',
+                    backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                    borderColor: isDark ? colors.border : '#cbd5e1',
+                  }
+                ]}
+                placeholder="Enter specific cancellation reason..."
+                placeholderTextColor={isDark ? colors.text3 : '#94a3b8'}
+                value={customReason}
+                onChangeText={setCustomReason}
+                multiline
+                numberOfLines={2}
+              />
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                style={[styles.modalBtnCancel, { borderColor: isDark ? colors.border : '#cbd5e1' }]}
+                onPress={() => setCancelModalBooking(null)}
+                disabled={cancelling}
+              >
+                <Text style={{ color: isDark ? colors.text2 : '#475569', fontWeight: '700' }}>Keep Booking</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtnConfirm, cancelling && { opacity: 0.6 }]}
+                onPress={confirmCancel}
+                disabled={cancelling}
+              >
+                {cancelling ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: '800' }}>Confirm Cancel</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Floating HOGO AI Assistant Button */}
       <FloatingChatBot />
@@ -373,5 +476,79 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     marginTop: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: radius.xl,
+    padding: 20,
+    borderWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  reasonOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  radioCircle: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  radioDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: colors.accent,
+  },
+  reasonText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  customReasonInput: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: 10,
+    fontSize: 13,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  modalBtnCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.red,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

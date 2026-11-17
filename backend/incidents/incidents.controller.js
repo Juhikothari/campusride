@@ -2,29 +2,75 @@ const { notifyAdmins } = require('../notifications/notifications.helper');
 const User = require('../users/users.model');
 const Incident = require('./incidents.model');
 
+function computeIncidentSeverity(type = '', subject = '', description = '') {
+  const combined = `${type} ${subject} ${description}`.toLowerCase();
+
+  // Critical: accident, assault, kidnap, collision, physical violence, medical emergency
+  if (
+    combined.includes('accident') || combined.includes('collision') ||
+    combined.includes('assault') || combined.includes('kidnap') ||
+    combined.includes('violence') || combined.includes('medical')
+  ) {
+    return 'Critical';
+  }
+
+  // High: harassment, threat, rash driving, safety intervention, near-miss, dangerous, security, theft, robbery
+  if (
+    combined.includes('harassment') || combined.includes('threat') ||
+    combined.includes('rash driving') || combined.includes('unsafe') ||
+    combined.includes('near-miss') || combined.includes('dangerous') ||
+    combined.includes('theft') || combined.includes('robbery') ||
+    combined.includes('security') || combined.includes('safety')
+  ) {
+    return 'High';
+  }
+
+  // Medium: misuse, fraud, fake identity/booking, verbal abuse, rude, fare dispute, non-payment, vehicle damage, spills, prohibited items, traffic
+  if (
+    combined.includes('fake') || combined.includes('privacy') ||
+    combined.includes('fraud') || combined.includes('misuse') ||
+    combined.includes('fare dispute') || combined.includes('non-payment') ||
+    combined.includes('verbal abuse') || combined.includes('rude') ||
+    combined.includes('damage') || combined.includes('spills') ||
+    combined.includes('prohibited') || combined.includes('traffic') ||
+    combined.includes('law enforcement')
+  ) {
+    return 'Medium';
+  }
+
+  // Low: notification, ride, app crash, glitch, booking, pickup, cancellation, breakdown, tyre, fuel
+  return 'Low';
+}
+
 exports.reportIncident = async (req, res) => {
   try {
     const { rideId, type, subject, description, severity } = req.body;
     if (!rideId || !type || !description)
       return res.status(400).json({ message: 'rideId, type and description are required' });
+
+    const determinedSeverity = severity || computeIncidentSeverity(type, subject, description);
+
     const incident = new Incident({
       rideId,
       reportedBy: req.user.userId,
-      type, subject: subject || '', description, severity: severity || 'Medium'
+      type,
+      subject: subject || '',
+      description,
+      severity: determinedSeverity,
     });
     await incident.save();
 
     // Notify administrators immediately of reported incident
     User.findById(req.user.userId).select('name college').then(reporter => {
       notifyAdmins({
-        title: `⚠️ New Incident Reported (${severity || 'Medium'})`,
+        title: `⚠️ New Incident Reported (${determinedSeverity})`,
         message: `${reporter?.name || 'A user'} reported an incident: ${subject || type}. "${(description || '').slice(0, 100)}"`,
         type: 'incident_report',
         data: {
           incidentId: incident._id,
           rideId,
           type,
-          severity: severity || 'Medium',
+          severity: determinedSeverity,
           reportedBy: req.user.userId,
         },
         priority: 'critical',
@@ -48,6 +94,7 @@ exports.addEvidence = async (req, res) => {
 exports.getMyIncidents = async (req, res) => {
   try {
     const incidents = await Incident.find({ reportedBy: req.user.userId })
+      .select('-severity')
       .populate('rideId', 'date time pickup drop')
       .sort({ createdAt: -1 });
     res.json(incidents);

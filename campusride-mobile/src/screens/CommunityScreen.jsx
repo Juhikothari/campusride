@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity,
   FlatList, Keyboard, KeyboardAvoidingView, Platform, StyleSheet,
-  ActivityIndicator, Alert as RNAlert, Image, Modal, Dimensions,
+  ActivityIndicator, Alert as RNAlert, Image, Modal, Dimensions, Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
@@ -944,6 +945,8 @@ function CollegeChatTab({ user }) {
   const sitcomLounge = getCollegeSitcomLounge(user?.college);
   const [messages, setMessages] = useState([]);
   const [input,    setInput]    = useState('');
+  const [chatFile, setChatFile] = useState(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [loading,  setLoading]  = useState(true);
   const [anonymous,setAnonymous]= useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -1006,14 +1009,75 @@ function CollegeChatTab({ user }) {
     return () => socket.disconnect();
   }, [user?.college]);
 
-  const sendMsg = () => {
-    if (!input.trim() || !socketRef.current) return;
+  const pickChatDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain',
+          'application/vnd.ms-excel',
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+      const file = result.assets[0];
+
+      // Block images and videos explicitly
+      const isImageOrVideo = (file.mimeType && (file.mimeType.startsWith('image/') || file.mimeType.startsWith('video/'))) ||
+        /\.(jpe?g|png|gif|webp|bmp|svg|mp4|mov|avi|mkv|wmv|3gp)$/i.test(file.name || '');
+
+      if (isImageOrVideo) {
+        RNAlert.alert('Only Documents Allowed', 'Only files and PDFs can be attached in college chat. Images and videos are not allowed.');
+        return;
+      }
+
+      setChatFile({
+        uri: file.uri,
+        name: file.name || 'document.pdf',
+        size: file.size || 0,
+        mimeType: file.mimeType || 'application/pdf',
+      });
+    } catch (err) {
+      RNAlert.alert('Error', err.message || 'Could not select document');
+    }
+  };
+
+  const sendMsg = async () => {
+    if ((!input.trim() && !chatFile) || !socketRef.current || uploadingFile) return;
+
+    let fileAttachment = null;
+    if (chatFile) {
+      try {
+        setUploadingFile(true);
+        const uploadedUrl = await uploadToCloudinaryWithRetry(chatFile.uri, { type: 'pdf' });
+        fileAttachment = {
+          url: uploadedUrl,
+          name: chatFile.name,
+          size: chatFile.size,
+          fileType: 'pdf',
+        };
+      } catch (err) {
+        RNAlert.alert('Upload Failed', 'Failed to upload document. Please try again.');
+        setUploadingFile(false);
+        return;
+      } finally {
+        setUploadingFile(false);
+      }
+    }
+
     socketRef.current.emit('send-community-message', {
       userId: user._id || user.userId,
       message: input.trim(),
       anonymous,
+      fileAttachment,
     });
     setInput('');
+    setChatFile(null);
   };
 
   const deleteMsg = (messageId) => {
@@ -1095,7 +1159,39 @@ function CollegeChatTab({ user }) {
                         {item.senderUsn ? ` · ${getDisplayUSN(item.senderUsn, 'Buddy')}` : ''}
                       </Text>
                     )}
-                    <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
+                    {item.fileAttachment?.url && (
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          if (item.fileAttachment?.url) {
+                            Linking.openURL(item.fileAttachment.url).catch(() => {
+                              RNAlert.alert('Unable to open', 'Could not open document link.');
+                            });
+                          }
+                        }}
+                        style={[
+                          styles.chatDocCard,
+                          {
+                            backgroundColor: isMe ? 'rgba(0,0,0,0.1)' : (isDark ? '#0f172a' : '#ffffff'),
+                            borderColor: isMe ? 'rgba(0,0,0,0.15)' : (isDark ? '#334155' : '#cbd5e1')
+                          }
+                        ]}
+                      >
+                        <Text style={{ fontSize: 22, marginRight: 8 }}>📄</Text>
+                        <View style={{ flex: 1, marginRight: 6 }}>
+                          <Text style={[styles.chatDocName, isMe ? { color: '#000000' } : { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
+                            {item.fileAttachment.name || 'Document.pdf'}
+                          </Text>
+                          <Text style={[styles.chatDocMeta, isMe ? { color: 'rgba(0,0,0,0.6)' } : { color: isDark ? '#94a3b8' : '#64748b' }]}>
+                            {item.fileAttachment.size ? `${(item.fileAttachment.size / 1024).toFixed(0)} KB · ` : ''}Tap to open
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 15 }}>⬇️</Text>
+                      </TouchableOpacity>
+                    )}
+                    {item.message ? (
+                      <Text style={[styles.msgText, isMe ? styles.msgTextMe : { color: isDark ? colors.text : '#0f172a' }]}>{item.message}</Text>
+                    ) : null}
                     {timeStr ? (
                       <Text style={{
                         fontSize: 9.5,
@@ -1114,6 +1210,28 @@ function CollegeChatTab({ user }) {
             }}
           />
         )}
+        {chatFile && (
+          <View style={[
+            styles.chatFilePreviewRow,
+            {
+              backgroundColor: isDark ? '#162235' : '#f1f5f9',
+              borderTopColor: isDark ? '#26344d' : '#e2e8f0',
+            }
+          ]}>
+            <Text style={{ fontSize: 18, marginRight: 8 }}>📄</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.chatFileName, { color: isDark ? '#ffffff' : '#0f172a' }]} numberOfLines={1}>
+                {chatFile.name}
+              </Text>
+              <Text style={{ color: isDark ? '#8b96b0' : '#64748b', fontSize: 10 }}>
+                {chatFile.size ? `${(chatFile.size / 1024).toFixed(0)} KB · Ready to send` : 'Ready to send'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={() => setChatFile(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={{ color: colors.red, fontSize: 16, fontWeight: '800', paddingHorizontal: 6 }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={[
           styles.chatInput,
           {
@@ -1129,6 +1247,14 @@ function CollegeChatTab({ user }) {
             activeOpacity={0.7}
           >
             <Text style={{ fontSize: 20 }}>{anonymous ? '🎭' : '🎓'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={pickChatDocument}
+            style={{ padding: 8, justifyContent: 'center', alignItems: 'center' }}
+            activeOpacity={0.7}
+            disabled={uploadingFile}
+          >
+            <Text style={{ fontSize: 20 }}>📎</Text>
           </TouchableOpacity>
           <TextInput
             style={[
@@ -1156,8 +1282,17 @@ function CollegeChatTab({ user }) {
             textAlignVertical="center"
             returnKeyType="default"
           />
-          <TouchableOpacity style={styles.sendBtn} onPress={sendMsg} activeOpacity={0.8}>
-            <Text style={{ color: '#000', fontSize: 16, fontWeight: '800' }}>➤</Text>
+          <TouchableOpacity
+            style={[styles.sendBtn, uploadingFile && { opacity: 0.7 }]}
+            onPress={sendMsg}
+            activeOpacity={0.8}
+            disabled={uploadingFile}
+          >
+            {uploadingFile ? (
+              <ActivityIndicator color="#000" size="small" />
+            ) : (
+              <Text style={{ color: '#000', fontSize: 16, fontWeight: '800' }}>➤</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -1560,5 +1695,32 @@ const styles = StyleSheet.create({
     color: colors.text3,
     fontSize: 13.5,
     fontWeight: '600',
+  },
+  chatDocCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginVertical: 4,
+  },
+  chatDocName: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  chatDocMeta: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  chatFilePreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+  },
+  chatFileName: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

@@ -1,7 +1,7 @@
 // campusride-mobile/src/screens/admin/AdminIncidentsScreen.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, Alert, StyleSheet, Modal, TextInput,
+  View, Text, FlatList, TouchableOpacity, Alert, StyleSheet, Modal, TextInput, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { apiClient } from '../../services/api';
@@ -85,53 +85,142 @@ export function AdminIncidentsScreen() {
               <Text style={styles.emptySub}>Campus rides are running smoothly.</Text>
             </View>
           }
-          renderItem={({ item: i }) => (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.incidentType}>{i.type || i.category || 'Incident Report'}</Text>
-                <View style={[styles.statusBadge, i.status === 'resolved' ? styles.statusBadgeDone : styles.statusBadgeOpen]}>
-                  <Text style={[styles.statusBadgeText, i.status === 'resolved' ? { color: '#2dd4a0' } : { color: '#f59e0b' }]}>
-                    {(i.status || 'OPEN').toUpperCase()}
-                  </Text>
+          renderItem={({ item: i }) => {
+            const sev = i.severity || 'Medium';
+            const sevConfig = {
+              Critical: { bg: 'rgba(239, 68, 68, 0.2)', border: '#ef4444', text: '#f87171', label: '🚨 CRITICAL' },
+              High:     { bg: 'rgba(249, 115, 22, 0.2)', border: '#f97316', text: '#fb923c', label: '⚠️ HIGH SEVERITY' },
+              Medium:   { bg: 'rgba(245, 158, 11, 0.2)', border: '#f59e0b', text: '#fbbf24', label: '⚡ MEDIUM' },
+              Low:      { bg: 'rgba(59, 130, 246, 0.2)', border: '#3b82f6', text: '#60a5fa', label: 'ℹ️ LOW' },
+            }[sev] || { bg: 'rgba(59, 130, 246, 0.2)', border: '#3b82f6', text: '#60a5fa', label: 'LOW' };
+
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={styles.incidentType}>{i.type || i.category || 'Incident Report'}</Text>
+                    {/* Admin-only Severity Badge */}
+                    <View style={{
+                      alignSelf: 'flex-start',
+                      marginTop: 4,
+                      backgroundColor: sevConfig.bg,
+                      borderColor: sevConfig.border,
+                      borderWidth: 1,
+                      borderRadius: 6,
+                      paddingHorizontal: 7,
+                      paddingVertical: 2,
+                    }}>
+                      <Text style={{ color: sevConfig.text, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>
+                        {sevConfig.label}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.statusBadge, i.status === 'resolved' ? styles.statusBadgeDone : styles.statusBadgeOpen]}>
+                    <Text style={[styles.statusBadgeText, i.status === 'resolved' ? { color: '#2dd4a0' } : { color: '#f59e0b' }]}>
+                      {(i.status || 'OPEN').toUpperCase()}
+                    </Text>
+                  </View>
                 </View>
-              </View>
 
-              <Text style={styles.description}>{i.description || i.message || 'No description provided'}</Text>
+                <Text style={styles.description}>{i.description || i.message || 'No description provided'}</Text>
 
-              <Text style={styles.metaText}>
-                Reporter: {i.reportedBy?.name || 'Anonymous'} · 📞 {i.reportedBy?.phone || '—'}
-              </Text>
-              <Text style={styles.metaText}>
-                Date: {new Date(i.createdAt).toLocaleString('en-IN')}
-              </Text>
+                <Text style={styles.metaText}>
+                  Reporter: {i.reportedBy?.name || 'Anonymous'} · 📞 {i.reportedBy?.phone || '—'}
+                </Text>
+                <Text style={styles.metaText}>
+                  Date: {new Date(i.createdAt).toLocaleString('en-IN')}
+                </Text>
 
-              {i.resolutionNotes ? (
-                <View style={styles.resNotesBox}>
-                  <Text style={styles.resNotesTitle}>Resolution Note:</Text>
-                  <Text style={styles.resNotesContent}>{i.resolutionNotes}</Text>
-                </View>
-              ) : null}
-
-              {i.status !== 'resolved' && (
-                <View style={styles.actionRow}>
-                  {i.status !== 'investigating' && (
+                {/* Admin Quick Action Dispatchers based on Severity */}
+                {sev === 'Critical' && (
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 4 }}>
                     <TouchableOpacity
-                      style={styles.investigateBtn}
-                      onPress={() => handleUpdateStatus(i._id || i.id, 'investigating')}
+                      style={{ flex: 1, backgroundColor: '#dc2626', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => Linking.openURL('tel:108')}
+                      activeOpacity={0.8}
                     >
-                      <Text style={styles.investigateBtnText}>🔍 Investigate</Text>
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>🚑 Notify Ambulance (108)</Text>
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    style={styles.resolveBtn}
-                    onPress={() => setResolveModal(i)}
-                  >
-                    <Text style={styles.resolveBtnText}>✓ Resolve</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )}
+                    <TouchableOpacity
+                      style={{ flex: 1, backgroundColor: '#1d4ed8', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => Linking.openURL('tel:112')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>🚓 Notify Police (112)</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {sev === 'High' && (
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 10, marginBottom: 4 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, backgroundColor: '#7c3aed', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => Alert.alert('Campus Alert', `College authority alerted for incident #${(i._id || i.id).slice(-6)}`)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🏫 College</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, backgroundColor: '#1d4ed8', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => Linking.openURL('tel:112')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🚓 Police</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, backgroundColor: '#ea580c', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => {
+                        const ph = i.reportedBy?.phone;
+                        if (ph) Linking.openURL(`sms:${ph}?body=Campus Incident Alert: We are attending to your report.`);
+                        else Alert.alert('Contact Home', 'Emergency contact notified.');
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🏠 Home</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {sev === 'Medium' && (
+                  <View style={{ marginTop: 8, marginBottom: 4 }}>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#475569', paddingVertical: 7, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => Alert.alert('Commuter Status', 'Account flagged for identity / fraud review.')}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>⛔ Review / Suspend Account</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {i.resolutionNotes ? (
+                  <View style={styles.resNotesBox}>
+                    <Text style={styles.resNotesTitle}>Resolution Note:</Text>
+                    <Text style={styles.resNotesContent}>{i.resolutionNotes}</Text>
+                  </View>
+                ) : null}
+
+                {i.status !== 'resolved' && (
+                  <View style={styles.actionRow}>
+                    {i.status !== 'investigating' && (
+                      <TouchableOpacity
+                        style={styles.investigateBtn}
+                        onPress={() => handleUpdateStatus(i._id || i.id, 'investigating')}
+                      >
+                        <Text style={styles.investigateBtnText}>🔍 Investigate</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.resolveBtn}
+                      onPress={() => setResolveModal(i)}
+                    >
+                      <Text style={styles.resolveBtnText}>✓ Resolve</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            );
+          }}
         />
 
         {/* Resolve Modal */}

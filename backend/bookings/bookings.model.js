@@ -42,6 +42,8 @@ const bookingSchema = new mongoose.Schema({
   // 4-digit code the seeker tells the provider at pickup. Hidden from normal queries.
   pickupCode:   { type: String, select: false },
   codeAttempts: { type: Number, default: 0, select: false },
+  cancelReason: { type: String, default: '' },
+  cancelledAt:  { type: Date },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);

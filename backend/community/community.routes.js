@@ -50,6 +50,7 @@ const handleGetChatMessages = async (req, res) => {
         college: obj.college,
         message: obj.message,
         anonymous: isAnon,
+        fileAttachment: obj.fileAttachment || null,
         createdAt: obj.createdAt,
         ...(isAdmin ? { _adminSenderInfo: `${obj.sender?.name} (${obj.sender?.usn || 'no USN'})` } : {}),
       };

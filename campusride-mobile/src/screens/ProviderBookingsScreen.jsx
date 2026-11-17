@@ -41,14 +41,17 @@ export default function ProviderBookingsScreen({ navigation }) {
   const { user } = useAuth();
   const isProvider = user?.role === 'provider' || user?.role === 'both';
 
-  const [myRides,       setMyRides]       = useState([]);
-  const [selectedRide,  setSelectedRide]  = useState(null);
-  const [bookings,      setBookings]      = useState([]);
-  const [ridesLoading,  setRidesLoading]  = useState(true);
-  const [bkLoading,     setBkLoading]     = useState(false);
-  const [refreshing,    setRefreshing]    = useState(false);
-  const [error,         setError]         = useState('');
-  const [actionMap,     setActionMap]     = useState({});
+  const [myRides,         setMyRides]         = useState([]);
+  const [selectedRide,    setSelectedRide]    = useState(null);
+  const [expandedRideIds, setExpandedRideIds] = useState({});
+  const [bookings,        setBookings]        = useState([]);
+  const [ridesLoading,    setRidesLoading]    = useState(true);
+  const [bkLoading,       setBkLoading]       = useState(false);
+  const [refreshing,      setRefreshing]      = useState(false);
+  const [error,           setError]           = useState('');
+  const [actionMap,       setActionMap]       = useState({});
+
+  const toggleExpand = (id) => setExpandedRideIds(prev => ({ ...prev, [id]: !prev[id] }));
 
   const { socket, notifications } = useSocket(user?._id || user?.userId, 'provider');
 
@@ -71,6 +74,7 @@ export default function ProviderBookingsScreen({ navigation }) {
       if (sorted.length && !selectedRide) {
         setSelectedRide(sorted[0]);
         loadBookings(sorted[0]._id);
+        setExpandedRideIds({ [sorted[0]._id]: true });
       }
     } catch (e) { setError(e.message || 'Failed to load rides'); }
     finally { setRidesLoading(false); setRefreshing(false); }
@@ -150,112 +154,125 @@ export default function ProviderBookingsScreen({ navigation }) {
         ) : (
           <>
             <Text style={styles.sectionLabel}>YOUR POSTED RIDES</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }}>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {myRides.map(r => {
-                  const cfg = RIDE_STATUS_CONFIG[r.status] || RIDE_STATUS_CONFIG.active;
-                  const isSelected = selectedRide?._id === r._id;
-                  return (
+            <View style={{ gap: 10, marginBottom: spacing.md }}>
+              {myRides.map(r => {
+                const cfg = RIDE_STATUS_CONFIG[r.status] || RIDE_STATUS_CONFIG.active;
+                const isSelected = selectedRide?._id === r._id;
+                const isExpanded = !!expandedRideIds[r._id];
+                return (
+                  <View
+                    key={r._id}
+                    style={[
+                      styles.verticalRideCard,
+                      {
+                        backgroundColor: isDark ? colors.surface : '#ffffff',
+                        borderColor: isSelected ? colors.accent : (isDark ? colors.border : '#cbd5e1'),
+                      },
+                      isSelected && { borderWidth: 1.5 },
+                    ]}
+                  >
                     <TouchableOpacity
-                      key={r._id}
-                      style={[
-                        styles.rideChip,
-                        {
-                          backgroundColor: isDark ? colors.surface : (isSelected ? '#fffbeb' : '#ffffff'),
-                          borderColor: isSelected ? colors.accent : (isDark ? colors.border : '#cbd5e1'),
-                        },
-                        isSelected && styles.rideChipActive,
-                      ]}
-                      onPress={() => { setSelectedRide(r); loadBookings(r._id); }}
+                      style={styles.verticalRideHeader}
+                      onPress={() => {
+                        setSelectedRide(r);
+                        loadBookings(r._id);
+                        toggleExpand(r._id);
+                      }}
+                      activeOpacity={0.7}
                     >
-                      <Text style={{ fontSize: 14 }}>{cfg.icon}</Text>
-                      <View>
-                        <Text style={[styles.rideChipDate, { color: isSelected ? colors.accent : (isDark ? colors.text : '#0f172a') }]}>{fmtDate(r.date)} · {r.time}</Text>
-                        <Text style={[styles.rideChipRoute, { color: isDark ? colors.text2 : '#64748b' }]} numberOfLines={1}>
+                      <Text style={{ fontSize: 18, marginRight: 10 }}>{cfg.icon}</Text>
+                      <View style={{ flex: 1, marginRight: 8 }}>
+                        <Text style={[styles.verticalRideDate, { color: isSelected ? colors.accent : (isDark ? colors.text : '#0f172a') }]}>
+                          {fmtDate(r.date)} · {r.time}
+                        </Text>
+                        <Text style={[styles.verticalRideRoute, { color: isDark ? colors.text2 : '#64748b' }]} numberOfLines={1}>
                           {getAddr(r.pickup)} → {getAddr(r.drop)}
                         </Text>
                       </View>
+                      <View style={[styles.dropdownToggleBadge, { backgroundColor: isDark ? 'rgba(245,166,35,0.12)' : '#fffbeb' }]}>
+                        <Text style={[styles.dropdownToggleText, { color: colors.accent }]}>
+                          {isExpanded ? '▲ Hide' : '▼ Details'}
+                        </Text>
+                      </View>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
+
+                    {/* Collapsible Details Dropdown */}
+                    {isExpanded && (
+                      <View style={[styles.verticalRideDetails, { borderTopColor: isDark ? colors.border : '#f1f5f9' }]}>
+                        {/* Vehicle & Plate */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                          <Text style={{ fontSize: 24 }}>
+                            {r.vehicleType === 'motorcycle' || r.vehicleType === 'bike' ? '🏍️' : '🚗'}
+                          </Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: colors.text, fontSize: 15, fontWeight: '800' }}>
+                              {r.vehicleName || 'Vehicle'}
+                            </Text>
+                            <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 1 }}>
+                              {r.vehicleNumber ? `Reg: ${r.vehicleNumber}` : 'Verified Campus Vehicle'}
+                            </Text>
+                          </View>
+                          {r.status !== 'completed' && r.status !== 'cancelled' && (
+                            <TouchableOpacity
+                              onPress={() => navigation.navigate('RideDetail', { rideId: r._id })}
+                              style={styles.viewDetailBadge}
+                            >
+                              <Text style={styles.viewDetailText}>Full View ↗</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Route */}
+                        <View style={[styles.routeBox, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', marginBottom: 10 }]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                            <Text style={{ fontSize: 12, marginTop: 2 }}>🟢</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>PICKUP</Text>
+                              <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(r.pickup)}</Text>
+                            </View>
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                            <Text style={{ fontSize: 12, marginTop: 2 }}>🔴</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>DROP</Text>
+                              <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(r.drop)}</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        {/* Metadata pills */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                          <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
+                            <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>🗓 {fmtDate(r.date)}</Text>
+                          </View>
+                          <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
+                            <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>⏰ {r.time}</Text>
+                          </View>
+                          <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
+                            <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>
+                              💺 {r.status === 'completed'
+                                ? `${r.bookedSeats || 1} seats booked`
+                                : `${r.seatsAvailable} seats available`}
+                            </Text>
+                          </View>
+                          {Boolean(r.womenOnly) && (
+                            <View style={[styles.metaChip, { backgroundColor: 'rgba(233,30,99,0.15)', borderColor: 'rgba(233,30,99,0.4)' }]}>
+                              <Text style={[styles.metaChipText, { color: '#ff4081' }]}>♀ Women Only</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
           </>
         )}
 
-        {/* Selected ride details + bookings */}
+        {/* Selected ride controls & bookings */}
         {selectedRide && (
           <>
-            {/* Selected Ride Details Card */}
-            <View style={[styles.selectedRideCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.accent : '#f59e0b' }]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <Text style={styles.selectedRideTitle}>SELECTED RIDE DETAILS</Text>
-                {selectedRide.status !== 'completed' && selectedRide.status !== 'cancelled' && (
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate('RideDetail', { rideId: selectedRide._id })}
-                    style={styles.viewDetailBadge}
-                  >
-                    <Text style={styles.viewDetailText}>Full View ↗</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Vehicle & Plate */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <Text style={{ fontSize: 24 }}>
-                  {selectedRide.vehicleType === 'motorcycle' || selectedRide.vehicleType === 'bike' ? '🏍️' : '🚗'}
-                </Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontSize: 16, fontWeight: '800' }}>
-                    {selectedRide.vehicleName || 'Vehicle'}
-                  </Text>
-                  <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '700', marginTop: 2 }}>
-                    {selectedRide.vehicleNumber ? `Reg: ${selectedRide.vehicleNumber}` : 'Verified Campus Vehicle'}
-                  </Text>
-                </View>
-                
-              </View>
-
-              {/* Route */}
-              <View style={[styles.routeBox, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, marginTop: 2 }}>🟢</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>PICKUP</Text>
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(selectedRide.pickup)}</Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                  <Text style={{ fontSize: 13, marginTop: 2 }}>🔴</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>DROP</Text>
-                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(selectedRide.drop)}</Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Metadata pills */}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>🗓 {fmtDate(selectedRide.date)}</Text>
-                </View>
-                <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>⏰ {selectedRide.time}</Text>
-                </View>
-                <View style={[styles.metaChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
-                  <Text style={[styles.metaChipText, { color: isDark ? colors.text : '#0f172a' }]}>
-                    💺 {selectedRide.status === 'completed'
-                      ? `${selectedRide.bookedSeats || 1} seats booked`
-                      : `${selectedRide.seatsAvailable} seats available`}
-                  </Text>
-                </View>
-                {Boolean(selectedRide.womenOnly) && (
-                  <View style={[styles.metaChip, { backgroundColor: 'rgba(233,30,99,0.15)', borderColor: 'rgba(233,30,99,0.4)' }]}>
-                    <Text style={[styles.metaChipText, { color: '#ff4081' }]}>♀ Women Only</Text>
-                  </View>
-                )}
-              </View>
-            </View>
 
 
 
@@ -479,6 +496,39 @@ const styles = StyleSheet.create({
   scroll: { padding: spacing.md, paddingBottom: 48 },
   title:  { color: colors.text, fontSize: 24, fontWeight: '800', marginBottom: spacing.md },
   sectionLabel: { color: colors.text3, fontSize: 11, fontWeight: '700', letterSpacing: 1, marginBottom: 8, marginTop: 4 },
+  verticalRideCard: {
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  verticalRideHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+  },
+  verticalRideDate: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  verticalRideRoute: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dropdownToggleBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.md,
+  },
+  dropdownToggleText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  verticalRideDetails: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
   rideChip: {
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     borderRadius: radius.lg, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 180,

@@ -618,7 +618,9 @@ exports.cancelBooking = async (req, res) => {
       }
     }
 
+    const reason = req.body?.reason || req.query?.reason || 'Seeker cancelled ride';
     booking.status = 'cancelled';
+    booking.cancelReason = reason;
     booking.cancelledAt = new Date();
     await booking.save();
 

@@ -541,19 +541,27 @@ export function NotificationsScreen({ navigation }) {
     }
   }));
 
-  const serverBookingIds = new Set(
-    serverNotifs.map(n => {
-      try {
-        const inner = (typeof n.data === 'string' ? JSON.parse(n.data) : n.data) || {};
-        return String(inner.bookingId || inner.rideId || n.rideId || '');
-      } catch {
-        return String(n.rideId || '');
-      }
-    }).filter(Boolean)
-  );
+  const knownBookingIds = new Set();
+  const knownRideIds = new Set();
+
+  serverNotifs.forEach(n => {
+    if (n.rideId) knownRideIds.add(String(n.rideId));
+    try {
+      const inner = (typeof n.data === 'string' ? JSON.parse(n.data) : n.data) || {};
+      if (inner.bookingId) knownBookingIds.add(String(inner.bookingId));
+      if (inner.rideId) knownRideIds.add(String(inner.rideId));
+      if (inner.ride?._id) knownRideIds.add(String(inner.ride._id));
+    } catch (_) {}
+  });
 
   const seekerNotifs = bookings
-    .filter(b => !serverBookingIds.has(String(b._id)) && !serverBookingIds.has(String(b.rideId?._id || b.rideId || '')))
+    .filter(b => {
+      const bId = String(b._id);
+      const rId = String(b.rideId?._id || b.rideId || '');
+      if (knownBookingIds.has(bId) || knownRideIds.has(rId)) return false;
+      if (b.status === 'accepted' && serverNotifs.length > 0) return false;
+      return true;
+    })
     .map(b => ({
     id: b._id,
     isRead: readIds.has(b._id) || b.status === 'completed' || b.status === 'cancelled' || b.status === 'rejected',
@@ -598,8 +606,16 @@ export function NotificationsScreen({ navigation }) {
     }))
   );
 
+  const seenNotifSignatures = new Set();
   const allNotifs = [...directNotifs, ...seekerNotifs, ...providerNotifs]
-    .filter(n => !clearedIds.has(n.id))
+    .filter(n => {
+      if (clearedIds.has(n.id)) return false;
+      // Deduplicate similar booking accepted notifications
+      const sig = `${n.title}_${n.body}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (seenNotifSignatures.has(sig)) return false;
+      seenNotifSignatures.add(sig);
+      return true;
+    })
     .sort((a, b) => new Date(b.time) - new Date(a.time));
 
   function timeAgo(d) {
@@ -1185,47 +1201,26 @@ export function RouteAlertsScreen({ navigation }) {
 //  INCIDENT REPORT SCREEN (Images 3, 4, 5 UI Redesign)
 // ═══════════════════════════════════════════════════════════════
 const PASSENGER_INCIDENT_CATEGORIES = [
-  'No Show at Pickup Spot',
-  'Rude / Abusive Behaviour',
-  'Harassment / Misconduct',
-  'Refused to Pay Agreed Fare',
-  'Cancelled Ride at Last Minute',
-  'Brought Extra Unregistered Passengers',
-  'Vehicle Damage / Spills / Littering',
-  'Under Influence of Alcohol or Drugs',
-  'Threatened Driver or Co-passengers',
-  'Privacy Violation / Filming without Consent',
-  'Fake Booking / Identity Mismatch',
-  'Wrong Pickup or Drop Location Given',
-  'Verbal Abuse or Inappropriate Language',
-  'Physical Aggression or Intimidation',
-  'Carried Prohibited / Hazardous Items',
-  'Left Vehicle Without Fare Confirmation',
-  'Safety Threat / Unsafe Commuter Behavior',
-  'Interference with Vehicle Controls / Driving',
-  'Excessive Delay at Pickup (>10 mins)',
-  'Other Passenger Incident',
+  'Physical Threat, Violence, or Harassment',
+  'Verbal Abuse or Rude Behavior',
+  'Fare Dispute or Non-Payment',
+  'Booking, Pickup, or Cancellation Issue',
+  'Vehicle Damage, Spills, or Prohibited Items',
+  'Fake Booking or Privacy Violation',
+  'Other',
 ];
 
 const RIDER_ROAD_INCIDENT_CATEGORIES = [
+  'Near-Miss / Dangerous Situation',
   'Accident / Collision',
-  'Near-Miss / Close Call',
-  'Vehicle Breakdown Mid-Ride',
-  'Tyre Puncture Mid-Ride',
-  'Fuel Ran Out Mid-Ride',
-  'Rash Driving by Another Vehicle',
-  'Road Rage by Another Driver',
-  'Pothole / Road Hazard Caused Damage',
-  'Traffic Signal / Law Enforcement Stop',
-  'Vehicle Stolen During Ride',
-  'Vehicle Damage (External Hazard)',
-  'Medical Emergency — Rider',
-  'Medical Emergency — Passenger',
-  'Natural Hazard (Flooding, Fallen Tree etc.)',
-  'Third-Party Collision (Hit by Another Vehicle)',
-  'Phone Snatching / Robbery',
-  'Other Road / Safety Incident',
-  'Other',
+  'Vehicle Breakdown / Problem',
+  'Tyre / Fuel Problem',
+  'Unsafe / Rash Driving',
+  'Road Hazard / External Damage',
+  'Medical Emergency',
+  'Security / Theft / Robbery',
+  'Traffic / Law Enforcement Issue',
+  'Other Incident',
 ];
 
 export function IncidentReportScreen({ navigation }) {

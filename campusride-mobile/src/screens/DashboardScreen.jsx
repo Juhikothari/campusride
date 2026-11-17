@@ -27,13 +27,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAIN_SERVICES = [
   {
     key: 'SearchRides',
-    title: 'Find a Ride · Need a Ride',
+    title: 'Find a Ride',
     sub: 'Match with commuters on your route',
     iconBg: '#1a2233',
   },
   {
     key: 'CreateRide',
-    title: 'Share Your Ride',
+    title: 'Need a Ride',
     sub: 'Offer a ride and travel together',
     iconBg: '#1c2630',
   },
@@ -241,7 +241,7 @@ export default function DashboardScreen({ navigation }) {
       step: 2,
       icon: '🔍',
       tagline: 'NEVER COMMUTE ALONE',
-      title: 'Find a Ride · Need a Ride',
+      title: 'Find a Ride',
       desc: 'Need a ride? Connect with verified peers heading along your exact route in seconds. Commute together effortlessly.',
       btnLabel: 'Next →',
       targetKey: 'SearchRides',
@@ -251,7 +251,7 @@ export default function DashboardScreen({ navigation }) {
       step: 3,
       icon: '🏍️',
       tagline: 'EMPTY SEATS? SHARE THE RIDE',
-      title: 'Share Your Ride',
+      title: 'Need a Ride',
       desc: 'Riding or driving to campus? Post your route, pick up verified classmates, and travel to college together with ease.',
       btnLabel: 'Next →',
       targetKey: 'CreateRide',
@@ -642,29 +642,6 @@ export default function DashboardScreen({ navigation }) {
                 <Text style={{ fontSize: 13, marginRight: 4 }}>🏫</Text>
                 <Text style={[styles.heroCollege, { color: isDark ? colors.text2 : '#475569' }]} numberOfLines={1}>{collegeName}</Text>
               </View>
-            </View>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <TouchableOpacity
-                onPress={toggleTheme}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: isDark ? '#1a2234' : '#f1f5f9',
-                  paddingHorizontal: 12,
-                  paddingVertical: 7,
-                  borderRadius: 20,
-                  borderWidth: 1,
-                  borderColor: isDark ? '#2e3a52' : '#cbd5e1',
-                  gap: 6,
-                }}
-                activeOpacity={0.8}
-              >
-                <Text style={{ fontSize: 14 }}>{isDark ? '☀️' : '🌙'}</Text>
-                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#f1f5f9' : '#0f172a' }}>
-                  {isDark ? 'Light' : 'Dark'}
-                </Text>
-              </TouchableOpacity>
             </View>
           </View>
         </View>

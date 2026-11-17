@@ -162,7 +162,7 @@ export const getRideRequests   = ()     => request('/booking/requests');
 export const getRideBookings   = (rideId) => request(`/booking/ride/${rideId}`);
 export const acceptBooking     = (id)   => request('/booking/respond', { method:'PUT', body: JSON.stringify({ bookingId: id, status: 'accepted' }) });
 export const rejectBooking     = (id)   => request('/booking/respond', { method:'PUT', body: JSON.stringify({ bookingId: id, status: 'rejected' }) });
-export const cancelBooking     = (id)   => request(`/booking/${id}/cancel`, { method:'DELETE' });
+export const cancelBooking     = (id, reason) => request(`/booking/${id}/cancel`, { method:'DELETE', body: { reason } });
 
 // ── Ratings ───────────────────────────────────────────
 export const submitRating      = (body) => request('/ratings', { method:'POST', body: JSON.stringify(body) });
