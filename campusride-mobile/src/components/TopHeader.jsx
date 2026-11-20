@@ -31,12 +31,15 @@ function getHeaderEmoji(title) {
   return '🛵';
 }
 
-export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack, highlightProfile = false }) {
+export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack, highlightProfile = false, showNotification }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
   const { isDark, toggleTheme, colors: tc } = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   const [unreadCount, setUnreadCount]   = useState(0);
+
+  const isForgotOrReset = (title || '').toLowerCase().includes('forgot') || (title || '').toLowerCase().includes('reset password');
+  const displayNotification = showNotification !== undefined ? showNotification : !isForgotOrReset;
 
   const isProvider = user?.role === 'provider' || user?.role === 'both';
   const isAdmin    = user?.role === 'admin';
@@ -181,27 +184,29 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
 
         {/* Right Actions */}
         <View style={styles.rightActions}>
-          {/* Notification Button */}
-          <TouchableOpacity
-            style={[
-              styles.iconBtn,
-              {
-                backgroundColor: isDark ? colors.surface : '#f1f5f9',
-                borderColor: isDark ? colors.border : '#cbd5e1',
-              }
-            ]}
-            onPress={() => navTo('Notifications')}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={`Notifications, ${unreadCount} unread`}
-          >
-            <Text style={{ fontSize: 20 }}>🔔</Text>
-            {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* Notification Button (hidden on forgot password screens) */}
+          {displayNotification && (
+            <TouchableOpacity
+              style={[
+                styles.iconBtn,
+                {
+                  backgroundColor: isDark ? colors.surface : '#f1f5f9',
+                  borderColor: isDark ? colors.border : '#cbd5e1',
+                }
+              ]}
+              onPress={() => navTo('Notifications')}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Notifications, ${unreadCount} unread`}
+            >
+              <Text style={{ fontSize: 20 }}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
 
           {/* Profile Avatar Button */}
           <TouchableOpacity

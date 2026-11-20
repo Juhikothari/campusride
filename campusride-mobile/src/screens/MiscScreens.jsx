@@ -2110,7 +2110,7 @@ export function ForgotPasswordScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Forgot Password" subtitle="Account Recovery" showBack={true} />
+      <TopHeader title="Forgot Password" subtitle="Account Recovery" showBack={true} showNotification={false} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

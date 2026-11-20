@@ -5,14 +5,14 @@ const Booking = require('../bookings/bookings.model');
 const User = require('../users/users.model');
 const Notification = require('../notifications/notifications.model');
 
-// Base fares & rates per km as configured (Bike: 15, Car/SUV/XUV: 20)
+// Base fares & rates per km as configured (Bike: 15/5, Car: 20/7, SUV: 22/8.5, XUV: 25/10)
 const BASE_FARES = {
   motorcycle: 15,
   bike: 15,
   scooter: 15,
   car: 20,
-  suv: 20,
-  xuv: 20,
+  suv: 22,
+  xuv: 25,
 };
 
 const PER_KM_RATES = {
@@ -20,16 +20,17 @@ const PER_KM_RATES = {
   bike: 5,
   scooter: 5,
   car: 7,
-  suv: 7,
+  suv: 8.5,
   xuv: 10,
 };
 
 const calculateFare = (distanceKm, vehicleType) => {
   const vt = (vehicleType || 'car').toLowerCase();
-  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 15 : 20);
-  const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 5 : 7));
+  const is2W = vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter');
+  const base = BASE_FARES[vt] !== undefined ? BASE_FARES[vt] : (is2W ? 15 : (vt === 'xuv' ? 25 : (vt === 'suv' ? 22 : 20)));
+  const perKm = PER_KM_RATES[vt] !== undefined ? PER_KM_RATES[vt] : (is2W ? 5 : (vt === 'xuv' ? 10 : (vt === 'suv' ? 8.5 : 7)));
   
-  const d = Math.max(1, distanceKm || 1);
+  const d = Math.max(0.5, distanceKm || 1);
   if (d <= 1.0) {
     return base;
   }

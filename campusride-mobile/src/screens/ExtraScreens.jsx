@@ -1338,7 +1338,7 @@ export function ResetPasswordScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Reset Password" subtitle="Account Security" showBack={true} />
+      <TopHeader title="Reset Password" subtitle="Account Security" showBack={true} showNotification={false} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1705,7 +1705,7 @@ const FAQS = [
   { q: 'How do I reset my password?',     a: "Go to login and tap 'Forgot Password'. Enter your college email and we'll send an OTP." },
   { q: 'My booking is not showing up',     a: 'Go to My Bookings and pull to refresh. Check your internet connection.' },
   { q: 'Why is my KYC pending?',           a: 'KYC is reviewed by admins within 24–48 hours. You\'ll get a notification once approved.' },
-  { q: 'Can I cancel a booking?',          a: 'Yes — go to My Bookings, find the booking and tap Cancel. Allowed until the ride starts.' },
+  { q: 'Can I cancel a booking?',          a: 'Yes — go to My Bookings, find the booking and tap Cancel.' },
   { q: 'I didn\'t receive my OTP',         a: 'Check your spam folder. Use your college email. Wait 2 mins and try resend.' },
   { q: 'How do I report a safety issue?',  a: 'Go to Report Incident from the dashboard. For emergencies, use the SOS button in live tracking.' },
   { q: 'Why can\'t I start my ride?',      a: 'Accept at least one booking request first. Go to Ride Requests and accept a booking.' },

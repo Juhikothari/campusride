@@ -636,11 +636,18 @@ export default function ProfileScreen({ navigation }) {
       <FloatingChatBot />
 
       {/* Modal: Add Vehicle with 24-hr Admin Review Notice */}
-      <Modal visible={showVehicleModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-            <Text style={[styles.modalTitle, { color: themeColors.text }]}>🚗 Add Vehicle</Text>
-            <Text style={[styles.modalSub, { color: themeColors.text2 }]}>
+      <Modal visible={showVehicleModal} animationType="fade" transparent onRequestClose={() => setShowVehicleModal(false)}>
+        <View style={[styles.modalOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(15, 23, 42, 0.5)' }]}>
+          <View style={[
+            styles.modalContent,
+            {
+              backgroundColor: isDark ? '#141824' : '#ffffff',
+              borderColor: isDark ? colors.border : '#e2e8f0',
+              borderWidth: 1.5,
+            }
+          ]}>
+            <Text style={[styles.modalTitle, { color: isDark ? '#edf0f7' : '#0f172a' }]}>🚗 Add Vehicle</Text>
+            <Text style={[styles.modalSub, { color: isDark ? '#8b96b0' : '#475569' }]}>
               Enter your vehicle details. Campus admin will verify your vehicle within 24 hours.
             </Text>
 
@@ -653,6 +660,7 @@ export default function ProfileScreen({ navigation }) {
               onChangeText={t => setVNum(t.toUpperCase())}
               placeholder="e.g. KA02AB1234"
               autoCapitalize="characters"
+              forceDark={isDark}
             />
 
             <Input
@@ -662,37 +670,85 @@ export default function ProfileScreen({ navigation }) {
               onChangeText={setVName}
               placeholder="e.g. Honda Activa, Swift"
               autoCapitalize="words"
+              forceDark={isDark}
             />
 
-            <Text style={styles.typeLabel}>VEHICLE TYPE</Text>
+            <Text style={[styles.typeLabel, { color: isDark ? '#8b96b0' : '#475569' }]}>VEHICLE TYPE</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
               {[
                 { val: 'motorcycle', label: '🏍 Bike' },
-                { val: 'car', label: '🚗 Car' },
-                { val: 'suv', label: '🚙 SUV' },
-                { val: 'xuv', label: '🛻 XUV' },
-              ].map(t => (
-                <TouchableOpacity
-                  key={t.val}
-                  onPress={() => setVType(t.val)}
-                  style={[styles.typeChip, vType === t.val && styles.typeChipActive]}
-                >
-                  <Text style={[styles.typeChipText, vType === t.val && styles.typeChipTextActive]}>
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                { val: 'car',        label: '🚗 Car' },
+                { val: 'suv',        label: '🚙 SUV' },
+                { val: 'xuv',        label: '🛻 XUV' },
+              ].map(t => {
+                const isSel = vType === t.val;
+                return (
+                  <TouchableOpacity
+                    key={t.val}
+                    onPress={() => setVType(t.val)}
+                    style={[
+                      styles.typeChip,
+                      {
+                        backgroundColor: isSel
+                          ? (isDark ? 'rgba(245,166,35,0.18)' : '#fef3c7')
+                          : (isDark ? '#161c2a' : '#f1f5f9'),
+                        borderColor: isSel
+                          ? (isDark ? '#f5a623' : '#d97706')
+                          : (isDark ? '#212840' : '#cbd5e1'),
+                        borderWidth: isSel ? 1.5 : 1,
+                      }
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.typeChipText,
+                      {
+                        color: isSel
+                          ? (isDark ? '#f5a623' : '#b45309')
+                          : (isDark ? '#8b96b0' : '#475569'),
+                        fontWeight: isSel ? '800' : '600',
+                      }
+                    ]}>
+                      {t.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
-            <View style={styles.noticeBox24h}>
-              <Text style={styles.noticeText24h}>
+            <View style={[
+              styles.noticeBox24h,
+              {
+                backgroundColor: isDark ? 'rgba(245, 166, 35, 0.1)' : '#fffbeb',
+                borderColor: isDark ? 'rgba(245, 166, 35, 0.3)' : '#fde68a',
+              }
+            ]}>
+              <Text style={[
+                styles.noticeText24h,
+                { color: isDark ? '#f5a623' : '#b45309' }
+              ]}>
                 ⏱️ Verification will be done by admin in 24 hrs. Once approved, you can offer rides on campus.
               </Text>
             </View>
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
-              <Btn label="Submit Vehicle" onPress={handleSaveVehicle} loading={vSaving} style={{ flex: 1 }} />
-              <Btn label="Cancel" onPress={() => setShowVehicleModal(false)} variant="outline" style={{ flex: 1 }} />
+              <Btn
+                label="Submit Vehicle"
+                onPress={handleSaveVehicle}
+                loading={vSaving}
+                style={{ flex: 1 }}
+                textStyle={{ fontSize: 13 }}
+              />
+              <Btn
+                label="Cancel"
+                onPress={() => setShowVehicleModal(false)}
+                variant="outline"
+                style={[
+                  { flex: 1 },
+                  !isDark && { borderColor: '#cbd5e1' }
+                ]}
+                textStyle={!isDark && { color: '#0f172a' }}
+              />
             </View>
           </View>
         </View>

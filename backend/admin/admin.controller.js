@@ -448,6 +448,131 @@ exports.suspendUser = async (req, res) => {
   }
 };
 
+// ── POST /api/admin/users/warn ──────────────────────────────────
+exports.warnUser = async (req, res) => {
+  try {
+    const userId = req.body.userId || req.params.id;
+    const { incidentId, reason = 'Policy / Safety warning' } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === 'admin') return res.status(400).json({ message: 'Cannot issue warning to admin' });
+
+    user.warningsCount = (Number(user.warningsCount) || 0) + 1;
+    if (!user.warningsHistory) user.warningsHistory = [];
+    user.warningsHistory.push({
+      warningNumber: user.warningsCount,
+      reason,
+      incidentId: incidentId || null,
+      issuedAt: new Date()
+    });
+
+    let autoSuspended = false;
+    if (user.warningsCount >= 3) {
+      user.suspended = true;
+      user.suspendedUntil = new Date(Date.now() + 30 * 24 * 3600000); // 30-day suspension
+      user.suspensionReason = `Account suspended after accumulating 3 warnings: ${reason}`;
+      autoSuspended = true;
+    }
+    await user.save();
+
+    if (autoSuspended) {
+      await notifyUser(
+        userId,
+        '⛔ Account Suspended (3/3 Warnings)',
+        `Your account has been suspended following your 3rd warning. Reason: ${reason}. Please contact campus support to appeal.`,
+        'account_suspended',
+        { warningsCount: user.warningsCount, reason }
+      );
+    } else {
+      await notifyUser(
+        userId,
+        `⚠️ Safety Warning (${user.warningsCount}/3)`,
+        `You have received an official campus warning (${user.warningsCount} of 3). Reason: ${reason}. Reaching 3 warnings will result in automatic account suspension.`,
+        'account_warning',
+        { warningsCount: user.warningsCount, reason }
+      );
+    }
+
+    await AuditLog.create({
+      action: 'WARN_USER',
+      adminId: req.user.userId,
+      targetId: userId,
+      meta: { warningsCount: user.warningsCount, autoSuspended, reason, userName: user.name, incidentId }
+    });
+
+    res.json({
+      success: true,
+      message: autoSuspended
+        ? `Warning 3/3 issued. User ${user.name} has been automatically suspended.`
+        : `Warning ${user.warningsCount}/3 issued to ${user.name}.`,
+      warningsCount: user.warningsCount,
+      suspended: user.suspended,
+      user: {
+        _id: user._id,
+        name: user.name,
+        warningsCount: user.warningsCount,
+        suspended: user.suspended,
+        suspendedUntil: user.suspendedUntil
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ── POST /api/admin/users/revoke-sanctions ──────────────────────
+exports.revokeSanctions = async (req, res) => {
+  try {
+    const userId = req.body.userId || req.params.id;
+    const { incidentId, reason = 'Sanctions revoked by administrator' } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.warningsCount = 0;
+    user.suspended = false;
+    user.suspendedUntil = null;
+    user.suspensionReason = '';
+    user.blocked = false;
+    user.isBlocked = false;
+    user.blockReason = '';
+    user.blockedAt = null;
+    user.blockedBy = null;
+    await user.save();
+
+    await notifyUser(
+      userId,
+      '✅ Account Sanctions Revoked',
+      'All warnings have been cleared and your account suspension/restrictions have been revoked by the administrator. Full access is restored.',
+      'sanctions_revoked',
+      { reason }
+    );
+
+    await AuditLog.create({
+      action: 'REVOKE_SANCTIONS',
+      adminId: req.user.userId,
+      targetId: userId,
+      meta: { reason, userName: user.name, incidentId }
+    });
+
+    res.json({
+      success: true,
+      message: `Sanctions revoked for ${user.name}. Warnings reset to 0 and account unsuspended.`,
+      warningsCount: 0,
+      suspended: false,
+      user: {
+        _id: user._id,
+        name: user.name,
+        warningsCount: 0,
+        suspended: false
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 // ── POST /api/admin/users/block & unblock ────────────────────────
 exports.blockUser = async (req, res) => {
   try {
@@ -658,8 +783,12 @@ exports.deleteRide = exports.forceCancelRide;
 exports.getAllIncidents = async (req, res) => {
   try {
     const incidents = await Incident.find()
-      .populate('reportedBy', 'name email phone college')
-      .populate('rideId', 'pickup drop date time status')
+      .populate('reportedBy', 'name email phone college warningsCount suspended suspensionReason')
+      .populate({
+        path: 'rideId',
+        select: 'pickup drop date time status providerId',
+        populate: { path: 'providerId', select: 'name email phone college warningsCount suspended suspensionReason' }
+      })
       .sort({ createdAt: -1 });
     res.json(incidents);
   } catch (err) {

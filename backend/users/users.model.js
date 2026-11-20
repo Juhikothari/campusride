@@ -31,6 +31,14 @@ const userSchema = new mongoose.Schema({
   suspended: { type: Boolean, default: false },
   suspendedUntil: { type: Date, default: null },
   suspensionReason: { type: String, default: '' },
+  warningsCount: { type: Number, default: 0 },
+  warningsHistory: [{
+    warningNumber: Number,
+    reason: String,
+    severity: String,
+    incidentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Incident' },
+    issuedAt: { type: Date, default: Date.now },
+  }],
   kycRejectionReason: { type: String, default: '' },
 
   // Block user fields

@@ -97,15 +97,16 @@ export default function RegisterScreen({ navigation }) {
         c.city.toLowerCase().includes(q)
       );
     }
-    // Clean "Other (College Not Listed)" option so user can easily choose it anytime
+    // Clean "Other" option so user can select it anytime without yellow highlight
     const otherOption = {
-      name: '➕ Other (College Not Listed)',
+      name: 'Other',
       short: 'OTHER',
-      city: 'Custom Campus',
+      city: 'Tap to enter your college name',
       isOther: true,
-      customName: collegeSearch.trim(),
     };
-    return [...list, otherOption];
+    // Ensure "Other" is only present once (at the bottom or top)
+    const filteredList = list.filter(c => c.name !== 'Other' && !c.isOther);
+    return [otherOption, ...filteredList];
   }, [collegeSearch, remoteColleges]);
 
   const addVehicleRow = () => {
@@ -402,7 +403,7 @@ export default function RegisterScreen({ navigation }) {
                 activeOpacity={0.8}
               >
                 <Text style={college ? styles.dropdownTextActive : styles.dropdownTextPlaceholder} numberOfLines={1}>
-                  {isCustomCollege ? (college || '✏️ Enter Custom College Below') : (college || 'Search your college or ...')}
+                  {isCustomCollege ? (college || 'Other') : (college || 'Search your college or ...')}
                 </Text>
                 <Text style={{ color: colors.text3, fontSize: 12 }}>▼</Text>
               </TouchableOpacity>
@@ -411,7 +412,7 @@ export default function RegisterScreen({ navigation }) {
                   style={[styles.textInput, { marginTop: 6, borderColor: colors.accent }]}
                   value={college}
                   onChangeText={setCollege}
-                  placeholder="Type your college name..."
+                  placeholder="Enter your college name..."
                   placeholderTextColor={colors.text3}
                   autoFocus
                 />
@@ -625,7 +626,6 @@ export default function RegisterScreen({ navigation }) {
                   style={[
                     styles.collegeItem,
                     college === item.name && styles.collegeItemActive,
-                    item.isOther && { backgroundColor: 'rgba(245,166,35,0.08)', borderColor: colors.accent, borderWidth: 1, borderRadius: radius.md, marginVertical: 4 }
                   ]}
                   onPress={() => {
                     if (item.isOther) {
@@ -639,11 +639,11 @@ export default function RegisterScreen({ navigation }) {
                     setCollegeSearch('');
                   }}
                 >
-                  <Text style={[styles.collegeItemName, (college === item.name || item.isOther) && { color: colors.accent, fontWeight: '800' }]}>
+                  <Text style={[styles.collegeItemName, college === item.name && { color: colors.accent, fontWeight: '800' }]}>
                     {item.name}
                   </Text>
                   <Text style={styles.collegeItemCity}>
-                    {item.isOther ? '✏️ Tap to enter your custom college name' : `📍 ${item.city} (${item.short})`}
+                    {item.isOther ? 'Tap to enter your college name' : `📍 ${item.city} (${item.short})`}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -659,7 +659,7 @@ export default function RegisterScreen({ navigation }) {
                       setCollegeSearch('');
                     }}
                   >
-                    <Text style={styles.customCollegeText}>➕ Enter "{collegeSearch.trim() || 'My College'}"</Text>
+                    <Text style={styles.customCollegeText}>Select Other</Text>
                   </TouchableOpacity>
                 </View>
               }

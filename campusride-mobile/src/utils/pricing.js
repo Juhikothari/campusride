@@ -13,19 +13,30 @@ export function haversineDistanceKm(lat1, lon1, lat2, lon2) {
   return parseFloat((R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(2));
 }
 
-export function calculateRideFare(distKm, vehicleType = 'car') {
+export function getBaseFare(vehicleType = 'car') {
   const vt = (vehicleType || 'car').toLowerCase();
-  const is2W = vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter');
-  const base = is2W ? 15 : 20; // Reduced base price: Bike=15, Car/SUV/XUV=20
-  const perKm = is2W ? 5 : (vt === 'xuv' ? 10 : 7);
+  if (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') || vt === '2w') return 15;
+  if (vt === 'xuv') return 25;
+  if (vt === 'suv') return 22;
+  return 20; // car
+}
+
+export function getPerKmRate(vehicleType = 'car') {
+  const vt = (vehicleType || 'car').toLowerCase();
+  if (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') || vt === '2w') return 5;
+  if (vt === 'xuv') return 10;
+  if (vt === 'suv') return 8.5;
+  return 7; // car
+}
+
+export function calculateRideFare(distKm, vehicleType = 'car') {
+  const base = getBaseFare(vehicleType);
+  const perKm = getPerKmRate(vehicleType);
 
   const d = Math.max(0.5, Number(distKm) || 1);
   if (d <= 1.0) {
     return base;
   }
-  // Strictly different price per kilometer:
-  // Car: 1km=20, 2km=34, 3km=41, 4km=48, 5km=55
-  // Bike: 1km=15, 2km=25, 3km=30, 4km=35, 5km=40
   return Math.round(base + (d * perKm));
 }
 

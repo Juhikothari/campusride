@@ -4,6 +4,12 @@ const router = express.Router();
 
 const COLLEGES = [
   {
+    "name": "Other",
+    "short": "OTHER",
+    "city": "Other College",
+    "isOther": true
+  },
+  {
     "name": "RNS Institute of Technology (RNSIT)",
     "short": "RNSIT",
     "city": "Bengaluru"
@@ -1782,6 +1788,1376 @@ const COLLEGES = [
     "name": "T.A. Pai Management Institute (TAPMI Manipal)",
     "short": "TAPMI",
     "city": "Manipal"
+  },
+  {
+    "name": "BNM Institute of Technology (BNMIT)",
+    "short": "BNMIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "AMC Engineering College",
+    "short": "AEC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "APS College of Engineering",
+    "short": "ACE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BTL Institute of Technology",
+    "short": "BIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "City Engineering College",
+    "short": "CEC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "CMR Institute of Technology",
+    "short": "CIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Channabasaveshwara Institute of Technology",
+    "short": "CIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Institute of Technology",
+    "short": "BIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Technological Institute",
+    "short": "BTI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS College of Engineering & Technology",
+    "short": "BCET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BES College of Engineering & Technology",
+    "short": "BCET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sambhram Institute of Technology",
+    "short": "SIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sambhram College of Engineering",
+    "short": "SCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sapthagiri College of Engineering",
+    "short": "SCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Venkateshwara College of Engineering",
+    "short": "SVCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Sairam College of Engineering",
+    "short": "SSCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Pillappa College of Engineering",
+    "short": "SPCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MS Ramaiah University of Applied Sciences",
+    "short": "MRUA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RV University",
+    "short": "RU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Azim Premji University",
+    "short": "APU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Alliance College of Engineering and Design",
+    "short": "ACED",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore University - University / Visvesvaraya College of Engineering",
+    "short": "BUUV",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore University - Jnana Bharathi Campus",
+    "short": "BUJB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bengaluru North University",
+    "short": "BNU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bengaluru City University",
+    "short": "BCU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "NITTE Bengaluru - Nitte Institute of Technology",
+    "short": "NBNI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MS Ramaiah University",
+    "short": "MRU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Symbiosis International University - Bengaluru",
+    "short": "SIUB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Manipal Academy of Higher Education - Bengaluru Campus",
+    "short": "MAHE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "S-VYASA University",
+    "short": "SU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Sri University / Sri Sri College-related degree institutions",
+    "short": "SSUS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Seshadripuram First Grade College",
+    "short": "SFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Seshadripuram First Grade College, Yelahanka",
+    "short": "SFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BMS College for Women",
+    "short": "BCW",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Maharani's Women's College",
+    "short": "MWC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government First Grade College, Malleshwaram",
+    "short": "GFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government First Grade College, Vijayanagar",
+    "short": "GFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government First Grade College, Varthur",
+    "short": "GFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Acharya Institute of Graduate Studies",
+    "short": "AIGS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Acharya Institute of Management & Sciences",
+    "short": "AIMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Al-Ameen Arts, Science & Commerce College",
+    "short": "AASC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Presidency College",
+    "short": "PC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Community Institute of Commerce and Management Studies",
+    "short": "CICM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "S.B. College of Management Studies",
+    "short": "SCMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "City College",
+    "short": "CC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Christ Academy Institute for Advanced Studies",
+    "short": "CAIA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Benedictine Academy",
+    "short": "BA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Besant Women's College / BES College",
+    "short": "BWCB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Silicon City College",
+    "short": "SCC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Srushti College",
+    "short": "SC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krupanidhi College",
+    "short": "KC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krupanidhi Degree College",
+    "short": "KDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vidya Sanskaar Institute of Science, Commerce & Management",
+    "short": "VSIS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Sai Institute of Management Science",
+    "short": "SSIM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MVM College of Speech and Hearing",
+    "short": "MCSH",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Al-Ameen College",
+    "short": "AC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Columbia College",
+    "short": "CC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Ramnarayan Chellaram College of Commerce",
+    "short": "RCCC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "ESIC Medical College & PGIMSR",
+    "short": "EMCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS Medical College & Hospital",
+    "short": "BMCH",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS Global Institute of Medical Sciences",
+    "short": "BGIM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "East Point College of Medical Sciences & Research Centre",
+    "short": "EPCM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Hosmat Institute of Medical Sciences",
+    "short": "HIMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Akash Institute of Medical Sciences & Research Centre",
+    "short": "AIMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Kidwai Memorial Institute of Oncology",
+    "short": "KMIO",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Shri Atal Bihari Vajpayee Medical College & Research Institute",
+    "short": "SABV",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "NIMHANS",
+    "short": "N",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Siddaganga Medical College & Research Institute",
+    "short": "SMCR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Institute of Dental Sciences & Hospital",
+    "short": "BIDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS Global Institute of Dental Sciences & Hospital",
+    "short": "BGID",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "D.A. Pandu Memorial R.V. Dental College",
+    "short": "DPMR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government Dental College & Research Institute",
+    "short": "GDCR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "KLE Society's Institute of Dental Sciences",
+    "short": "KSID",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krishnadevaraya College of Dental Sciences & Hospital",
+    "short": "KCDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "M.R. Ambedkar Dental College",
+    "short": "MADC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "M.S. Ramaiah Dental College",
+    "short": "MRDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Maaruti College of Dental Sciences & Research Centre",
+    "short": "MCDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Rajarajeshwari Dental College & Hospital",
+    "short": "RDCH",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Rajiv Gandhi College of Dental Sciences & Hospital",
+    "short": "SRGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Venkateshwara Dental College & Hospital",
+    "short": "SVDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vokkaligara Sangha Dental College & Hospital",
+    "short": "VSDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vydehi Institute of Dental Sciences & Research",
+    "short": "VIDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "The Oxford Dental College",
+    "short": "ODC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Ramaiah College of Law",
+    "short": "RCL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Kristu Jayanti College of Law",
+    "short": "KJCL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Institute of Legal Studies",
+    "short": "BILS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "St. Joseph's College of Law",
+    "short": "SJCL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "KLE Law College",
+    "short": "KLC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RV Institute of Legal Studies",
+    "short": "RILS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "AL-Ameen College of Law",
+    "short": "ACL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "NMIMS School of Law, Bengaluru",
+    "short": "NSLB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "CMR University School of Legal Studies",
+    "short": "CUSL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "University Law College, Bangalore University",
+    "short": "ULCB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "ACS College of Engineering (Kengeri)",
+    "short": "KENGERI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "APS College of Engineering (Somanahalli)",
+    "short": "ACE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Alpha College of Engineering (Sahakar Nagar)",
+    "short": "ACE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Adarsha Institute of Technology (Chintamani Road)",
+    "short": "AIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Akshaya Institute of Technology (Tumkur Road)",
+    "short": "AIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Amrutha Institute of Engineering and Management Sciences (Bidadi)",
+    "short": "BIDADI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Achutha Institute of Technology (Nelamangala)",
+    "short": "AIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore College of Engineering & Technology (Chandapura)",
+    "short": "BCET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Technological Institute (Chandapura)",
+    "short": "BTI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS College of Engineering & Technology (Mahalakshmipuram)",
+    "short": "BCET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS Institute of Technology (BG Nagara - Bengaluru Rural)",
+    "short": "BIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BTL Institute of Technology (Bommasandra)",
+    "short": "BIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Brindavan College of Engineering (Yelahanka)",
+    "short": "BCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BNM Institute of Technology",
+    "short": "BIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "City Engineering College (Kanakapura Road)",
+    "short": "CEC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Channabasaveshwara Institute of Technology (Gubbi - Bengaluru Rural)",
+    "short": "CIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "East West Institute of Technology (Magadi Road)",
+    "short": "EWIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Ghousia College of Engineering (Ramanagara)",
+    "short": "GCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Global Academy of Technology",
+    "short": "GAT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Impact College of Engineering and Applied Sciences (Kodigehalli)",
+    "short": "ICEA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Islamiah Institute of Technology (Bangalore)",
+    "short": "IIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Jnanavikasa Institute of Technology (Bidadi)",
+    "short": "BIDADI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Jyothi Institute of Technology (Kanakapura Road)",
+    "short": "JIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "KNS Institute of Technology (Yelahanka)",
+    "short": "KIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Nagarjuna College of Engineering & Technology (Devanahalli)",
+    "short": "NCET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Nadgir Institute of Engineering and Technology (Hesaraghatta)",
+    "short": "NIET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Nandi Institute of Technology and Management Sciences (Koppa Gate)",
+    "short": "NITM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Rajarajeswari College of Engineering (RRCE Mysore Road)",
+    "short": "RCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sambhram Institute of Technology (MS Palya)",
+    "short": "MS PALYA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sapthagiri College of Engineering (Hesaraghatta)",
+    "short": "SCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "SEA College of Engineering and Technology (Virgonagar)",
+    "short": "SCET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Shirdi Sai Engineering College (Anekal)",
+    "short": "ANEKAL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Krishna Institute of Technology (Chikkabanavara)",
+    "short": "SKIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Sairam College of Engineering (Anekal)",
+    "short": "ANEKAL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Revana Siddeshwara Institute of Technology (Chikkaballapur Road)",
+    "short": "SRSI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Pillappa College of Engineering (Chikkaballapur Road)",
+    "short": "SPCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Venkateshwara College of Engineering (Vidyanagar)",
+    "short": "SVCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Venkateshwara College of Engineering & Technology (Chikkajala)",
+    "short": "SVCE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "T. John Institute of Technology (Gottigere)",
+    "short": "TJIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vivekananda Institute of Technology (Kumbalgodu)",
+    "short": "VIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Yellamma Dasappa Institute of Technology (Chikkaballapur Road)",
+    "short": "YDIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BMS Evening College of Engineering (Basavanagudi)",
+    "short": "BECE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "S.C.T. Institute of Technology (Kaggadasapura)",
+    "short": "SIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Shridevi Institute of Engineering and Technology (Tumkur - Bengaluru Rural)",
+    "short": "SIET",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "SJB Institute of Technology",
+    "short": "SIT",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RV University (Mysore Road)",
+    "short": "RU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MS Ramaiah University of Applied Sciences (MSR Nagar)",
+    "short": "MRUA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Azim Premji University (Sarjapur Road)",
+    "short": "APU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bengaluru North University (Tamaka, Kolar Road - Bengaluru Rural)",
+    "short": "BNU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bengaluru City University (Central College Campus)",
+    "short": "BCU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "NITTE University - Bengaluru Campus (Yelahanka)",
+    "short": "NUBC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Symbiosis International University - Bengaluru (Electronic City)",
+    "short": "SIUB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Manipal Academy of Higher Education - Bengaluru Campus (Yelahanka)",
+    "short": "MAHE",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "S-VYASA University (Jigani)",
+    "short": "JIGANI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Garden City University (Virgonagar)",
+    "short": "GCU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "KLE Technological University - Bengaluru Campus",
+    "short": "KTUB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "CMR University",
+    "short": "CU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Dayananda Sagar University",
+    "short": "DSU",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Seshadripuram First Grade College (Seshadripuram)",
+    "short": "SFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BMS College for Women (Basavanagudi)",
+    "short": "BCW",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Maharani Lakshmi Ammanni College for Women (Malleshwaram)",
+    "short": "MLAC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government Arts College, KR Circle",
+    "short": "GACK",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Acharya Institute of Graduate Studies (Soladevanahalli)",
+    "short": "AIGS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Acharya Institute of Management & Sciences (Peenya)",
+    "short": "PEENYA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Al-Ameen Arts, Science & Commerce College (Hosur Road)",
+    "short": "AASC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Presidency College (Hebbal)",
+    "short": "HEBBAL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "City College (Jayanagar)",
+    "short": "CC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Christ Academy Institute for Advanced Studies (Begur)",
+    "short": "BEGUR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BES College (Jayanagar)",
+    "short": "BC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Silicon City College (Konanakunte)",
+    "short": "SCC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krupanidhi College (Chikka Bellandur)",
+    "short": "KC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krupanidhi Degree College (Carmelaram)",
+    "short": "KDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vidya Sanskaar Institute of Science, Commerce & Management (K.R. Puram)",
+    "short": "VSIS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Sai Institute of Management Science (Hesaraghatta)",
+    "short": "SSIM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MVM College of Speech and Hearing (Yelahanka)",
+    "short": "MCSH",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Columbia College (Ganganagar)",
+    "short": "CC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Ramnarayan Chellaram College of Commerce (Lalbagh Road)",
+    "short": "RCCC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "S.B. College of Management Studies (Yelahanka)",
+    "short": "SCMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Srushti College (Yelahanka)",
+    "short": "SC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "St. Paul's College (Nagasandra)",
+    "short": "SPC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "St. Francis College (Koramangala)",
+    "short": "SFC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bishop Cotton Women's Christian College (Mission Road)",
+    "short": "BCWC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Indian Academy Degree College (Hennur)",
+    "short": "HENNUR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Garden City College of Science & Management (Virgonagar)",
+    "short": "GCCS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "IFIM College (Electronic City)",
+    "short": "IC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "IIFA Lancaster Degree College (Kalyan Nagar)",
+    "short": "ILDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Jain College (VV Puram / Jayanagar)",
+    "short": "JC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Baldwin Methodist College (Richmond Road)",
+    "short": "BMC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Baldwin Women's Methodist College (Richmond Road)",
+    "short": "BWMC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Oxford College of Science (HSR Layout)",
+    "short": "OCS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Oxford College of Arts (HSR Layout)",
+    "short": "OCA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "The Oxford College of Business Management (HSR Layout)",
+    "short": "OCBM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Reva Independent PU / Degree College (Ganganagar)",
+    "short": "RIPD",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Surana College (Peenya / Kengeri)",
+    "short": "SC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Soundarya Institute of Management and Science (Sidedahalli)",
+    "short": "SIMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "East West First Grade College (Magadi Road)",
+    "short": "EWFG",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Dayananda Sagar Business Academy (Kumaraswamy Layout)",
+    "short": "DSBA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "AIMS Institute of Higher Education (Peenya)",
+    "short": "PEENYA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Administrative Management College (Bannerghatta Road)",
+    "short": "AMC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Anupama College of Management and Science (Mahalakshmipuram)",
+    "short": "ACMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "ASC Degree College (Rajajinagar)",
+    "short": "ADC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore City College (Kalyan Nagar)",
+    "short": "BCC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Institute of Management Studies (Bannerghatta Road)",
+    "short": "BIMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Don Bosco College of Science and Management (Hosur Road)",
+    "short": "DBCS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Florence Degree College (Electronic City)",
+    "short": "FDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Gupta College (BSK 3rd Stage)",
+    "short": "GC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "SJR College for Women (Rajajinagar)",
+    "short": "SCW",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "SJRC Arts, Science and Commerce College (Rajajinagar)",
+    "short": "SASC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government First Grade College, K.R. Puram",
+    "short": "GFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government First Grade College, Yelahanka",
+    "short": "GFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government First Grade College, Hesaraghatta",
+    "short": "GFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "ESIC Medical College & PGIMSR (Rajajinagar)",
+    "short": "EMCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS Medical College & Hospital (Nagarur)",
+    "short": "NAGARUR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS Global Institute of Medical Sciences (Uttarahalli)",
+    "short": "BGIM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "East Point College of Medical Sciences & Research Centre (Bidarahalli)",
+    "short": "EPCM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Hosmat Institute of Medical Sciences (Magadi Road)",
+    "short": "HIMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Akash Institute of Medical Sciences & Research Centre (Devanahalli)",
+    "short": "AIMS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Kidwai Memorial Institute of Oncology (Hosur Road)",
+    "short": "KMIO",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Shri Atal Bihari Vajpayee Medical College & Research Institute (Shivajinagar)",
+    "short": "SABV",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "NIMHANS (Hosur Road)",
+    "short": "N",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Institute of Dental Sciences & Hospital (Hosur Road)",
+    "short": "BIDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS Global Institute of Dental Sciences (Uttarahalli)",
+    "short": "BGID",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "D.A. Pandu Memorial R.V. Dental College (JP Nagar)",
+    "short": "JP NAGAR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government Dental College & Research Institute (Victoria Hospital)",
+    "short": "GDCR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "KLE Society's Institute of Dental Sciences (Yeshwanthpur)",
+    "short": "KSID",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krishnadevaraya College of Dental Sciences & Hospital (Yelahanka)",
+    "short": "KCDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "M.R. Ambedkar Dental College (Malleshwaram)",
+    "short": "MADC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "M.S. Ramaiah Dental College (MSR Nagar)",
+    "short": "MRDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Maaruti College of Dental Sciences & Research Centre (Yelahanka)",
+    "short": "MCDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Rajiv Gandhi College of Dental Sciences (Cholanagar)",
+    "short": "SRGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Sri Venkateshwara Dental College & Hospital (Bidadi)",
+    "short": "BIDADI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vydehi Institute of Dental Sciences & Research (Whitefield)",
+    "short": "VIDS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "AECS Maaruti College of Dental Sciences (Kamakshipalya)",
+    "short": "AMCD",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vokkaligara Sangha Dental College & Hospital (KR Road)",
+    "short": "VSDC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Kengal Hanumanthaiah Institute of Physiotherapy (KR Road)",
+    "short": "KHIP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "K.T.G. College of Physiotherapy (Hegganahalli)",
+    "short": "KCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Lakeside College of Physiotherapy (Jigani)",
+    "short": "JIGANI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Little Flower College of Physiotherapy (Rajajinagar)",
+    "short": "LFCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "M.G.P. College of Physiotherapy (Hosakerehalli)",
+    "short": "MCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Manjunatha College of Physiotherapy (Kengeri)",
+    "short": "KENGERI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MVM College of Physiotherapy (Yelahanka)",
+    "short": "MCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Narayana Hrudayalaya Institute of Physiotherapy (Bommasandra)",
+    "short": "NHIP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Nargund College of Physiotherapy (Banashankari)",
+    "short": "NCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RV College of Physiotherapy (Jayanagar)",
+    "short": "RCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Kempegowda Institute of Physiotherapy (VV Puram)",
+    "short": "VV PURAM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MS Ramaiah College of Physiotherapy (MSR Nagar)",
+    "short": "MRCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "The Oxford College of Physiotherapy (HSR Layout)",
+    "short": "OCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krupanidhi College of Physiotherapy (Carmelaram)",
+    "short": "KCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Acharya's NR Institute of Physiotherapy (Soladevanahalli)",
+    "short": "ANIP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Aditya College of Physiotherapy (Yelahanka)",
+    "short": "ACP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "CMR College of Physiotherapy (HRBR Layout)",
+    "short": "CCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Acharya & B.M. Reddy College of Pharmacy (Soladevanahalli)",
+    "short": "ABRC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Al-Ameen College of Pharmacy (Hosur Road)",
+    "short": "ACP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "East West College of Pharmacy (Magadi Road)",
+    "short": "EWCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Krupanidhi College of Pharmacy (Carmelaram)",
+    "short": "KCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "The Oxford College of Pharmacy (HSR Layout)",
+    "short": "OCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Visveswarapura Institute of Pharmaceutical Sciences (Kengeri)",
+    "short": "KENGERI",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "MES College of Pharmacy (Aradeshahalli)",
+    "short": "MCP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Government College of Nursing (Victoria Hospital Campus)",
+    "short": "GCN",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "St. Martha's College of Nursing (Nrupathunga Road)",
+    "short": "SMCN",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "St. John's College of Nursing (Koramangala)",
+    "short": "SJCN",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Rajiv Gandhi College of Nursing (Jalahalli)",
+    "short": "RGCN",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Kempegowda Institute of Nursing (VV Puram)",
+    "short": "VV PURAM",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Vydehi Institute of Nursing Sciences (Whitefield)",
+    "short": "VINS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Ramaiah College of Law (MSR Nagar)",
+    "short": "RCL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Kristu Jayanti College of Law (Kothanur)",
+    "short": "KOTHANUR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Bangalore Institute of Legal Studies (Vijayanagar)",
+    "short": "BILS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "St. Joseph's College of Law (Langford Road)",
+    "short": "SJCL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "KLE Law College (Rajajinagar)",
+    "short": "KLC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RV Institute of Legal Studies (Jayanagar)",
+    "short": "RILS",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "AL-Ameen College of Law (Hosur Road)",
+    "short": "ACL",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "University Law College, Bangalore University (Central College)",
+    "short": "ULCB",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BMS College of Architecture",
+    "short": "BCA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RV College of Architecture (RVCA Mysore Road)",
+    "short": "RCA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Acharya's NRV School of Architecture (Soladevanahalli)",
+    "short": "ANSA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "BGS School of Architecture & Planning (Mahalakshmipuram)",
+    "short": "BSAP",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Dayananda Sagar College of Architecture (Kumaraswamy Layout)",
+    "short": "DSCA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Wadiyar Centre for Architecture (Mysore Road)",
+    "short": "WCA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Karnataka Chitrakala Parishath College of Fine Arts (Kumara Krupa Road)",
+    "short": "KCPC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Army Institute of Fashion & Design (Kothanur)",
+    "short": "KOTHANUR",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "Army Institute of Hotel Management & Catering (Kothanur)",
+    "short": "KOTHANUR",
+    "city": "Bengaluru"
   }
 ];
 

@@ -13,6 +13,7 @@ export function AdminIncidentsScreen() {
   const [loading, setLoading] = useState(false);
   const [resolveModal, setResolveModal] = useState(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [targetSelections, setTargetSelections] = useState({});
 
   const loadIncidents = async () => {
     setLoading(true);
@@ -47,6 +48,90 @@ export function AdminIncidentsScreen() {
     } catch (err) {
       Alert.alert('Error', err.message);
     }
+  };
+
+  const handleWarnUser = (user, incident) => {
+    if (!user?._id) return Alert.alert('Action Error', 'No commuter account found for this action.');
+    const currentWarn = Number(user.warningsCount) || 0;
+    const nextWarn = currentWarn + 1;
+    Alert.alert(
+      'Issue Warning',
+      `Issue official warning #${nextWarn} of 3 to ${user.name || 'this commuter'}?${nextWarn >= 3 ? '\n\n⚠️ Warning #3 will automatically suspend this account for 30 days.' : ''}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Issue Warning (${nextWarn}/3)`,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await apiClient.post('/admin/users/warn', {
+                userId: user._id,
+                incidentId: incident._id || incident.id,
+                reason: incident.type || incident.subject || incident.description || 'Safety / Policy warning',
+              });
+              Alert.alert('Warning Recorded', res.data?.message || `Warning ${nextWarn}/3 issued.`);
+              loadIncidents();
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.message || err.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleSuspendUser = (user, incident, isDirect = false) => {
+    if (!user?._id) return Alert.alert('Action Error', 'No commuter account found for this action.');
+    Alert.alert(
+      isDirect ? 'Direct Suspend Account' : 'Suspend Account',
+      `Are you sure you want to ${isDirect ? 'DIRECTLY suspend' : 'suspend'} ${user.name || 'this commuter'}'s account?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: isDirect ? 'Direct Suspend' : 'Suspend Account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await apiClient.post('/admin/users/suspend', {
+                userId: user._id,
+                reason: `Incident sanction: ${incident.type || incident.description || 'Policy violation'}`,
+              });
+              Alert.alert('Account Suspended', res.data?.message || 'User account suspended.');
+              loadIncidents();
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.message || err.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleRevokeSanctions = (user, incident) => {
+    if (!user?._id) return Alert.alert('Action Error', 'No commuter account found for this action.');
+    Alert.alert(
+      'Revoke Sanctions',
+      `Revoke all sanctions for ${user.name || 'this commuter'}?\n\n• Resets warnings count to 0\n• Unsuspends account\n• Restores full campus ride access`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revoke Sanctions',
+          onPress: async () => {
+            try {
+              const res = await apiClient.post('/admin/users/revoke-sanctions', {
+                userId: user._id,
+                incidentId: incident._id || incident.id,
+                reason: 'Sanctions revoked by administrator.',
+              });
+              Alert.alert('Sanctions Revoked', res.data?.message || 'Account restored and warnings reset.');
+              loadIncidents();
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.message || err.message);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
@@ -131,67 +216,167 @@ export function AdminIncidentsScreen() {
                   Date: {new Date(i.createdAt).toLocaleString('en-IN')}
                 </Text>
 
-                {/* Admin Quick Action Dispatchers based on Severity */}
-                {sev === 'Critical' && (
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10, marginBottom: 4 }}>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#dc2626', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
-                      onPress={() => Linking.openURL('tel:108')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>🚑 Notify Ambulance (108)</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#1d4ed8', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
-                      onPress={() => Linking.openURL('tel:112')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>🚓 Notify Police (112)</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                {/* Target Commuter & Sanction Status */}
+                {(() => {
+                  const reporter = i.reportedBy;
+                  const provider = i.rideId?.providerId;
+                  const targetPref = targetSelections[i._id || i.id];
+                  const currentTarget = (targetPref === 'reporter' ? reporter : (provider || reporter)) || reporter;
+                  const isProvider = Boolean(provider && currentTarget?._id === provider?._id);
 
-                {sev === 'High' && (
-                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 10, marginBottom: 4 }}>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#7c3aed', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
-                      onPress={() => Alert.alert('Campus Alert', `College authority alerted for incident #${(i._id || i.id).slice(-6)}`)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🏫 College</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#1d4ed8', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
-                      onPress={() => Linking.openURL('tel:112')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🚓 Police</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: '#ea580c', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
-                      onPress={() => {
-                        const ph = i.reportedBy?.phone;
-                        if (ph) Linking.openURL(`sms:${ph}?body=Campus Incident Alert: We are attending to your report.`);
-                        else Alert.alert('Contact Home', 'Emergency contact notified.');
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🏠 Home</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                  return (
+                    <View style={styles.targetUserBox}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={styles.targetUserTitle}>COMMUTER SANCTIONS & ACTIONS</Text>
+                        {provider && reporter && provider._id !== reporter._id && (
+                          <View style={{ flexDirection: 'row', gap: 4 }}>
+                            <TouchableOpacity
+                              onPress={() => setTargetSelections(prev => ({ ...prev, [i._id || i.id]: 'provider' }))}
+                              style={[styles.targetToggleBtn, isProvider && styles.targetToggleBtnActive]}
+                            >
+                              <Text style={[styles.targetToggleText, isProvider && styles.targetToggleTextActive]}>Provider</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => setTargetSelections(prev => ({ ...prev, [i._id || i.id]: 'reporter' }))}
+                              style={[styles.targetToggleBtn, !isProvider && styles.targetToggleBtnActive]}
+                            >
+                              <Text style={[styles.targetToggleText, !isProvider && styles.targetToggleTextActive]}>Reporter</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
 
-                {sev === 'Medium' && (
-                  <View style={{ marginTop: 8, marginBottom: 4 }}>
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#475569', paddingVertical: 7, borderRadius: 8, alignItems: 'center' }}
-                      onPress={() => Alert.alert('Commuter Status', 'Account flagged for identity / fraud review.')}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>⛔ Review / Suspend Account</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                      <Text style={styles.targetUserName}>
+                        👤 {currentTarget?.name || 'Commuter'} · 📞 {currentTarget?.phone || '—'} {currentTarget?.college ? `(${currentTarget.college})` : ''}
+                      </Text>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                        <View style={[styles.sanctionBadge, currentTarget?.suspended ? styles.sanctionBadgeSuspended : styles.sanctionBadgeActive]}>
+                          <Text style={[styles.sanctionBadgeText, currentTarget?.suspended ? { color: '#ef4444' } : { color: '#2dd4a0' }]}>
+                            {currentTarget?.suspended ? '⛔ SUSPENDED' : '✅ ACTIVE'}
+                          </Text>
+                        </View>
+                        <Text style={styles.warningsCountText}>
+                          Warnings: {currentTarget?.warningsCount || 0}/3
+                        </Text>
+                      </View>
+
+                      {/* Sanctions & Emergency Actions based on Severity */}
+                      {sev === 'Critical' && (
+                        <>
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#dc2626', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                              onPress={() => Linking.openURL('tel:108')}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>🚑 Ambulance (108)</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#1d4ed8', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                              onPress={() => Linking.openURL('tel:112')}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>🚓 Police (112)</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={[styles.sanctionBtn, { backgroundColor: '#b91c1c', flex: 1.2 }]}
+                              onPress={() => handleSuspendUser(currentTarget, i, true)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.sanctionBtnText}>🚫 Direct Suspend</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.sanctionBtn, { backgroundColor: '#0284c7', flex: 1 }]}
+                              onPress={() => handleRevokeSanctions(currentTarget, i)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.sanctionBtnText}>🔄 Revoke</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      {sev === 'High' && (
+                        <>
+                          <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#7c3aed', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                              onPress={() => Alert.alert('Campus Alert', `College authority alerted for incident #${(i._id || i.id).slice(-6)}`)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🏫 College</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#1d4ed8', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                              onPress={() => Linking.openURL('tel:112')}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🚓 Police</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{ flex: 1, backgroundColor: '#ea580c', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
+                              onPress={() => {
+                                const ph = currentTarget?.phone || i.reportedBy?.phone;
+                                if (ph) Linking.openURL(`sms:${ph}?body=Campus Incident Alert: We are attending to your report.`);
+                                else Alert.alert('Contact Home', 'Emergency contact notified.');
+                              }}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={{ color: '#fff', fontSize: 10.5, fontWeight: '800' }}>🏠 Home</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={[styles.sanctionBtn, { backgroundColor: '#c2410c', flex: 1.2 }]}
+                              onPress={() => handleSuspendUser(currentTarget, i, true)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.sanctionBtnText}>🚫 Direct Suspend</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.sanctionBtn, { backgroundColor: '#0284c7', flex: 1 }]}
+                              onPress={() => handleRevokeSanctions(currentTarget, i)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.sanctionBtnText}>🔄 Revoke</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </>
+                      )}
+
+                      {(sev === 'Low' || sev === 'Medium') && (
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                          <TouchableOpacity
+                            style={[styles.sanctionBtn, { backgroundColor: '#d97706', flex: 1.3 }]}
+                            onPress={() => handleWarnUser(currentTarget, i)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.sanctionBtnText}>⚠️ Warn ({currentTarget?.warningsCount || 0}/3)</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.sanctionBtn, { backgroundColor: '#dc2626', flex: 1 }]}
+                            onPress={() => handleSuspendUser(currentTarget, i, false)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.sanctionBtnText}>⛔ Suspend</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[styles.sanctionBtn, { backgroundColor: '#0284c7', flex: 1 }]}
+                            onPress={() => handleRevokeSanctions(currentTarget, i)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={styles.sanctionBtnText}>🔄 Revoke</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })()}
 
                 {i.resolutionNotes ? (
                   <View style={styles.resNotesBox}>
@@ -300,4 +485,18 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: '#07090d', fontSize: 13, fontWeight: '800' },
   cancelBtn: { paddingVertical: 8, alignItems: 'center' },
   cancelBtnText: { color: '#8b949e', fontSize: 12, fontWeight: '600' },
+  targetUserBox: { backgroundColor: '#131924', borderRadius: 10, borderWidth: 1, borderColor: '#26344d', padding: 10, marginTop: 10, marginBottom: 4 },
+  targetUserTitle: { color: '#94a3b8', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  targetToggleBtn: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4, backgroundColor: '#1e293b' },
+  targetToggleBtnActive: { backgroundColor: '#2dd4a0' },
+  targetToggleText: { color: '#94a3b8', fontSize: 9.5, fontWeight: '700' },
+  targetToggleTextActive: { color: '#07090d', fontWeight: '900' },
+  targetUserName: { color: '#ffffff', fontSize: 12.5, fontWeight: '700', marginTop: 2 },
+  sanctionBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1 },
+  sanctionBadgeActive: { backgroundColor: 'rgba(45,212,160,0.12)', borderColor: '#2dd4a0' },
+  sanctionBadgeSuspended: { backgroundColor: 'rgba(239,68,68,0.15)', borderColor: '#ef4444' },
+  sanctionBadgeText: { fontSize: 9.5, fontWeight: '900' },
+  warningsCountText: { color: '#fbbf24', fontSize: 11, fontWeight: '800' },
+  sanctionBtn: { paddingVertical: 8, paddingHorizontal: 8, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sanctionBtnText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
 });

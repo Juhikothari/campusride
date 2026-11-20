@@ -36,28 +36,29 @@ const VEHICLES = [
 
 // Base fares & per km rates as configured
 const baseFares = {
-  motorcycle: 20, // Bike base fare
-  bike:       20,
-  scooter:    20,
-  car:        25, // Car base fare
-  suv:        25, // SUV base fare
+  motorcycle: 15, // Bike base fare
+  bike:       15,
+  scooter:    15,
+  car:        20, // Car base fare
+  suv:        22, // SUV base fare
   xuv:        25, // XUV base fare
 };
 
 const perKmRates = {
-  motorcycle: 5,  // Bikes: ₹5 per km
+  motorcycle: 5,   // Bikes: ₹5 per km
   bike:       5,
   scooter:    5,
-  car:        7,  // Cars: ₹7 per km
-  suv:        7,  // SUVs: ₹7 per km
-  xuv:        10, // XUVs: ₹10 per km
+  car:        7,   // Cars: ₹7 per km
+  suv:        8.5, // SUVs: ₹8.5 per km
+  xuv:        10,  // XUVs: ₹10 per km
 };
 
 function calcCost(distKm, vehicleType) {
   if (!distKm || distKm <= 0) return 0;
   const vt = (vehicleType || 'car').toLowerCase();
-  const base = baseFares[vt] !== undefined ? baseFares[vt] : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 20 : 25);
-  const perKm = perKmRates[vt] !== undefined ? perKmRates[vt] : (vt === 'xuv' ? 10 : (vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter') ? 5 : 7));
+  const is2W = vt.includes('bike') || vt.includes('motorcycle') || vt.includes('scooter');
+  const base = baseFares[vt] !== undefined ? baseFares[vt] : (is2W ? 15 : (vt === 'xuv' ? 25 : (vt === 'suv' ? 22 : 20)));
+  const perKm = perKmRates[vt] !== undefined ? perKmRates[vt] : (is2W ? 5 : (vt === 'xuv' ? 10 : (vt === 'suv' ? 8.5 : 7)));
   const d = Math.min(distKm, 50);
   // Within 1 km it should be base fare; above that it should be base fare + per km price
   if (d <= 1.0) {
