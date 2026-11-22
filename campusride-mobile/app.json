@@ -64,7 +64,8 @@
           "color": "#f5a623"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

@@ -1,55 +1,65 @@
 const User  = require('../users/users.model');
 const Admin = require('./admin.model');
 
-const ADMIN_EMAILS = [
-  'admin@campusride.in',
-  'superadmin@campusride.in',
-  'support@campusride.in',
-  ...(process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase()) : [])
-];
-
+/**
+ * Server-side verified administrator check.
+ * Strictly verifies database records. Rejects blocked or suspended accounts.
+ * Hardcoded emails and client-supplied flags are eliminated.
+ */
 const isAdmin = async (req, res, next) => {
   try {
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     const user = await User.findById(req.user.userId);
+    if (!user) return res.status(401).json({ message: 'Account not found' });
 
-    if (!user) return res.status(401).json({ message: 'User not found' });
+    if (user.blocked || user.isBlocked) {
+      return res.status(403).json({ message: 'Account is blocked. Administrative access revoked.' });
+    }
+    if (user.suspended) {
+      return res.status(403).json({ message: 'Account is currently suspended. Administrative access revoked.' });
+    }
 
-    // Pass if user role is admin, isAdmin flag is true, or verified admin email
-    const isAllowedEmail = user.email && ADMIN_EMAILS.includes(user.email.toLowerCase().trim());
-    if (
-      user.role === 'admin' ||
-      user.isAdmin === true ||
-      isAllowedEmail
-    ) {
+    // Explicit administrator verification:
+    // 1. User has verified role === 'admin'
+    // 2. OR user has an explicit Admin collection profile
+    let adminRecord = await Admin.findOne({ userId: req.user.userId });
+
+    if (user.role === 'admin') {
       req.adminUser = user;
+      req.admin     = adminRecord || { role: 'admin', permissions: ['users', 'rides', 'bookings', 'verifications', 'reports', 'settings'] };
       req.user.role = 'admin';
       return next();
     }
 
-    // Also pass if there is an Admin record for this user
-    const adminRecord = await Admin.findOne({ userId: req.user.userId });
     if (adminRecord) {
       req.adminUser = user;
       req.admin     = adminRecord;
-      req.user.role = 'admin';
+      req.user.role = adminRecord.role || 'admin';
       return next();
     }
 
     return res.status(403).json({
-      message:  'Admin access required',
+      message: 'Access denied: Administrator privileges required.',
       yourRole: user.role
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Authorization error: ' + error.message });
   }
 };
 
 const isSuperAdmin = async (req, res, next) => {
   try {
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     const admin = await Admin.findOne({ userId: req.user.userId });
     if (!admin || admin.role !== 'superadmin') {
-      return res.status(403).json({ message: 'Super admin access required' });
+      return res.status(403).json({ message: 'Access denied: Super-admin privileges required.' });
     }
     next();
   } catch (error) {

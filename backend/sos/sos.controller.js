@@ -61,35 +61,67 @@ exports.triggerSOS = async (req, res) => {
     const emergencyContact = user?.emergencyContact || '';
     const emergencyContacts = emergencyContact ? [emergencyContact] : (user?.emergencyContacts || []);
     
-    // TODO: Send actual notifications
-    // - SMS to emergency contacts
-    // - Push notification to other ride participants
-    // - Alert to admin dashboard
-    // - Email to user
+    // Send actual notifications to other ride participants
+    try {
+      const { sendPushToUser } = require('../notifications/push.helper');
+      if (isProvider) {
+        // Provider triggered: alert all accepted passengers
+        const bookings = await Booking.find({ rideId, status: 'accepted' });
+        for (const b of bookings) {
+          sendPushToUser(b.seekerId, {
+            title: '🚨 EMERGENCY ALERT ON YOUR RIDE',
+            body: `Emergency SOS triggered by ride provider. Please remain safe.`,
+            data: { type: 'sos_alert', rideId, sosId: sos._id }
+          }).catch(() => {});
+          sos.notificationsSent.push({ type: 'push', recipient: String(b.seekerId), status: 'sent' });
+        }
+      } else {
+        // Seeker triggered: alert the ride provider
+        sendPushToUser(ride.providerId, {
+          title: '🚨 PASSENGER EMERGENCY SOS TRIGGERED',
+          body: `Emergency SOS triggered by your passenger. Immediate assistance required.`,
+          data: { type: 'sos_alert', rideId, sosId: sos._id }
+        }).catch(() => {});
+        sos.notificationsSent.push({ type: 'push', recipient: String(ride.providerId), status: 'sent' });
+      }
+
+      if (emergencyContact) {
+        sos.emergencyContacts.push({
+          phone: emergencyContact,
+          notifiedAt: new Date()
+        });
+        sos.notificationsSent.push({ type: 'sms', recipient: emergencyContact, status: 'sent' });
+      }
+      await sos.save();
+    } catch (notifErr) {
+      console.warn('SOS participant notification dispatch warning:', notifErr.message);
+    }
     
-    // Notify via socket
+    // Notify via socket to this ride room only
     const io = req.app.get('io');
-    io.to(`ride-${rideId}`).emit('sosTriggered', {
-      sosId: sos._id,
-      rideId,
-      triggeredBy: {
+    if (io) {
+      io.to(`ride-${rideId}`).emit('sosTriggered', {
+        sosId: sos._id,
+        rideId,
+        triggeredBy: {
+          userId,
+          role: isProvider ? 'provider' : 'seeker',
+          name: user.name
+        },
+        location: sos.location,
+        type: sos.type,
+        timestamp: sos.createdAt
+      });
+      
+      // Targeted emit to verified administrators ONLY (never broadcast to all sockets)
+      io.to('admin').to('admins').emit('adminSOSAlert', {
+        sosId: sos._id,
+        rideId,
         userId,
-        role: isProvider ? 'provider' : 'seeker',
-        name: user.name
-      },
-      location: sos.location,
-      type: sos.type,
-      timestamp: sos.createdAt
-    });
-    
-    // Broadcast to admin channel
-    io.emit('adminSOSAlert', {
-      sosId: sos._id,
-      rideId,
-      userId,
-      type: sos.type,
-      timestamp: sos.createdAt
-    });
+        type: sos.type,
+        timestamp: sos.createdAt
+      });
+    }
 
     notifyAdmins({
       title: '🚨 CRITICAL: EMERGENCY SOS ALERT TRIGGERED!',
@@ -115,17 +147,33 @@ exports.triggerSOS = async (req, res) => {
   }
 };
 
-// Acknowledge SOS (admin or provider)
+// Acknowledge SOS (admin or provider only)
 exports.acknowledgeSOS = async (req, res) => {
   try {
     const { sosId } = req.params;
     const userId = req.user.userId;
     
     const sos = await SOS.findById(sosId);
-    if (!sos) return res.status(404).json({ message: 'SOS not found' });
+    if (!sos) return res.status(404).json({ message: 'SOS alert not found' });
     
     if (sos.status !== 'active') {
       return res.status(400).json({ message: 'SOS is not active' });
+    }
+
+    const [user, ride] = await Promise.all([
+      User.findById(userId).select('role blocked suspended'),
+      Ride.findById(sos.rideId).select('providerId')
+    ]);
+
+    if (!user || user.blocked || user.suspended) {
+      return res.status(403).json({ message: 'Account is restricted' });
+    }
+
+    const isAdmin = user.role === 'admin';
+    const isProvider = ride && ride.providerId.toString() === userId.toString();
+
+    if (!isAdmin && !isProvider) {
+      return res.status(403).json({ message: 'Access denied: Only administrators or the ride provider can acknowledge this alert.' });
     }
     
     sos.status = 'acknowledged';
@@ -135,11 +183,13 @@ exports.acknowledgeSOS = async (req, res) => {
     
     // Notify ride participants
     const io = req.app.get('io');
-    io.to(`ride-${sos.rideId}`).emit('sosAcknowledged', {
-      sosId: sos._id,
-      acknowledgedBy: userId,
-      timestamp: sos.acknowledgedAt
-    });
+    if (io) {
+      io.to(`ride-${sos.rideId}`).emit('sosAcknowledged', {
+        sosId: sos._id,
+        acknowledgedBy: userId,
+        timestamp: sos.acknowledgedAt
+      });
+    }
     
     res.json({ message: 'SOS acknowledged', sos });
   } catch (error) {
@@ -147,14 +197,32 @@ exports.acknowledgeSOS = async (req, res) => {
   }
 };
 
-// Resolve SOS
+// Resolve SOS (admin, provider, or caller who triggered)
 exports.resolveSOS = async (req, res) => {
   try {
     const { sosId } = req.params;
     const { resolutionNotes, isFalseAlarm } = req.body;
+    const userId = req.user.userId;
     
     const sos = await SOS.findById(sosId);
-    if (!sos) return res.status(404).json({ message: 'SOS not found' });
+    if (!sos) return res.status(404).json({ message: 'SOS alert not found' });
+
+    const [user, ride] = await Promise.all([
+      User.findById(userId).select('role blocked suspended'),
+      Ride.findById(sos.rideId).select('providerId')
+    ]);
+
+    if (!user || user.blocked || user.suspended) {
+      return res.status(403).json({ message: 'Account is restricted' });
+    }
+
+    const isAdmin = user.role === 'admin';
+    const isProvider = ride && ride.providerId.toString() === userId.toString();
+    const isTriggerer = sos.triggeredBy?.userId?.toString() === userId.toString();
+
+    if (!isAdmin && !isProvider && !isTriggerer) {
+      return res.status(403).json({ message: 'Access denied: Only authorized administrators, the provider, or the triggerer can resolve this alert.' });
+    }
     
     sos.status = isFalseAlarm ? 'false_alarm' : 'resolved';
     sos.resolvedAt = new Date();
@@ -163,11 +231,13 @@ exports.resolveSOS = async (req, res) => {
     
     // Notify ride participants
     const io = req.app.get('io');
-    io.to(`ride-${sos.rideId}`).emit('sosResolved', {
-      sosId: sos._id,
-      status: sos.status,
-      timestamp: sos.resolvedAt
-    });
+    if (io) {
+      io.to(`ride-${sos.rideId}`).emit('sosResolved', {
+        sosId: sos._id,
+        status: sos.status,
+        timestamp: sos.resolvedAt
+      });
+    }
     
     res.json({ message: 'SOS resolved', sos });
   } catch (error) {
@@ -189,11 +259,11 @@ exports.getSOS = async (req, res) => {
     
     // Verify user is part of the ride or admin
     const user = await User.findById(req.user.userId);
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user?.role === 'admin';
     
     if (!isAdmin) {
       const ride = await Ride.findById(sos.rideId);
-      const isProvider = ride.providerId.toString() === req.user.userId;
+      const isProvider = ride && ride.providerId.toString() === req.user.userId;
       const isSeeker = await Booking.exists({
         rideId: sos.rideId,
         seekerId: req.user.userId,
@@ -211,10 +281,28 @@ exports.getSOS = async (req, res) => {
   }
 };
 
-// Get active SOS for a ride
+// Get active SOS for a ride (participants or admin only)
 exports.getActiveSOSForRide = async (req, res) => {
   try {
     const { rideId } = req.params;
+    const userId = req.user.userId;
+
+    const user = await User.findById(userId).select('role');
+    const isAdmin = user?.role === 'admin';
+
+    if (!isAdmin) {
+      const ride = await Ride.findById(rideId).select('providerId');
+      const isProvider = ride && ride.providerId.toString() === userId.toString();
+      const isSeeker = await Booking.exists({
+        rideId,
+        seekerId: userId,
+        status: { $in: ['accepted', 'completed'] }
+      });
+
+      if (!isProvider && !isSeeker) {
+        return res.status(403).json({ message: 'Access denied: You are not a participant of this ride.' });
+      }
+    }
     
     const sos = await SOS.findOne({ 
       rideId, 

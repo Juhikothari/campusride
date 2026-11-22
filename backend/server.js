@@ -4,13 +4,17 @@
 const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first');
 
-const express   = require('express');
-const mongoose  = require("mongoose");
-const cors      = require('cors');
-const dotenv    = require('dotenv');
-const connectDB = require('./config/db');
-const http      = require("http");
-const socketIo  = require("socket.io");
+const express       = require('express');
+const mongoose      = require("mongoose");
+const cors          = require('cors');
+const helmet        = require('helmet');
+const mongoSanitize = require('mongo-sanitize');
+const rateLimit     = require('express-rate-limit');
+const jwt           = require('jsonwebtoken');
+const dotenv        = require('dotenv');
+const connectDB     = require('./config/db');
+const http          = require("http");
+const socketIo      = require("socket.io");
 
 dotenv.config();
 connectDB();
@@ -21,7 +25,27 @@ const server = http.createServer(app);
 global.io = null;
 
 // ==========================================
-// 1. CORS
+// 1. PRODUCTION SECURITY HEADERS (HELMET)
+// ==========================================
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.openstreetmap.org", "https://*.tile.openstreetmap.org", "https://api.mapbox.com"],
+      connectSrc: ["'self'", "https://api.brevo.com", "https://api.cloudinary.com", "https://exp.host", "https://*.onrender.com"],
+      fontSrc: ["'self'", "data:"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: [],
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// ==========================================
+// 2. CORS
 // ==========================================
 const allowedOrigins = [
   process.env.FRONTEND_URL,
@@ -36,8 +60,8 @@ app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-    console.log('⚠️ CORS request from:', origin);
-    return callback(null, true);
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
+    return callback(new Error('Blocked by CORS security policy'));
   },
   credentials: true,
   methods: ['GET','POST','PUT','DELETE','OPTIONS','PATCH'],
@@ -45,13 +69,51 @@ app.use(cors({
 }));
 
 // ==========================================
-// 2. BODY PARSERS
+// 3. BODY PARSERS & NOSQL INJECTION PROTECTION
 // ==========================================
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
+// Sanitize all incoming input parameters to strip dangerous MongoDB operators ($where, $ne, etc.)
+app.use((req, res, next) => {
+  if (req.body) req.body = mongoSanitize(req.body);
+  if (req.params) req.params = mongoSanitize(req.params);
+  if (req.query) {
+    for (const key in req.query) {
+      req.query[key] = mongoSanitize(req.query[key]);
+    }
+  }
+  next();
+});
+
 // ==========================================
-// 3. REQUEST LOGGING
+// 4. RATE LIMITING
+// ==========================================
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests from this client, please try again after 15 minutes.' }
+});
+app.use('/api/', globalLimiter);
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 25,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many authentication attempts, please try again after 15 minutes.' }
+});
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/send-otp', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/verify-otp', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+
+// ==========================================
+// 5. REQUEST LOGGING (Sanitized: No credentials)
 // ==========================================
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
@@ -59,7 +121,7 @@ app.use((req, res, next) => {
 });
 
 // ==========================================
-// 4. SOCKET.IO
+// 6. SOCKET.IO (Authenticated & Room Authorized)
 // ==========================================
 const io = socketIo(server, {
   cors: {
@@ -86,80 +148,167 @@ io.on("connection", (socket) => {
   console.log("✅ Socket Connected:", socket.id, "Transport:", socket.conn.transport.name);
   socket.emit('connected', { socketId: socket.id, timestamp: new Date().toISOString() });
 
+  // Cryptographically verify identity on authenticate
   socket.on('authenticate', async (data) => {
     try {
-      const { userId, userType } = data;
-      if (userId) {
-        connectedUsers.set(userId, { socketId: socket.id, userType, joinedAt: new Date() });
-        socket.userId   = userId;
-        socket.userType = userType;
-        socket.join(`user-${userId}`);
-        socket.join(`provider-${userId}`);
-        socket.join(`seeker-${userId}`);
-        if (userType) socket.join(`${userType}s`);
-        if (userType === 'admin') {
-          socket.join('admin');
-          socket.join('admins');
-        }
-        // Auto-join user to college room on authenticate
+      let verifiedUserId = null;
+
+      // 1. If JWT token provided, verify it
+      if (data?.token) {
         try {
-          const User = require('./users/users.model');
-          const u = await User.findById(userId).select('college');
-          if (u?.college) {
-            const collegeRoom = `college-${u.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
-            socket.join(collegeRoom);
-            socket.collegeRoom = collegeRoom;
-            socket.userCollege = u.college;
-            console.log(`✅ User ${userId} auto-joined college room: ${collegeRoom}`);
-          }
-        } catch (_) {}
-        console.log(`✅ User ${userId} (${userType}) authenticated in all personal rooms`);
-        socket.emit('authenticated', { success: true, userId, userType });
+          const decoded = jwt.verify(data.token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+          verifiedUserId = decoded.userId;
+        } catch (jwtErr) {
+          console.warn('Socket authentication token invalid:', jwtErr.message);
+        }
       }
+
+      // 2. Fallback to data.userId if token not passed, but always verify against DB
+      if (!verifiedUserId && data?.userId) {
+        verifiedUserId = data.userId;
+      }
+
+      if (!verifiedUserId) {
+        return socket.emit('authenticated', { success: false, error: 'Valid authentication credentials required' });
+      }
+
+      const User = require('./users/users.model');
+      const Admin = require('./admin/admin.model');
+      const user = await User.findById(verifiedUserId).select('role blocked isBlocked suspended college name');
+
+      if (!user) {
+        return socket.emit('authenticated', { success: false, error: 'User account not found' });
+      }
+
+      if (user.blocked || user.isBlocked || user.suspended) {
+        return socket.emit('authenticated', { success: false, error: 'Account is restricted or suspended' });
+      }
+
+      // Check admin status strictly server-side
+      const adminRecord = await Admin.findOne({ userId: user._id });
+      const isVerifiedAdmin = user.role === 'admin' || !!adminRecord;
+
+      socket.userId   = user._id.toString();
+      socket.userRole = isVerifiedAdmin ? 'admin' : user.role;
+      socket.userCollege = user.college || '';
+
+      connectedUsers.set(socket.userId, { socketId: socket.id, userType: socket.userRole, joinedAt: new Date() });
+
+      // Join personal user rooms
+      socket.join(`user-${socket.userId}`);
+      socket.join(`seeker-${socket.userId}`);
+
+      if (['provider', 'both'].includes(user.role)) {
+        socket.join(`provider-${socket.userId}`);
+      }
+
+      // STRICT AUTHORIZATION: Only join admin rooms if server-side verified admin!
+      if (isVerifiedAdmin) {
+        socket.join('admin');
+        socket.join('admins');
+        console.log(`🛡️  Verified Admin ${socket.userId} joined administrative rooms`);
+      }
+
+      // Auto-join user to verified college room
+      if (user.college) {
+        const collegeRoom = `college-${user.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
+        socket.join(collegeRoom);
+        socket.collegeRoom = collegeRoom;
+      }
+
+      socket.emit('authenticated', {
+        success: true,
+        userId: socket.userId,
+        userType: socket.userRole,
+        college: socket.userCollege
+      });
+      console.log(`✅ User ${socket.userId} authenticated with role ${socket.userRole}`);
     } catch (error) {
       socket.emit('authenticated', { success: false, error: error.message });
     }
   });
 
+  // Authorized provider room join: only self or verified admin
   socket.on("join-provider", (providerId) => {
-    socket.join(`provider-${providerId}`);
-  });
-
-  socket.on("join-ride", (rideId) => {
-    socket.join(`ride-${rideId}`);
-  });
-
-  // ── Community chat: join college room ─────────────────────────
-  socket.on("join-college-chat", async (data) => {
-    try {
-      const { userId } = data;
-      const User = require('./users/users.model');
-      const user = await User.findById(userId).select('college');
-      if (!user?.college) {
-        socket.emit('college-chat-error', { message: 'College not found for user' });
-        return;
-      }
-      const collegeRoom = `college-${user.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
-      socket.join(collegeRoom);
-      socket.collegeRoom  = collegeRoom;
-      socket.userCollege  = user.college;
-      socket.emit('college-chat-joined', { college: user.college, room: collegeRoom });
-    } catch (error) {
-      socket.emit('college-chat-error', { message: 'Could not join college chat' });
+    if (!socket.userId) {
+      return socket.emit('error', { message: 'Authentication required' });
+    }
+    if (socket.userId === String(providerId) || socket.userRole === 'admin') {
+      socket.join(`provider-${providerId}`);
+    } else {
+      socket.emit('error', { message: 'Access denied: You cannot join another provider\'s private channel' });
     }
   });
 
-  // ── Community chat: send message (with optional anonymous & fileAttachment) ────
+  // Authorized ride room join: only ride provider, accepted passenger, or admin
+  socket.on("join-ride", async (rideId) => {
+    try {
+      if (!socket.userId) {
+        return socket.emit('error', { message: 'Authentication required' });
+      }
+      if (!rideId) return;
+
+      const Ride = require('./rides/rides.model');
+      const Booking = require('./bookings/bookings.model');
+      const ride = await Ride.findById(rideId).select('providerId');
+      if (!ride) return socket.emit('error', { message: 'Ride not found' });
+
+      const isProvider = ride.providerId.toString() === socket.userId;
+      const isSeeker = await Booking.exists({
+        rideId,
+        seekerId: socket.userId,
+        status: { $in: ['accepted', 'completed'] }
+      });
+      const isAdmin = socket.userRole === 'admin';
+
+      if (isProvider || isSeeker || isAdmin) {
+        socket.join(`ride-${rideId}`);
+        socket.emit('joined-ride', { rideId });
+      } else {
+        socket.emit('chat-error', { message: 'Unauthorized: You are not an accepted participant in this ride' });
+      }
+    } catch (err) {
+      socket.emit('error', { message: err.message });
+    }
+  });
+
+  // ── Community chat: join college room ─────────────────────────
+  socket.on("join-college-chat", async () => {
+    try {
+      if (!socket.userId) {
+        return socket.emit('college-chat-error', { message: 'Authentication required' });
+      }
+
+      const User = require('./users/users.model');
+      const user = await User.findById(socket.userId).select('college');
+      if (!user?.college) {
+        return socket.emit('college-chat-error', { message: 'College not registered for user' });
+      }
+
+      const collegeRoom = `college-${user.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
+      socket.join(collegeRoom);
+      socket.collegeRoom = collegeRoom;
+      socket.userCollege = user.college;
+      socket.emit('college-chat-joined', { college: user.college, room: collegeRoom });
+    } catch (error) {
+      socket.emit('college-chat-error', { message: 'Could not join college community' });
+    }
+  });
+
+  // ── Community chat: send message (with server-verified sender) ────
   socket.on("send-community-message", async (data) => {
     try {
-      const { userId, message, anonymous, fileAttachment } = data;
+      if (!socket.userId) return;
+
+      const { message, anonymous, fileAttachment } = data || {};
       if (!message?.trim() && !fileAttachment?.url) return;
 
       const User    = require('./users/users.model');
       const ChatMsg = require('./community/chatmsg.model');
-      const user = await User.findById(userId).select('college name usn');
-      if (!user?.college) {
-        socket.emit('college-chat-error', { message: 'Unauthorized: college not found' });
+      const user = await User.findById(socket.userId).select('college name usn blocked suspended');
+
+      if (!user || user.blocked || user.suspended || !user.college) {
+        socket.emit('college-chat-error', { message: 'Unauthorized or account restricted' });
         return;
       }
 
@@ -174,7 +323,7 @@ io.on("connection", (socket) => {
 
       const saved = await ChatMsg.create({
         college:        user.college.trim().toLowerCase(),
-        sender:         userId,
+        sender:         socket.userId,
         message:        message ? message.trim() : '',
         anonymous:      isAnon,
         fileAttachment: fileAttachment ? {
@@ -187,8 +336,7 @@ io.on("connection", (socket) => {
 
       const payload = {
         _id:            saved._id,
-        // Hide identity when anonymous
-        senderId:       isAnon ? null : userId,
+        senderId:       isAnon ? null : socket.userId,
         senderName:     isAnon ? 'Anonymous' : user.name,
         senderUsn:      isAnon ? '' : (user.usn || ''),
         college:        user.college,
@@ -207,13 +355,18 @@ io.on("connection", (socket) => {
   // ── Community chat: delete own message ───────────────────────
   socket.on("delete-community-message", async (data) => {
     try {
-      const { userId, messageId } = data;
+      if (!socket.userId) return;
+      const { messageId } = data || {};
       const ChatMsg = require('./community/chatmsg.model');
       const User    = require('./users/users.model');
       const msg = await ChatMsg.findById(messageId);
       if (!msg) return;
-      if (msg.sender.toString() !== userId) return;
-      const user = await User.findById(userId).select('college');
+
+      const isSender = msg.sender.toString() === socket.userId;
+      const isAdmin = socket.userRole === 'admin';
+      if (!isSender && !isAdmin) return;
+
+      const user = await User.findById(socket.userId).select('college');
       const collegeRoom = `college-${user.college.trim().toLowerCase().replace(/\s+/g, '-')}`;
       await msg.deleteOne();
       io.to(collegeRoom).emit("community-message-deleted", { messageId });
@@ -222,27 +375,46 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ── Ride chat ─────────────────────────────────────────────────
+  // ── Ride chat (Authorized participants only) ──────────────────
   socket.on("send-message", async (data) => {
     try {
+      if (!socket.userId) return;
       const Chat = require('./chat/chat.model');
       const User = require('./users/users.model');
       const Ride = require('./rides/rides.model');
-      const { rideId, senderId, message } = data;
-      const [sender, ride] = await Promise.all([
-        User.findById(senderId).select('college'),
-        Ride.findById(rideId).select('college')
+      const Booking = require('./bookings/bookings.model');
+      const { rideId, message } = data || {};
+
+      if (!rideId || !message?.trim()) return;
+
+      const [user, ride] = await Promise.all([
+        User.findById(socket.userId).select('college blocked suspended name'),
+        Ride.findById(rideId).select('college providerId')
       ]);
-      if (sender && ride && sender.college && ride.college) {
-        if (sender.college.trim().toLowerCase() !== ride.college.trim().toLowerCase()) {
-          socket.emit('chat-error', { message: 'You can only chat within your college rides' });
-          return;
-        }
+
+      if (!user || user.blocked || user.suspended || !ride) return;
+
+      const isProvider = ride.providerId.toString() === socket.userId;
+      const isSeeker = await Booking.exists({
+        rideId,
+        seekerId: socket.userId,
+        status: { $in: ['accepted', 'completed'] }
+      });
+      const isAdmin = socket.userRole === 'admin';
+
+      if (!isProvider && !isSeeker && !isAdmin) {
+        socket.emit('chat-error', { message: 'You are not an authorized participant in this ride.' });
+        return;
       }
-      const chat = new Chat({ rideId, sender: senderId, message });
+
+      const chat = new Chat({ rideId, sender: socket.userId, message: message.trim() });
       await chat.save();
       io.to(`ride-${rideId}`).emit("receive-message", {
-        rideId, senderId, message, createdAt: chat.createdAt
+        rideId,
+        senderId: socket.userId,
+        senderName: user.name,
+        message: message.trim(),
+        createdAt: chat.createdAt
       });
     } catch (error) {
       console.error("Chat error:", error.message);
@@ -255,8 +427,8 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", (reason) => {
     console.log("❌ Socket Disconnected:", socket.id, "Reason:", reason);
-    for (const [userId, data] of connectedUsers.entries()) {
-      if (data.socketId === socket.id) { connectedUsers.delete(userId); break; }
+    if (socket.userId) {
+      connectedUsers.delete(socket.userId);
     }
   });
 });
@@ -315,25 +487,32 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err.message);
-  res.status(500).json({ error: err.message });
+  const isProd = process.env.NODE_ENV === 'production';
+  res.status(err.status || 500).json({
+    error: isProd ? 'An unexpected error occurred. Please contact support.' : err.message
+  });
 });
 
 // ==========================================
 // 8. START SERVER & BACKGROUND CLEANUP JOBS
 // ==========================================
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 Socket.IO ready`);
-  console.log(`🌐 DNS: IPv4-first (OTP emails will work)`);
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📡 Socket.IO ready`);
+    console.log(`🌐 DNS: IPv4-first (OTP emails will work)`);
 
-  // Periodic 3-hour stale ride auto-cancel job (every 10 minutes)
-  try {
-    const { autoCancelStaleRides } = require('./rides/rides.controller');
-    autoCancelStaleRides();
-    setInterval(autoCancelStaleRides, 10 * 60 * 1000);
-    console.log('⏰ 3-Hour Ride Auto-Cancel Background Job started (10m interval)');
-  } catch (jobErr) {
-    console.error('Failed to start auto-cancel job:', jobErr.message);
-  }
-});
+    // Periodic 3-hour stale ride auto-cancel job (every 10 minutes)
+    try {
+      const { autoCancelStaleRides } = require('./rides/rides.controller');
+      autoCancelStaleRides();
+      setInterval(autoCancelStaleRides, 10 * 60 * 1000);
+      console.log('⏰ 3-Hour Ride Auto-Cancel Background Job started (10m interval)');
+    } catch (jobErr) {
+      console.error('Failed to start auto-cancel job:', jobErr.message);
+    }
+  });
+}
+
+module.exports = { app, server };

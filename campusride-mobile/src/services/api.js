@@ -2,15 +2,45 @@
 //  HOGO API SERVICE  —  React Native version
 // ══════════════════════════════════════════════════════
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 // Live Render backend API URL
 export const API_BASE = 'https://campusride-backend-gwgr.onrender.com';
 const BASE = `${API_BASE}/api`;
 
-// ── Token / User helpers ──────────────────────────────
-export const getToken    = async () => (await AsyncStorage.getItem('cr_token')) || '';
-export const setToken    = (t)  => AsyncStorage.setItem('cr_token', t);
-export const removeToken = ()   => AsyncStorage.removeItem('cr_token');
+const SECURE_TOKEN_KEY = 'cr_token_sec';
+
+// ── Token / User helpers (Hardware-backed SecureStore for credentials) ──────────────
+export const getToken = async () => {
+  try {
+    if (Platform.OS !== 'web' && (await SecureStore.isAvailableAsync())) {
+      const val = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
+      if (val) return val;
+    }
+  } catch (_) {}
+  return (await AsyncStorage.getItem('cr_token')) || '';
+};
+
+export const setToken = async (t) => {
+  try {
+    if (Platform.OS !== 'web' && (await SecureStore.isAvailableAsync())) {
+      await SecureStore.setItemAsync(SECURE_TOKEN_KEY, t, {
+        keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+      });
+    }
+  } catch (_) {}
+  return AsyncStorage.setItem('cr_token', t);
+};
+
+export const removeToken = async () => {
+  try {
+    if (Platform.OS !== 'web' && (await SecureStore.isAvailableAsync())) {
+      await SecureStore.deleteItemAsync(SECURE_TOKEN_KEY);
+    }
+  } catch (_) {}
+  return AsyncStorage.removeItem('cr_token');
+};
 
 export const getUser     = async () => {
   const raw = await AsyncStorage.getItem('cr_user');

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE } from '../services/api';
+import { API_BASE, getToken } from '../services/api';
 import { showPushNotification } from '../services/notificationService';
 
 let globalSocket = null;
@@ -105,8 +105,13 @@ export const getSharedSocket = (userId, userType) => {
       reconnectionDelay: 2000,
     });
 
-    globalSocket.on('connect', () => {
-      globalSocket.emit('authenticate', { userId, userType });
+    globalSocket.on('connect', async () => {
+      try {
+        const token = await getToken();
+        globalSocket.emit('authenticate', { userId, userType, token });
+      } catch (_) {
+        globalSocket.emit('authenticate', { userId, userType });
+      }
     });
 
     const notifyAll = (event, data) => {

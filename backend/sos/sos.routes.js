@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const { isAdmin } = require('../admin/admin.middleware');
 const controller = require('./sos.controller');
 
 // User routes
@@ -13,7 +14,7 @@ router.put('/contacts', auth, controller.updateEmergencyContacts);
 router.post('/:sosId/acknowledge', auth, controller.acknowledgeSOS);
 router.post('/:sosId/resolve', auth, controller.resolveSOS);
 
-// Admin routes
-router.get('/admin/all', auth, controller.getAllSOS);
+// Admin routes - strictly requires admin role
+router.get('/admin/all', auth, isAdmin, controller.getAllSOS);
 
 module.exports = router;

@@ -79,12 +79,13 @@ const register = async (req, res) => {
     const { normalizeCollege } = require('../config/collegeDomains');
 
     if (role === 'admin') {
-      const ADMIN_KEY = process.env.ADMIN_KEY || 'freewheel';
-      if (adminKey !== ADMIN_KEY)
-        return res.status(403).json({ message: 'Invalid admin key.' });
+      const ADMIN_KEY = process.env.ADMIN_KEY;
+      if (!ADMIN_KEY || adminKey !== ADMIN_KEY)
+        return res.status(403).json({ message: 'Administrative registration is disabled or invalid key provided.' });
     }
 
-    const blockedUser = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') }, blocked: true });
+    const safeEmail = email.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const blockedUser = await User.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') }, blocked: true });
     if (blockedUser) return res.status(403).json({ message: 'This account has been blocked. Contact support.' });
 
     const blockedPhone = await User.findOne({ phone, blocked: true });
@@ -317,135 +318,176 @@ const getMe = async (req, res) => {
   }
 };
 
-// ── Send OTP ──────────────────────────────────────────────────────
+// ── Send OTP (Cryptographically secure, rate-limited, enumeration-protected) ──
 const sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'Email is required' });
+    if (!email || typeof email !== 'string') return res.status(400).json({ message: 'Valid email is required' });
 
-    const user = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
-    if (!user) return res.status(404).json({ message: 'No account found with this email.' });
+    const normalizedEmail = email.trim().toLowerCase();
+    const safeEmail = normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 10 * 60 * 1000;
-    otpStore.set(email.toLowerCase(), { otp, expiresAt, userId: user._id });
+    // ── Resend cooldown: 60 seconds ──────────────────────────────
+    const existing = otpStore.get(normalizedEmail);
+    if (existing && existing.requestedAt && (Date.now() - existing.requestedAt < 60000)) {
+      const remainingSec = Math.ceil((60000 - (Date.now() - existing.requestedAt)) / 1000);
+      return res.status(429).json({ message: `Please wait ${remainingSec} second(s) before requesting a new OTP.` });
+    }
+
+    const user = await User.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } });
+    if (!user) {
+      // Generic success response to prevent account enumeration
+      return res.json({ message: 'If an account exists with this email, a verification OTP has been sent. Valid for 10 minutes.' });
+    }
+
+    // Cryptographically secure 6-digit OTP (100000 to 999999)
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    otpStore.set(normalizedEmail, {
+      otp,
+      expiresAt,
+      userId: user._id,
+      attempts: 0,
+      requestedAt: Date.now()
+    });
 
     try {
       await sendEmailViaBrevo({
-        to:      email,
+        to:      normalizedEmail,
         toName:  user.name,
-        subject: 'HOGO — Password Reset OTP',
+        subject: 'HOGO — Password Reset Verification Code',
         html: '<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#07090d;color:#fff;border-radius:12px;padding:32px;">' +
               '<div style="font-size:24px;font-weight:900;margin-bottom:8px;letter-spacing:1px;">HO<span style="color:#f5a623;">GO</span></div>' +
-              '<h2 style="color:#f5a623;margin-top:0;">Password Reset OTP</h2>' +
+              '<h2 style="color:#f5a623;margin-top:0;">Password Reset Verification</h2>' +
               '<p style="color:#aaa;">Hi ' + user.name + ',</p>' +
-              '<p style="color:#aaa;">Your one-time password to reset your HOGO account password is:</p>' +
+              '<p style="color:#aaa;">Your single-use verification code to securely reset your HOGO account password is:</p>' +
               '<div style="background:#1a1d24;border:2px solid #f5a623;border-radius:10px;text-align:center;padding:24px;margin:20px 0;">' +
               '<span style="font-size:40px;font-weight:900;letter-spacing:12px;color:#f5a623;">' + otp + '</span>' +
               '</div>' +
-              '<p style="color:#aaa;font-size:13px;">Valid for <strong style="color:#fff;">10 minutes</strong>. Do not share with anyone.</p>' +
-              '<p style="color:#555;font-size:12px;margin-top:24px;">If you did not request this, ignore this email.</p>' +
+              '<p style="color:#aaa;font-size:13px;">Valid for <strong style="color:#fff;">10 minutes</strong>. Never share this code with anyone.</p>' +
+              '<p style="color:#555;font-size:12px;margin-top:24px;">If you did not initiate this request, your account remains secure and you can disregard this email.</p>' +
               '</div>',
       });
-      console.log('✅ OTP sent to ' + email + ' via Brevo');
-      res.json({ message: 'OTP sent to your email. Valid for 10 minutes.' });
+      res.json({ message: 'Verification OTP sent to your email. Valid for 10 minutes.' });
     } catch (mailErr) {
-      console.error('❌ Brevo send failed:', mailErr.message);
-      console.log('🔑 FALLBACK OTP for ' + email + ': ' + otp);
+      console.error('Email delivery error:', mailErr.message);
       return res.status(500).json({
-        message: 'Could not send OTP email. Error: ' + mailErr.message
+        message: 'Could not send verification email. Please try again later.'
       });
     }
   } catch (error) {
-    console.error('sendOtp error:', error);
-    res.status(500).json({ message: error.message });
+    console.error('sendOtp error:', error.message);
+    res.status(500).json({ message: 'Internal server error processing OTP request' });
   }
 };
 
-// ── Verify OTP ────────────────────────────────────────────────────
+// ── Verify OTP (Brute-force protected: max 5 attempts) ─────────────
 const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
     if (!email || !otp) return res.status(400).json({ message: 'Email and OTP are required' });
 
-    const record = otpStore.get(email.toLowerCase());
-    if (!record) return res.status(400).json({ message: 'No OTP requested for this email. Request a new one.' });
-    if (Date.now() > record.expiresAt) {
-      otpStore.delete(email.toLowerCase());
-      return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+    const normalizedEmail = email.trim().toLowerCase();
+    const record = otpStore.get(normalizedEmail);
+
+    if (!record) {
+      return res.status(400).json({ message: 'No active OTP request found for this email. Please request a new one.' });
     }
-    if (record.otp !== otp.toString()) return res.status(400).json({ message: 'Incorrect OTP. Try again.' });
 
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(normalizedEmail);
+      return res.status(400).json({ message: 'OTP has expired. Please request a new one.' });
+    }
+
+    record.attempts = (record.attempts || 0) + 1;
+
+    if (record.attempts > 5) {
+      otpStore.delete(normalizedEmail);
+      return res.status(429).json({ message: 'Too many incorrect attempts. This OTP has been invalidated. Please request a new code.' });
+    }
+
+    if (record.otp !== otp.toString().trim()) {
+      const remaining = Math.max(0, 5 - record.attempts);
+      return res.status(400).json({ message: `Incorrect OTP. ${remaining} attempt(s) remaining.` });
+    }
+
+    // Cryptographically secure single-use reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    otpStore.set(`reset:${resetToken}`, { email: email.toLowerCase(), expiresAt: Date.now() + 15 * 60 * 1000 });
-    otpStore.delete(email.toLowerCase());
+    otpStore.set(`reset:${resetToken}`, {
+      email: normalizedEmail,
+      userId: record.userId,
+      expiresAt: Date.now() + 15 * 60 * 1000 // 15 mins
+    });
+    otpStore.delete(normalizedEmail);
 
-    res.json({ message: 'OTP verified', resetToken });
+    res.json({ message: 'OTP verified successfully', resetToken });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// ── Reset Password with token or OTP ─────────────────────────────
+// ── Reset Password with token or verified OTP ─────────────────────
 const resetPasswordWithToken = async (req, res) => {
   try {
     const resetToken = req.body.resetToken || req.body.token;
     const newPwd     = req.body.password || req.body.newPassword;
     const { email, otp } = req.body;
 
-    if (!newPwd) {
-      return res.status(400).json({ message: 'New password is required' });
+    if (!newPwd || typeof newPwd !== 'string' || newPwd.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
     }
 
     let targetEmail = null;
 
     if (resetToken) {
       const record = otpStore.get(`reset:${resetToken}`);
-      if (!record) return res.status(400).json({ message: 'Invalid or expired reset session. Start over.' });
+      if (!record) return res.status(400).json({ message: 'Invalid or expired password reset session. Please start over.' });
       if (Date.now() > record.expiresAt) {
         otpStore.delete(`reset:${resetToken}`);
-        return res.status(400).json({ message: 'Reset session expired. Please start over.' });
+        return res.status(400).json({ message: 'Password reset session expired. Please start over.' });
       }
       targetEmail = record.email;
-      otpStore.delete(`reset:${resetToken}`);
+      otpStore.delete(`reset:${resetToken}`); // Single-use consumption
     } else if (email && otp) {
-      const record = otpStore.get(email.toLowerCase());
-      if (!record) return res.status(400).json({ message: 'No OTP requested for this email. Request a new one.' });
+      const normalizedEmail = email.trim().toLowerCase();
+      const record = otpStore.get(normalizedEmail);
+      if (!record) return res.status(400).json({ message: 'No active OTP request found for this email. Please request a new code.' });
       if (Date.now() > record.expiresAt) {
-        otpStore.delete(email.toLowerCase());
+        otpStore.delete(normalizedEmail);
         return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
       }
-      if (record.otp !== otp.toString()) return res.status(400).json({ message: 'Incorrect OTP. Try again.' });
-      targetEmail = email.toLowerCase();
-      otpStore.delete(email.toLowerCase());
+
+      record.attempts = (record.attempts || 0) + 1;
+      if (record.attempts > 5) {
+        otpStore.delete(normalizedEmail);
+        return res.status(429).json({ message: 'Too many incorrect attempts. Please request a new OTP.' });
+      }
+
+      if (record.otp !== otp.toString().trim()) {
+        const remaining = Math.max(0, 5 - record.attempts);
+        return res.status(400).json({ message: `Incorrect OTP. ${remaining} attempt(s) remaining.` });
+      }
+      targetEmail = normalizedEmail;
+      otpStore.delete(normalizedEmail); // Single-use consumption
     } else {
-      return res.status(400).json({ message: 'Reset token or OTP with email is required' });
+      return res.status(400).json({ message: 'Reset token or verified OTP with email is required' });
     }
 
-    const user = await User.findOne({ email: { $regex: new RegExp(`^${targetEmail}$`, 'i') } });
-    if (!user) return res.status(404).json({ message: 'User not found.' });
+    const safeTargetEmail = targetEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const user = await User.findOne({ email: { $regex: new RegExp(`^${safeTargetEmail}$`, 'i') } });
+    if (!user) return res.status(404).json({ message: 'User account not found.' });
 
+    // Hash password securely
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(newPwd, salt);
+
+    // Invalidate all existing sessions and refresh tokens
     user.currentSessionSeed = crypto.randomBytes(16).toString('hex');
+    user.isLoggedIn = false;
+    user.activeDeviceId = null;
     await user.save();
 
-    res.json({ message: 'Password reset successfully. You can now log in.' });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// ── Legacy direct reset ───────────────────────────────────────────
-const resetPasswordDirect = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-    await user.save();
-    res.json({ message: 'Password updated successfully' });
+    res.json({ message: 'Password reset successfully. All active sessions have been invalidated. You can now log in.' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -523,4 +565,4 @@ const contactSupport = async (req, res) => {
   }
 };
 
-module.exports = { register, login, logout, getMe, sendOtp, verifyOtp, resetPasswordWithToken, resetPasswordDirect, contactSupport };
+module.exports = { register, login, logout, getMe, sendOtp, verifyOtp, resetPasswordWithToken, contactSupport };

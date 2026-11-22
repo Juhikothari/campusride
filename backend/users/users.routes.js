@@ -29,19 +29,26 @@ router.get('/profile', auth, async (req, res) => {
   }
 });
 
-// ── PUT /api/users/profile — update profile (e.g. selfie / photo) ──
+// ── PUT /api/users/profile — update profile (explicit allowlist prevents mass-assignment) ──
 router.put('/profile', auth, async (req, res) => {
   try {
-    const updates = req.body;
-    delete updates.password;
-    delete updates.email;
-    delete updates.role;
+    const allowedFields = ['gender', 'emergencyContact', 'usn', 'profilePhoto'];
+    const safeUpdates = {};
+    for (const key of allowedFields) {
+      if (req.body[key] !== undefined) {
+        safeUpdates[key] = req.body[key];
+      }
+    }
+
+    if (Object.keys(safeUpdates).length === 0) {
+      return res.status(400).json({ message: 'No editable profile fields provided' });
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user.userId,
-      updates,
-      { new: true }
-    ).select('-password -currentSessionSeed');
+      { $set: safeUpdates },
+      { new: true, runValidators: true }
+    ).select('-password -currentSessionSeed -kycDocuments');
 
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
@@ -179,11 +186,11 @@ router.get('/profile/vehicles', auth, async (req, res) => {
   }
 });
 
-// ── GET /api/users/:id  — public profile ──────────────────────────
+// ── GET /api/users/:id  — public profile (strips sensitive KYC documents) ─
 router.get('/:id', auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
-      .select('name email phone college role gender usn kycStatus profilePhoto createdAt kycDocuments');
+      .select('name email phone college role gender usn kycStatus profilePhoto createdAt');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
   } catch (err) {

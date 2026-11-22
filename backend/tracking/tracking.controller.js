@@ -1,5 +1,7 @@
 const Tracking = require("./tracking.model");
 const Ride = require("../rides/rides.model");
+const Booking = require("../bookings/bookings.model");
+const User = require("../users/users.model");
 
 // UPDATE LOCATION
 const updateLocation = async (req, res) => {
@@ -65,23 +67,48 @@ const updateLocation = async (req, res) => {
   }
 };
 
-// GET TRACKING
+// GET TRACKING (Strictly authorized to ride participants and admins)
 const getTracking = async (req, res) => {
   try {
+    const userId = req.user.userId;
+    const rideId = req.params.rideId;
+
+    const [user, ride] = await Promise.all([
+      User.findById(userId).select('role blocked suspended'),
+      Ride.findById(rideId).select('providerId status')
+    ]);
+
+    if (!user || user.blocked || user.suspended) {
+      return res.status(403).json({ error: "Account is restricted" });
+    }
+
+    if (!ride) {
+      return res.status(404).json({ error: "Ride not found" });
+    }
+
+    const isAdmin = user.role === 'admin';
+    const isProvider = ride.providerId.toString() === userId.toString();
+    const isSeeker = await Booking.exists({
+      rideId,
+      seekerId: userId,
+      status: { $in: ['accepted', 'completed'] }
+    });
+
+    if (!isAdmin && !isProvider && !isSeeker) {
+      return res.status(403).json({ error: "Access denied: You are not an authorized participant in this ride." });
+    }
+
     const tracking = await Tracking.findOne({
-      rideId: req.params.rideId
+      rideId
     }).populate('providerId', 'name phone rating');
 
     if (!tracking) {
       return res.status(404).json({ error: "Tracking not found" });
     }
 
-    // Get ride status
-    const ride = await Ride.findById(req.params.rideId).select('status');
-    
     res.json({
       ...tracking.toObject(),
-      rideStatus: ride?.status
+      rideStatus: ride.status
     });
   } catch (error) {
     console.error("Get tracking error:", error);

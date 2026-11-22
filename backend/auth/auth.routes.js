@@ -15,9 +15,6 @@ router.post('/verify-otp',          controller.verifyOtp);
 router.post('/reset-password-otp',  controller.resetPasswordWithToken);
 router.post('/reset-password',      controller.resetPasswordWithToken); // alias for mobile
 
-// Legacy
-router.post('/reset-password-direct', controller.resetPasswordDirect);
-
 router.post("/contact-support", controller.contactSupport);
 
 module.exports = router;

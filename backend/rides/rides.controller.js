@@ -740,18 +740,35 @@ exports.getRide = async (req, res) => {
   }
 };
 
-// ================= UPDATE RIDE =================
+// ================= UPDATE RIDE (Mass-assignment protected) =================
 exports.updateRide = async (req, res) => {
   try {
-    const ride = await Ride.findOneAndUpdate(
-      { _id: req.params.id, providerId: req.user.userId },
-      req.body,
-      { new: true }
+    const ride = await Ride.findOne({ _id: req.params.id, providerId: req.user.userId });
+    if (!ride) return res.status(404).json({ message: 'Ride not found or unauthorized' });
+
+    if (['completed', 'cancelled'].includes(ride.status)) {
+      return res.status(400).json({ message: `Cannot modify a ride that is already ${ride.status}` });
+    }
+
+    const allowed = ['notes', 'pickup', 'drop', 'date', 'time', 'seatsAvailable', 'costPerSeat'];
+    const safeUpdates = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        safeUpdates[key] = req.body[key];
+      }
+    }
+
+    if (Object.keys(safeUpdates).length === 0) {
+      return res.status(400).json({ message: 'No editable ride fields provided' });
+    }
+
+    const updated = await Ride.findByIdAndUpdate(
+      req.params.id,
+      { $set: safeUpdates },
+      { new: true, runValidators: true }
     );
 
-    if (!ride) return res.status(404).json({ message: 'Ride not found' });
-
-    res.json(ride);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

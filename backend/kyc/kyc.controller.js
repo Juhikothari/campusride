@@ -214,7 +214,7 @@ exports.reviewKyc = async (req, res) => {
   }
 };
 
-// Serve KYC document image
+// Serve KYC document image (strictly authorized: owner or verified admin)
 exports.getDocumentImage = async (req, res) => {
   try {
     const { userId, docType } = req.params;
@@ -222,6 +222,24 @@ exports.getDocumentImage = async (req, res) => {
     const validDocTypes = ['aadhar', 'collegeIdCard', 'drivingLicense', 'selfie', 'vehiclePhoto'];
     if (!validDocTypes.includes(docType)) {
       return res.status(400).json({ message: 'Invalid document type' });
+    }
+
+    // Object-level authorization: caller must be document owner OR verified admin
+    const requesterId = req.user?.userId || req.user?.id;
+    if (!requesterId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const requester = await User.findById(requesterId).select('role blocked suspended');
+    if (!requester || requester.blocked || requester.suspended) {
+      return res.status(403).json({ message: 'Account is restricted or inactive' });
+    }
+
+    const isOwner = requesterId.toString() === userId.toString();
+    const isReqAdmin = requester.role === 'admin';
+
+    if (!isOwner && !isReqAdmin) {
+      return res.status(403).json({ message: 'Access denied: You are not authorized to access this document.' });
     }
 
     const user = await User.findById(userId);
