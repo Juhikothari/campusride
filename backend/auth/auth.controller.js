@@ -297,7 +297,7 @@ const logout = async (req, res) => {
     if (user) {
       user.isLoggedIn = false;
       user.activeDeviceId = null;
-      user.currentSessionSeed = '';
+      user.currentSessionSeed = crypto.randomBytes(16).toString('hex');
       user.pushToken = null;
       user.pushPlatform = null;
       await user.save();

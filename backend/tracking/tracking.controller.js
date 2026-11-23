@@ -9,12 +9,17 @@ const updateLocation = async (req, res) => {
     const { rideId, latitude, longitude } = req.body;
     const providerId = req.user.userId;
 
-    // Verify ride is in progress
+    // Verify ride exists
     const ride = await Ride.findById(rideId);
     if (!ride) {
       return res.status(404).json({ error: "Ride not found" });
     }
     
+    // Authorization: Verify caller is the provider or admin
+    if (ride.providerId.toString() !== providerId && req.user.role !== 'admin') {
+      return res.status(403).json({ error: "Not authorized to update tracking for this ride" });
+    }
+
     if (ride.status !== 'in-progress') {
       return res.status(400).json({ error: "Ride has not started yet" });
     }

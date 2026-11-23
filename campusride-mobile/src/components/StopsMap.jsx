@@ -60,11 +60,20 @@ export default function StopsMap({ stops, geometry, height = 280 }) {
   return (
     <View style={{ height, borderRadius: 16, overflow: 'hidden', backgroundColor: '#0c0f17' }}>
       <WebView
-        originWhitelist={['*']}
+        originWhitelist={['https://unpkg.com', 'https://*.openstreetmap.org', 'about:blank', 'data:text/html*']}
         source={{ html }}
         javaScriptEnabled
         domStorageEnabled
         scrollEnabled={false}
+        allowFileAccess={false}
+        allowFileAccessFromFileURLs={false}
+        allowUniversalAccessFromFileURLs={false}
+        onShouldStartLoadWithRequest={(req) => {
+          if (req.url.startsWith('data:') || req.url.startsWith('about:blank') || req.url.includes('openstreetmap.org') || req.url.includes('unpkg.com')) {
+            return true;
+          }
+          return false;
+        }}
         style={{ backgroundColor: '#0c0f17' }}
       />
     </View>

@@ -151,25 +151,20 @@ io.on("connection", (socket) => {
   // Cryptographically verify identity on authenticate
   socket.on('authenticate', async (data) => {
     try {
-      let verifiedUserId = null;
-
-      // 1. If JWT token provided, verify it
-      if (data?.token) {
-        try {
-          const decoded = jwt.verify(data.token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-          verifiedUserId = decoded.userId;
-        } catch (jwtErr) {
-          console.warn('Socket authentication token invalid:', jwtErr.message);
-        }
+      if (!data?.token) {
+        return socket.emit('authenticated', { success: false, error: 'Authentication token required' });
       }
 
-      // 2. Fallback to data.userId if token not passed, but always verify against DB
-      if (!verifiedUserId && data?.userId) {
-        verifiedUserId = data.userId;
+      let decoded;
+      try {
+        decoded = jwt.verify(data.token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+      } catch (jwtErr) {
+        return socket.emit('authenticated', { success: false, error: 'Invalid or expired token' });
       }
 
+      const verifiedUserId = decoded.userId;
       if (!verifiedUserId) {
-        return socket.emit('authenticated', { success: false, error: 'Valid authentication credentials required' });
+        return socket.emit('authenticated', { success: false, error: 'Token missing user identity' });
       }
 
       const User = require('./users/users.model');

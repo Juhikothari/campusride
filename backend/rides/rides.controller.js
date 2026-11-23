@@ -743,8 +743,11 @@ exports.getRide = async (req, res) => {
 // ================= UPDATE RIDE (Mass-assignment protected) =================
 exports.updateRide = async (req, res) => {
   try {
-    const ride = await Ride.findOne({ _id: req.params.id, providerId: req.user.userId });
-    if (!ride) return res.status(404).json({ message: 'Ride not found or unauthorized' });
+    const ride = await Ride.findById(req.params.id);
+    if (!ride) return res.status(404).json({ message: 'Ride not found' });
+    if (ride.providerId.toString() !== req.user.userId && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: You are not the provider of this ride' });
+    }
 
     if (['completed', 'cancelled'].includes(ride.status)) {
       return res.status(400).json({ message: `Cannot modify a ride that is already ${ride.status}` });
@@ -1241,8 +1244,11 @@ exports.cancelRide = async (req, res) => {
     const { rideId } = req.params;
     const { reason } = req.body;
 
-    const ride = await Ride.findOne({ _id: rideId, providerId: req.user.userId });
+    const ride = await Ride.findById(rideId);
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
+    if (ride.providerId.toString() !== req.user.userId && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Only the ride provider can cancel this ride' });
+    }
 
     if (ride.status === 'completed' || ride.status === 'cancelled') {
       return res.status(400).json({ message: 'Ride already finished' });

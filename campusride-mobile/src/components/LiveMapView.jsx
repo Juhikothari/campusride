@@ -391,13 +391,22 @@ export default function LiveMapView({
     <View style={[styles.container, { height }, style]}>
       <WebView
         ref={webViewRef}
-        originWhitelist={['*']}
+        originWhitelist={['https://unpkg.com', 'https://*.openstreetmap.org', 'about:blank', 'data:text/html*']}
         source={{ html: generateLeafletHTML() }}
         onMessage={handleMessage}
         style={styles.webView}
         scrollEnabled={false}
         javaScriptEnabled={true}
         domStorageEnabled={true}
+        allowFileAccess={false}
+        allowFileAccessFromFileURLs={false}
+        allowUniversalAccessFromFileURLs={false}
+        onShouldStartLoadWithRequest={(req) => {
+          if (req.url.startsWith('data:') || req.url.startsWith('about:blank') || req.url.includes('openstreetmap.org') || req.url.includes('unpkg.com')) {
+            return true;
+          }
+          return false;
+        }}
         renderLoading={() => (
           <View style={styles.loader}>
             <ActivityIndicator color={colors.accent} size="small" />

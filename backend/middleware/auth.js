@@ -41,9 +41,9 @@ module.exports = async (req, res, next) => {
 
     // Single-device session verification
     if (decoded.sessionSeed) {
-      if (user.currentSessionSeed && user.currentSessionSeed !== decoded.sessionSeed) {
+      if (!user.currentSessionSeed || user.currentSessionSeed !== decoded.sessionSeed) {
         return res.status(401).json({
-          message: 'Session expired. Your account was logged in on another device. Please log in again.',
+          message: 'Session expired, replaced, or revoked. Please log in again.',
           code: 'SESSION_REPLACED'
         });
       }

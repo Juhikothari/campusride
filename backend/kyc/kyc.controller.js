@@ -15,8 +15,6 @@ const fs = require('fs');
 // Submit KYC (Providers: aadhar + drivingLicense + collegeIdCard, Seekers: aadhar + collegeIdCard)
 exports.submitKyc = async (req, res) => {
   try {
-    console.log('KYC Submit Request Body:', req.body); // DEBUG LOG
-
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -30,17 +28,19 @@ exports.submitKyc = async (req, res) => {
       return res.status(400).json({ message: "Live selfie verification photo is mandatory" });
     }
 
-    // Validate image format (accept data URL, http/https, or mobile file/content URI)
+    // Strictly validate image format: data URI with image MIME or HTTPS Cloudinary / image URL
     const isValidImageUrl = (url) => {
-      return url && typeof url === 'string' && (
-        url.startsWith('data:image') || 
-        url.startsWith('http://') || 
-        url.startsWith('https://') ||
-        url.startsWith('file://') ||
-        url.startsWith('ph://') ||
-        url.startsWith('content://') ||
-        url.length > 5
-      );
+      if (!url || typeof url !== 'string') return false;
+      if (url.startsWith('data:image/')) {
+        return /^data:image\/(jpeg|png|webp|jpg);base64,([A-Za-z0-9+/=]+)$/.test(url);
+      }
+      if (url.startsWith('https://res.cloudinary.com/')) {
+        return true;
+      }
+      if (url.startsWith('https://') || url.startsWith('http://')) {
+        return /\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(url);
+      }
+      return false;
     };
 
     if (aadharUrl && !isValidImageUrl(aadharUrl)) {
@@ -249,18 +249,19 @@ exports.getDocumentImage = async (req, res) => {
 
     const fileData = user.kycDocuments[docType];
 
-    // Redirect external URLs (Cloudinary, S3, etc.)
-    if (fileData.startsWith('http://') || fileData.startsWith('https://')) {
+    // Redirect trusted external URLs (Cloudinary or valid image asset)
+    if (fileData.startsWith('https://res.cloudinary.com/') || /^https:\/\/[a-zA-Z0-9.-]+\/.*\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(fileData)) {
       return res.redirect(fileData);
     }
 
     // Serve base64 data URI directly
-    if (fileData.startsWith('data:image')) {
-      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    if (fileData.startsWith('data:image/')) {
+      const matches = fileData.match(/^data:image\/([A-Za-z-+]+);base64,(.+)$/);
       if (matches && matches.length === 3) {
-        const contentType = matches[1];
+        const contentType = `image/${matches[1]}`;
         const buffer = Buffer.from(matches[2], 'base64');
         res.set('Content-Type', contentType);
+        res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
         return res.send(buffer);
       }
     }

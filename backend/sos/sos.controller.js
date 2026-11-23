@@ -90,7 +90,14 @@ exports.triggerSOS = async (req, res) => {
           phone: emergencyContact,
           notifiedAt: new Date()
         });
-        sos.notificationsSent.push({ type: 'sms', recipient: emergencyContact, status: 'sent' });
+        // Note: No backend SMS gateway (e.g. Twilio/SNS/Fast2SMS) is configured.
+        // SMS alert is delegated to the mobile client's native SMS application via sms: intent.
+        sos.notificationsSent.push({
+          type: 'sms',
+          recipient: emergencyContact,
+          status: 'client_delegated',
+          notes: 'Delegated to mobile client native SMS composer (sms: URI)'
+        });
       }
       await sos.save();
     } catch (notifErr) {

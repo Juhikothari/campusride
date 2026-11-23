@@ -17,20 +17,35 @@ export const getToken = async () => {
     if (Platform.OS !== 'web' && (await SecureStore.isAvailableAsync())) {
       const val = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
       if (val) return val;
+      // Auto-migrate legacy token from AsyncStorage if present
+      const legacy = await AsyncStorage.getItem('cr_token');
+      if (legacy) {
+        await SecureStore.setItemAsync(SECURE_TOKEN_KEY, legacy, {
+          keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+        });
+        await AsyncStorage.removeItem('cr_token');
+        return legacy;
+      }
     }
   } catch (_) {}
   return (await AsyncStorage.getItem('cr_token')) || '';
 };
 
 export const setToken = async (t) => {
+  let storedSecurely = false;
   try {
     if (Platform.OS !== 'web' && (await SecureStore.isAvailableAsync())) {
       await SecureStore.setItemAsync(SECURE_TOKEN_KEY, t, {
         keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
       });
+      storedSecurely = true;
+      // Clean up plaintext storage so no credentials linger in AsyncStorage
+      await AsyncStorage.removeItem('cr_token');
     }
   } catch (_) {}
-  return AsyncStorage.setItem('cr_token', t);
+  if (!storedSecurely) {
+    return AsyncStorage.setItem('cr_token', t);
+  }
 };
 
 export const removeToken = async () => {
