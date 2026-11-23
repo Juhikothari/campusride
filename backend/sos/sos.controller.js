@@ -1,4 +1,7 @@
+// backend/sos/sos.controller.js - Hardened Emergency SOS Controller with Explicit Status Tracking
 const { notifyAdmins } = require('../notifications/notifications.helper');
+const { sendPushToUser } = require('../notifications/push.helper');
+const { smsService } = require('../services/sms/sms.service');
 const SOS = require('./sos.model');
 const Ride = require('../rides/rides.model');
 const User = require('../users/users.model');
@@ -7,11 +10,24 @@ const Booking = require('../bookings/bookings.model');
 // Trigger SOS
 exports.triggerSOS = async (req, res) => {
   try {
-    const { rideId, type, description, location } = req.body;
-    
+    const { rideId, type, description, location, idempotencyKey } = req.body;
     const userId = req.user.userId;
     
-    // Verify user is part of this ride
+    // Check idempotency if key provided
+    const key = idempotencyKey || req.headers['idempotency-key'];
+    if (key) {
+      const existingKeySOS = await SOS.findOne({ idempotencyKey: key });
+      if (existingKeySOS) {
+        return res.status(200).json({
+          message: 'SOS alert already processed for this idempotency key',
+          sos: existingKeySOS,
+          emergencyContactsNotified: existingKeySOS.emergencyContacts.filter(c => ['delivered', 'sent'].includes(c.deliveryStatus)).length,
+          idempotentReplay: true
+        });
+      }
+    }
+
+    // Verify ride existence
     const ride = await Ride.findById(rideId);
     if (!ride) return res.status(404).json({ message: 'Ride not found' });
     
@@ -32,18 +48,27 @@ exports.triggerSOS = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized for this ride' });
     }
     
-    // Check if active SOS already exists
-    const existingSOS = await SOS.findOne({ rideId, status: 'active' });
+    // Check if active or acknowledged SOS already exists for this ride
+    const existingSOS = await SOS.findOne({ 
+      rideId, 
+      status: { $in: ['active', 'acknowledged'] } 
+    });
     if (existingSOS) {
       return res.status(400).json({ 
         message: 'Active SOS already exists for this ride',
         sosId: existingSOS._id
       });
     }
+
+    const user = await User.findById(userId);
+    if (!user || user.blocked || user.suspended) {
+      return res.status(403).json({ message: 'Account is restricted from triggering SOS' });
+    }
     
     // Create SOS record
     const sos = new SOS({
       rideId,
+      idempotencyKey: key || undefined,
       triggeredBy: {
         userId,
         role: isProvider ? 'provider' : 'seeker'
@@ -51,59 +76,104 @@ exports.triggerSOS = async (req, res) => {
       location: location || { lat: 0, lng: 0 },
       type: type || 'other',
       description,
-      status: 'active'
+      status: 'active',
+      auditLog: [{
+        action: 'triggered',
+        performedBy: userId,
+        timestamp: new Date(),
+        notes: `SOS triggered by ${user.name || 'User'} (${isProvider ? 'provider' : 'seeker'})`
+      }]
     });
     
-    await sos.save();
-    
-    // Get emergency contact
-    const user = await User.findById(userId);
-    const emergencyContact = user?.emergencyContact || '';
-    const emergencyContacts = emergencyContact ? [emergencyContact] : (user?.emergencyContacts || []);
-    
-    // Send actual notifications to other ride participants
+    // Dispatch Push notifications to other ride participants and await results
     try {
-      const { sendPushToUser } = require('../notifications/push.helper');
       if (isProvider) {
         // Provider triggered: alert all accepted passengers
         const bookings = await Booking.find({ rideId, status: 'accepted' });
         for (const b of bookings) {
-          sendPushToUser(b.seekerId, {
+          const pushRes = await sendPushToUser(b.seekerId, {
             title: '🚨 EMERGENCY ALERT ON YOUR RIDE',
             body: `Emergency SOS triggered by ride provider. Please remain safe.`,
-            data: { type: 'sos_alert', rideId, sosId: sos._id }
-          }).catch(() => {});
-          sos.notificationsSent.push({ type: 'push', recipient: String(b.seekerId), status: 'sent' });
+            data: { type: 'sos_alert', rideId, sosId: String(sos._id) }
+          });
+          sos.notificationsSent.push({
+            type: 'push',
+            recipient: String(b.seekerId),
+            status: pushRes?.status === 'sent' ? 'sent' : 'failed',
+            provider: pushRes?.provider || 'EXPO',
+            messageId: pushRes?.messageId || null,
+            attempts: pushRes?.attempts || 1,
+            error: pushRes?.error || null
+          });
         }
       } else {
         // Seeker triggered: alert the ride provider
-        sendPushToUser(ride.providerId, {
+        const pushRes = await sendPushToUser(ride.providerId, {
           title: '🚨 PASSENGER EMERGENCY SOS TRIGGERED',
           body: `Emergency SOS triggered by your passenger. Immediate assistance required.`,
-          data: { type: 'sos_alert', rideId, sosId: sos._id }
-        }).catch(() => {});
-        sos.notificationsSent.push({ type: 'push', recipient: String(ride.providerId), status: 'sent' });
-      }
-
-      if (emergencyContact) {
-        sos.emergencyContacts.push({
-          phone: emergencyContact,
-          notifiedAt: new Date()
+          data: { type: 'sos_alert', rideId, sosId: String(sos._id) }
         });
-        // Note: No backend SMS gateway (e.g. Twilio/SNS/Fast2SMS) is configured.
-        // SMS alert is delegated to the mobile client's native SMS application via sms: intent.
         sos.notificationsSent.push({
-          type: 'sms',
-          recipient: emergencyContact,
-          status: 'client_delegated',
-          notes: 'Delegated to mobile client native SMS composer (sms: URI)'
+          type: 'push',
+          recipient: String(ride.providerId),
+          status: pushRes?.status === 'sent' ? 'sent' : 'failed',
+          provider: pushRes?.provider || 'EXPO',
+          messageId: pushRes?.messageId || null,
+          attempts: pushRes?.attempts || 1,
+          error: pushRes?.error || null
         });
       }
-      await sos.save();
-    } catch (notifErr) {
-      console.warn('SOS participant notification dispatch warning:', notifErr.message);
+    } catch (pushErr) {
+      console.warn('[SOS] Participant push notification warning:', pushErr.message);
     }
-    
+
+    // Process Emergency Contacts Notification
+    const rawContacts = Array.isArray(user.emergencyContacts) && user.emergencyContacts.length > 0
+      ? user.emergencyContacts
+      : (user.emergencyContact ? [{ phone: user.emergencyContact, name: 'Primary Contact', relation: 'Emergency' }] : []);
+
+    let confirmedNotifiedCount = 0;
+
+    for (const contact of rawContacts) {
+      if (!contact.phone) continue;
+
+      const emergencyMessage = `[HOGO EMERGENCY] SOS alert from ${user.name || 'User'}. Location: https://maps.google.com/?q=${sos.location.lat},${sos.location.lng}. Ride #${rideId}.`;
+      
+      const smsRes = await smsService.sendSMS({
+        to: contact.phone,
+        message: emergencyMessage,
+        idempotencyKey: `sos-${sos._id}-${contact.phone}`
+      });
+
+      // Record in notificationsSent
+      sos.notificationsSent.push({
+        type: 'sms',
+        recipient: contact.phone,
+        status: smsRes.status, // 'sent', 'delivered', 'failed', or 'client_action_required'
+        provider: smsRes.provider,
+        messageId: smsRes.messageId || null,
+        attempts: smsRes.attempts || 1,
+        error: smsRes.error || null,
+        notes: smsRes.notes || null
+      });
+
+      // Record in emergencyContacts
+      const isConfirmed = smsRes.status === 'delivered' || smsRes.status === 'sent';
+      if (isConfirmed) confirmedNotifiedCount++;
+
+      sos.emergencyContacts.push({
+        name: contact.name || 'Emergency Contact',
+        phone: contact.phone,
+        relation: contact.relation || 'Emergency',
+        deliveryStatus: smsRes.status,
+        provider: smsRes.provider,
+        messageId: smsRes.messageId || null,
+        notifiedAt: isConfirmed ? new Date() : null
+      });
+    }
+
+    await sos.save();
+
     // Notify via socket to this ride room only
     const io = req.app.get('io');
     if (io) {
@@ -146,8 +216,16 @@ exports.triggerSOS = async (req, res) => {
     res.status(201).json({
       message: 'SOS triggered successfully',
       sos,
-      emergencyContact,
-      emergencyContactsNotified: emergencyContacts.length
+      emergencyContactsNotified: confirmedNotifiedCount,
+      emergencyContactsStatus: sos.emergencyContacts.map(c => ({
+        name: c.name,
+        phone: c.phone,
+        deliveryStatus: c.deliveryStatus,
+        provider: c.provider,
+        notes: c.deliveryStatus === 'client_action_required'
+          ? 'Native client SMS composer required on device'
+          : c.deliveryStatus
+      }))
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -164,7 +242,7 @@ exports.acknowledgeSOS = async (req, res) => {
     if (!sos) return res.status(404).json({ message: 'SOS alert not found' });
     
     if (sos.status !== 'active') {
-      return res.status(400).json({ message: 'SOS is not active' });
+      return res.status(400).json({ message: `Cannot acknowledge SOS: current status is ${sos.status}` });
     }
 
     const [user, ride] = await Promise.all([
@@ -186,6 +264,12 @@ exports.acknowledgeSOS = async (req, res) => {
     sos.status = 'acknowledged';
     sos.acknowledgedBy = userId;
     sos.acknowledgedAt = new Date();
+    sos.auditLog.push({
+      action: 'acknowledged',
+      performedBy: userId,
+      timestamp: new Date(),
+      notes: `SOS acknowledged by ${user.role === 'admin' ? 'Administrator' : 'Provider'}`
+    });
     await sos.save();
     
     // Notify ride participants
@@ -214,6 +298,10 @@ exports.resolveSOS = async (req, res) => {
     const sos = await SOS.findById(sosId);
     if (!sos) return res.status(404).json({ message: 'SOS alert not found' });
 
+    if (!['active', 'acknowledged'].includes(sos.status)) {
+      return res.status(400).json({ message: `Cannot resolve SOS: current status is ${sos.status}` });
+    }
+
     const [user, ride] = await Promise.all([
       User.findById(userId).select('role blocked suspended'),
       Ride.findById(sos.rideId).select('providerId')
@@ -233,7 +321,13 @@ exports.resolveSOS = async (req, res) => {
     
     sos.status = isFalseAlarm ? 'false_alarm' : 'resolved';
     sos.resolvedAt = new Date();
-    sos.resolutionNotes = resolutionNotes;
+    sos.resolutionNotes = resolutionNotes || '';
+    sos.auditLog.push({
+      action: sos.status,
+      performedBy: userId,
+      timestamp: new Date(),
+      notes: resolutionNotes || `Marked as ${sos.status}`
+    });
     await sos.save();
     
     // Notify ride participants
@@ -247,6 +341,58 @@ exports.resolveSOS = async (req, res) => {
     }
     
     res.json({ message: 'SOS resolved', sos });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Cancel SOS (triggerer or admin only)
+exports.cancelSOS = async (req, res) => {
+  try {
+    const { sosId } = req.params;
+    const { cancellationReason } = req.body;
+    const userId = req.user.userId;
+
+    const sos = await SOS.findById(sosId);
+    if (!sos) return res.status(404).json({ message: 'SOS alert not found' });
+
+    if (sos.status !== 'active') {
+      return res.status(400).json({ message: `Cannot cancel SOS: current status is ${sos.status}` });
+    }
+
+    const user = await User.findById(userId).select('role blocked suspended');
+    if (!user || user.blocked || user.suspended) {
+      return res.status(403).json({ message: 'Account is restricted' });
+    }
+
+    const isAdmin = user.role === 'admin';
+    const isTriggerer = sos.triggeredBy?.userId?.toString() === userId.toString();
+
+    if (!isAdmin && !isTriggerer) {
+      return res.status(403).json({ message: 'Access denied: Only the user who triggered the SOS or an admin can cancel it.' });
+    }
+
+    sos.status = 'cancelled';
+    sos.cancelledAt = new Date();
+    sos.cancellationReason = cancellationReason || 'Cancelled by user';
+    sos.auditLog.push({
+      action: 'cancelled',
+      performedBy: userId,
+      timestamp: new Date(),
+      notes: cancellationReason || 'Cancelled by user'
+    });
+    await sos.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`ride-${sos.rideId}`).emit('sosCancelled', {
+        sosId: sos._id,
+        cancelledBy: userId,
+        timestamp: sos.cancelledAt
+      });
+    }
+
+    res.json({ message: 'SOS cancelled successfully', sos });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -278,7 +424,7 @@ exports.getSOS = async (req, res) => {
       });
       
       if (!isProvider && !isSeeker) {
-        return res.status(403).json({ message: 'Not authorized' });
+        return res.status(403).json({ message: 'Not authorized to view this SOS record' });
       }
     }
     
@@ -313,7 +459,7 @@ exports.getActiveSOSForRide = async (req, res) => {
     
     const sos = await SOS.findOne({ 
       rideId, 
-      status: { $in: ['active', 'acknowledged'] }
+      status: { $in: ['active', 'acknowledged'] } 
     }).populate('triggeredBy.userId', 'name phone');
     
     res.json({ hasActiveSOS: !!sos, sos });
@@ -358,7 +504,7 @@ exports.updateEmergencyContacts = async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user.userId,
       { emergencyContacts },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-password');
     
     res.json({ message: 'Emergency contacts updated', user });

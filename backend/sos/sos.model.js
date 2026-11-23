@@ -31,8 +31,15 @@ const sosSchema = new mongoose.Schema({
   // Status tracking
   status: {
     type: String,
-    enum: ['active', 'acknowledged', 'resolved', 'false_alarm'],
+    enum: ['active', 'acknowledged', 'resolved', 'false_alarm', 'cancelled'],
     default: 'active'
+  },
+  
+  // Idempotency to prevent duplicate activations
+  idempotencyKey: {
+    type: String,
+    unique: true,
+    sparse: true
   },
   
   // Response tracking
@@ -40,21 +47,49 @@ const sosSchema = new mongoose.Schema({
   acknowledgedAt: { type: Date },
   resolvedAt: { type: Date },
   resolutionNotes: { type: String },
+  cancelledAt: { type: Date },
+  cancellationReason: { type: String },
   
-  // Notifications sent
+  // Explicit notification states
   notificationsSent: [{
-    type: { type: String, enum: ['sms', 'email', 'push', 'admin'] },
+    type: { type: String, enum: ['sms', 'email', 'push', 'admin'], required: true },
     recipient: { type: String },
     sentAt: { type: Date, default: Date.now },
-    status: { type: String, enum: ['sent', 'delivered', 'failed'] }
+    status: { 
+      type: String, 
+      enum: ['pending', 'queued', 'sent', 'delivered', 'failed', 'client_action_required'],
+      required: true
+    },
+    provider: { type: String },
+    messageId: { type: String },
+    idempotencyKey: { type: String },
+    attempts: { type: Number, default: 1 },
+    error: { type: String },
+    notes: { type: String }
   }],
   
-  // Emergency contacts notified
+  // Emergency contacts details & per-contact delivery status
   emergencyContacts: [{
     name: { type: String },
     phone: { type: String },
     relation: { type: String },
+    deliveryStatus: { 
+      type: String, 
+      enum: ['pending', 'queued', 'sent', 'delivered', 'failed', 'client_action_required'],
+      default: 'client_action_required'
+    },
+    provider: { type: String },
+    messageId: { type: String },
     notifiedAt: { type: Date }
+  }],
+
+  // Audit trail for every lifecycle event
+  auditLog: [{
+    action: { type: String, required: true },
+    performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    timestamp: { type: Date, default: Date.now },
+    notes: { type: String },
+    metadata: { type: mongoose.Schema.Types.Mixed }
   }],
   
   createdAt: { type: Date, default: Date.now }

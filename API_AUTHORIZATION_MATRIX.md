@@ -1,91 +1,103 @@
-# HOGO (CampusRide) — API Authorization Matrix
+# HOGO (CampusRide) — Production API Authorization Matrix
 
-This document defines the authoritative access control rules, role requirements, object-level checks, and rate limits for all API endpoints in HOGO (CampusRide).
-
----
-
-## 1. Role Definitions
-
-- **Public / Anonymous:** Unauthenticated client (mobile app or browser).
-- **Seeker:** Authenticated student/faculty member booking rides (`role: 'seeker'`).
-- **Provider:** Authenticated student/faculty member offering rides (`role: 'provider'`).
-- **Both:** Authenticated user with dual provider/seeker privileges (`role: 'both'`).
-- **Administrator:** Server-verified administrative operator (`role: 'admin'`).
+**Last Updated:** November 23, 2026  
+**Auditor:** Principal Application Security Architect  
+**Validation Standard:** Principle of Least Privilege & Zero Trust Verification  
 
 ---
 
-## 2. API Authorization Matrix
+## 1. Authentication & Session Verification
 
-### Authentication Endpoints (`/api/auth`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
+| Method | Endpoint | Authentication | Session Seed Check | Role Required | Object-Level Check | Description |
 |---|---|---|---|---|---|---|
-| `POST` | `/api/auth/register` | None | Public | Valid college domain / USN format | 25 req / 15m | Student / provider registration |
-| `POST` | `/api/auth/login` | None | Public | Account unblocked / unsuspended | 25 req / 15m | JWT credential authentication |
-| `POST` | `/api/auth/send-otp` | None | Public | 60s cooldown per email | 25 req / 15m | Cryptographically secure OTP dispatch |
-| `POST` | `/api/auth/verify-otp` | None | Public | Max 5 failed attempts per OTP | 25 req / 15m | Verify OTP & receive reset token |
-| `POST` | `/api/auth/reset-password` | Bearer Token | Public (Reset Token) | Valid reset token + session wipe | 25 req / 15m | Set new password & rotate session |
-| `POST` | `/api/auth/logout` | Bearer Token | Any | Clears active session seed | Global | Revoke active mobile session |
+| `POST` | `/api/auth/register` | None | N/A | None | Email uniqueness | User registration with campus domain check |
+| `POST` | `/api/auth/login` | None | Rotates Seed | None | Password hash check | Password login, issues JWT with sessionSeed |
+| `POST` | `/api/auth/logout` | Bearer JWT / Query Token | Verified | Any | Current user | Invalidates seed, closes sockets, wipes tokens |
+| `GET` | `/api/auth/me` | Bearer JWT / Query Token | Verified | Any | Current user | Returns authenticated user details |
+| `POST` | `/api/auth/send-otp` | None | N/A | None | Domain check | Dispatches OTP via Brevo HTTPS API |
+| `POST` | `/api/auth/verify-otp` | None | N/A | None | Expiry / Replay check | Verifies 6-digit OTP |
+| `POST` | `/api/auth/reset-password` | None | N/A | None | Token / OTP verify | Resets password, invalidates all sessions & sockets |
+| `POST` | `/api/auth/reset-password-direct` | **DISABLED (404)** | N/A | N/A | N/A | Permanently disabled for security |
 
-### User Profile Endpoints (`/api/users`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
-|---|---|---|---|---|---|---|
-| `GET` | `/api/users/profile` | Bearer Token | Any | Returns caller's profile | Global | Fetch authenticated user data |
-| `PUT` | `/api/users/profile` | Bearer Token | Any | Explicit allowlist (no escalation) | Global | Update gender, contact, USN, avatar |
-| `GET` | `/api/users/:id` | Bearer Token | Any | Strips KYC docs & passwords | Global | View public profile of peer |
-| `POST` | `/api/users/fcm-token` | Bearer Token | Any | Caller's user record only | Global | Register mobile push token |
+---
 
-### Ride Management Endpoints (`/api/ride`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
-|---|---|---|---|---|---|---|
-| `POST` | `/api/ride/post` | Bearer Token | Provider, Both | Approved KYC & vehicle registered | Global | Publish active/scheduled ride |
-| `GET` | `/api/ride/search` | Bearer Token | Any | Geospatial radius filter | Global | Search rides by pickup/drop |
-| `GET` | `/api/ride/my-rides` | Bearer Token | Provider, Both | Filters by `providerId === req.user.userId` | Global | View posted ride history |
-| `GET` | `/api/ride/:id` | Bearer Token | Any | None | Global | Get public ride details |
-| `PUT` | `/api/ride/:id` | Bearer Token | Provider, Both | Caller must be ride `providerId` | Global | Update ride notes, time, seats |
-| `POST` | `/api/ride/:id/cancel` | Bearer Token | Provider, Both | Caller must be ride `providerId` | Global | Cancel posted ride |
+## 2. User & Profile Endpoints
 
-### Booking Endpoints (`/api/booking`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
-|---|---|---|---|---|---|---|
-| `POST` | `/api/booking/book` | Bearer Token | Seeker, Both | Cannot book own ride; valid seats | Global | Request seat on ride |
-| `GET` | `/api/booking/my-bookings` | Bearer Token | Any | Caller's bookings only | Global | List seeker booking history |
-| `PATCH` | `/api/booking/:id/respond` | Bearer Token | Provider, Both | Caller must own ride | Global | Accept or decline seeker booking |
-| `POST` | `/api/booking/:id/cancel` | Bearer Token | Seeker, Both | Caller must own booking | Global | Cancel seeker seat request |
+| Method | Endpoint | Authentication | Session Seed Check | Role Required | Field-Level / Object-Level Access Control |
+|---|---|---|---|---|---|
+| `GET` | `/api/users/profile` | Required | Verified | Any | Returns own complete profile with phone cooldown info |
+| `PUT` | `/api/users/profile` | Required | Verified | Any | Strict allowlist: `gender`, `emergencyContact`, `usn`, `profilePhoto` |
+| `PUT` | `/api/users/profile/phone` | Required | Verified | Any | 90-day cooldown throttle enforced server-side |
+| `PUT` | `/api/users/profile/vehicle` | Required | Verified | Provider / Both | Registers vehicle for 24-hr admin verification |
+| `GET` | `/api/users/profile/vehicles`| Required | Verified | Provider / Both | Returns user's registered vehicles |
+| `GET` | `/api/users/:id` | Required | Verified | Any | **Field-level Privacy**: Owner/Admin gets full profile; Ride co-participants get safety fields (`usn`, `gender`); Unrelated users receive strictly minimal public view (phone/email/usn stripped). |
 
-### KYC & Identity Verification Endpoints (`/api/kyc`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
-|---|---|---|---|---|---|---|
-| `POST` | `/api/kyc/upload` | Bearer Token | Any | Caller uploads own docs | Global | Upload Aadhaar / License / College ID |
-| `GET` | `/api/kyc/status` | Bearer Token | Any | Caller's status only | Global | Check review status |
-| `GET` | `/api/kyc/document/:userId/:docType` | Bearer Token | Owner or Admin | Strict: `caller.userId === userId \|\| caller.isAdmin` | Global | Access signed KYC document URL |
-| `GET` | `/api/kyc/admin/pending` | Bearer Token | Admin | Database-verified administrator | Global | Queue of unverified submissions |
-| `POST` | `/api/kyc/admin/review` | Bearer Token | Admin | Database-verified administrator | Global | Approve or reject submission |
+---
 
-### Chat & Live Tracking Endpoints (`/api/chat`, `/api/tracking`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
-|---|---|---|---|---|---|---|
-| `GET` | `/api/chat/:rideId` | Bearer Token | Any | Strict: Provider, passenger, or admin | Global | Read private ride messages |
-| `POST` | `/api/chat/:rideId` | Bearer Token | Any | Strict: Provider, passenger, or admin | Global | Post message in ride chat |
-| `GET` | `/api/tracking/:rideId` | Bearer Token | Any | Strict: Provider, passenger, or admin | Global | Fetch live driver GPS breadcrumbs |
-| `POST` | `/api/tracking/update` | Bearer Token | Provider, Both | Caller must be ride provider | Global | Ingest driver GPS coordinates |
+## 3. KYC Document Endpoints
 
-### Emergency SOS & Incidents Endpoints (`/api/sos`, `/api/incidents`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
-|---|---|---|---|---|---|---|
-| `POST` | `/api/sos/trigger` | Bearer Token | Any | Inactive rides or valid GPS | Global | Trigger SOS, alert contacts & admin |
-| `GET` | `/api/sos/active/:rideId` | Bearer Token | Any | Caller must be participant or admin | Global | Check active SOS state |
-| `GET` | `/api/sos/admin/all` | Bearer Token | Admin | Database-verified administrator | Global | Access all emergency alerts |
-| `PATCH` | `/api/sos/:id/acknowledge` | Bearer Token | Admin, Provider, Initiator | Authorized handler only | Global | Acknowledge active alert |
-| `PATCH` | `/api/sos/:id/resolve` | Bearer Token | Admin, Provider, Initiator | Authorized handler only | Global | Mark emergency resolved |
-| `POST` | `/api/incidents/report` | Bearer Token | Any | Caller creates report | Global | File safety incident report |
-| `GET` | `/api/incidents/all` | Bearer Token | Admin | Database-verified administrator | Global | View all incident reports |
-| `PATCH` | `/api/incidents/:id/status`| Bearer Token | Admin | Database-verified administrator | Global | Update incident status & notes |
+| Method | Endpoint | Authentication | Session Seed Check | Role Required | Access Control & Validation |
+|---|---|---|---|---|---|
+| `POST` | `/api/kyc/upload` | Required | Verified | Any | Multer 5MB limit, JPEG/PNG/WebP magic-byte validation, private disk storage |
+| `POST` | `/api/kyc/submit` | Required | Verified | Any | Rejects arbitrary external URLs (SSRF prevention); magic-byte verified base64/private refs |
+| `GET` | `/api/kyc/status` | Required | Verified | Any | Returns own KYC status |
+| `GET` | `/api/kyc/document/:userId/:docType` | Required | Verified | Owner or Admin | Object-level: Requester must be document owner or verified Admin. Streams private file with `X-Content-Type-Options: nosniff` |
+| `GET` | `/api/kyc/document/:userId/:docType/signed-url` | Required | Verified | Owner or Admin | Generates 15-minute short-lived HMAC signed link |
+| `DELETE`| `/api/kyc/document/:userId/:docType` | Required | Verified | Owner or Admin | Securely deletes private file from disk and logs audit record |
+| `GET` | `/api/kyc/admin/pending` | Required | Verified | **Admin Only** | Returns all pending KYC submissions |
+| `POST` | `/api/kyc/admin/review` | Required | Verified | **Admin Only** | Approves/rejects KYC and logs review audit entry |
 
-### Administration Endpoints (`/api/admin`)
-| Method | Endpoint | Authentication | Required Role | Object-Level Verification | Rate Limit | Description |
-|---|---|---|---|---|---|---|
-| `GET` | `/api/admin/users` | Bearer Token | Admin | Database-verified administrator | Global | List all registered users |
-| `PATCH` | `/api/admin/users/:id/block` | Bearer Token | Admin | Database-verified administrator | Global | Suspend or block user account |
-| `GET` | `/api/admin/stats` | Bearer Token | Admin | Database-verified administrator | Global | System analytics & KPIs |
-| `POST` | `/api/admin/colleges` | Bearer Token | Admin | Database-verified administrator | Global | Add/approve campus college |
-| `DELETE` | `/api/admin/colleges/:id` | Bearer Token | Admin | Database-verified administrator | Global | Remove campus college from dropdown |
+---
+
+## 4. Rides, Bookings, Chat & Tracking
+
+| Method | Endpoint | Authentication | Session Seed Check | Role Required | Object-Level Authorization Check |
+|---|---|---|---|---|---|
+| `POST` | `/api/ride` | Required | Verified | Provider / Both | Provider verification and vehicle check |
+| `GET` | `/api/ride/search` | Required | Verified | Any | Geo-spatial query for active matching rides |
+| `PUT` | `/api/ride/:id` | Required | Verified | Provider | **Ownership Check**: Only the creating provider can edit |
+| `POST` | `/api/ride/:id/cancel` | Required | Verified | Provider | **Ownership Check**: Only the ride provider can cancel |
+| `POST` | `/api/booking` | Required | Verified | Seeker / Both | Verifies available seats and ride status |
+| `POST` | `/api/booking/:id/accept` | Required | Verified | Provider | Only provider of the ride can accept booking |
+| `POST` | `/api/booking/:id/cancel` | Required | Verified | Seeker or Provider | Only participants can cancel booking |
+| `GET` | `/api/chat/:rideId` | Required | Verified | Participant / Admin | **Participation Check**: Provider, accepted seeker, or admin only |
+| `GET` | `/api/tracking/:rideId` | Required | Verified | Participant / Admin | **Participation Check**: Provider, accepted seeker, or admin only |
+| `POST` | `/api/tracking/update` | Required | Verified | Provider | **Provider Check**: Only the ride provider can update GPS coordinates |
+
+---
+
+## 5. Emergency SOS System
+
+| Method | Endpoint | Authentication | Session Seed Check | Role Required | Authorization & Delivery Policy |
+|---|---|---|---|---|---|
+| `POST` | `/api/sos/trigger` | Required | Verified | Ride Participant | Participant only; prevents duplicate active SOS; idempotency key supported; unconfigured SMS returns `client_action_required` and `0` confirmed |
+| `GET` | `/api/sos/:sosId` | Required | Verified | Participant / Admin | Participant or Admin only |
+| `GET` | `/api/sos/ride/:rideId/active` | Required | Verified | Participant / Admin | Participant or Admin only |
+| `POST` | `/api/sos/:sosId/acknowledge` | Required | Verified | Provider or Admin | Only ride provider or verified admin |
+| `POST` | `/api/sos/:sosId/resolve` | Required | Verified | Triggerer / Provider / Admin | Only triggerer, provider, or verified admin |
+| `POST` | `/api/sos/:sosId/cancel` | Required | Verified | Triggerer / Admin | Only user who triggered or admin |
+| `GET` | `/api/sos/admin/all` | Required | Verified | **Admin Only** | Administrative emergency alert overview |
+
+---
+
+## 6. Admin Control Center
+
+| Method | Endpoint | Authentication | Session Seed Check | Role Required | Authorization Policy |
+|---|---|---|---|---|---|
+| `GET` | `/api/admin/users` | Required | Verified | **Admin Only** | Server-side verified admin role |
+| `GET` | `/api/admin/stats` | Required | Verified | **Admin Only** | Campus performance metrics |
+| `POST` | `/api/admin/users/:id/suspend` | Required | Verified | **Admin Only** | Sets suspension and disconnects user sockets |
+| `POST` | `/api/admin/users/:id/block` | Required | Verified | **Admin Only** | Sets block and disconnects user sockets |
+| `POST` | `/api/admin/warning` | Required | Verified | **Admin Only** | Issues warning (auto-suspends and disconnects on 3rd warning) |
+
+---
+
+## 7. Health & Infrastructure
+
+| Method | Endpoint | Authentication | Function | Database Dependency |
+|---|---|---|---|---|
+| `GET` | `/api/health/live` | None | Liveness Probe | Returns 200 alive without database dependency |
+| `GET` | `/api/health/ready` | None | Readiness Probe | Returns 200 when `mongoose.connection.readyState === 1`, else 503 |
+| `GET` | `/api/health` | None | Backward Compatible Health | Returns 200 if connected, 503 if disconnected |
+| `GET` | `/health` | None | Backward Compatible Health | Returns 200 if connected, 503 if disconnected |
+| `GET` | `/api/ping` | None | Network Ping | Returns plain text `pong` |

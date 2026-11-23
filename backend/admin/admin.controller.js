@@ -427,6 +427,10 @@ exports.suspendUser = async (req, res) => {
     user.suspensionReason = reason;
     await user.save();
 
+    if (typeof global.disconnectUserSockets === 'function') {
+      global.disconnectUserSockets(user._id, 'suspended');
+    }
+
     await notifyUser(
       userId,
       'Account Suspended',
@@ -475,6 +479,10 @@ exports.warnUser = async (req, res) => {
       autoSuspended = true;
     }
     await user.save();
+
+    if (autoSuspended && typeof global.disconnectUserSockets === 'function') {
+      global.disconnectUserSockets(user._id, 'suspended');
+    }
 
     if (autoSuspended) {
       await notifyUser(
@@ -590,6 +598,10 @@ exports.blockUser = async (req, res) => {
     user.blockedBy = req.user.userId;
     user.suspended = true;
     await user.save();
+
+    if (typeof global.disconnectUserSockets === 'function') {
+      global.disconnectUserSockets(user._id, 'blocked');
+    }
 
     await notifyUser(
       userId,

@@ -17,7 +17,7 @@ const http          = require("http");
 const socketIo      = require("socket.io");
 
 dotenv.config();
-connectDB();
+// Database connection managed on server startup or on require
 
 const app    = express();
 const server = http.createServer(app);
@@ -144,9 +144,38 @@ io.engine.on("connection_error", (err) => {
 
 const connectedUsers = new Map();
 
+// Helper to forcibly disconnect all active sockets of a user
+global.disconnectUserSockets = (userId, reason = 'session_revoked') => {
+  try {
+    const uIdStr = userId.toString();
+    for (const [id, s] of io.of("/").sockets) {
+      if (s.userId === uIdStr) {
+        s.emit('session_terminated', { reason });
+        s.disconnect(true);
+        console.log(`🔌 Forcibly disconnected socket ${s.id} for user ${uIdStr} (${reason})`);
+      }
+    }
+    connectedUsers.delete(uIdStr);
+  } catch (e) {
+    console.error('Error disconnecting user sockets:', e.message);
+  }
+};
+
 io.on("connection", (socket) => {
   console.log("✅ Socket Connected:", socket.id, "Transport:", socket.conn.transport.name);
   socket.emit('connected', { socketId: socket.id, timestamp: new Date().toISOString() });
+
+  // Rate limit events per socket
+  socket.use(([event, ...args], next) => {
+    const now = Date.now();
+    socket.eventTimestamps = (socket.eventTimestamps || []).filter(t => now - t < 1000);
+    if (socket.eventTimestamps.length >= 30) {
+      socket.emit('rate_limit_exceeded', { message: 'Too many socket events. Slow down.' });
+      return next(new Error('Rate limit exceeded on socket events'));
+    }
+    socket.eventTimestamps.push(now);
+    next();
+  });
 
   // Cryptographically verify identity on authenticate
   socket.on('authenticate', async (data) => {
@@ -169,7 +198,7 @@ io.on("connection", (socket) => {
 
       const User = require('./users/users.model');
       const Admin = require('./admin/admin.model');
-      const user = await User.findById(verifiedUserId).select('role blocked isBlocked suspended college name');
+      const user = await User.findById(verifiedUserId).select('role blocked isBlocked suspended college name currentSessionSeed');
 
       if (!user) {
         return socket.emit('authenticated', { success: false, error: 'User account not found' });
@@ -179,6 +208,30 @@ io.on("connection", (socket) => {
         return socket.emit('authenticated', { success: false, error: 'Account is restricted or suspended' });
       }
 
+      // Prevent identity switching on an already authenticated socket
+      if (socket.userId && socket.userId !== user._id.toString()) {
+        return socket.emit('authenticated', {
+          success: false,
+          error: 'Identity switching on an active socket connection is prohibited'
+        });
+      }
+
+      // Single-device session verification
+      if (decoded.sessionSeed) {
+        if (!user.currentSessionSeed || user.currentSessionSeed !== decoded.sessionSeed) {
+          return socket.emit('authenticated', {
+            success: false,
+            error: 'Session expired, replaced, or revoked. Please log in again.',
+            code: 'SESSION_REVOKED'
+          });
+        }
+      }
+
+      // Clear previous rooms during legitimate re-authentication
+      for (const room of socket.rooms) {
+        if (room !== socket.id) socket.leave(room);
+      }
+
       // Check admin status strictly server-side
       const adminRecord = await Admin.findOne({ userId: user._id });
       const isVerifiedAdmin = user.role === 'admin' || !!adminRecord;
@@ -186,6 +239,7 @@ io.on("connection", (socket) => {
       socket.userId   = user._id.toString();
       socket.userRole = isVerifiedAdmin ? 'admin' : user.role;
       socket.userCollege = user.college || '';
+      socket.sessionSeed = decoded.sessionSeed;
 
       connectedUsers.set(socket.userId, { socketId: socket.id, userType: socket.userRole, joinedAt: new Date() });
 
@@ -429,7 +483,7 @@ io.on("connection", (socket) => {
 });
 
 // ==========================================
-// 5. HEALTH ROUTES
+// 5. HEALTH ROUTES (LIVENESS & DATABASE-AWARE READINESS)
 // ==========================================
 app.get('/', (req, res) => res.json({
   message: 'HOGO API is running!',
@@ -437,13 +491,53 @@ app.get('/', (req, res) => res.json({
   socketConnections: connectedUsers.size
 }));
 
-app.get('/api/health', (req, res) => res.json({ status: 'OK', uptime: process.uptime() }));
+// Liveness probe: confirms the Node.js process is responsive
+app.get('/api/health/live', (req, res) => {
+  res.status(200).json({
+    status: 'alive',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Readiness probe: confirms the database is connected and ready to serve traffic
+app.get('/api/health/ready', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  if (dbState === 1) {
+    return res.status(200).json({
+      status: 'ready',
+      database: 'connected',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    });
+  }
+  return res.status(503).json({
+    status: 'not_ready',
+    database: dbState === 2 ? 'connecting' : 'disconnected',
+    error: 'Database is not ready to serve traffic'
+  });
+});
+
+// Backward-compatible database-aware health endpoints
+app.get('/api/health', (req, res) => {
+  const isConnected = mongoose.connection.readyState === 1;
+  if (isConnected) {
+    return res.status(200).json({ status: 'OK', database: 'connected', uptime: process.uptime() });
+  }
+  return res.status(503).json({ status: 'DEGRADED', database: 'disconnected', uptime: process.uptime() });
+});
+
+app.get('/health', (req, res) => {
+  const isConnected = mongoose.connection.readyState === 1;
+  const status = isConnected ? 200 : 503;
+  res.status(status).json({
+    status: isConnected ? 'OK' : 'DEGRADED',
+    database: isConnected ? 'Connected' : 'Disconnected',
+    socketConnections: connectedUsers.size
+  });
+});
+
 app.get('/api/ping', (req, res) => res.send('pong'));
-app.get('/health', (req, res) => res.json({
-  status: 'OK',
-  database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-  socketConnections: connectedUsers.size
-}));
 
 app.get('/socket-test', (req, res) => res.json({
   socketIoVersion: require('socket.io/package.json').version,
@@ -493,21 +587,32 @@ app.use((err, req, res, next) => {
 // ==========================================
 const PORT = process.env.PORT || 5000;
 if (require.main === module) {
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📡 Socket.IO ready`);
-    console.log(`🌐 DNS: IPv4-first (OTP emails will work)`);
-
-    // Periodic 3-hour stale ride auto-cancel job (every 10 minutes)
+  (async () => {
     try {
-      const { autoCancelStaleRides } = require('./rides/rides.controller');
-      autoCancelStaleRides();
-      setInterval(autoCancelStaleRides, 10 * 60 * 1000);
-      console.log('⏰ 3-Hour Ride Auto-Cancel Background Job started (10m interval)');
-    } catch (jobErr) {
-      console.error('Failed to start auto-cancel job:', jobErr.message);
+      await connectDB();
+      server.listen(PORT, () => {
+        console.log(`🚀 Server running on port ${PORT}`);
+        console.log(`📡 Socket.IO ready`);
+        console.log(`🌐 DNS: IPv4-first (OTP emails will work)`);
+
+        // Periodic 3-hour stale ride auto-cancel job (every 10 minutes)
+        try {
+          const { autoCancelStaleRides } = require('./rides/rides.controller');
+          autoCancelStaleRides();
+          setInterval(autoCancelStaleRides, 10 * 60 * 1000);
+          console.log('⏰ 3-Hour Ride Auto-Cancel Background Job started (10m interval)');
+        } catch (jobErr) {
+          console.error('Failed to start auto-cancel job:', jobErr.message);
+        }
+      });
+    } catch (startErr) {
+      console.error('Fatal startup error: Failed to connect to MongoDB', startErr.message);
+      process.exit(1);
     }
-  });
+  })();
+} else {
+  // When imported (e.g. test runner), initiate DB connection
+  connectDB().catch(err => console.warn('Non-main DB connection deferred:', err.message));
 }
 
 module.exports = { app, server };

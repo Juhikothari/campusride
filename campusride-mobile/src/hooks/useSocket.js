@@ -108,10 +108,15 @@ export const getSharedSocket = (userId, userType) => {
     globalSocket.on('connect', async () => {
       try {
         const token = await getToken();
-        globalSocket.emit('authenticate', { userId, userType, token });
-      } catch (_) {
-        globalSocket.emit('authenticate', { userId, userType });
-      }
+        if (token) {
+          globalSocket.emit('authenticate', { token });
+        }
+      } catch (_) {}
+    });
+
+    globalSocket.on('session_terminated', (data) => {
+      console.warn('[Socket] Session terminated by server:', data?.reason);
+      disconnectGlobalSocket();
     });
 
     const notifyAll = (event, data) => {

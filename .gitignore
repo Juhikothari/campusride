@@ -48,3 +48,12 @@ Thumbs.db
 frontend-not main/
 backend/incidents_backup
 backend/alerts_backup
+
+# Uploads & Private KYC Storage
+uploads/
+backend/uploads/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+

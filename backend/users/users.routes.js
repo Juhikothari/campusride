@@ -47,7 +47,7 @@ router.put('/profile', auth, async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.user.userId,
       { $set: safeUpdates },
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('-password -currentSessionSeed -kycDocuments');
 
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -186,13 +186,108 @@ router.get('/profile/vehicles', auth, async (req, res) => {
   }
 });
 
-// ── GET /api/users/:id  — public profile (strips sensitive KYC documents) ─
+const Booking = require('../bookings/bookings.model');
+const Ride = require('../rides/rides.model');
+
+// Check if requesting user shares an active ride with target user
+async function checkRideCoParticipation(userId1, userId2) {
+  if (!userId1 || !userId2 || userId1.toString() === userId2.toString()) return false;
+
+  // Case 1: user1 is provider, user2 is accepted seeker on active ride
+  const asProviderBooking = await Booking.findOne({
+    seekerId: userId2,
+    status: { $in: ['accepted', 'completed'] }
+  });
+  if (asProviderBooking) {
+    const ride = await Ride.exists({
+      _id: asProviderBooking.rideId,
+      providerId: userId1,
+      status: { $in: ['active', 'in-progress', 'pending'] }
+    });
+    if (ride) return true;
+  }
+
+  // Case 2: user2 is provider, user1 is accepted seeker on active ride
+  const asSeekerBooking = await Booking.findOne({
+    seekerId: userId1,
+    status: { $in: ['accepted', 'completed'] }
+  });
+  if (asSeekerBooking) {
+    const ride = await Ride.exists({
+      _id: asSeekerBooking.rideId,
+      providerId: userId2,
+      status: { $in: ['active', 'in-progress', 'pending'] }
+    });
+    if (ride) return true;
+  }
+
+  // Case 3: Both are accepted seekers on the same active ride
+  const user1Bookings = await Booking.find({
+    seekerId: userId1,
+    status: { $in: ['accepted', 'completed'] }
+  }).select('rideId');
+
+  if (user1Bookings.length > 0) {
+    const rideIds = user1Bookings.map(b => b.rideId);
+    const coBooking = await Booking.exists({
+      rideId: { $in: rideIds },
+      seekerId: userId2,
+      status: { $in: ['accepted', 'completed'] }
+    });
+    if (coBooking) return true;
+  }
+
+  return false;
+}
+
+// ── GET /api/users/:id  — field-level privacy protected profile ─
 router.get('/:id', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
-      .select('name email phone college role gender usn kycStatus profilePhoto createdAt');
+    const targetUserId = req.params.id;
+    const requesterId = req.user.userId;
+
+    const user = await User.findById(targetUserId)
+      .select('-password -currentSessionSeed');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
+
+    const isSelf = requesterId.toString() === targetUserId.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    // 1. Self or Admin gets full permitted profile
+    if (isSelf || isAdmin) {
+      return res.json(user);
+    }
+
+    // 2. Check if ride co-participant
+    const isCoParticipant = await checkRideCoParticipation(requesterId, targetUserId);
+    if (isCoParticipant) {
+      // Return coordination fields necessary for campus safety: name, avatar, college, role, USN, gender
+      // Strictly excludes personal phone number, email, and KYC documents
+      return res.json({
+        _id: user._id,
+        name: user.name,
+        profilePhoto: user.profilePhoto,
+        college: user.college,
+        role: user.role,
+        usn: user.usn,
+        gender: user.gender,
+        kycStatus: user.kycStatus,
+        createdAt: user.createdAt,
+        isRideParticipant: true
+      });
+    }
+
+    // 3. Unrelated user: Strictly minimal public information
+    // Exclude phone, email, USN, gender, KYC documents, emergency contacts
+    return res.json({
+      _id: user._id,
+      name: user.name,
+      profilePhoto: user.profilePhoto,
+      college: user.college,
+      role: user.role,
+      kycStatus: user.kycStatus,
+      createdAt: user.createdAt
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

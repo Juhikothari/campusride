@@ -77,6 +77,14 @@ const userSchema = new mongoose.Schema({
   kycSubmittedAt: { type: Date },
   kycVerifiedAt: { type: Date },
   kycRemarks: { type: String },
+  kycAuditLogs: [{
+    action: { type: String, required: true },
+    docType: { type: String },
+    performedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    timestamp: { type: Date, default: Date.now },
+    ip: { type: String },
+    notes: { type: String }
+  }],
 
   emergencyContact: { type: String, default: '' },
   pushToken:        { type: String, default: null },

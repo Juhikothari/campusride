@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 
-// Manual .env loader — fixes dotenv v17 Windows issue
+// Manual .env loader — fixes dotenv Windows line issues
 const envPath = path.join(__dirname, '..', '.env');
 if (fs.existsSync(envPath)) {
   const lines = fs.readFileSync(envPath, 'utf8').split('\n');
@@ -18,21 +18,47 @@ if (fs.existsSync(envPath)) {
 }
 
 const connectDB = async () => {
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/freewheels';
+  if (mongoose.connection.readyState === 1) {
+    return mongoose.connection;
+  }
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+
+  if (isProd) {
+    if (!uri) {
+      console.error('FATAL: MONGODB_URI environment variable is required in production. Failing closed.');
+      process.exit(1);
+    }
+    const mongoUriRegex = /^mongodb(\+srv)?:\/\//;
+    if (!mongoUriRegex.test(uri)) {
+      console.error('FATAL: MONGODB_URI has an invalid format. Must start with mongodb:// or mongodb+srv://');
+      process.exit(1);
+    }
+  }
+
+  const connectionUri = uri || 'mongodb://localhost:27017/freewheels';
+  const sanitizedUri = connectionUri.replace(/\/\/[^:]+:[^@]+@/, '//***:***@');
+
+  const options = {
+    maxPoolSize: 50,
+    minPoolSize: 5,
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+  };
+
   try {
-    await mongoose.connect(uri);
-    console.log('✅ MongoDB Connected successfully');
+    await mongoose.connect(connectionUri, options);
+    console.log(`✅ MongoDB Connected successfully`);
+    return mongoose.connection;
   } catch (error) {
     console.error('❌ MongoDB connection failed:', error.message);
-    console.error('');
-    console.error('👉 FIX: Make sure MongoDB is running on your computer.');
-    console.error('   Download: https://www.mongodb.com/try/download/community');
-    console.error('   After installing, start it with: net start MongoDB  (Windows)');
-    console.error('   Or run: mongod  in a separate terminal');
-    console.error('');
-    // Retry after 5 seconds instead of crashing
-    console.log('⏳ Retrying MongoDB connection in 5 seconds...');
-    setTimeout(connectDB, 5000);
+    if (isProd) {
+      console.error('FATAL: Production database connection failed. Server will fail closed.');
+      process.exit(1);
+    }
+    throw error;
   }
 };
 

@@ -1,92 +1,65 @@
-# HOGO (CampusRide) — Data Flow and Privacy Architecture
+# HOGO (CampusRide) — Data Flow & Privacy Architecture
 
-This document maps all sensitive data flows, PII ingestion points, transit protocols, encryption mechanisms, and privacy minimization controls across the CampusRide platform.
-
----
-
-## 1. Sensitive Data Taxonomy
-
-| Category | Data Elements | Classification | Storage Location | In-Transit Security | Retention Period |
-|---|---|---|---|---|---|
-| **Identity & Authentication** | Email, Hashed Password, Phone, USN, Full Name | Confidential | MongoDB (`User` collection) | TLS 1.3 / HTTPS | Account lifetime |
-| **Government KYC Records** | Aadhaar Card, Driving License, College ID Card, Selfie | Restricted / Sensitive | Cloudinary (Private) | Signed HTTPS / TLS 1.3 | Verification + 90 days audit window |
-| **Telemetry & Geospatial** | Live GPS (lat, lng), Speed, Heading, Timestamp | Confidential Telemetry | Redis / Memory + MongoDB Ride history | TLS 1.3 / WSS | Ride duration + 30 days |
-| **Communications** | In-ride chat messages, community posts | Private Communications | MongoDB (`Chat`, `Community`) | TLS 1.3 / WSS | 60 days post-ride |
-| **Safety & Emergency** | SOS Alerts, Incident Reports, Emergency Contact Phone | High Priority Safety | MongoDB (`SOS`, `Incident`) | TLS 1.3 / HTTPS | 180 days for legal compliance |
+**Document Version:** 2.0  
+**Updated:** November 23, 2026  
+**Status:** Implemented and Verified  
 
 ---
 
-## 2. End-to-End Data Flow Sequences
+## 1. Data Classification
 
-### 2.1 User Registration & KYC Onboarding Flow
-```
-User (Mobile)            API Gateway (Express)              MongoDB                Cloudinary
-     |                            |                            |                       |
-     |--- 1. POST /api/kyc/upload (Aadhaar, ID, Selfie) ------>|                       |
-     |                            |--- 2. Stream Binary ------------------------------>|
-     |                            |<-- 3. Return Secure Asset URL ---------------------|
-     |                            |--- 4. Save URL into user.kycDocuments ------------>|
-     |                            |       (Masked in all public queries)               |
-     |<-- 5. KYC Status: Pending -|                            |                       |
-```
-**Privacy Safeguard:** KYC document URLs are explicitly stripped from public user profiles. Only the student and verified administrators can view the document via `GET /api/kyc/document/:userId/:docType`.
+| Data Category | Examples | Storage Location | Sensitivity | Access Rules |
+|---|---|---|---|---|
+| **Identity & Authentication** | Email, Hashed Passwords, Session Seeds, Device IDs | MongoDB `users` collection | **CRITICAL** | Passwords hashed via bcrypt (`cost 10`). Never exposed in API responses (`.select('-password -currentSessionSeed')`). |
+| **Government & College Identity** | College ID, Driving License, Selfie, Aadhar | Private disk storage (`uploads/kyc_private/`) | **RESTRICTED** | Never publicly accessible. Accessible strictly by document owner or verified Admin. Expiring 15-minute signed links. |
+| **Contact Data** | Phone number, Emergency Contacts | MongoDB `users` collection | **CONFIDENTIAL** | Stripped from public user profile. Visible only to account owner and verified Admin. Never leaked to unrelated campus users. |
+| **Ride Coordination Data** | Name, College, USN, Gender, Vehicle Model | MongoDB `users` & `rides` | **INTERNAL / RIDE SCOPED** | Co-participants on active rides can view USN and gender for campus verification. Phone number and personal email remain private. |
+| **Geo-Location & Live GPS** | Lat/Lng coordinates, Route points | MongoDB `rides` & Socket.IO | **CONFIDENTIAL** | Live GPS coordinates are broadcast strictly to verified ride participants in room `ride-{rideId}`. Non-participants receive 403 Forbidden. |
+| **Emergency SOS Data** | SOS alerts, GPS location, Incident notes | MongoDB `sos` collection | **CRITICAL** | Accessible only by ride participants and verified administrators. Emitted to `admins` room. |
 
 ---
 
-### 2.2 Ride Discovery & Booking Flow
+## 2. Privacy-Preserving User Profiles
+
+### Field-Level Masking Matrix
+
 ```
-Seeker (Mobile)           API Gateway                   MongoDB               Provider (Mobile)
-     |                         |                           |                          |
-     |-- 1. GET /ride/search ->|                           |                          |
-     |   (pickup, drop, dist)  |-- 2. Geospatial Query --->|                          |
-     |<-- 3. Filtered Rides ---|                           |                          |
-     |                         |                           |                          |
-     |-- 4. POST /booking/book |                           |                          |
-     |    (rideId, seats) ---->|-- 5. Record Booking ----->|                          |
-     |                         |--- 6. Socket Alert (ride_request) ------------------>|
-     |                         |                           |                          |
-     |                         |<-- 7. PATCH /booking/:id/respond (Accept) -----------|
-     |<-- 8. Push: Accepted ---|-- 8. Update DB ---------->|                          |
+                  ┌───────────────────────────────────────────────┐
+                  │                 GET /api/users/:id            │
+                  └───────────────────────┬───────────────────────┘
+                                          │
+            ┌─────────────────────────────┼─────────────────────────────┐
+            ▼                             ▼                             ▼
+    [ Account Owner ]             [ Co-Participant ]             [ Unrelated User ]
+   (or Verified Admin)             (Active Ride)                 (Campus Seeker)
+            │                             │                             │
+            ▼                             ▼                             ▼
+   Full Profile:                 Coordination View:             Minimal Public View:
+   - _id                         - _id                          - _id
+   - name                        - name                         - name
+   - email                       - profilePhoto                 - profilePhoto
+   - phone                       - college                      - college
+   - usn                         - role                         - role
+   - gender                      - usn (for pickup verify)      - kycStatus
+   - profilePhoto                - gender                       - createdAt
+   - vehicles                    - kycStatus
+   - emergencyContact            - isRideParticipant: true      [ Stripped: phone, email,
+   - kycStatus                                                    usn, gender, emergency,
+   - createdAt                   [ Stripped: phone, email,        vehicles, kycDocs ]
+                                   emergency, kycDocs ]
 ```
-**Privacy Safeguard:** Phone numbers and emergency contacts are masked until a booking is explicitly accepted by the ride provider.
 
 ---
 
-### 2.3 Live GPS Tracking Flow
-```
-Provider (Mobile)          API Gateway (Socket.IO)              Accepted Passengers Only
-     |                               |                                    |
-     |-- 1. emit('driver-location', -|                                    |
-     |      { rideId, lat, lng })    |-- 2. Validate Sender is Provider   |
-     |                               |-- 3. Check Active Ride Status      |
-     |                               |-- 4. to(`ride:${rideId}`) -------->|
-     |                               |      (Non-participants rejected)   |
-```
-**Privacy Safeguard:** Driver GPS updates are scoped exclusively to the specific `ride:{rideId}` room. Users who are not accepted passengers receive HTTP 403 Forbidden if requesting coordinates via REST.
+## 3. Data Ingestion & Sanitization
+
+1. **Input Scrubbing**: `express-mongo-sanitize` scrubs all incoming JSON keys for prohibited MongoDB operator characters (`$`, `.`).
+2. **Strict Property Allowlists**: Profile updates (`PUT /api/users/profile`) strictly enforce an allowlist (`['gender', 'emergencyContact', 'usn', 'profilePhoto']`). Any attempt to elevate `role`, set `kycStatus`, or mark `blocked: false` is silently ignored.
+3. **Phone Number Change Throttle**: Updates to student phone numbers (`PUT /api/users/profile/phone`) enforce a server-side 90-day cooldown period (`phoneLastUpdatedAt`) to prevent account takeover and burner-number hopping.
 
 ---
 
-### 2.4 Emergency SOS Activation Flow
-```
-Rider (Mobile)          API Gateway             MongoDB             Expo Push & SMS        Admins Room
-     |                       |                     |                       |                    |
-     |-- 1. POST /sos/trigger|                     |                       |                    |
-     |   (live GPS coords) ->|-- 2. Save SOS ----->|                       |                    |
-     |                       |-- 3. Send SMS to Emergency Contact -------->|                    |
-     |                       |-- 4. Dispatch Push Notifications ---------->|                    |
-     |                       |-- 5. emit('adminSOSAlert') to room('admin') -------------------->|
-     |<-- 6. SOS Ack Code ---|                     |                       |                    |
-```
-**Privacy Safeguard:** Emergency broadcasts are strictly isolated to verified administrators and emergency contacts. No global socket broadcast occurs.
+## 4. Secure Storage & Deletion
 
----
-
-## 3. Privacy Minimization Controls
-
-1. **Least-Privilege Projections:** MongoDB queries for public profiles explicitly omit sensitive data:
-   ```javascript
-   User.findById(userId).select('-password -kycDocuments -currentSessionSeed -blocked -suspended');
-   ```
-2. **Short-Lived OTPs:** OTPs expire within 300 seconds and are wiped immediately upon successful verification.
-3. **No Credential Logging:** Console logs in all controllers and middleware have been audited to ensure zero logging of passwords, tokens, or OTP codes.
-4. **Hardware Storage:** Access tokens stored exclusively in Android Keystore / iOS Keychain.
+- **KYC Documents**: Stored under random UUID filenames (`crypto.randomUUID()`) in private directories with `0o600` permissions. When deleted (`DELETE /api/kyc/document/:userId/:docType`), the physical file is unlinked immediately from disk and the database reference is cleared.
+- **Audit Trails**: Every document access, deletion, and review is permanently recorded in `user.kycAuditLogs` with actor ID, IP address, and timestamp.

@@ -6,12 +6,18 @@ const jwt  = require('jsonwebtoken');
 const User = require('../users/users.model');
 
 module.exports = async (req, res, next) => {
+  let token = null;
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Authentication required. No Bearer token provided.' });
+  if (header && header.startsWith('Bearer ')) {
+    token = header.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    // Support short-lived signed tokens for private streaming endpoints
+    token = req.query.token;
   }
 
-  const token = header.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Authentication required. No Bearer token or signed token provided.' });
+  }
 
   let decoded;
   try {

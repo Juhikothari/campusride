@@ -32,7 +32,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
-        continue-on-error: true
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -45,27 +44,22 @@ jobs:
         working-directory: campusride-mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Configure Gradle & Sign Release APK
+      - name: Configure Gradle JVM
         working-directory: campusride-mobile/android
         run: |
           echo "org.gradle.jvmargs=-Xmx3584m -XX:MaxMetaspaceSize=512m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
-          python3 -c "
-          p = 'app/build.gradle'
-          with open(p, 'r') as f: content = f.read()
-          content = content.replace('buildTypes {', 'buildTypes {\n        release {\n            signingConfig signingConfigs.debug\n        }')
-          with open(p, 'w') as f: f.write(content)
-          " || true
 
       - name: Build Android APK
         working-directory: campusride-mobile/android
-        run: ./gradlew assembleRelease --no-daemon -x lint -x test || ./gradlew assembleDebug --no-daemon -x lint -x test
+        run: ./gradlew assembleRelease --no-daemon -x lint -x test
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: campusride-hogo-app
           path: campusride-mobile/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -75,7 +69,7 @@ jobs:
           name: "HOGO App APK (Build #${{ github.run_number }})"
           body: |
             ### 🚀 HOGO CampusRide Android APK (Build #${{ github.run_number }})
-            Download the APK below and install it directly on your Android phone.
+            Production-grade APK build from main branch.
           draft: false
           prerelease: false
           make_latest: true

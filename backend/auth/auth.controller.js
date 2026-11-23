@@ -301,6 +301,9 @@ const logout = async (req, res) => {
       user.pushToken = null;
       user.pushPlatform = null;
       await user.save();
+      if (typeof global.disconnectUserSockets === 'function') {
+        global.disconnectUserSockets(user._id, 'logout');
+      }
     }
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
@@ -486,6 +489,9 @@ const resetPasswordWithToken = async (req, res) => {
     user.isLoggedIn = false;
     user.activeDeviceId = null;
     await user.save();
+    if (typeof global.disconnectUserSockets === 'function') {
+      global.disconnectUserSockets(user._id, 'password_reset');
+    }
 
     res.json({ message: 'Password reset successfully. All active sessions have been invalidated. You can now log in.' });
   } catch (error) {

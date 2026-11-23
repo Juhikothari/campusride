@@ -612,3 +612,356 @@ test('SOCKET.IO: Regular user token authenticates without admin privileges', asy
     }, 2000);
   });
 });
+
+// =========================================================================
+// SECTION 11: HARDENED SOS EMERGENCY NOTIFICATION SYSTEM
+// =========================================================================
+test('SOS NOTIFICATION: Triggering SOS on unconfigured SMS gateway returns client_action_required and 0 confirmed', async () => {
+  // Update normalUser1 emergency contact
+  await User.findByIdAndUpdate(normalUser1._id, {
+    emergencyContact: '9876543219'
+  });
+
+  const res = await fetch(`${baseUrl}/api/sos/trigger`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify({
+      rideId: testRide._id.toString(),
+      type: 'medical',
+      description: 'Test emergency alert for status verification',
+      location: { lat: 12.9081, lng: 77.5218 }
+    })
+  });
+
+  assert.equal(res.status, 201);
+  const data = await res.json();
+  assert.equal(data.emergencyContactsNotified, 0, 'Unconfirmed delivery must not be counted as notified');
+  assert.ok(Array.isArray(data.emergencyContactsStatus));
+  assert.equal(data.emergencyContactsStatus[0].deliveryStatus, 'client_action_required');
+  assert.equal(data.emergencyContactsStatus[0].provider, 'NOT_CONFIGURED');
+
+  // Verify DB record status
+  const SOS = require('../sos/sos.model');
+  const savedSOS = await SOS.findById(data.sos._id);
+  assert.equal(savedSOS.status, 'active');
+  assert.ok(savedSOS.auditLog.length >= 1);
+  assert.equal(savedSOS.auditLog[0].action, 'triggered');
+
+  // Clean up SOS so test ride is not blocked for subsequent tests
+  await SOS.findByIdAndUpdate(savedSOS._id, { status: 'resolved' });
+});
+
+test('SOS IDEMPOTENCY: Duplicate trigger with same idempotencyKey returns cached record', async () => {
+  const idempotencyKey = 'idem-test-key-' + Date.now();
+  const payload = {
+    rideId: testRide._id.toString(),
+    type: 'accident',
+    description: 'Idempotency verification test',
+    location: { lat: 12.9081, lng: 77.5218 },
+    idempotencyKey
+  };
+
+  const res1 = await fetch(`${baseUrl}/api/sos/trigger`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify(payload)
+  });
+  assert.equal(res1.status, 201);
+  const data1 = await res1.json();
+
+  // Replay request with same idempotencyKey
+  const res2 = await fetch(`${baseUrl}/api/sos/trigger`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify(payload)
+  });
+  assert.equal(res2.status, 200, 'Idempotent replay must return 200 with existing record');
+  const data2 = await res2.json();
+  assert.equal(data2.idempotentReplay, true);
+  assert.equal(String(data2.sos._id), String(data1.sos._id));
+
+  // Clean up
+  const SOS = require('../sos/sos.model');
+  await SOS.findByIdAndUpdate(data1.sos._id, { status: 'resolved' });
+});
+
+test('SOS LIFECYCLE: Triggerer can cancel active SOS alert', async () => {
+  const resTrigger = await fetch(`${baseUrl}/api/sos/trigger`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify({
+      rideId: testRide._id.toString(),
+      type: 'harassment',
+      description: 'Cancellation test',
+      location: { lat: 12.9081, lng: 77.5218 }
+    })
+  });
+  assert.equal(resTrigger.status, 201);
+  const { sos } = await resTrigger.json();
+
+  // Cancel SOS
+  const resCancel = await fetch(`${baseUrl}/api/sos/${sos._id}/cancel`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify({ cancellationReason: 'False alarm by passenger' })
+  });
+  assert.equal(resCancel.status, 200);
+  const cancelData = await resCancel.json();
+  assert.equal(cancelData.sos.status, 'cancelled');
+
+  const SOS = require('../sos/sos.model');
+  const verified = await SOS.findById(sos._id);
+  assert.equal(verified.status, 'cancelled');
+  const cancelLog = verified.auditLog.find(l => l.action === 'cancelled');
+  assert.ok(cancelLog, 'Audit log must record cancellation');
+});
+
+// =========================================================================
+// SECTION 12: HARDENED PRIVATE KYC STORAGE & MAGIC-BYTE VALIDATION
+// =========================================================================
+test('KYC SSRF: Rejects arbitrary external image URLs', async () => {
+  const res = await fetch(`${baseUrl}/api/kyc/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser2}`
+    },
+    body: JSON.stringify({
+      collegeIdCardUrl: 'https://attacker-server.com/malicious_image.png',
+      selfieUrl: 'https://attacker-server.com/selfie.jpg'
+    })
+  });
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.match(data.message, /arbitrary external urls are not permitted/i);
+});
+
+test('KYC STORAGE: Accepts genuine PNG magic bytes data URI into private storage', async () => {
+  // 1x1 transparent PNG with valid 8-byte PNG signature: \x89PNG\r\n\x1a\n
+  const validPngBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+  const res = await fetch(`${baseUrl}/api/kyc/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser2}`
+    },
+    body: JSON.stringify({
+      collegeIdCardUrl: validPngBase64,
+      selfieUrl: validPngBase64
+    })
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.kycStatus, 'pending');
+
+  const user = await User.findById(normalUser2._id);
+  assert.ok(user.kycDocuments.collegeIdCard.startsWith('private://kyc_private/'));
+  assert.ok(user.kycDocuments.selfie.startsWith('private://kyc_private/'));
+});
+
+test('KYC SIGNED URL: Generates short-lived signed link and streams private file', async () => {
+  const resSign = await fetch(`${baseUrl}/api/kyc/document/${normalUser2._id}/collegeIdCard/signed-url`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resSign.status, 200);
+  const { signedUrl } = await resSign.json();
+  assert.ok(signedUrl.includes('?token='));
+
+  // Fetch file using the signed link without Bearer header
+  const resStream = await fetch(`${baseUrl}${signedUrl}`);
+  assert.equal(resStream.status, 200);
+  assert.equal(resStream.headers.get('content-type'), 'image/png');
+  assert.equal(resStream.headers.get('x-content-type-options'), 'nosniff');
+});
+
+test('KYC DELETION: Document owner can delete private document', async () => {
+  const resDel = await fetch(`${baseUrl}/api/kyc/document/${normalUser2._id}/collegeIdCard`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resDel.status, 200);
+
+  const user = await User.findById(normalUser2._id);
+  assert.equal(user.kycDocuments.collegeIdCard, null);
+});
+
+// =========================================================================
+// SECTION 13: HARDENED SOCKET.IO SESSION REVOCATION & IDENTITY INTEGRITY
+// =========================================================================
+test('SOCKET.IO: Reject authentication when sessionSeed is revoked/mismatched', async () => {
+  const forgedSeedToken = jwt.sign(
+    { userId: normalUser1._id.toString(), sessionSeed: 'revoked_or_tampered_seed_xyz' },
+    process.env.JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: '1h' }
+  );
+
+  const clientSocket = ClientIo(baseUrl, {
+    transports: ['websocket'],
+    reconnection: false
+  });
+
+  await new Promise((resolve) => {
+    clientSocket.on('connect', () => {
+      clientSocket.emit('authenticate', { token: forgedSeedToken });
+    });
+
+    clientSocket.on('authenticated', (res) => {
+      assert.equal(res.success, false);
+      assert.match(res.error, /session expired, replaced, or revoked/i);
+      clientSocket.disconnect();
+      resolve();
+    });
+
+    setTimeout(() => {
+      clientSocket.disconnect();
+      resolve();
+    }, 2000);
+  });
+});
+
+test('SOCKET.IO: Prevent identity switching on an active socket', async () => {
+  const clientSocket = ClientIo(baseUrl, {
+    transports: ['websocket'],
+    reconnection: false
+  });
+
+  await new Promise((resolve) => {
+    clientSocket.on('connect', () => {
+      // Authenticate first as normalUser1
+      clientSocket.emit('authenticate', { token: tokenUser1 });
+    });
+
+    clientSocket.on('authenticated', (res) => {
+      if (res.success) {
+        // Attempt to switch identity to normalUser2
+        clientSocket.emit('authenticate', { token: tokenUser2 });
+      } else {
+        // Identity switch was rejected
+        assert.match(res.error, /identity switching/i);
+        clientSocket.disconnect();
+        resolve();
+      }
+    });
+
+    setTimeout(() => {
+      clientSocket.disconnect();
+      resolve();
+    }, 2000);
+  });
+});
+
+test('SOCKET.IO: Calling logout forcefully disconnects user sockets', async () => {
+  const clientSocket = ClientIo(baseUrl, {
+    transports: ['websocket'],
+    reconnection: false
+  });
+
+  let receivedTerminated = false;
+
+  await new Promise(async (resolve) => {
+    clientSocket.on('connect', () => {
+      clientSocket.emit('authenticate', { token: tokenUser1 });
+    });
+
+    clientSocket.on('authenticated', async (res) => {
+      if (res.success) {
+        // Now trigger logout via REST API
+        await fetch(`${baseUrl}/api/auth/logout`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${tokenUser1}` }
+        });
+      }
+    });
+
+    clientSocket.on('session_terminated', (data) => {
+      receivedTerminated = true;
+    });
+
+    clientSocket.on('disconnect', () => {
+      resolve();
+    });
+
+    setTimeout(() => {
+      clientSocket.disconnect();
+      resolve();
+    }, 3000);
+  });
+
+  assert.equal(receivedTerminated, true, 'User socket must receive session_terminated and be forcibly closed');
+});
+
+// =========================================================================
+// SECTION 14: USER PROFILE FIELD-LEVEL PRIVACY
+// =========================================================================
+test('PRIVACY: Unrelated user cannot view sensitive profile fields (phone, email, usn, emergency)', async () => {
+  // User 2 looks up User 1 (they are unrelated, not co-participants)
+  const res = await fetch(`${baseUrl}/api/users/${normalUser1._id}`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+
+  assert.equal(data.name, normalUser1.name);
+  assert.equal(data.college, normalUser1.college);
+  // Sensitive fields must be completely undefined
+  assert.strictEqual(data.phone, undefined, 'Phone must NOT be visible to unrelated users');
+  assert.strictEqual(data.email, undefined, 'Email must NOT be visible to unrelated users');
+  assert.strictEqual(data.usn, undefined, 'USN must NOT be visible to unrelated users');
+  assert.strictEqual(data.gender, undefined, 'Gender must NOT be visible to unrelated users');
+  assert.strictEqual(data.emergencyContact, undefined, 'Emergency contact must NOT be visible');
+});
+
+test('PRIVACY: Owner and Admin receive complete permitted profile', async () => {
+  // Owner accesses self
+  const resSelf = await fetch(`${baseUrl}/api/users/${normalUser2._id}`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resSelf.status, 200);
+  const selfData = await resSelf.json();
+  assert.equal(selfData.phone, normalUser2.phone);
+  assert.equal(selfData.email, normalUser2.email);
+
+  // Admin accesses user
+  const resAdmin = await fetch(`${baseUrl}/api/users/${normalUser2._id}`, {
+    headers: { Authorization: `Bearer ${tokenAdmin}` }
+  });
+  assert.equal(resAdmin.status, 200);
+  const adminData = await resAdmin.json();
+  assert.equal(adminData.phone, normalUser2.phone);
+  assert.equal(adminData.email, normalUser2.email);
+});
+
+// =========================================================================
+// SECTION 15: INFRASTRUCTURE & READINESS HEALTH CHECKS
+// =========================================================================
+test('HEALTH: /api/health/live confirms process liveness', async () => {
+  const res = await fetch(`${baseUrl}/api/health/live`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.status, 'alive');
+  assert.ok(typeof data.uptime === 'number');
+});
+
+test('HEALTH: /api/health/ready verifies database connectivity', async () => {
+  const res = await fetch(`${baseUrl}/api/health/ready`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.status, 'ready');
+  assert.equal(data.database, 'connected');
+});
