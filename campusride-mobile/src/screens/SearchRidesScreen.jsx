@@ -337,9 +337,28 @@ export default function SearchRidesScreen({ navigation }) {
     if (item.drop) setDrop(item.drop);
   };
 
+  const hasPickup = Boolean(pickup.label?.trim() || pickup.lat);
+  const hasDrop = Boolean(drop.label?.trim() || drop.lat);
+  const hasBothLocations = hasPickup && hasDrop;
+  const isIdentical = hasBothLocations && (
+    (Boolean(pickup.label && drop.label && pickup.label.trim().toLowerCase() === drop.label.trim().toLowerCase())) ||
+    (Boolean(pickup.lat && drop.lat && haversineDistanceKm(pickup.lat, pickup.lng, drop.lat, drop.lng) * 1000 < 50))
+  );
+
   const doSearch = useCallback(async () => {
-    if (!pickup.label?.trim() && !drop.label?.trim() && !pickup.lat && !drop.lat) {
-      setError('Please enter your pickup or drop location to find rides along your route within 5km.');
+    if (!hasPickup) {
+      setError('Please select your pickup location to find available rides.');
+      setRides([]);
+      return;
+    }
+    if (!hasDrop) {
+      setError('Please select your drop location to find available rides.');
+      setRides([]);
+      return;
+    }
+    if (isIdentical) {
+      setError('Pickup and drop locations cannot be identical.');
+      setRides([]);
       return;
     }
 
@@ -513,6 +532,42 @@ export default function SearchRidesScreen({ navigation }) {
             }}
             placeholder="Where do you want to go?"
           />
+
+          {/* Mandatory drop location hint */}
+          {hasPickup && !hasDrop && (
+            <View style={{
+              marginTop: 6,
+              marginBottom: 4,
+              backgroundColor: isDark ? 'rgba(245, 166, 35, 0.12)' : '#fef3c7',
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+              borderRadius: radius.sm,
+              borderWidth: 1,
+              borderColor: colors.accent,
+            }}>
+              <Text style={{ color: colors.accent, fontSize: 11.5, fontWeight: '700' }}>
+                📍 Please select your drop location to find available rides.
+              </Text>
+            </View>
+          )}
+
+          {/* Identical location validation alert */}
+          {isIdentical && (
+            <View style={{
+              marginTop: 6,
+              marginBottom: 4,
+              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#fee2e2',
+              paddingVertical: 6,
+              paddingHorizontal: 10,
+              borderRadius: radius.sm,
+              borderWidth: 1,
+              borderColor: '#ef4444',
+            }}>
+              <Text style={{ color: '#ef4444', fontSize: 11.5, fontWeight: '700' }}>
+                ⚠️ Pickup and drop locations cannot be identical.
+              </Text>
+            </View>
+          )}
         </View>
 
         <ScrollView
@@ -823,7 +878,13 @@ export default function SearchRidesScreen({ navigation }) {
 
         <Alert message={error} />
 
-        <Btn label="🔍 Find a Ride" onPress={doSearch} loading={loading} style={{ marginTop: 8 }} />
+        <Btn
+          label="🔍 Find a Ride"
+          onPress={doSearch}
+          loading={loading}
+          disabled={!hasBothLocations || isIdentical}
+          style={{ marginTop: 8, opacity: (!hasBothLocations || isIdentical) ? 0.55 : 1 }}
+        />
 
         {/* Results */}
         <View style={{ marginTop: spacing.lg }}>

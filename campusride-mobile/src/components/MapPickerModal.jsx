@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Modal,
   TextInput, ActivityIndicator, Platform, ScrollView, Linking,
@@ -35,6 +35,10 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
   const [mapsLink,      setMapsLink]      = useState('');
   const [resolving,     setResolving]     = useState(false);
   const [linkError,     setLinkError]     = useState('');
+
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const debounceSearchRef = useRef(null);
+  const debounceReverseGeoRef = useRef(null);
 
   // ── Google Maps: open it, then read the link the user copies back ──
   const handleOpenMaps = () => {
@@ -131,33 +135,40 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
     }
   };
 
-  const handleMapClick = async ({ lat, lng }) => {
+  const handleMapClick = ({ lat, lng }) => {
     setCoords({ lat, lng });
-    try {
-      const res = await api.reverseGeocode(lat, lng);
-      const name = res?.label || res?.display_name || res?.address || 'Selected Location';
-      setAddressLabel(name);
-    } catch {
-      setAddressLabel('Selected Location');
-    }
+    if (debounceReverseGeoRef.current) clearTimeout(debounceReverseGeoRef.current);
+    debounceReverseGeoRef.current = setTimeout(async () => {
+      try {
+        const res = await api.reverseGeocode(lat, lng);
+        const name = res?.label || res?.display_name || res?.address || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        setAddressLabel(name);
+      } catch {
+        setAddressLabel(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      }
+    }, 350);
   };
 
-  const handleSearch = async (text) => {
+  const handleSearch = (text) => {
     setQuery(text);
+    if (debounceSearchRef.current) clearTimeout(debounceSearchRef.current);
     if (!text.trim() || text.length < 2) {
       setSearchResults([]);
+      setSearching(false);
       return;
     }
     setSearching(true);
-    try {
-      const results = await api.searchLocation(text);
-      const list = Array.isArray(results) ? results : results?.results || [];
-      setSearchResults(list);
-    } catch {
-      setSearchResults([]);
-    } finally {
-      setSearching(false);
-    }
+    debounceSearchRef.current = setTimeout(async () => {
+      try {
+        const results = await api.searchLocation(text);
+        const list = Array.isArray(results) ? results : results?.results || [];
+        setSearchResults(list);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 350);
   };
 
   const selectSpot = (spotName) => {
@@ -200,7 +211,11 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
           <View style={{ width: 60 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={scrollEnabled}
+        >
           {/* Search Box */}
           <View style={[styles.searchBox, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
             <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
@@ -215,7 +230,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
           </View>
 
           {/* Search Dropdown Results */}
-          {searchResults.length > 0 && (
+          {searchResults.length > 0 ? (
             <View style={[styles.resultsBox, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]}>
               {searchResults.slice(0, 5).map((item, idx) => (
                 <TouchableOpacity
@@ -230,17 +245,28 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
                 </TouchableOpacity>
               ))}
             </View>
-          )}
+          ) : (!searching && query.trim().length >= 2) ? (
+            <View style={[styles.resultsBox, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0', padding: 12 }]}>
+              <Text style={{ color: colors.text3, fontSize: 13, textAlign: 'center' }}>
+                No locations found for "{query}". You can tap the map or drag the pin directly.
+              </Text>
+            </View>
+          ) : null}
 
-          {/* Interactive Visual Map with Droppable Pin */}
-          <View style={{ marginVertical: 10 }}>
+          {/* Interactive Visual Map with Smooth Pin Movement & Touch Isolation */}
+          <View
+            style={{ marginVertical: 10, borderRadius: radius.md, overflow: 'hidden' }}
+            onTouchStart={() => setScrollEnabled(false)}
+            onTouchEnd={() => setScrollEnabled(true)}
+            onTouchCancel={() => setScrollEnabled(true)}
+          >
             <LiveMapView
               pinLocation={coords}
               onMapClick={handleMapClick}
-              height={230}
+              height={250}
               interactive={true}
             />
-            <Text style={styles.mapHintText}>👆 Tap anywhere on the map or drag pin to adjust location</Text>
+            <Text style={styles.mapHintText}>👆 Pan or pinch map freely — tap anywhere to place your pin</Text>
           </View>
 
           {/* Selected Location Banner */}

@@ -74,14 +74,14 @@ class TwilioSMSProvider extends BaseSMSProvider {
             if (res.statusCode >= 200 && res.statusCode < 300) {
               const twilioStatus = parsed.status; // 'queued', 'sending', 'sent', 'delivered'
               const normalizedStatus = (twilioStatus === 'delivered') ? 'delivered' :
-                                       (twilioStatus === 'sent') ? 'sent' : 'queued';
+                                       (twilioStatus === 'sent') ? 'sent' : 'provider_accepted';
               resolve({
                 success: true,
                 status: normalizedStatus,
                 provider: 'TWILIO',
                 messageId: parsed.sid,
                 error: null,
-                notes: `Twilio status: ${twilioStatus}`
+                notes: `Twilio initial status: ${twilioStatus} (provider_accepted)`
               });
             } else {
               resolve({
@@ -177,11 +177,11 @@ class Fast2SMSSMSProvider extends BaseSMSProvider {
             if (parsed.return === true) {
               resolve({
                 success: true,
-                status: 'sent',
+                status: 'provider_accepted',
                 provider: 'FAST2SMS',
                 messageId: parsed.request_id || null,
                 error: null,
-                notes: (parsed.message || []).join(', ')
+                notes: (parsed.message || []).join(', ') || 'Fast2SMS gateway accepted request'
               });
             } else {
               resolve({

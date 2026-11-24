@@ -4,6 +4,8 @@
 
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { io: ClientIo } = require('socket.io-client');
@@ -59,6 +61,15 @@ before(async () => {
   const seedSuspended = 'seed_suspended_' + timestamp;
   const seedBlocked = 'seed_blocked_' + timestamp;
 
+  // Prepare durable private KYC test file
+  const sampleDocName = 'test_sample.png';
+  const kycStorageDir = process.env.KYC_STORAGE_DIR || path.join(__dirname, '..', 'uploads', 'kyc_private');
+  if (!fs.existsSync(kycStorageDir)) {
+    fs.mkdirSync(kycStorageDir, { recursive: true });
+  }
+  const samplePngBuffer = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2d420000000049454e44ae426082', 'hex');
+  fs.writeFileSync(path.join(kycStorageDir, sampleDocName), samplePngBuffer);
+
   // 1. Normal User 1 (Provider of test ride)
   normalUser1 = await User.create({
     name: 'Security Test User 1',
@@ -70,8 +81,8 @@ before(async () => {
     currentSessionSeed: seed1,
     kycStatus: 'approved',
     kycDocuments: {
-      collegeIdCard: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
-      selfie: 'https://res.cloudinary.com/demo/image/upload/sample2.jpg'
+      collegeIdCard: `private://kyc_private/${sampleDocName}`,
+      selfie: `private://kyc_private/${sampleDocName}`
     }
   });
 
@@ -388,10 +399,8 @@ test('KYC IDOR: Document owner CAN access their own KYC document', async () => {
     headers: { Authorization: `Bearer ${tokenUser1}` },
     redirect: 'manual'
   });
-  assert.ok(res.status === 302 || res.status === 200, 'Owner must receive document or redirect');
-  if (res.status === 302) {
-    assert.equal(res.headers.get('location'), 'https://res.cloudinary.com/demo/image/upload/sample.jpg');
-  }
+  assert.equal(res.status, 200, 'Owner must receive document with HTTP 200 from private storage');
+  assert.equal(res.headers.get('content-type'), 'image/png');
 });
 
 test('KYC IDOR: Verified admin CAN access any users KYC document', async () => {
@@ -399,7 +408,8 @@ test('KYC IDOR: Verified admin CAN access any users KYC document', async () => {
     headers: { Authorization: `Bearer ${tokenAdmin}` },
     redirect: 'manual'
   });
-  assert.ok(res.status === 302 || res.status === 200, 'Admin must receive document or redirect');
+  assert.equal(res.status, 200, 'Admin must receive document with HTTP 200 from private storage');
+  assert.equal(res.headers.get('content-type'), 'image/png');
 });
 
 test('KYC VALIDATION: submitKyc rejects invalid/malicious non-image payload', async () => {
@@ -964,4 +974,235 @@ test('HEALTH: /api/health/ready verifies database connectivity', async () => {
   const data = await res.json();
   assert.equal(data.status, 'ready');
   assert.equal(data.database, 'connected');
+});
+
+// =========================================================================
+// SECTION 16: NEW SECURITY & FEATURE REGRESSION VERIFICATIONS
+// =========================================================================
+
+test('RIDE SEARCH: Mandatory Drop Location enforcement', async () => {
+  // 1. Pickup provided but drop missing -> rejected with 400 MISSING_DROP_LOCATION
+  const resPickupOnly = await fetch(`${baseUrl}/api/ride/search?lat=12.9004&lng=77.5186`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resPickupOnly.status, 400);
+  const dataPickupOnly = await resPickupOnly.json();
+  assert.equal(dataPickupOnly.code, 'MISSING_DROP_LOCATION');
+
+  // 2. Drop provided but pickup missing -> rejected with 400 MISSING_PICKUP_LOCATION
+  const resDropOnly = await fetch(`${baseUrl}/api/ride/search?dropLat=12.9237&dropLng=77.4987`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resDropOnly.status, 400);
+  const dataDropOnly = await resDropOnly.json();
+  assert.equal(dataDropOnly.code, 'MISSING_PICKUP_LOCATION');
+
+  // 3. Identical pickup and drop coordinates (< 50 meters) -> rejected with 400 IDENTICAL_LOCATIONS
+  const resIdentical = await fetch(
+    `${baseUrl}/api/ride/search?lat=12.90040&lng=77.51860&dropLat=12.90041&dropLng=77.51861`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resIdentical.status, 400);
+  const dataIdentical = await resIdentical.json();
+  assert.equal(dataIdentical.code, 'IDENTICAL_LOCATIONS');
+
+  // 4. Valid distinct pickup and drop -> 200 with rides array
+  const resValid = await fetch(
+    `${baseUrl}/api/ride/search?lat=12.9004&lng=77.5186&dropLat=12.9237&dropLng=77.4987`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resValid.status, 200);
+  const validData = await resValid.json();
+  assert.ok(Array.isArray(validData));
+});
+
+test('VEHICLE UNIQUENESS: Vehicle registration number must be globally unique across accounts', async () => {
+  // Refresh tokenUser1 with active session seed
+  const refreshedUser1 = await User.findById(normalUser1._id);
+  tokenUser1 = jwt.sign(
+    { userId: refreshedUser1._id.toString(), email: refreshedUser1.email, role: 'provider', sessionSeed: refreshedUser1.currentSessionSeed },
+    process.env.JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: '1h' }
+  );
+
+  const uniquePlate = `KA05AB${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // 1. User 1 successfully registers vehicle
+  const resUser1 = await fetch(`${baseUrl}/api/users/profile/vehicle`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify({
+      vehicleNumber: uniquePlate,
+      vehicleName: 'Honda Activa 6G',
+      vehicleType: 'bike'
+    })
+  });
+  assert.equal(resUser1.status, 200);
+  const dataUser1 = await resUser1.json();
+  assert.equal(dataUser1.vehicleNumber, uniquePlate);
+
+  // 2. User 2 attempts to register the exact same plate -> rejected with 409 Conflict
+  const resUser2Exact = await fetch(`${baseUrl}/api/users/profile/vehicle`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser2}`
+    },
+    body: JSON.stringify({
+      vehicleNumber: uniquePlate,
+      vehicleName: 'Hero Splendor',
+      vehicleType: 'bike'
+    })
+  });
+  assert.equal(resUser2Exact.status, 409);
+  const dataUser2Exact = await resUser2Exact.json();
+  assert.equal(dataUser2Exact.code, 'VEHICLE_ALREADY_REGISTERED');
+
+  // 3. User 2 attempts with lowercase and spaces -> normalized and rejected with 409 Conflict
+  const unnormalizedPlate = ` ${uniquePlate.toLowerCase().slice(0, 4)} ${uniquePlate.toLowerCase().slice(4)} `;
+  const resUser2Norm = await fetch(`${baseUrl}/api/users/profile/vehicle`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser2}`
+    },
+    body: JSON.stringify({
+      vehicleNumber: unnormalizedPlate,
+      vehicleName: 'Yamaha FZ',
+      vehicleType: 'bike'
+    })
+  });
+  assert.equal(resUser2Norm.status, 409);
+  const dataUser2Norm = await resUser2Norm.json();
+  assert.equal(dataUser2Norm.code, 'VEHICLE_ALREADY_REGISTERED');
+
+  // 4. User 1 (existing owner) updates their own vehicle details -> succeeds
+  const resUser1Update = await fetch(`${baseUrl}/api/users/profile/vehicle`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify({
+      vehicleNumber: uniquePlate,
+      vehicleName: 'Honda Activa Premium Edition',
+      vehicleType: 'bike'
+    })
+  });
+  assert.equal(resUser1Update.status, 200);
+  const dataUser1Update = await resUser1Update.json();
+  assert.equal(dataUser1Update.vehicleName, 'Honda Activa Premium Edition');
+});
+
+test('SANCTIONS: Revoking suspension restores warning count to 2 (NOT 0)', async () => {
+  // Ensure suspended user is suspended
+  suspendedUser.suspended = true;
+  suspendedUser.warningsCount = 3;
+  await suspendedUser.save();
+
+  const resRevoke = await fetch(`${baseUrl}/api/admin/users/revoke-sanctions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenAdmin}`
+    },
+    body: JSON.stringify({
+      userId: suspendedUser._id.toString(),
+      reason: 'First appeal approved by dean'
+    })
+  });
+
+  assert.equal(resRevoke.status, 200);
+  const dataRevoke = await resRevoke.json();
+  assert.equal(dataRevoke.warningsCount, 2, 'Revoking suspension must restore warnings to 2');
+  assert.equal(dataRevoke.suspended, false);
+
+  const refreshedUser = await User.findById(suspendedUser._id);
+  assert.equal(refreshedUser.warningsCount, 2);
+  assert.equal(refreshedUser.suspended, false);
+});
+
+test('KYC SIGNED URL: Target user and document type claim binding', async () => {
+  // Restore document reference for normalUser2 (since previous deletion test removed it)
+  await User.findByIdAndUpdate(normalUser2._id, {
+    'kycDocuments.collegeIdCard': 'private://kyc_private/test_sample.png'
+  });
+
+  // Generate signed URL for normalUser2 collegeIdCard
+  const resSigned = await fetch(`${baseUrl}/api/kyc/document/${normalUser2._id}/collegeIdCard/signed-url`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(resSigned.status, 200);
+  const { signedUrl } = await resSigned.json();
+  const token = new URL(`http://localhost${signedUrl}`).searchParams.get('token');
+
+  // 1. Valid access matching target user and docType
+  const resValidStream = await fetch(`${baseUrl}/api/kyc/document/${normalUser2._id}/collegeIdCard?token=${token}`);
+  assert.equal(resValidStream.status, 200);
+  assert.equal(resValidStream.headers.get('content-type'), 'image/png');
+
+  // 2. Mismatched target user in route parameter -> rejected with 403
+  const resMismatchedUser = await fetch(`${baseUrl}/api/kyc/document/${normalUser1._id}/collegeIdCard?token=${token}`);
+  assert.equal(resMismatchedUser.status, 403);
+
+  // 3. Mismatched docType in route parameter -> rejected with 403
+  const resMismatchedDoc = await fetch(`${baseUrl}/api/kyc/document/${normalUser2._id}/drivingLicense?token=${token}`);
+  assert.equal(resMismatchedDoc.status, 403);
+});
+
+test('SOS STATES: Twilio delivery webhook updates status to delivered', async () => {
+  const testMsgSid = 'SM_test_' + Date.now();
+  const sosRecord = await SOS.create({
+    rideId: testRide._id,
+    triggeredBy: { userId: normalUser1._id, role: 'provider' },
+    location: { lat: 12.9081, lng: 77.5218 },
+    status: 'active',
+    notificationsSent: [{
+      type: 'sms',
+      recipient: '9876543210',
+      status: 'provider_accepted',
+      provider: 'TWILIO',
+      messageId: testMsgSid
+    }],
+    emergencyContacts: [{
+      name: 'Dad',
+      phone: '9876543210',
+      deliveryStatus: 'provider_accepted',
+      messageId: testMsgSid
+    }]
+  });
+
+  // Twilio delivery callback
+  const postParams = new URLSearchParams({
+    MessageSid: testMsgSid,
+    MessageStatus: 'delivered'
+  });
+
+  const resWebhook = await fetch(`${baseUrl}/api/sos/webhook/twilio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: postParams.toString()
+  });
+
+  assert.equal(resWebhook.status, 200);
+
+  const updatedSOS = await SOS.findById(sosRecord._id);
+  assert.equal(updatedSOS.notificationsSent[0].status, 'delivered');
+  assert.equal(updatedSOS.emergencyContacts[0].deliveryStatus, 'delivered');
+  assert.ok(updatedSOS.emergencyContacts[0].notifiedAt);
+
+  await SOS.deleteOne({ _id: sosRecord._id });
+});
+
+test('LOGGING: sanitizeUrlForLogging masks sensitive query parameters', () => {
+  const { sanitizeUrlForLogging } = require('../server');
+  const rawUrl = '/api/kyc/document/123/collegeIdCard?token=secret_jwt_token_value_xyz&apiKey=12345&user=john';
+  const sanitized = sanitizeUrlForLogging(rawUrl);
+  assert.ok(!sanitized.includes('secret_jwt_token_value_xyz'), 'Token must be masked');
+  assert.ok(!sanitized.includes('12345'), 'API key must be masked');
+  assert.ok(sanitized.includes('token=%5BREDACTED%5D') || sanitized.includes('token=[REDACTED]'));
+  assert.ok(sanitized.includes('user=john'));
 });

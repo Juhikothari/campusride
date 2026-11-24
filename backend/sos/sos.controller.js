@@ -21,7 +21,7 @@ exports.triggerSOS = async (req, res) => {
         return res.status(200).json({
           message: 'SOS alert already processed for this idempotency key',
           sos: existingKeySOS,
-          emergencyContactsNotified: existingKeySOS.emergencyContacts.filter(c => ['delivered', 'sent'].includes(c.deliveryStatus)).length,
+          emergencyContactsNotified: existingKeySOS.emergencyContacts.filter(c => c.deliveryStatus === 'delivered').length,
           idempotentReplay: true
         });
       }
@@ -99,7 +99,7 @@ exports.triggerSOS = async (req, res) => {
           sos.notificationsSent.push({
             type: 'push',
             recipient: String(b.seekerId),
-            status: pushRes?.status === 'sent' ? 'sent' : 'failed',
+            status: pushRes?.status === 'provider_accepted' ? 'provider_accepted' : (pushRes?.status || 'failed'),
             provider: pushRes?.provider || 'EXPO',
             messageId: pushRes?.messageId || null,
             attempts: pushRes?.attempts || 1,
@@ -116,7 +116,7 @@ exports.triggerSOS = async (req, res) => {
         sos.notificationsSent.push({
           type: 'push',
           recipient: String(ride.providerId),
-          status: pushRes?.status === 'sent' ? 'sent' : 'failed',
+          status: pushRes?.status === 'provider_accepted' ? 'provider_accepted' : (pushRes?.status || 'failed'),
           provider: pushRes?.provider || 'EXPO',
           messageId: pushRes?.messageId || null,
           attempts: pushRes?.attempts || 1,
@@ -149,7 +149,7 @@ exports.triggerSOS = async (req, res) => {
       sos.notificationsSent.push({
         type: 'sms',
         recipient: contact.phone,
-        status: smsRes.status, // 'sent', 'delivered', 'failed', or 'client_action_required'
+        status: smsRes.status, // 'provider_accepted', 'delivered', 'failed', or 'client_action_required'
         provider: smsRes.provider,
         messageId: smsRes.messageId || null,
         attempts: smsRes.attempts || 1,
@@ -157,8 +157,8 @@ exports.triggerSOS = async (req, res) => {
         notes: smsRes.notes || null
       });
 
-      // Record in emergencyContacts
-      const isConfirmed = smsRes.status === 'delivered' || smsRes.status === 'sent';
+      // Record in emergencyContacts — strictly count confirmed 'delivered' state
+      const isConfirmed = smsRes.status === 'delivered';
       if (isConfirmed) confirmedNotifiedCount++;
 
       sos.emergencyContacts.push({
@@ -510,5 +510,72 @@ exports.updateEmergencyContacts = async (req, res) => {
     res.json({ message: 'Emergency contacts updated', user });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// Handle Twilio Delivery Status Callbacks / Webhooks
+exports.handleTwilioWebhook = async (req, res) => {
+  try {
+    const { MessageSid, MessageStatus, ErrorCode, ErrorMessage } = req.body || {};
+    if (!MessageSid || !MessageStatus) {
+      return res.status(400).send('<Response></Response>');
+    }
+
+    // Map Twilio delivery status callback
+    let normalizedStatus;
+    if (MessageStatus === 'delivered') {
+      normalizedStatus = 'delivered';
+    } else if (['failed', 'undelivered'].includes(MessageStatus)) {
+      normalizedStatus = 'failed';
+    } else if (MessageStatus === 'sent') {
+      normalizedStatus = 'sent';
+    } else {
+      normalizedStatus = 'provider_accepted';
+    }
+
+    // Find SOS record with this messageId
+    const sos = await SOS.findOne({
+      $or: [
+        { 'notificationsSent.messageId': MessageSid },
+        { 'emergencyContacts.messageId': MessageSid }
+      ]
+    });
+
+    if (sos) {
+      let updated = false;
+      sos.notificationsSent.forEach(n => {
+        if (n.messageId === MessageSid) {
+          n.status = normalizedStatus;
+          if (ErrorCode) n.error = `Twilio Code ${ErrorCode}: ${ErrorMessage || ''}`;
+          updated = true;
+        }
+      });
+
+      sos.emergencyContacts.forEach(c => {
+        if (c.messageId === MessageSid) {
+          c.deliveryStatus = normalizedStatus;
+          if (normalizedStatus === 'delivered' && !c.notifiedAt) {
+            c.notifiedAt = new Date();
+          }
+          updated = true;
+        }
+      });
+
+      if (updated) {
+        if (!sos.auditLog) sos.auditLog = [];
+        sos.auditLog.push({
+          action: 'delivery_callback',
+          timestamp: new Date(),
+          notes: `Twilio delivery status callback for message ${MessageSid}: status=${normalizedStatus}`,
+          metadata: { MessageSid, MessageStatus, ErrorCode }
+        });
+        await sos.save();
+      }
+    }
+
+    res.type('text/xml').send('<Response></Response>');
+  } catch (err) {
+    console.error('[SOS Twilio Webhook Error]:', err.message);
+    res.status(500).send('<Response></Response>');
   }
 };

@@ -61,6 +61,7 @@ module.exports = async (req, res, next) => {
       sessionSeed: decoded.sessionSeed,
       deviceId: decoded.deviceId
     };
+    req.tokenDecoded = decoded;
     next();
   } catch (dbErr) {
     console.error('Auth middleware verification error:', dbErr.message);

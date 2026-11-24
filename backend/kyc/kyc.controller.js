@@ -5,10 +5,16 @@ const fs = require('fs');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const { notifyAdmins } = require('../notifications/notifications.helper');
+const { validateVehicleNumber } = require('../utils/vehicle');
 const User = require('../users/users.model');
 
-// Private storage directory outside public web root
-const KYC_STORAGE_DIR = path.resolve(__dirname, '../uploads/kyc_private');
+// Private storage directory outside public web root with persistent mount support
+const KYC_STORAGE_DIR = process.env.KYC_STORAGE_DIR
+  ? path.resolve(process.env.KYC_STORAGE_DIR)
+  : (fs.existsSync('/data/uploads/kyc_private')
+      ? '/data/uploads/kyc_private'
+      : path.resolve(__dirname, '../uploads/kyc_private'));
+
 if (!fs.existsSync(KYC_STORAGE_DIR)) {
   fs.mkdirSync(KYC_STORAGE_DIR, { recursive: true, mode: 0o700 });
 }
@@ -180,12 +186,30 @@ exports.submitKyc = async (req, res) => {
       return res.status(400).json({ message: "Driving license is mandatory for ride providers" });
     }
 
-    const cleanVNum = vehicleNumber ? vehicleNumber.toUpperCase().replace(/[\s-]/g, '') : null;
-    if (cleanVNum && !/^[A-Z]{2}[0-9]{1,2}[A-Z]{0,4}[0-9]{3,5}$/.test(cleanVNum)) {
-      return res.status(400).json({ message: "Enter a valid vehicle registration number" });
+    let vNum = null;
+    if (vehicleNumber) {
+      const vVal = validateVehicleNumber(vehicleNumber);
+      if (!vVal.valid) {
+        return res.status(400).json({ message: vVal.reason });
+      }
+      vNum = vVal.normalized;
+
+      const conflict = await User.findOne({
+        _id: { $ne: req.user.userId },
+        $or: [
+          { 'vehicles.vehicleNumber': vNum },
+          { 'kycDocuments.vehicleNumber': vNum }
+        ]
+      }).select('_id name email');
+
+      if (conflict) {
+        return res.status(409).json({
+          message: 'This vehicle number is already registered with another account.',
+          code: 'VEHICLE_ALREADY_REGISTERED'
+        });
+      }
     }
 
-    const vNum = isProvider && vehicleNumber ? vehicleNumber.toUpperCase().trim() : null;
     const vName = isProvider && req.body.vehicleName ? req.body.vehicleName.trim() : 'Vehicle';
     const vType = isProvider && req.body.vehicleType ? req.body.vehicleType : 'car';
 
@@ -263,6 +287,12 @@ exports.submitKyc = async (req, res) => {
     });
 
   } catch (error) {
+    if (error.code === 11000 || (error.message && error.message.includes('duplicate key'))) {
+      return res.status(409).json({
+        message: 'This vehicle number is already registered with another account.',
+        code: 'VEHICLE_ALREADY_REGISTERED'
+      });
+    }
     console.error('KYC submit error:', error);
     res.status(500).json({ error: error.message });
   }
@@ -416,6 +446,20 @@ exports.getDocumentImage = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
+    // If request arrived via short-lived signed bearer link (?token=...), verify token binding
+    if (req.query && req.query.token) {
+      const decoded = req.tokenDecoded;
+      if (!decoded || decoded.purpose !== 'kyc_document_access') {
+        return res.status(403).json({ message: 'Access denied: Invalid or missing signed token purpose' });
+      }
+      if (decoded.targetUserId?.toString() !== userId.toString()) {
+        return res.status(403).json({ message: 'Access denied: Signed token target user mismatch' });
+      }
+      if (decoded.docType !== docType) {
+        return res.status(403).json({ message: 'Access denied: Signed token document type mismatch' });
+      }
+    }
+
     const requester = await User.findById(requesterId).select('role blocked suspended');
     if (!requester || requester.blocked || requester.suspended) {
       return res.status(403).json({ message: 'Account is restricted or inactive' });
@@ -443,13 +487,16 @@ exports.getDocumentImage = async (req, res) => {
       performedBy: requesterId,
       timestamp: new Date(),
       ip: req.ip,
-      notes: `Accessed by ${isReqAdmin ? 'Admin' : 'Owner'}`
+      notes: `Accessed by ${isReqAdmin ? 'Admin' : 'Owner'} via ${req.query?.token ? 'Signed URL' : 'Bearer Session'}`
     });
     await targetUser.save();
 
-    // Support legacy Cloudinary references (redirect)
-    if (fileRef.startsWith('https://res.cloudinary.com/')) {
-      return res.redirect(302, fileRef);
+    // Reject legacy Cloudinary references (public redirects permanently removed)
+    if (fileRef.startsWith('https://res.cloudinary.com/') || fileRef.startsWith('http://') || fileRef.startsWith('https://')) {
+      return res.status(400).json({
+        message: 'Document requires migration to private storage. Legacy public URLs are disabled for privacy.',
+        code: 'LEGACY_DOCUMENT_UNMIGRATED'
+      });
     }
 
     // Serve from private storage
@@ -473,18 +520,12 @@ exports.getDocumentImage = async (req, res) => {
       return res.send(buffer);
     }
 
-    // Serve base64 data URI directly (backward compatibility for legacy submissions)
+    // Reject legacy base64 data URI serving (must be migrated)
     if (fileRef.startsWith('data:image/')) {
-      const matches = fileRef.match(/^data:image\/([A-Za-z-+]+);base64,(.+)$/);
-      if (matches && matches.length === 3) {
-        const contentType = `image/${matches[1]}`;
-        const buffer = Buffer.from(matches[2], 'base64');
-        res.set('Content-Type', contentType);
-        res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-        res.set('X-Content-Type-Options', 'nosniff');
-        res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
-        return res.send(buffer);
-      }
+      return res.status(400).json({
+        message: 'Document requires migration to private storage. Legacy inline payloads are disabled.',
+        code: 'LEGACY_BASE64_UNMIGRATED'
+      });
     }
 
     return res.status(400).json({ message: 'Invalid or corrupted document format' });

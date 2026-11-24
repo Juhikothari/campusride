@@ -1,4 +1,5 @@
 const { notifyAdmins } = require('../notifications/notifications.helper');
+const { validateVehicleNumber } = require('../utils/vehicle');
 // backend/users/users.routes.js
 const express = require('express');
 const router  = express.Router();
@@ -91,7 +92,7 @@ router.put('/profile/phone', auth, async (req, res) => {
 });
 
 // ── PUT /api/users/profile/vehicle  — save/add vehicle details ────────
-// Supports single vehicle update and adds to multi-vehicle list
+// Supports single vehicle update and adds to multi-vehicle list with global uniqueness constraint
 router.put('/profile/vehicle', auth, async (req, res) => {
   try {
     const { vehicleNumber, vehicleName, vehicleType } = req.body;
@@ -103,7 +104,27 @@ router.put('/profile/vehicle', auth, async (req, res) => {
       return res.status(400).json({ message: 'Vehicle name / model is required' });
     }
 
-    const vn = vehicleNumber.trim().toUpperCase();
+    const vVal = validateVehicleNumber(vehicleNumber);
+    if (!vVal.valid) {
+      return res.status(400).json({ message: vVal.reason });
+    }
+    const vn = vVal.normalized;
+
+    // Check if vehicle number is already registered with another account
+    const conflict = await User.findOne({
+      _id: { $ne: req.user.userId },
+      $or: [
+        { 'vehicles.vehicleNumber': vn },
+        { 'kycDocuments.vehicleNumber': vn }
+      ]
+    }).select('_id name email');
+
+    if (conflict) {
+      return res.status(409).json({
+        message: 'This vehicle number is already registered with another account.',
+        code: 'VEHICLE_ALREADY_REGISTERED'
+      });
+    }
 
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -135,7 +156,17 @@ router.put('/profile/vehicle', auth, async (req, res) => {
       });
     }
 
-    await user.save();
+    try {
+      await user.save();
+    } catch (saveErr) {
+      if (saveErr.code === 11000 || (saveErr.message && saveErr.message.includes('duplicate key'))) {
+        return res.status(409).json({
+          message: 'This vehicle number is already registered with another account.',
+          code: 'VEHICLE_ALREADY_REGISTERED'
+        });
+      }
+      throw saveErr;
+    }
 
     // Notify administrators of new vehicle submission for 24-hr review
     notifyAdmins({
@@ -159,6 +190,12 @@ router.put('/profile/vehicle', auth, async (req, res) => {
       vehicles: user.vehicles,
     });
   } catch (err) {
+    if (err.code === 11000 || (err.message && err.message.includes('duplicate key'))) {
+      return res.status(409).json({
+        message: 'This vehicle number is already registered with another account.',
+        code: 'VEHICLE_ALREADY_REGISTERED'
+      });
+    }
     res.status(500).json({ message: err.message });
   }
 });

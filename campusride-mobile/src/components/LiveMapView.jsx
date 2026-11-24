@@ -318,8 +318,16 @@ export default function LiveMapView({
             pinMarker.on('dragend', function(e) {
               const pos = e.target.getLatLng();
               window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'PIN_MOVED', lat: pos.lat, lng: pos.lng
+                type: 'PIN_MOVED', lat: Number(pos.lat.toFixed(6)), lng: Number(pos.lng.toFixed(6))
               }));
+            });
+            map.on('moveend', function() {
+              const c = map.getCenter();
+              if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'PIN_MOVED', lat: Number(c.lat.toFixed(6)), lng: Number(c.lng.toFixed(6))
+                }));
+              }
             });
             markers.push([${pinLat}, ${pinLng}]);
           ` : ''}

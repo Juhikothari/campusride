@@ -28,7 +28,7 @@
 | `GET` | `/api/users/profile` | Required | Verified | Any | Returns own complete profile with phone cooldown info |
 | `PUT` | `/api/users/profile` | Required | Verified | Any | Strict allowlist: `gender`, `emergencyContact`, `usn`, `profilePhoto` |
 | `PUT` | `/api/users/profile/phone` | Required | Verified | Any | 90-day cooldown throttle enforced server-side |
-| `PUT` | `/api/users/profile/vehicle` | Required | Verified | Provider / Both | Registers vehicle for 24-hr admin verification |
+| `PUT` | `/api/users/profile/vehicle` | Required | Verified | Provider / Both | Normalizes plate format (Indian standard & BH); enforces global uniqueness across accounts returning HTTP 409 `VEHICLE_ALREADY_REGISTERED`; marks pending admin verification |
 | `GET` | `/api/users/profile/vehicles`| Required | Verified | Provider / Both | Returns user's registered vehicles |
 | `GET` | `/api/users/:id` | Required | Verified | Any | **Field-level Privacy**: Owner/Admin gets full profile; Ride co-participants get safety fields (`usn`, `gender`); Unrelated users receive strictly minimal public view (phone/email/usn stripped). |
 
@@ -39,10 +39,10 @@
 | Method | Endpoint | Authentication | Session Seed Check | Role Required | Access Control & Validation |
 |---|---|---|---|---|---|
 | `POST` | `/api/kyc/upload` | Required | Verified | Any | Multer 5MB limit, JPEG/PNG/WebP magic-byte validation, private disk storage |
-| `POST` | `/api/kyc/submit` | Required | Verified | Any | Rejects arbitrary external URLs (SSRF prevention); magic-byte verified base64/private refs |
+| `POST` | `/api/kyc/submit` | Required | Verified | Any | Rejects arbitrary external URLs (SSRF prevention); magic-byte verified base64/private refs; enforces vehicle uniqueness |
 | `GET` | `/api/kyc/status` | Required | Verified | Any | Returns own KYC status |
-| `GET` | `/api/kyc/document/:userId/:docType` | Required | Verified | Owner or Admin | Object-level: Requester must be document owner or verified Admin. Streams private file with `X-Content-Type-Options: nosniff` |
-| `GET` | `/api/kyc/document/:userId/:docType/signed-url` | Required | Verified | Owner or Admin | Generates 15-minute short-lived HMAC signed link |
+| `GET` | `/api/kyc/document/:userId/:docType` | Required (Bearer or Signed Query Token) | Verified | Owner or Admin | Object-level: Requester must be document owner or verified Admin. Signed query token cryptographically verified for `targetUserId`, `docType`, and `purpose: 'kyc_document_access'`. Legacy Cloudinary redirects permanently removed. Streams private file with `X-Content-Type-Options: nosniff` |
+| `GET` | `/api/kyc/document/:userId/:docType/signed-url` | Required | Verified | Owner or Admin | Generates 15-minute short-lived HMAC signed link bound to target user ID and docType |
 | `DELETE`| `/api/kyc/document/:userId/:docType` | Required | Verified | Owner or Admin | Securely deletes private file from disk and logs audit record |
 | `GET` | `/api/kyc/admin/pending` | Required | Verified | **Admin Only** | Returns all pending KYC submissions |
 | `POST` | `/api/kyc/admin/review` | Required | Verified | **Admin Only** | Approves/rejects KYC and logs review audit entry |
@@ -54,7 +54,7 @@
 | Method | Endpoint | Authentication | Session Seed Check | Role Required | Object-Level Authorization Check |
 |---|---|---|---|---|---|
 | `POST` | `/api/ride` | Required | Verified | Provider / Both | Provider verification and vehicle check |
-| `GET` | `/api/ride/search` | Required | Verified | Any | Geo-spatial query for active matching rides |
+| `GET` | `/api/ride/search` | Required | Verified | Any | Mandatory pickup and drop coordinates; rejects missing drop (`MISSING_DROP_LOCATION`), missing pickup (`MISSING_PICKUP_LOCATION`), or identical endpoints (`IDENTICAL_LOCATIONS`) |
 | `PUT` | `/api/ride/:id` | Required | Verified | Provider | **Ownership Check**: Only the creating provider can edit |
 | `POST` | `/api/ride/:id/cancel` | Required | Verified | Provider | **Ownership Check**: Only the ride provider can cancel |
 | `POST` | `/api/booking` | Required | Verified | Seeker / Both | Verifies available seats and ride status |
@@ -76,6 +76,7 @@
 | `POST` | `/api/sos/:sosId/acknowledge` | Required | Verified | Provider or Admin | Only ride provider or verified admin |
 | `POST` | `/api/sos/:sosId/resolve` | Required | Verified | Triggerer / Provider / Admin | Only triggerer, provider, or verified admin |
 | `POST` | `/api/sos/:sosId/cancel` | Required | Verified | Triggerer / Admin | Only user who triggered or admin |
+| `POST` | `/api/sos/webhook/twilio` | Webhook Auth / Signature | N/A | Twilio SMS Gateway | Updates SMS message deliveryStatus to 'delivered' and records delivery timestamp |
 | `GET` | `/api/sos/admin/all` | Required | Verified | **Admin Only** | Administrative emergency alert overview |
 
 ---
@@ -89,6 +90,7 @@
 | `POST` | `/api/admin/users/:id/suspend` | Required | Verified | **Admin Only** | Sets suspension and disconnects user sockets |
 | `POST` | `/api/admin/users/:id/block` | Required | Verified | **Admin Only** | Sets block and disconnects user sockets |
 | `POST` | `/api/admin/warning` | Required | Verified | **Admin Only** | Issues warning (auto-suspends and disconnects on 3rd warning) |
+| `POST` | `/api/admin/users/revoke-sanctions` | Required | Verified | **Admin Only** | Revokes suspension, resets warnings to 2 (NOT 0) to preserve disciplinary history |
 
 ---
 

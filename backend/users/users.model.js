@@ -103,4 +103,7 @@ const userSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+// Sparse unique index to guarantee no two accounts share a vehicle registration number
+userSchema.index({ 'vehicles.vehicleNumber': 1 }, { unique: true, sparse: true });
+
 module.exports = mongoose.model('User', userSchema);

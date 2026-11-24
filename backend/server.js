@@ -113,10 +113,33 @@ app.use('/api/auth/verify-otp', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
 
 // ==========================================
-// 5. REQUEST LOGGING (Sanitized: No credentials)
+// 5. REQUEST LOGGING (Sanitized: No credentials or tokens)
 // ==========================================
+function sanitizeUrlForLogging(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  try {
+    const qIndex = rawUrl.indexOf('?');
+    if (qIndex === -1) return rawUrl;
+    const pathPart = rawUrl.substring(0, qIndex);
+    const queryPart = rawUrl.substring(qIndex + 1);
+    if (!queryPart) return pathPart;
+
+    const sensitiveParamRegex = /^(token|jwt|auth|secret|password|pwd|otp|code|key|apikey|api_key|phone|email|usn|aadhar|signature|sig)$/i;
+    const params = new URLSearchParams(queryPart);
+    for (const [key] of params.entries()) {
+      if (sensitiveParamRegex.test(key) || /token|secret|password|credential|otp/i.test(key)) {
+        params.set(key, '[REDACTED]');
+      }
+    }
+    return `${pathPart}?${params.toString()}`;
+  } catch {
+    return rawUrl.split('?')[0];
+  }
+}
+
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  const sanitizedUrl = sanitizeUrlForLogging(req.originalUrl || req.url);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${sanitizedUrl}`);
   next();
 });
 
@@ -615,4 +638,4 @@ if (require.main === module) {
   connectDB().catch(err => console.warn('Non-main DB connection deferred:', err.message));
 }
 
-module.exports = { app, server };
+module.exports = { app, server, sanitizeUrlForLogging };

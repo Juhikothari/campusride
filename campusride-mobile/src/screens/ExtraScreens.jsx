@@ -835,7 +835,7 @@ export function AdminDashboardScreen({ navigation }) {
                 <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
                   {[
                     { key: 'all',       label: `All (${ridesList.length})` },
-                    { key: 'active',    label: '🟢 Active / Live' },
+                    { key: 'active',    label: '⚡ Active / Live' },
                     { key: 'completed', label: '✓ Completed' },
                     { key: 'cancelled', label: '✕ Cancelled' },
                   ].map(f => (
@@ -897,11 +897,11 @@ export function AdminDashboardScreen({ navigation }) {
                         {/* Route display */}
                         <View style={{ gap: 4, marginBottom: 8 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={{ fontSize: 12 }}>🟢</Text>
+                            <Text style={{ fontSize: 13, color: colors.green, fontWeight: '800' }}>📍</Text>
                             <Text style={{ color: colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>{pickAddr}</Text>
                           </View>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={{ fontSize: 12 }}>🔴</Text>
+                            <Text style={{ fontSize: 13, color: colors.red, fontWeight: '800' }}>🏁</Text>
                             <Text style={{ color: colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>{dropAddr}</Text>
                           </View>
                         </View>

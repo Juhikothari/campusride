@@ -1,0 +1,13 @@
+fix(security&features): durable KYC storage, signed URL claims, SOS delivery states, mandatory drop location, unique vehicles & UI polish
+
+- P0 KYC Storage Durability: Added persistent disk spec (/data/uploads/kyc_private, 10GB) in render.yaml, configured KYC_STORAGE_DIR, created backup/restore utility (backup_restore_kyc.js), migrated legacy Cloudinary/base64 records (migrate_legacy_kyc.js), and permanently removed legacy Cloudinary 302 redirects.
+- P0 KYC Signed URL: Bound short-lived tokens (15m) with targetUserId, docType, purpose (kyc_document_access), and requester sessionSeed. Verified strictly in getDocumentImage with single-device revocation checks.
+- P0 SOS Delivery States: Added 'provider_accepted' to sos.model.js enums, mapped Twilio/Fast2SMS dispatchers to 'provider_accepted', implemented Twilio delivery webhook (POST /api/sos/webhook/twilio), and strictly counted confirmed 'delivered' contacts in triggerSOS.
+- P1 Logging Sanitization: Implemented sanitizeUrlForLogging masking token, jwt, apiKey, secret, password, and otp across request logs.
+- P1 Load Testing: Categorized load runner (load_test_runner.js) isolating 2xx, 3xx, 4xx, 429, 5xx, timeouts, and network resets; verified 0 server 5xx errors and 50/50 WebSocket concurrent authentications.
+- Feature 1 Mandatory Drop Location: Rejects ride search without drop coords (MISSING_DROP_LOCATION) or identical coords (IDENTICAL_LOCATIONS) with HTTP 400; frontend shows mandatory drop hint and disables search button.
+- Feature 2 Unique Vehicle Numbers: Normalized vehicle registration plate strings, added sparse unique index on vehicles.vehicleNumber, and enforced atomic conflict check returning HTTP 409 (VEHICLE_ALREADY_REGISTERED).
+- Feature 3 Restored Sanction Warnings: In revokeSanctions, restored warnings count to 2 (NOT 0) to preserve disciplinary history while unsuspending accounts; updated AuditLog enum.
+- Feature 4 Map Gesture Isolation & Debounce: Isolated map panning from ScrollView scroll hijacking in MapPickerModal, added center-pin Leaflet moveend listener with 350ms debounced reverse geocoding and search.
+- UI Polish: Replaced colored ball emojis with standard icon badges in ProviderBookingsScreen and ExtraScreens, and moved Pending Requests to the top above selected ride details.
+- Verified test suite: 52/52 automated security and regression tests passing.

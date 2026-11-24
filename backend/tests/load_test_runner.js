@@ -20,10 +20,13 @@ async function runBenchmark(concurrency, totalRequests, testToken, port, testRid
   console.log(`======================================================`);
 
   const latencies = [];
-  let successful = 0;
-  let rateLimited = 0;
-  let serverErrors = 0;
+  let res2xx = 0;
+  let res3xx = 0;
+  let res4xx = 0;
+  let res429 = 0;
+  let res5xx = 0;
   let networkErrors = 0;
+  let timeouts = 0;
   let inFlight = 0;
   let completed = 0;
   let requestIndex = 0;
@@ -60,6 +63,7 @@ async function runBenchmark(concurrency, totalRequests, testToken, port, testRid
       const headers = { 'Connection': 'keep-alive' };
       if (endpoint.auth) headers['Authorization'] = `Bearer ${testToken}`;
 
+      let timedOut = false;
       const reqStart = Date.now();
       const req = http.request({
         hostname: '127.0.0.1',
@@ -71,18 +75,20 @@ async function runBenchmark(concurrency, totalRequests, testToken, port, testRid
         let body = '';
         res.on('data', chunk => { body += chunk; });
         res.on('end', () => {
+          if (timedOut) return;
           const latency = Date.now() - reqStart;
           latencies.push(latency);
 
           if (res.statusCode >= 200 && res.statusCode < 300) {
-            successful++;
+            res2xx++;
+          } else if (res.statusCode >= 300 && res.statusCode < 400) {
+            res3xx++;
           } else if (res.statusCode === 429) {
-            rateLimited++;
+            res429++;
+          } else if (res.statusCode >= 400 && res.statusCode < 500) {
+            res4xx++;
           } else if (res.statusCode >= 500) {
-            serverErrors++;
-          } else {
-            // 4xx client status
-            successful++;
+            res5xx++;
           }
 
           inFlight--;
@@ -92,6 +98,7 @@ async function runBenchmark(concurrency, totalRequests, testToken, port, testRid
       });
 
       req.on('error', (err) => {
+        if (timedOut) return;
         networkErrors++;
         inFlight--;
         completed++;
@@ -99,7 +106,12 @@ async function runBenchmark(concurrency, totalRequests, testToken, port, testRid
       });
 
       req.setTimeout(8000, () => {
+        timedOut = true;
+        timeouts++;
         req.destroy();
+        inFlight--;
+        completed++;
+        launchNext();
       });
 
       req.end();
@@ -108,40 +120,55 @@ async function runBenchmark(concurrency, totalRequests, testToken, port, testRid
     function finish() {
       const totalTimeMs = Date.now() - startTime;
       const totalTimeSec = totalTimeMs / 1000;
-      const rps = (completed / totalTimeSec).toFixed(2);
+      const throughput2xx = (res2xx / totalTimeSec).toFixed(2);
+      const totalThroughput = (completed / totalTimeSec).toFixed(2);
       latencies.sort((a, b) => a - b);
 
       const p50 = latencies[Math.floor(latencies.length * 0.50)] || 0;
       const p95 = latencies[Math.floor(latencies.length * 0.95)] || 0;
       const p99 = latencies[Math.floor(latencies.length * 0.99)] || 0;
-      const errorRate = (((serverErrors + networkErrors) / completed) * 100).toFixed(2);
-      const rateLimitRate = ((rateLimited / completed) * 100).toFixed(2);
+      const serverErrRate = completed > 0 ? (((res5xx + networkErrors + timeouts) / completed) * 100).toFixed(2) : '0.00';
+      const rateLimitRate = completed > 0 ? ((res429 / completed) * 100).toFixed(2) : '0.00';
+      const clientErrRate = completed > 0 ? ((res4xx / completed) * 100).toFixed(2) : '0.00';
       
       const endMem = process.memoryUsage();
       const rssMB = (endMem.rss / (1024 * 1024)).toFixed(1);
       const cpuUsed = process.cpuUsage(startCpu);
       const cpuSec = ((cpuUsed.user + cpuUsed.system) / 1000000).toFixed(2);
 
-      console.log(`⏱️  Duration: ${totalTimeSec.toFixed(2)}s | CPU: ${cpuSec}s`);
-      console.log(`📊 Completed: ${completed} (Success: ${successful}, Rate Limited: ${rateLimited}, 5xx: ${serverErrors}, NetErr: ${networkErrors})`);
-      console.log(`⚡ Throughput: ${rps} req/sec`);
+      console.log(`⏱️  Duration: ${totalTimeSec.toFixed(2)}s | CPU: ${cpuSec}s | RSS: ${rssMB} MB`);
+      console.log(`📊 Completed Requests: ${completed}`);
+      console.log(`   - 2xx (Success):       ${res2xx}`);
+      console.log(`   - 3xx (Redirect):      ${res3xx}`);
+      console.log(`   - 4xx (Client Error):  ${res4xx} (${clientErrRate}%)`);
+      console.log(`   - 429 (Rate Limited):  ${res429} (${rateLimitRate}%)`);
+      console.log(`   - 5xx (Server Error):  ${res5xx}`);
+      console.log(`   - Network Errors:      ${networkErrors}`);
+      console.log(`   - Timeouts (>8s):      ${timeouts}`);
+      console.log(`⚡ 2xx Application Throughput: ${throughput2xx} req/sec`);
+      console.log(`⚡ Total Pipeline Throughput:  ${totalThroughput} req/sec`);
       console.log(`📈 Latency P50: ${p50}ms | P95: ${p95}ms | P99: ${p99}ms`);
-      console.log(`❌ Server Error Rate: ${errorRate}% | 🛡️ Rate Limited: ${rateLimitRate}%`);
-      console.log(`🧠 Memory RSS: ${rssMB} MB`);
+      console.log(`❌ Server/Network Error Rate: ${serverErrRate}%`);
 
       resolve({
         concurrency,
+        requests: totalRequests,
         completed,
-        successful,
-        rateLimited,
-        serverErrors,
+        res2xx,
+        res3xx,
+        res4xx,
+        res429,
+        res5xx,
         networkErrors,
-        rps: parseFloat(rps),
+        timeouts,
+        throughput2xx: parseFloat(throughput2xx),
+        totalThroughput: parseFloat(totalThroughput),
         p50,
         p95,
         p99,
-        errorRate: `${errorRate}%`,
+        serverErrRate: `${serverErrRate}%`,
         rateLimitRate: `${rateLimitRate}%`,
+        clientErrRate: `${clientErrRate}%`,
         durationSec: parseFloat(totalTimeSec.toFixed(2)),
         rssMB: parseFloat(rssMB)
       });

@@ -6,11 +6,17 @@ services:
     rootDir: backend
     buildCommand: npm install
     startCommand: node server.js
+    disk:
+      name: kyc-storage
+      mountPath: /data/uploads/kyc_private
+      sizeGB: 10
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
+      - key: KYC_STORAGE_DIR
+        value: /data/uploads/kyc_private
       # Set these in Render dashboard → Environment:
       # MONGODB_URI, JWT_SECRET, CLOUDINARY_CLOUD_NAME,
       # CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET,

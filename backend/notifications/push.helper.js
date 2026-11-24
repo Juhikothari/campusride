@@ -89,7 +89,7 @@ async function sendExpoPushNotification(pushToken, { title, body, data = {}, sou
         if (ticket.status === 'ok') {
           return {
             success: true,
-            status: 'sent',
+            status: 'provider_accepted',
             provider: 'EXPO',
             messageId: ticket.id,
             attempts,
@@ -111,7 +111,7 @@ async function sendExpoPushNotification(pushToken, { title, body, data = {}, sou
       if (result.statusCode >= 200 && result.statusCode < 300) {
         return {
           success: true,
-          status: 'sent',
+          status: 'provider_accepted',
           provider: 'EXPO',
           messageId: null,
           attempts,
@@ -163,4 +163,43 @@ async function sendPushToUser(userId, { title, body, data = {} }) {
   }
 }
 
-module.exports = { sendExpoPushNotification, sendPushToUser };
+/**
+ * Retrieve push delivery receipts from Expo to confirm APNs/FCM delivery.
+ * Expo API: POST https://exp.host/--/api/v2/push/getReceipts
+ */
+async function verifyPushReceipts(receiptIds) {
+  if (!Array.isArray(receiptIds) || receiptIds.length === 0) return {};
+  const payload = JSON.stringify({ ids: receiptIds });
+  return new Promise((resolve) => {
+    const req = https.request(
+      'https://exp.host/--/api/v2/push/getReceipts',
+      {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+        timeout: 8000,
+      },
+      (res) => {
+        let body = '';
+        res.on('data', chunk => { body += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(body);
+            resolve(parsed.data || {});
+          } catch {
+            resolve({});
+          }
+        });
+      }
+    );
+    req.on('timeout', () => { req.destroy(); resolve({}); });
+    req.on('error', () => resolve({}));
+    req.write(payload);
+    req.end();
+  });
+}
+
+module.exports = { sendExpoPushNotification, sendPushToUser, verifyPushReceipts };

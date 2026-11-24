@@ -57,7 +57,7 @@ const sosSchema = new mongoose.Schema({
     sentAt: { type: Date, default: Date.now },
     status: { 
       type: String, 
-      enum: ['pending', 'queued', 'sent', 'delivered', 'failed', 'client_action_required'],
+      enum: ['pending', 'queued', 'provider_accepted', 'sent', 'delivered', 'failed', 'client_action_required'],
       required: true
     },
     provider: { type: String },
@@ -75,7 +75,7 @@ const sosSchema = new mongoose.Schema({
     relation: { type: String },
     deliveryStatus: { 
       type: String, 
-      enum: ['pending', 'queued', 'sent', 'delivered', 'failed', 'client_action_required'],
+      enum: ['pending', 'queued', 'provider_accepted', 'sent', 'delivered', 'failed', 'client_action_required'],
       default: 'client_action_required'
     },
     provider: { type: String },

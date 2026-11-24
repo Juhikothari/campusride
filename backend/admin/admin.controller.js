@@ -538,7 +538,8 @@ exports.revokeSanctions = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    user.warningsCount = 0;
+    // Business Rule: Revoking suspension restores warnings count to 2 (not 0), preserving disciplinary standing
+    user.warningsCount = 2;
     user.suspended = false;
     user.suspendedUntil = null;
     user.suspensionReason = '';
@@ -551,28 +552,28 @@ exports.revokeSanctions = async (req, res) => {
 
     await notifyUser(
       userId,
-      '✅ Account Sanctions Revoked',
-      'All warnings have been cleared and your account suspension/restrictions have been revoked by the administrator. Full access is restored.',
+      '✅ Account Suspension Revoked',
+      'Your account suspension has been revoked by campus administration. You have been placed on 2 active warnings. Any further violations will lead to immediate re-suspension.',
       'sanctions_revoked',
-      { reason }
+      { reason, warningsCount: 2 }
     );
 
     await AuditLog.create({
       action: 'REVOKE_SANCTIONS',
       adminId: req.user.userId,
       targetId: userId,
-      meta: { reason, userName: user.name, incidentId }
+      meta: { reason, userName: user.name, incidentId, restoredWarnings: 2 }
     });
 
     res.json({
       success: true,
-      message: `Sanctions revoked for ${user.name}. Warnings reset to 0 and account unsuspended.`,
-      warningsCount: 0,
+      message: `Suspension revoked for ${user.name}. Warning count restored to 2 and account unsuspended.`,
+      warningsCount: 2,
       suspended: false,
       user: {
         _id: user._id,
         name: user.name,
-        warningsCount: 0,
+        warningsCount: 2,
         suspended: false
       }
     });

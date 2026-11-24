@@ -366,6 +366,48 @@ exports.searchRides = async (req, res) => {
       return res.json([]);
     }
 
+    const pLat = parseFloat(lat || req.query.pickupLat);
+    const pLng = parseFloat(lng || req.query.pickupLng);
+    const dLat = parseFloat(dropLat);
+    const dLng = parseFloat(dropLng);
+
+    const hasPickupCoords = !isNaN(pLat) && !isNaN(pLng);
+    const hasDropCoords = !isNaN(dLat) && !isNaN(dLng);
+    const hasPickupText = Boolean(pickupText?.trim());
+    const hasDropText = Boolean(dropText?.trim());
+
+    // Both pickup and drop locations are strictly mandatory for ride search
+    if ((hasPickupCoords || hasPickupText) && (!hasDropCoords && !hasDropText)) {
+      return res.status(400).json({
+        message: 'Please select your drop location to find available rides.',
+        code: 'MISSING_DROP_LOCATION'
+      });
+    }
+
+    if ((hasDropCoords || hasDropText) && (!hasPickupCoords && !hasPickupText)) {
+      return res.status(400).json({
+        message: 'Please select your pickup location to find available rides.',
+        code: 'MISSING_PICKUP_LOCATION'
+      });
+    }
+
+    // Require valid coordinates when performing coordinate-based search
+    if (!hasPickupCoords || !hasDropCoords) {
+      return res.status(400).json({
+        message: 'Both pickup and drop locations must include valid coordinates.',
+        code: 'MISSING_COORDINATES'
+      });
+    }
+
+    // Validate that pickup and drop locations are not identical (must be at least 50m apart)
+    const distBetweenPickupAndDrop = calculateDistance(pLat, pLng, dLat, dLng);
+    if (distBetweenPickupAndDrop < 50) {
+      return res.status(400).json({
+        message: 'Pickup and drop locations cannot be identical.',
+        code: 'IDENTICAL_LOCATIONS'
+      });
+    }
+
     const distanceInMeters = Math.max(parseInt(maxDistance) || 5000, 5000); // 5km radius limit
 
     // Build base query — only active rides with available seats

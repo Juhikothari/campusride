@@ -18,10 +18,10 @@ import { getDisplayUSN } from '../utils/usn';
 import { formatDateDMY } from '../utils/date';
 
 const RIDE_STATUS_CONFIG = {
-  active:        { color: '#ffffff',     icon: '⚪', label: 'Requested'   },
-  'in-progress': { color: colors.red,    icon: '🔴', label: 'Live Track'  },
-  completed:     { color: colors.green,  icon: '🟢', label: 'Completed'   },
-  cancelled:     { color: colors.text3,  icon: '⚫', label: 'Cancelled'   },
+  active:        { color: colors.accent, icon: '🚗', label: 'Requested'   },
+  'in-progress': { color: colors.red,    icon: '⚡', label: 'Live Track'  },
+  completed:     { color: colors.green,  icon: '✓',  label: 'Completed'   },
+  cancelled:     { color: colors.text3,  icon: '✕',  label: 'Cancelled'   },
 };
 
 function getAddr(field) {
@@ -225,14 +225,14 @@ export default function ProviderBookingsScreen({ navigation }) {
                         {/* Route */}
                         <View style={[styles.routeBox, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', marginBottom: 10 }]}>
                           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                            <Text style={{ fontSize: 12, marginTop: 2 }}>🟢</Text>
+                            <Text style={{ fontSize: 13, marginTop: 2, color: colors.green, fontWeight: '800' }}>📍</Text>
                             <View style={{ flex: 1 }}>
                               <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>PICKUP</Text>
                               <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(r.pickup)}</Text>
                             </View>
                           </View>
                           <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-                            <Text style={{ fontSize: 12, marginTop: 2 }}>🔴</Text>
+                            <Text style={{ fontSize: 13, marginTop: 2, color: colors.red, fontWeight: '800' }}>🏁</Text>
                             <View style={{ flex: 1 }}>
                               <Text style={{ color: colors.text3, fontSize: 10, fontWeight: '700' }}>DROP</Text>
                               <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>{getAddr(r.drop)}</Text>
@@ -279,68 +279,13 @@ export default function ProviderBookingsScreen({ navigation }) {
             {/* Ride status controls */}
             {selectedRide.status === 'cancelled' && (
               <View style={{ marginBottom: spacing.md }}>
-                <Alert message={`🔴 Ride Cancelled${selectedRide.cancelReason ? `: ${selectedRide.cancelReason}` : ''}`} />
+                <Alert message={`Ride Cancelled${selectedRide.cancelReason ? `: ${selectedRide.cancelReason}` : ''}`} />
               </View>
             )}
 
-            {/* Stats */}
-            <View style={styles.statsRow}>
-              <StatPill isDark={isDark} label="Pending" value={pending.length} color={colors.accent} />
-              <StatPill isDark={isDark} label="Resolved" value={resolved.length} color={colors.green} />
-              <StatPill isDark={isDark} label="Total" value={bookings.length} color={colors.blue} />
-              <TouchableOpacity
-                style={[
-                  styles.refreshBtn,
-                  {
-                    backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
-                    borderWidth: 1,
-                    borderColor: isDark ? 'transparent' : '#cbd5e1',
-                  }
-                ]}
-                onPress={() => loadBookings(selectedRide._id)}
-              >
-                <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, fontWeight: '700' }}>↻</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Requests / Bookings Section */}
-            {selectedRide.status === 'completed' ? (
-              <View style={[
-                styles.bookingCard,
-                {
-                  alignItems: 'center',
-                  paddingVertical: 24,
-                  marginTop: spacing.sm,
-                  backgroundColor: isDark ? colors.surface : '#ffffff',
-                  borderColor: isDark ? colors.border : '#cbd5e1',
-                }
-              ]}>
-                <Text style={{ fontSize: 32, marginBottom: 8 }}>🔒</Text>
-                <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Ride Completed</Text>
-                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 18 }}>
-                  Seeker personal and contact details are hidden once a ride is completed in accordance with student safety and privacy policy.
-                </Text>
-                <View style={{
-                  marginTop: 14,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
-                  borderRadius: radius.full,
-                  borderWidth: 1,
-                  borderColor: isDark ? 'transparent' : '#cbd5e1',
-                }}>
-                  <Text style={{ fontSize: 12 }}>🟢</Text>
-                  <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
-                    {resolved.filter(b => b.status === 'accepted').length} Buddy Completed
-                  </Text>
-                </View>
-              </View>
-            ) : (
-              <>
-                {/* Pending */}
+            {/* PENDING REQUESTS SECTION: Moved to top of page */}
+            {selectedRide.status !== 'completed' && (
+              <View style={{ marginBottom: spacing.md }}>
                 <Text style={styles.sectionLabel}>PENDING REQUESTS ({pending.length})</Text>
                 {bkLoading ? (
                   <ActivityIndicator color={colors.accent} />
@@ -353,7 +298,6 @@ export default function ProviderBookingsScreen({ navigation }) {
                   pending.map(b => {
                     const am = actionMap[b._id] || {};
                     const seeker = b.seekerId;
-                    const isAccepted = b.status === 'accepted';
                     return (
                       <View key={b._id} style={[styles.bookingCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
                         <View style={styles.seekerRow}>
@@ -414,6 +358,65 @@ export default function ProviderBookingsScreen({ navigation }) {
                     );
                   })
                 )}
+              </View>
+            )}
+
+            {/* Stats */}
+            <View style={styles.statsRow}>
+              <StatPill isDark={isDark} label="Pending" value={pending.length} color={colors.accent} />
+              <StatPill isDark={isDark} label="Resolved" value={resolved.length} color={colors.green} />
+              <StatPill isDark={isDark} label="Total" value={bookings.length} color={colors.blue} />
+              <TouchableOpacity
+                style={[
+                  styles.refreshBtn,
+                  {
+                    backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'transparent' : '#cbd5e1',
+                  }
+                ]}
+                onPress={() => loadBookings(selectedRide._id)}
+              >
+                <Text style={{ color: isDark ? colors.text2 : '#475569', fontSize: 13, fontWeight: '700' }}>↻</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Completed status notice */}
+            {selectedRide.status === 'completed' && (
+              <View style={[
+                styles.bookingCard,
+                {
+                  alignItems: 'center',
+                  paddingVertical: 24,
+                  marginTop: spacing.sm,
+                  backgroundColor: isDark ? colors.surface : '#ffffff',
+                  borderColor: isDark ? colors.border : '#cbd5e1',
+                }
+              ]}>
+                <Text style={{ fontSize: 32, marginBottom: 8 }}>🔒</Text>
+                <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 16, fontWeight: '800', marginBottom: 6 }}>Ride Completed</Text>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 13, textAlign: 'center', maxWidth: 300, lineHeight: 18 }}>
+                  Seeker personal and contact details are hidden once a ride is completed in accordance with student safety and privacy policy.
+                </Text>
+                <View style={{
+                  marginTop: 14,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: isDark ? colors.surface2 : '#f1f5f9',
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: radius.full,
+                  borderWidth: 1,
+                  borderColor: isDark ? 'transparent' : '#cbd5e1',
+                }}>
+                  <Text style={{ fontSize: 12 }}>✓</Text>
+                  <Text style={{ color: colors.green, fontSize: 12, fontWeight: '700' }}>
+                    {resolved.filter(b => b.status === 'accepted').length} Buddy Completed
+                  </Text>
+                </View>
+              </View>
+            )}
 
                 {/* Resolved */}
                 {resolved.length > 0 && (

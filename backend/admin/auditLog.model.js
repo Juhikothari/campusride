@@ -6,11 +6,12 @@ const auditLogSchema = new mongoose.Schema({
     type: String,
     enum: [
       'APPROVE_KYC', 'REJECT_KYC', 'REVOKE_KYC',
-      'BLOCK_USER', 'UNBLOCK_USER', 'SUSPEND_USER', 'DELETE_USER',
+      'BLOCK_USER', 'UNBLOCK_USER', 'SUSPEND_USER', 'WARN_USER', 'REVOKE_SANCTIONS', 'DELETE_USER',
       'FORCE_CANCEL_RIDE',
       'BROADCAST',
       'LOGIN',
       'RESOLVE_INCIDENT',
+      'APPROVE_COLLEGE', 'REMOVE_COLLEGE',
     ],
     required: true,
   },

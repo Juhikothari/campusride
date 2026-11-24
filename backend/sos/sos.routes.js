@@ -15,6 +15,9 @@ router.post('/:sosId/acknowledge', auth, controller.acknowledgeSOS);
 router.post('/:sosId/resolve', auth, controller.resolveSOS);
 router.post('/:sosId/cancel', auth, controller.cancelSOS);
 
+// Public Provider Webhooks (Twilio status callbacks)
+router.post('/webhook/twilio', express.urlencoded({ extended: false }), controller.handleTwilioWebhook);
+
 // Admin routes - strictly requires admin role
 router.get('/admin/all', auth, isAdmin, controller.getAllSOS);
 
