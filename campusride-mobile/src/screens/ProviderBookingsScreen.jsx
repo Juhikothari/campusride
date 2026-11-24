@@ -470,8 +470,6 @@ export default function ProviderBookingsScreen({ navigation }) {
                 )}
               </>
             )}
-          </>
-        )}
       </ScrollView>
       <RatingModal
         visible={showRatingModal}
