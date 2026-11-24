@@ -41,8 +41,7 @@
         "android.permission.VIBRATE"
       ],
       "softwareKeyboardLayoutMode": "resize",
-      "allowBackup": false,
-      "usesCleartextTraffic": false
+      "allowBackup": false
     },
     "plugins": [
       [
