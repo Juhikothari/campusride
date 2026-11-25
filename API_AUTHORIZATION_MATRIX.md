@@ -1,6 +1,6 @@
 # HOGO (CampusRide) — Production API Authorization Matrix
 
-**Last Updated:** November 23, 2026  
+**Last Updated:** November 25, 2026  
 **Auditor:** Principal Application Security Architect  
 **Validation Standard:** Principle of Least Privilege & Zero Trust Verification  
 
@@ -38,11 +38,11 @@
 
 | Method | Endpoint | Authentication | Session Seed Check | Role Required | Access Control & Validation |
 |---|---|---|---|---|---|
-| `POST` | `/api/kyc/upload` | Required | Verified | Any | Multer 5MB limit, JPEG/PNG/WebP magic-byte validation, private disk storage |
-| `POST` | `/api/kyc/submit` | Required | Verified | Any | Rejects arbitrary external URLs (SSRF prevention); magic-byte verified base64/private refs; enforces vehicle uniqueness |
+| `POST` | `/api/kyc/upload` | Required | Verified | Any | Multer 5MB limit, JPEG/PNG/WebP magic-byte validation, mandatory `docType`, private disk storage + `KycDocument` ownership registry (`docId`, `ownerId`, `docType`, `sha256`) |
+| `POST` | `/api/kyc/submit` | Required | Verified | Any | Rejects arbitrary external URLs, path traversal, unregistered refs, cross-user refs (`403`), `docType` mismatches (`403`), and missing disk files (`404`); enforces vehicle uniqueness |
 | `GET` | `/api/kyc/status` | Required | Verified | Any | Returns own KYC status |
-| `GET` | `/api/kyc/document/:userId/:docType` | Required (Bearer or Signed Query Token) | Verified | Owner or Admin | Object-level: Requester must be document owner or verified Admin. Signed query token cryptographically verified for `targetUserId`, `docType`, and `purpose: 'kyc_document_access'`. Legacy Cloudinary redirects permanently removed. Streams private file with `X-Content-Type-Options: nosniff` |
-| `GET` | `/api/kyc/document/:userId/:docType/signed-url` | Required | Verified | Owner or Admin | Generates 15-minute short-lived HMAC signed link bound to target user ID and docType |
+| `GET` | `/api/kyc/document/:userId/:docType` | Required (Bearer or Signed Query Token) | Verified | Owner or Admin | Object-level: Requester must be document owner or verified Admin. Signed query token cryptographically verified for `userId`, `targetUserId`, `docType`, `op: 'read'`, and `purpose: 'kyc_document_access'`. Verifies active `KycDocument` ownership record before streaming private file with `X-Content-Type-Options: nosniff` |
+| `GET` | `/api/kyc/document/:userId/:docType/signed-url` | Required | Verified | Owner or Admin | Generates 15-minute short-lived HMAC signed link bound to requester `userId`, `targetUserId`, `docType`, `op: 'read'`, and `jti` |
 | `DELETE`| `/api/kyc/document/:userId/:docType` | Required | Verified | Owner or Admin | Securely deletes private file from disk and logs audit record |
 | `GET` | `/api/kyc/admin/pending` | Required | Verified | **Admin Only** | Returns all pending KYC submissions |
 | `POST` | `/api/kyc/admin/review` | Required | Verified | **Admin Only** | Approves/rejects KYC and logs review audit entry |
@@ -76,7 +76,7 @@
 | `POST` | `/api/sos/:sosId/acknowledge` | Required | Verified | Provider or Admin | Only ride provider or verified admin |
 | `POST` | `/api/sos/:sosId/resolve` | Required | Verified | Triggerer / Provider / Admin | Only triggerer, provider, or verified admin |
 | `POST` | `/api/sos/:sosId/cancel` | Required | Verified | Triggerer / Admin | Only user who triggered or admin |
-| `POST` | `/api/sos/webhook/twilio` | Webhook Auth / Signature | N/A | Twilio SMS Gateway | Updates SMS message deliveryStatus to 'delivered' and records delivery timestamp |
+| `POST` | `/api/sos/webhook/twilio` | **Fail-Closed `twilio.validateRequest` HMAC** | N/A | Twilio SMS Gateway | Returns 503 `TWILIO_NOT_CONFIGURED` if token missing; verifies trusted URL (ignoring spoofed `X-Forwarded-*`), `AccountSid`, `MessageSid` existence, `TWILIO` provider match, normalized recipient `To`, legal state transitions (`ALLOWED_DELIVERY_TRANSITIONS`), and `processedCallbacks` idempotency |
 | `GET` | `/api/sos/admin/all` | Required | Verified | **Admin Only** | Administrative emergency alert overview |
 
 ---
@@ -103,3 +103,13 @@
 | `GET` | `/api/health` | None | Backward Compatible Health | Returns 200 if connected, 503 if disconnected |
 | `GET` | `/health` | None | Backward Compatible Health | Returns 200 if connected, 503 if disconnected |
 | `GET` | `/api/ping` | None | Network Ping | Returns plain text `pong` |
+
+---
+
+## 8. Location, Geocoding & Routing Proxies (OSM / MapLibre)
+
+| Method | Endpoint | Authentication | Rate Limit & Validation | Upstream & Coordinate Format |
+|---|---|---|---|---|
+| `GET` | `/api/location/search` | None (Public Geo Proxy) | `60 req/min` IP limiter; 5-min TTL cache; rejects empty/oversized query & invalid coords (`400`) | Photon primary (`photon.komoot.io`) + Geoapify/Nominatim fallbacks; Bengaluru relevance boost; returns GeoJSON `FeatureCollection` with `[lng, lat]` |
+| `GET` | `/api/location/reverse` | None (Public Geo Proxy) | `60 req/min` IP limiter; 5-min TTL cache; strict `[-90,90]` lat & `[-180,180]` lng check (`400`) | Photon reverse + Nominatim fallback; returns GeoJSON `Feature` (`[lng, lat]`) and `address` |
+| `GET` | `/api/location/route` | None (Public Geo Proxy) | `60 req/min` IP limiter; 5-min TTL cache; strict coordinate validation (`400`) | OSRM (`router.project-osrm.org`) GeoJSON `LineString`; fail-honest `routeAvailable: false, distanceKm: null, durationMin: null` on upstream outage |

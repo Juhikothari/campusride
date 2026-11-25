@@ -1,8 +1,8 @@
 # HOGO (CampusRide) — Production Security Pre-Launch Checklist
 
-**Updated:** November 23, 2026  
+**Updated:** November 25, 2026  
 **Auditor:** Principal Application Security Architect  
-**Launch Readiness Status:** Ready for Staging / Controlled Campus Beta  
+**Launch Readiness Status:** Conditional — Limited Beta / Single-Instance Render Deployment Ready (Live Twilio SMS Gateway NOT CONFIGURED in Workspace)  
 
 ---
 
@@ -30,15 +30,18 @@
 - [x] Strict magic-byte file signature verification implemented (JPEG, PNG, WebP).
 - [x] Maximum 5MB file upload limit enforced.
 - [x] Arbitrary external HTTP/HTTPS URLs completely rejected (SSRF prevention).
-- [x] Short-lived signed access links (15-minute token expiry) implemented.
+- [x] `KycDocument` ownership registry enforces uploader `ownerId`, `docType`, SHA-256 hash, and disk existence checks before attachment or streaming.
+- [x] Short-lived signed access links (15-minute token expiry, `op: 'read'`, `jti`, target user & `docType` binding) implemented.
 - [x] Document deletion endpoints operational and verified.
-- [x] Access and review audit trails logged to `user.kycAuditLogs`.
+- [x] Access, replacement, deletion, and review audit trails logged to `user.kycAuditLogs`.
+- [x] Single-instance Render persistent disk (`/data/uploads/kyc_private`) and backup/restore scripts verified (note: multi-instance horizontal scaling requires private S3/R2 migration).
 
 ### 4. Emergency SOS System
-- [x] Notification statuses synchronized between model and controller (`pending`, `queued`, `sent`, `delivered`, `failed`, `client_action_required`).
-- [x] Pluggable SMS service returns `NOT_CONFIGURED` / `client_action_required` when unconfigured.
+- [x] Notification statuses synchronized between model and controller (`pending`, `queued`, `provider_accepted`, `sent`, `delivered`, `failed`, `client_action_required`).
+- [x] Pluggable SMS service returns `NOT_CONFIGURED` / `client_action_required` when unconfigured (live Twilio keys must be populated in production env before enabling automated SMS).
+- [x] `POST /api/sos/webhook/twilio` fails closed (`503 TWILIO_NOT_CONFIGURED`) when unconfigured and verifies `twilio.validateRequest` HMAC signatures against trusted URLs, `AccountSid`, `MessageSid`, recipient `To`, legal transitions, and `processedCallbacks` idempotency.
 - [x] `emergencyContactsNotified` reports strictly confirmed provider deliveries (`delivered` or `sent`), never contact list size.
-- [x] Expo push notifications awaited and parsed against Expo push tickets with retry backoff.
+- [x] Expo push tickets tracked via `PushTicket` & background `pushReceipt.worker.js` with multi-instance lease locks, exponential backoff retries, 30-day TTL cleanup, and `DeviceNotRegistered` token pruning.
 - [x] Duplicate activations prevented via `idempotencyKey`.
 - [x] Full SOS lifecycle audit log recorded in database.
 
@@ -57,5 +60,6 @@
 - [x] Database connection awaited before server begins listening.
 - [x] Liveness probe (`/api/health/live`) and readiness probe (`/api/health/ready`) implemented.
 - [x] Insecure plaintext token fallback to `AsyncStorage` removed from mobile app.
+- [x] Query-string tokens/secrets redacted across 404 responses, error handlers, and logs (`backend/utils/sanitize.js`).
 - [x] CI/CD workflows enforce failure checks (no `|| true`, `if-no-files-found: error`).
-- [x] Android release configuration enforces `usesCleartextTraffic: false` and `allowBackup: false`.
+- [x] Native MapLibre + OSM backend proxies rate-limited (`60 req/min`), coordinate-validated, and fail-honest on OSRM outages.

@@ -1,10 +1,10 @@
 # HOGO (CampusRide) — Production-Grade Application Security Audit & Remediation Report
 
-**Date of Audit:** November 23, 2026  
+**Date of Audit:** November 25, 2026  
 **Auditor / Role:** Principal Application Security Architect & DevSecOps  
 **Repository:** `campusride-mobile/campusride`  
 **Target Environment:** Staging & Production (`campusride-backend-gwgr.onrender.com`)  
-**Overall Posture:** Hardened — 46/46 Automated Security Regression Tests Passing  
+**Overall Posture:** Hardened (Single-Instance Render Deployment Ready) — 55/55 Automated Security Regression Tests Passing  
 
 ---
 
@@ -170,3 +170,9 @@ This comprehensive security audit and remediation was executed across the backen
 | CR-SEC-07 | CI/CD Build Failure Suppression | MEDIUM | **VERIFIED** | `.github/workflows/build-release.yml` |
 | CR-SEC-08 | Database-Unaware Health Check Endpoint | MEDIUM | **VERIFIED** | `security.test.js` Section 15 |
 | CR-SEC-09 | 5,000 & 10,000 User Distributed Load Benchmark | N/A | **NOT EXECUTED** | Requires distributed load testing cluster |
+| CR-SEC-10 | Unauthenticated / Forgeable Twilio Delivery Webhook | CRITICAL | **VERIFIED** (Code + Signed Simulation) / **NOT CONFIGURED** (Live Twilio Prod Env) | Fail-closed 503 `TWILIO_NOT_CONFIGURED`; `twilio.validateRequest` HMAC, `AccountSid`/`MessageSid`/`To` checks, `ALLOWED_DELIVERY_TRANSITIONS` (`security.test.js` `SOS STATES`) |
+| CR-SEC-11 | Sensitive Query Token Leakage in Logs, 404 & Error JSON | HIGH | **VERIFIED** | `backend/utils/sanitize.js`, redacted `req.originalUrl` in 404/error handlers (`security.test.js` `LOGGING`) |
+| CR-SEC-12 | Unverified Expo Push Delivery Receipts | HIGH | **VERIFIED** | `PushTicket` model & `pushReceipt.worker.js` with atomic `processingLockUntil`, exponential backoff, `DeviceNotRegistered` token pruning (`security.test.js` `EXPO PUSH WORKER`) |
+| CR-SEC-13 | KYC Cross-Account Reference Swap & Ownership Bypass | HIGH | **VERIFIED** | `KycDocument` ownership registry (`docId`, `ownerId`, `docType`, `sha256`), physical file check, `op: 'read'` + `jti` signed URL claims (`security.test.js` `KYC OWNERSHIP`) |
+| CR-SEC-14 | Multi-Instance KYC Disk Durability Limitation | MEDIUM | **SINGLE-INSTANCE VERIFIED / MULTI-INSTANCE LIMITATION** | `render.yaml` 10GB persistent disk (`/data/uploads/kyc_private`) persists restarts/redeploys for 1 instance only; horizontal scaling across multiple backend nodes requires S3/R2 private object storage |
+| CR-SEC-15 | Native MapLibre + OSM Geocoding/Routing Security | MEDIUM | **VERIFIED** | `location.routes.js` (`60 req/min` limiter, coordinate validation, GeoJSON `[lng, lat]`, fail-honest OSRM); WebView/Google tiles removed (`security.test.js` `LOCATION & ROUTING` + live API verification) |

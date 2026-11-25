@@ -1,251 +1,442 @@
+// backend/location/location.routes.js
+// Hardened Location Search, Reverse Geocoding & Routing Proxy (OpenStreetMap / Photon / OSRM)
+// Returns GeoJSON-compliant coordinates [longitude, latitude] alongside normalized labels.
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const { resolveMapsLink } = require('./mapsLink');
 
+const PHOTON_BASE_URL = (process.env.PHOTON_URL || 'https://photon.komoot.io').replace(/\/$/, '');
+const NOMINATIM_BASE_URL = (process.env.NOMINATIM_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, '');
+const OSRM_BASE_URL = (process.env.OSRM_URL || 'https://router.project-osrm.org').replace(/\/$/, '');
+
+// Dedicated rate limiter to protect third-party geocoding & routing providers
+const locationLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many location or routing requests. Please slow down.' }
+});
+
+// Simple bounded in-memory TTL cache to honor provider usage policies & prevent bursts
+const CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_CACHE_ENTRIES = 500;
+const responseCache = new Map();
+
+function getCached(key) {
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    responseCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function setCached(key, value) {
+  if (responseCache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = responseCache.keys().next().value;
+    if (oldestKey) responseCache.delete(oldestKey);
+  }
+  responseCache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+}
+
+function parseCoordinate(val, min, max) {
+  if (val === undefined || val === null || val === '') return null;
+  const num = Number(val);
+  if (!Number.isFinite(num) || num < min || num > max) return null;
+  return num;
+}
+
+function buildFeature({ name, displayName, lat, lng, category, source }) {
+  const lon = Number(lng.toFixed(6));
+  const latitude = Number(lat.toFixed(6));
+  const cleanLabel = (name || displayName?.split(',')[0] || 'Selected Location').trim();
+  const cleanDisplay = (displayName || cleanLabel).trim();
+
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Point',
+      coordinates: [lon, latitude] // Standard GeoJSON [longitude, latitude]
+    },
+    properties: {
+      label: cleanLabel,
+      display_name: cleanDisplay,
+      category: category || null,
+      source,
+      attribution: '© OpenStreetMap contributors'
+    },
+    // Normalized convenience properties for existing mobile screens
+    label: cleanLabel,
+    display_name: cleanDisplay,
+    lat: latitude,
+    lng: lon
+  };
+}
+
+function scoreRelevance(item, queryLower, tokens) {
+  const labelLower = (item.label || '').toLowerCase();
+  const displayLower = (item.display_name || '').toLowerCase();
+  let score = 0;
+
+  if (labelLower === queryLower) score += 100;
+  else if (labelLower.startsWith(queryLower)) score += 60;
+  else if (labelLower.includes(queryLower)) score += 35;
+
+  for (const t of tokens) {
+    if (labelLower.includes(t)) score += 12;
+    else if (displayLower.includes(t)) score += 5;
+  }
+
+  // Bengaluru / Karnataka proximity bias without excluding other regions
+  const inBengaluru =
+    /bengaluru|bangalore|karnataka/i.test(displayLower) ||
+    (item.lat >= 12.75 && item.lat <= 13.20 && item.lng >= 77.35 && item.lng <= 77.85);
+  if (inBengaluru) score += 20;
+
+  return score;
+}
+
+function deduplicateResults(items) {
+  const seen = [];
+  for (const item of items) {
+    const isDup = seen.some(existing =>
+      Math.abs(existing.lat - item.lat) < 0.0004 &&
+      Math.abs(existing.lng - item.lng) < 0.0004 &&
+      existing.label.toLowerCase() === item.label.toLowerCase()
+    );
+    if (!isDup) seen.push(item);
+  }
+  return seen;
+}
+
+router.use(locationLimiter);
+
+// ── GET /api/location/search ─────────────────────────────────────
 router.get('/search', auth, async (req, res) => {
   try {
-    const { q } = req.query;
-    if (!q || q.trim().length < 2) {
+    const rawQ = typeof req.query.q === 'string' ? req.query.q : '';
+    const q = rawQ.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, 150);
+    if (q.length < 2) {
       return res.json([]);
     }
 
-    let results = [];
+    const biasLat = parseCoordinate(req.query.lat, -90, 90) ?? 12.9716;
+    const biasLng = parseCoordinate(req.query.lng, -180, 180) ?? 77.5946;
+    const cacheKey = `search:${q.toLowerCase()}:${biasLat.toFixed(2)}:${biasLng.toFixed(2)}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
 
-    // =====================================================
-    // 1. TRY GEOAPIFY FIRST (If API KEY available)
-    // =====================================================
-    if (process.env.GEOAPIFY_API_KEY) {
+    let results = [];
+    const qLower = q.toLowerCase();
+    const tokens = qLower.split(/\s+/).filter(t => t.length >= 2);
+
+    // 1. Primary OSM Autocomplete Provider: Photon (designed specifically for type-ahead OSM search)
+    try {
+      const photonParams = new URLSearchParams({
+        q,
+        limit: '12',
+        lat: String(biasLat),
+        lon: String(biasLng),
+        location_bias_scale: '0.85',
+        lang: 'en'
+      });
+      const photonResp = await fetch(`${PHOTON_BASE_URL}/api/?${photonParams.toString()}`, {
+        headers: { 'User-Agent': 'HOGO-CampusRide/1.1 (campusride)' },
+        signal: AbortSignal.timeout(4500)
+      });
+
+      if (photonResp.ok) {
+        const photonData = await photonResp.json();
+        if (Array.isArray(photonData.features) && photonData.features.length) {
+          results = photonData.features
+            .filter(f => Array.isArray(f?.geometry?.coordinates) && f.geometry.coordinates.length >= 2)
+            .map(place => {
+              const p = place.properties || {};
+              const [lon, lat] = place.geometry.coordinates;
+              const formattedParts = [
+                p.name,
+                p.housenumber && p.street ? `${p.housenumber} ${p.street}` : p.street,
+                p.district || p.suburb || p.locality,
+                p.city || p.town || p.village,
+                p.state,
+                p.country
+              ].filter(Boolean);
+              const uniqueParts = [...new Set(formattedParts)];
+              return buildFeature({
+                name: p.name || p.street || p.suburb || p.locality || p.city,
+                displayName: uniqueParts.join(', '),
+                lat,
+                lng: lon,
+                category: p.osm_value || p.type,
+                source: 'photon'
+              });
+            });
+        }
+      }
+    } catch (err) {
+      console.warn('[Location] Photon search warning:', err.message);
+    }
+
+    // Check if primary returned strong token match
+    const hasStrongMatch = results.some(r =>
+      (r.label || '').toLowerCase().includes(qLower) ||
+      tokens.every(t => (r.display_name || '').toLowerCase().includes(t))
+    );
+
+    // 2. Controlled Fallback 1: Server-side Geoapify (if configured & primary empty/weak)
+    if ((!results.length || !hasStrongMatch) && process.env.GEOAPIFY_API_KEY) {
       try {
-        const geoResponse = await fetch(
+        const geoResp = await fetch(
           `https://api.geoapify.com/v1/geocode/autocomplete?` +
           new URLSearchParams({
             text: q,
             apiKey: process.env.GEOAPIFY_API_KEY,
-            limit: 8,
-            filter: 'countrycode:in',
-            bias: 'proximity:77.5946,12.9716',
+            limit: '8',
+            bias: `proximity:${biasLng},${biasLat}`
           }),
-          { signal: AbortSignal.timeout(5000) }
+          { signal: AbortSignal.timeout(4500) }
         );
-
-        if (geoResponse.ok) {
-          const geoData = await geoResponse.json();
+        if (geoResp.ok) {
+          const geoData = await geoResp.json();
           if (Array.isArray(geoData.features) && geoData.features.length) {
-            results = geoData.features.map(place => ({
-              display_name: place.properties.formatted,
-              lat: Number(place.properties.lat.toFixed(5)),
-              lng: Number(place.properties.lon.toFixed(5)),
-              label: place.properties.name || place.properties.street || place.properties.suburb || place.properties.city || place.properties.formatted?.split(',')[0] || 'Location'
-            }));
+            const geoItems = geoData.features.map(place => buildFeature({
+              name: place.properties?.name || place.properties?.street || place.properties?.suburb || place.properties?.city,
+              displayName: place.properties?.formatted,
+              lat: place.properties?.lat,
+              lng: place.properties?.lon,
+              category: place.properties?.category,
+              source: 'geoapify'
+            })).filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng));
+            results = results.concat(geoItems);
           }
         }
       } catch (err) {
-        console.log('Geoapify autocomplete failed, trying fallbacks...');
+        console.warn('[Location] Geoapify fallback warning:', err.message);
       }
     }
 
-    // =====================================================
-    // 2. TRY PHOTON (Komoot OSM)
-    // =====================================================
+    // 3. Controlled Fallback 2: Nominatim (only when Photon & Geoapify yielded 0 usable matches)
     if (!results.length) {
       try {
-        const photonResponse = await fetch(
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=10&lat=12.9716&lon=77.5946&location_bias_scale=0.9`,
-          { signal: AbortSignal.timeout(5000) }
-        );
-
-        if (photonResponse.ok) {
-          const photonData = await photonResponse.json();
-          if (Array.isArray(photonData.features) && photonData.features.length) {
-            results = photonData.features.map(place => ({
-              display_name: [
-                place.properties.name,
-                place.properties.street,
-                place.properties.suburb,
-                place.properties.city,
-                place.properties.state,
-                place.properties.country
-              ].filter(Boolean).join(', '),
-              lat: Number(place.geometry.coordinates[1].toFixed(5)),
-              lng: Number(place.geometry.coordinates[0].toFixed(5)),
-              label: place.properties.name || place.properties.street || place.properties.suburb || place.properties.city || 'Location'
-            }));
-          }
-        }
-      } catch (err) {
-        console.log('Photon search failed, trying Nominatim fallback...');
-      }
-    }
-
-    // =====================================================
-    // 3. NOMINATIM FALLBACK (Direct OSM Search)
-    // =====================================================
-    if (!results.length) {
-      try {
-        const nomResponse = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=10&countrycodes=in&viewbox=77.35,13.15,77.85,12.80&bounded=0&addressdetails=1`,
-          {
-            headers: { 'User-Agent': 'HOGO-App/1.0 (contact@hogo.app)' },
-            signal: AbortSignal.timeout(6000)
-          }
-        );
-
-        if (nomResponse.ok) {
-          const nomData = await nomResponse.json();
+        const nomParams = new URLSearchParams({
+          q,
+          format: 'jsonv2',
+          limit: '8',
+          addressdetails: '1',
+          viewbox: '77.35,13.20,77.85,12.75',
+          bounded: '0'
+        });
+        const nomResp = await fetch(`${NOMINATIM_BASE_URL}/search?${nomParams.toString()}`, {
+          headers: { 'User-Agent': 'HOGO-CampusRide/1.1 (support@hogo.app)' },
+          signal: AbortSignal.timeout(5000)
+        });
+        if (nomResp.ok) {
+          const nomData = await nomResp.json();
           if (Array.isArray(nomData) && nomData.length) {
-            results = nomData.map(item => ({
-              display_name: item.display_name,
-              lat: Number(parseFloat(item.lat).toFixed(5)),
-              lng: Number(parseFloat(item.lon).toFixed(5)),
-              label: item.name || item.display_name.split(',')[0] || 'Location'
-            }));
+            results = nomData.map(item => buildFeature({
+              name: item.name || item.display_name?.split(',')[0],
+              displayName: item.display_name,
+              lat: parseFloat(item.lat),
+              lng: parseFloat(item.lon),
+              category: item.type,
+              source: 'nominatim'
+            })).filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng));
           }
         }
       } catch (nomErr) {
-        console.error('Nominatim search failed:', nomErr.message);
+        console.warn('[Location] Nominatim fallback warning:', nomErr.message);
       }
     }
 
-    // Proximity and Relevance Sorting:
-    // Prioritize exact/strong landmark name matches first, then Bengaluru/Karnataka proximity
-    const qLower = q.trim().toLowerCase();
-    results.sort((a, b) => {
-      const matchLabelA = (a.label || '').toLowerCase().includes(qLower);
-      const matchLabelB = (b.label || '').toLowerCase().includes(qLower);
-      if (matchLabelA && !matchLabelB) return -1;
-      if (!matchLabelA && matchLabelB) return 1;
+    results = deduplicateResults(results);
+    results.sort((a, b) => scoreRelevance(b, qLower, tokens) - scoreRelevance(a, qLower, tokens));
+    const finalResults = results.slice(0, 10);
 
-      const isBlrA = /bengaluru|bangalore|karnataka/i.test(a.display_name) ||
-        (a.lat >= 12.75 && a.lat <= 13.25 && a.lng >= 77.35 && a.lng <= 77.85);
-      const isBlrB = /bengaluru|bangalore|karnataka/i.test(b.display_name) ||
-        (b.lat >= 12.75 && b.lat <= 13.25 && b.lng >= 77.35 && b.lng <= 77.85);
-      if (isBlrA && !isBlrB) return -1;
-      if (!isBlrA && isBlrB) return 1;
-      return 0;
-    });
-
-    res.json(results);
+    setCached(cacheKey, finalResults);
+    return res.json(finalResults);
   } catch (error) {
-    console.error('Location search error:', error);
+    console.error('[Location] Search error:', error.message);
     res.status(500).json({ message: 'Location search failed' });
   }
 });
 
+// ── GET /api/location/reverse ────────────────────────────────────
 router.get('/reverse', auth, async (req, res) => {
   try {
-    const { lat, lng } = req.query;
-    if (!lat || !lng) return res.status(400).json({ message: 'lat and lng required' });
+    const lat = parseCoordinate(req.query.lat, -90, 90);
+    const lng = parseCoordinate(req.query.lng, -180, 180);
+    if (lat === null || lng === null) {
+      return res.status(400).json({ message: 'Valid lat [-90..90] and lng [-180..180] are required' });
+    }
 
-    let address = null;
+    const cacheKey = `rev:${lat.toFixed(4)}:${lng.toFixed(4)}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
 
-    if (process.env.GEOAPIFY_API_KEY) {
+    let resolved = null;
+
+    // 1. Photon Reverse
+    try {
+      const photonResp = await fetch(`${PHOTON_BASE_URL}/reverse?lat=${lat}&lon=${lng}&lang=en`, {
+        headers: { 'User-Agent': 'HOGO-CampusRide/1.1 (campusride)' },
+        signal: AbortSignal.timeout(4500)
+      });
+      if (photonResp.ok) {
+        const photonData = await photonResp.json();
+        const place = photonData.features?.[0]?.properties;
+        if (place) {
+          const parts = [...new Set([place.name, place.street, place.district || place.suburb, place.city, place.state].filter(Boolean))];
+          if (parts.length) {
+            resolved = {
+              label: place.name || place.street || place.suburb || place.city || 'Selected Location',
+              display_name: parts.join(', '),
+              lat,
+              lng,
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [lng, lat] },
+              attribution: '© OpenStreetMap contributors'
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Location] Photon reverse warning:', err.message);
+    }
+
+    // 2. Geoapify Reverse if configured
+    if (!resolved && process.env.GEOAPIFY_API_KEY) {
       try {
-        const geoResponse = await fetch(
+        const geoResp = await fetch(
           `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=${process.env.GEOAPIFY_API_KEY}`,
-          { signal: AbortSignal.timeout(5000) }
+          { signal: AbortSignal.timeout(4500) }
         );
-        if (geoResponse.ok) {
-          const geoData = await geoResponse.json();
-          const place = geoData.features?.[0];
-          if (place?.properties?.formatted) address = place.properties.formatted;
-        }
-      } catch (err) {
-        console.log('Geoapify reverse failed...');
-      }
-    }
-
-    if (!address) {
-      try {
-        const photonResponse = await fetch(
-          `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`,
-          { signal: AbortSignal.timeout(5000) }
-        );
-        if (photonResponse.ok) {
-          const photonData = await photonResponse.json();
-          const place = photonData.features?.[0];
-          if (place) {
-            address = [place.properties.name, place.properties.street, place.properties.city, place.properties.state].filter(Boolean).join(', ');
+        if (geoResp.ok) {
+          const geoData = await geoResp.json();
+          const place = geoData.features?.[0]?.properties;
+          if (place?.formatted) {
+            resolved = {
+              label: place.name || place.street || place.suburb || place.formatted.split(',')[0],
+              display_name: place.formatted,
+              lat,
+              lng,
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [lng, lat] }
+            };
           }
         }
-      } catch (err) {
-        console.error('Photon reverse failed:', err);
-      }
+      } catch {}
     }
 
-    if (!address) {
+    // 3. Nominatim Reverse fallback
+    if (!resolved) {
       try {
-        const nomResponse = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        const nomResp = await fetch(
+          `${NOMINATIM_BASE_URL}/reverse?lat=${lat}&lon=${lng}&format=jsonv2`,
           {
-            headers: { 'User-Agent': 'HOGO-App/1.0 (contact@hogo.app)' },
-            signal: AbortSignal.timeout(6000)
+            headers: { 'User-Agent': 'HOGO-CampusRide/1.1 (support@hogo.app)' },
+            signal: AbortSignal.timeout(5000)
           }
         );
-        if (nomResponse.ok) {
-          const nomData = await nomResponse.json();
-          if (nomData?.display_name) address = nomData.display_name;
+        if (nomResp.ok) {
+          const nomData = await nomResp.json();
+          if (nomData?.display_name) {
+            resolved = {
+              label: nomData.name || nomData.display_name.split(',')[0],
+              display_name: nomData.display_name,
+              lat,
+              lng,
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: [lng, lat] },
+              attribution: '© OpenStreetMap contributors'
+            };
+          }
         }
-      } catch (nomErr) {
-        console.error('Nominatim reverse failed:', nomErr);
-      }
+      } catch {}
     }
 
-    res.json({ display_name: address || 'Current Location' });
+    if (!resolved) {
+      resolved = {
+        label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        display_name: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        lat,
+        lng,
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lng, lat] }
+      };
+    }
+
+    setCached(cacheKey, resolved);
+    return res.json(resolved);
   } catch (err) {
-    console.error(err);
+    console.error('[Location] Reverse geocode error:', err.message);
     res.status(500).json({ message: 'Reverse geocode failed' });
   }
 });
 
-// ── Road distance & route info ──────────────────────────────────
+// ── Road distance & estimate (explicitly marked straight-line based estimate) ──
 router.get('/distance', auth, async (req, res) => {
   try {
-    const { fromLat, fromLng, toLat, toLng } = req.query;
-    if (!fromLat || !fromLng || !toLat || !toLng) {
-      return res.status(400).json({ message: 'fromLat, fromLng, toLat, toLng required' });
+    const lat1 = parseCoordinate(req.query.fromLat, -90, 90);
+    const lng1 = parseCoordinate(req.query.fromLng, -180, 180);
+    const lat2 = parseCoordinate(req.query.toLat, -90, 90);
+    const lng2 = parseCoordinate(req.query.toLng, -180, 180);
+
+    if (lat1 === null || lng1 === null || lat2 === null || lng2 === null) {
+      return res.status(400).json({ message: 'Valid fromLat, fromLng, toLat, toLng coordinates required' });
     }
 
     const R = 6371;
-    const lat1 = parseFloat(fromLat), lng1 = parseFloat(fromLng);
-    const lat2 = parseFloat(toLat), lng2 = parseFloat(toLng);
-
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLng/2)**2;
-    const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    const straightLine = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distanceKm = +(straightLine * 1.25).toFixed(2);
 
-    return res.json({ distanceKm, source: 'road-estimate' });
+    return res.json({ distanceKm, straightLineKm: +straightLine.toFixed(2), source: 'haversine-estimate' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: 'Failed to compute distance' });
   }
 });
 
-// ── Optimal route via OSRM with fallback ────────────────────────
+// ── GET /api/location/route — OSRM GeoJSON LineString proxy (Never fabricates unavailable routes) ──
 router.get('/route', auth, async (req, res) => {
   try {
-    const { fromLat, fromLng, toLat, toLng } = req.query;
-    if (!fromLat || !fromLng || !toLat || !toLng) {
-      return res.status(400).json({ message: 'fromLat, fromLng, toLat, toLng required' });
+    const lat1 = parseCoordinate(req.query.fromLat, -90, 90);
+    const lng1 = parseCoordinate(req.query.fromLng, -180, 180);
+    const lat2 = parseCoordinate(req.query.toLat, -90, 90);
+    const lng2 = parseCoordinate(req.query.toLng, -180, 180);
+
+    if (lat1 === null || lng1 === null || lat2 === null || lng2 === null) {
+      return res.status(400).json({ message: 'Valid fromLat, fromLng, toLat, toLng coordinates are required' });
     }
 
-    const lat1 = parseFloat(fromLat), lng1 = parseFloat(fromLng);
-    const lat2 = parseFloat(toLat), lng2 = parseFloat(toLng);
+    const cacheKey = `route:${lat1.toFixed(4)},${lng1.toFixed(4)}->${lat2.toFixed(4)},${lng2.toFixed(4)}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
 
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson&steps=true`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(6000) });
+      const url = `${OSRM_BASE_URL}/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson&steps=true`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(7000) });
       if (resp.ok) {
         const data = await resp.json();
-        if (data.code === 'Ok' && data.routes?.length) {
+        if (data.code === 'Ok' && Array.isArray(data.routes) && data.routes.length > 0 && data.routes[0].geometry?.coordinates?.length > 1) {
           const route = data.routes[0];
           const rawSteps = route.legs?.[0]?.steps || [];
           const steps = rawSteps.map(step => {
             const type = step.maneuver?.type || 'turn';
             const modifier = (step.maneuver?.modifier || '').toLowerCase();
-            const name = step.name ? step.name.trim() : 'Campus Road';
-            let instruction = '';
+            const name = step.name ? step.name.trim() : 'Road';
+            let instruction = `Continue on ${name}`;
             let icon = '⬆️';
 
             if (type === 'depart') {
@@ -254,7 +445,7 @@ router.get('/route', auth, async (req, res) => {
             } else if (type === 'arrive') {
               instruction = 'Arrive at destination';
               icon = '📍';
-            } else if (modifier.includes('u-turn') || modifier.includes('uturn')) {
+            } else if (modifier.includes('uturn') || modifier.includes('u-turn')) {
               instruction = `Make a U-Turn onto ${name}`;
               icon = '🔄';
             } else if (modifier.includes('left')) {
@@ -263,9 +454,6 @@ router.get('/route', auth, async (req, res) => {
             } else if (modifier.includes('right')) {
               instruction = modifier.includes('slight') ? `Keep slight right onto ${name}` : `Turn right onto ${name}`;
               icon = '➡️';
-            } else {
-              instruction = `Continue straight on ${name}`;
-              icon = '⬆️';
             }
 
             return {
@@ -275,53 +463,60 @@ router.get('/route', auth, async (req, res) => {
               modifier,
               name,
               distanceMeters: Math.round(step.distance || 0),
-              durationSec: Math.round(step.duration || 0),
+              durationSec: Math.round(step.duration || 0)
             };
           });
 
-          return res.json({
+          const distKm = (route.distance / 1000).toFixed(1);
+          const durMin = Math.ceil(route.duration / 60);
+
+          const payload = {
+            routeAvailable: true,
+            provider: 'osrm',
+            geojson: {
+              type: 'Feature',
+              geometry: {
+                type: 'LineString',
+                coordinates: route.geometry.coordinates // [lng, lat] order preserved
+              },
+              properties: {
+                distanceKm: distKm,
+                durationMin: durMin,
+                distanceMeters: Math.round(route.distance),
+                durationSeconds: Math.round(route.duration)
+              }
+            },
+            // Backward-compatible array for legacy consumers
             coordinates: route.geometry.coordinates.map(([lng, lat]) => ({ latitude: lat, longitude: lng })),
-            distanceKm: (route.distance / 1000).toFixed(1),
-            durationMin: Math.ceil(route.duration / 60),
-            summary: `Optimal route (${(route.distance / 1000).toFixed(1)} km, ~${Math.ceil(route.duration / 60)} min)`,
-            steps: steps.length ? steps : [
-              { instruction: 'Head out on campus route', icon: '🚗', distanceMeters: 500 },
-              { instruction: 'Continue straight towards destination', icon: '⬆️', distanceMeters: 1200 },
-              { instruction: 'Arrive at destination', icon: '📍', distanceMeters: 0 }
-            ]
-          });
+            distanceKm: distKm,
+            durationMin: durMin,
+            summary: `Route (${distKm} km, ~${durMin} min)`,
+            steps
+          };
+
+          setCached(cacheKey, payload);
+          return res.json(payload);
         }
       }
     } catch (osrmErr) {
-      console.log('OSRM route failed, using geometric fallback...');
+      console.warn('[Location] OSRM routing error:', osrmErr.message);
     }
 
-    // Fallback: direct line interpolation
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLng/2)**2;
-    const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distanceKm = (dist * 1.3).toFixed(1);
-    const durationMin = Math.max(5, Math.ceil((dist * 1.3) / 25 * 60)); // ~25km/h city speed
-
+    // Unavailable route handling: NEVER invent route distances or travel times
     return res.json({
-      coordinates: [
-        { latitude: lat1, longitude: lng1 },
-        { latitude: (lat1 + lat2) / 2, longitude: (lng1 + lng2) / 2 },
-        { latitude: lat2, longitude: lng2 }
-      ],
-      distanceKm,
-      durationMin,
-      summary: `Estimated route (${distanceKm} km, ~${durationMin} min)`,
-      steps: [
-        { instruction: 'Head out on route', icon: '🚗', distanceMeters: 400 },
-        { instruction: 'Continue straight towards destination', icon: '⬆️', distanceMeters: Math.round(dist * 1000) },
-        { instruction: 'Arrive at destination', icon: '📍', distanceMeters: 0 }
-      ]
+      routeAvailable: false,
+      provider: 'osrm',
+      unavailableReason: 'Routing service unavailable or no drivable road route found',
+      geojson: null,
+      coordinates: [],
+      distanceKm: null,
+      durationMin: null,
+      summary: 'Route preview unavailable',
+      steps: []
     });
   } catch (err) {
-    res.status(500).json({ message: 'Route calculation failed' });
+    console.error('[Location] Route endpoint error:', err.message);
+    res.status(500).json({ message: 'Route lookup failed' });
   }
 });
 
@@ -331,7 +526,7 @@ router.post('/resolve-maps-link', auth, async (req, res) => {
     const url = String(req.body?.url || '').slice(0, 2000);
     const out = await resolveMapsLink(url);
     if (!out) {
-      return res.status(422).json({ message: "Couldn't find a location in that link. In Google Maps tap Share → Copy link, then paste it here." });
+      return res.status(422).json({ message: "Couldn't find a location in that link. Tap Share → Copy link, then paste it here." });
     }
     return res.json(out);
   } catch (err) {

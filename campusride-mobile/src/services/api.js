@@ -100,12 +100,25 @@ export const request = async (path, options = {}) => {
   const controller = new AbortController();
   const timeoutMs  = options.timeout || 30000; // Increased to 30s to allow Render free tier wakeups
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = options.signal;
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+  }
 
   let res;
   try {
     res = await fetch(`${BASE}${path}`, { ...options, headers, signal: controller.signal });
   } catch (networkErr) {
     clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
+    if (externalSignal?.aborted) {
+      const abortErr = new Error('Request cancelled');
+      abortErr.name = 'AbortError';
+      abortErr.isAborted = true;
+      throw abortErr;
+    }
     // Automatic retry once for GET requests during backend spin-up
     if (!options._retry && (!options.method || options.method === 'GET')) {
       try {
@@ -122,6 +135,7 @@ export const request = async (path, options = {}) => {
     );
   } finally {
     clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
   }
 
   const contentType = res.headers.get('content-type') || '';
@@ -185,8 +199,15 @@ export const getUserVehicles   = ()     => request('/users/profile/vehicles').ca
 });
 
 // ── Location & Routing ────────────────────────────────
-export const searchLocation    = (q)   => request(`/location/search?q=${encodeURIComponent(q)}`);
-export const reverseGeocode    = (lat, lng) => request(`/location/reverse?lat=${lat}&lng=${lng}`);
+export const searchLocation    = (q, signal, bias) => {
+  const params = new URLSearchParams({ q });
+  if (bias?.lat && bias?.lng) {
+    params.set('lat', String(bias.lat));
+    params.set('lng', String(bias.lng));
+  }
+  return request(`/location/search?${params.toString()}`, signal ? { signal } : {});
+};
+export const reverseGeocode    = (lat, lng, signal) => request(`/location/reverse?lat=${lat}&lng=${lng}`, signal ? { signal } : {});
 export const resolveMapsLink   = (url) => request('/location/resolve-maps-link', { method:'POST', body: JSON.stringify({ url }) });
 export const getOptimalRoute   = (fromLat, fromLng, toLat, toLng) =>
   request(`/location/route?fromLat=${fromLat}&fromLng=${fromLng}&toLat=${toLat}&toLng=${toLng}`);
@@ -241,6 +262,35 @@ export const submitRating      = (body) => request('/ratings', { method:'POST', 
 export const getMyRatings      = ()     => request('/ratings/my-ratings');
 
 // ── KYC ───────────────────────────────────────────────
+export const uploadKycDocument = async (uri, docType) => {
+  if (!uri || typeof uri !== 'string') throw new Error('Invalid file URI');
+  if (uri.startsWith('private://kyc_private/')) return uri;
+
+  const token = await getToken();
+  const filename = uri.split('/').pop() || `${docType}_${Date.now()}.jpg`;
+  const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+  const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  const formData = new FormData();
+  formData.append('document', { uri, name: filename, type: mimeType });
+  formData.append('docType', docType);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${BASE}/kyc/upload`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `Upload failed (${res.status})`);
+    return data.storedRef;
+  } finally {
+    clearTimeout(timer);
+  }
+};
 export const submitKyc         = (body) => request('/kyc/submit', { method:'POST', body: JSON.stringify(body) });
 export const getKycStatus      = ()     => request('/kyc/status');
 
@@ -261,7 +311,7 @@ export const markNotificationsRead = () => request('/notifications/read-all', { 
 export const markNotificationRead  = (id) => request(`/notifications/${id}/read`, { method:'PUT' }).catch(() => ({}));
 
 // ── SOS & Safety ──────────────────────────────────────
-export const triggerSOS        = (body) => request('/sos', { method:'POST', body: JSON.stringify(body) });
+export const triggerSOS        = (body) => request('/sos/trigger', { method:'POST', body: JSON.stringify(body) });
 export const reportIncident    = (body) => request('/incidents/report', { method:'POST', body: JSON.stringify(body) });
 export const getMyIncidents    = ()     => request('/incidents/my');
 

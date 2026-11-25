@@ -1,8 +1,8 @@
 # HOGO (CampusRide) — Production Environment Configuration Guide
 
-**Updated:** November 23, 2026  
-**Target Platform:** Render Web Service / AWS / Docker  
-**Status:** Verified Production Configuration  
+**Updated:** November 25, 2026  
+**Target Platform:** Render Web Service (Single-Instance Persistent Disk) / AWS / Docker  
+**Status:** Updated Configuration Guide (Production secrets not stored in repository)  
 
 ---
 
@@ -16,7 +16,11 @@
 | `JWT_SECRET` | **YES** | `64-character-hex-or-base64-random-string` | Secret key for HS256 JWT signing and short-lived signed URLs. Minimum 32 bytes of cryptographic entropy. |
 | `BREVO_API_KEY` | **YES** | `xkeysib-...` | Required for sending 6-digit campus OTP verification emails via Brevo HTTPS API. |
 | `BREVO_SENDER_EMAIL`| **YES** | `noreply@hogoapp.com` | Verified transactional email sender address in Brevo. |
+| `KYC_STORAGE_DIR` | **YES (Prod)** | `/data/uploads/kyc_private` | Persistent disk mount path for private KYC files (`render.yaml`). Single-instance durable; multi-instance requires S3/R2. |
 | `FRONTEND_URL` | Optional | `https://campusride.app` | Production web application URL for CORS allowlisting. |
+| `PHOTON_URL` / `NOMINATIM_URL` / `OSRM_URL` | Optional | `https://photon.komoot.io` / `https://router.project-osrm.org` | Self-hosted or public OpenStreetMap geocoding and routing backends. |
+| `GEOAPIFY_API_KEY` | Optional | `your_geoapify_key` | Optional fallback geocoding provider when Photon/Nominatim are degraded. |
+| `EXPO_PUBLIC_MAPLIBRE_STYLE_URL` | Optional (Mobile) | `https://tiles.openfreemap.org/styles/liberty` | Vector tile style URL consumed by `@maplibre/maplibre-react-native`. |
 
 ---
 
@@ -33,7 +37,11 @@ SMS_PROVIDER=twilio
 TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_PHONE_NUMBER=+1234567890
+# Required canonical base URL or explicit callback URL for strict HMAC validation (do NOT rely on spoofable headers)
+TWILIO_WEBHOOK_URL=https://campusride-backend-gwgr.onrender.com/api/sos/webhook/twilio
+# Or set WEBHOOK_BASE_URL / PUBLIC_URL / RENDER_EXTERNAL_URL
 ```
+> **Note:** Until `TWILIO_AUTH_TOKEN` is configured, `POST /api/sos/webhook/twilio` fails closed with HTTP 503 `TWILIO_NOT_CONFIGURED`.
 
 **Option B: Fast2SMS (India)**
 ```env

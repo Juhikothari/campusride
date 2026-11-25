@@ -87,8 +87,9 @@ exports.addRating = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ addRating error:', error.message, error.stack);
-    res.status(500).json({ error: error.message });
+    console.error('❌ addRating error:', error.message);
+    const isProd = process.env.NODE_ENV === 'production';
+    res.status(500).json({ error: isProd ? 'Unable to submit rating' : error.message });
   }
 };
 

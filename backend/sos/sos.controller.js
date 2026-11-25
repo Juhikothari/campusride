@@ -1,4 +1,5 @@
 // backend/sos/sos.controller.js - Hardened Emergency SOS Controller with Explicit Status Tracking
+const twilio = require('twilio');
 const { notifyAdmins } = require('../notifications/notifications.helper');
 const { sendPushToUser } = require('../notifications/push.helper');
 const { smsService } = require('../services/sms/sms.service');
@@ -6,6 +7,41 @@ const SOS = require('./sos.model');
 const Ride = require('../rides/rides.model');
 const User = require('../users/users.model');
 const Booking = require('../bookings/bookings.model');
+
+const ALLOWED_DELIVERY_TRANSITIONS = {
+  pending:                new Set(['queued', 'provider_accepted', 'sent', 'delivered', 'failed']),
+  queued:                 new Set(['provider_accepted', 'sent', 'delivered', 'failed']),
+  provider_accepted:      new Set(['sent', 'delivered', 'failed']),
+  sent:                   new Set(['delivered', 'failed']),
+  delivered:              new Set([]),
+  failed:                 new Set([]),
+  client_action_required: new Set([])
+};
+
+function normalizePhoneTail(phone) {
+  if (!phone) return '';
+  const digits = String(phone).replace(/\D/g, '');
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+/**
+ * Resolves the authoritative external Twilio webhook URL from trusted deployment configuration.
+ * Never trusts client-spoofable X-Forwarded-Host or X-Forwarded-Proto headers.
+ */
+function resolveTrustedTwilioWebhookUrl(req) {
+  if (process.env.TWILIO_WEBHOOK_URL) {
+    return process.env.TWILIO_WEBHOOK_URL.trim();
+  }
+  const baseUrl = (process.env.WEBHOOK_BASE_URL || process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '').trim();
+  const pathWithBase = `${req.baseUrl || ''}${req.path || ''}` || '/api/sos/webhook/twilio';
+  if (baseUrl) {
+    return `${baseUrl.replace(/\/$/, '')}${pathWithBase}`;
+  }
+  // Local/test environment fallback using direct socket protocol & host header (without forwarded headers)
+  const host = req.headers.host || `127.0.0.1:${process.env.PORT || 5000}`;
+  const proto = req.socket && req.socket.encrypted ? 'https' : 'http';
+  return `${proto}://${host}${pathWithBase}`;
+}
 
 // Trigger SOS
 exports.triggerSOS = async (req, res) => {
@@ -94,7 +130,9 @@ exports.triggerSOS = async (req, res) => {
           const pushRes = await sendPushToUser(b.seekerId, {
             title: '🚨 EMERGENCY ALERT ON YOUR RIDE',
             body: `Emergency SOS triggered by ride provider. Please remain safe.`,
-            data: { type: 'sos_alert', rideId, sosId: String(sos._id) }
+            data: { type: 'sos_alert', rideId, sosId: String(sos._id) },
+            sosId: sos._id,
+            notificationType: 'sos_alert'
           });
           sos.notificationsSent.push({
             type: 'push',
@@ -111,7 +149,9 @@ exports.triggerSOS = async (req, res) => {
         const pushRes = await sendPushToUser(ride.providerId, {
           title: '🚨 PASSENGER EMERGENCY SOS TRIGGERED',
           body: `Emergency SOS triggered by your passenger. Immediate assistance required.`,
-          data: { type: 'sos_alert', rideId, sosId: String(sos._id) }
+          data: { type: 'sos_alert', rideId, sosId: String(sos._id) },
+          sosId: sos._id,
+          notificationType: 'sos_alert'
         });
         sos.notificationsSent.push({
           type: 'push',
@@ -513,15 +553,55 @@ exports.updateEmergencyContacts = async (req, res) => {
   }
 };
 
-// Handle Twilio Delivery Status Callbacks / Webhooks
+// Handle Twilio Delivery Status Callbacks / Webhooks with Official Signature Verification
 exports.handleTwilioWebhook = async (req, res) => {
   try {
-    const { MessageSid, MessageStatus, ErrorCode, ErrorMessage } = req.body || {};
-    if (!MessageSid || !MessageStatus) {
-      return res.status(400).send('<Response></Response>');
+    // 1. Verify Twilio is configured on server (never skip signature checks)
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (!authToken) {
+      return res.status(503).json({
+        error: 'Twilio webhook verification is NOT CONFIGURED',
+        code: 'TWILIO_NOT_CONFIGURED'
+      });
     }
 
-    // Map Twilio delivery status callback
+    // 2. Validate X-Twilio-Signature header using official twilio.validateRequest
+    const signature = req.get('X-Twilio-Signature');
+    if (!signature) {
+      return res.status(401).json({
+        error: 'Missing X-Twilio-Signature header',
+        code: 'MISSING_TWILIO_SIGNATURE'
+      });
+    }
+
+    const trustedUrl = resolveTrustedTwilioWebhookUrl(req);
+    const params = req.body && typeof req.body === 'object' ? req.body : {};
+    const isSignatureValid = twilio.validateRequest(authToken, signature, trustedUrl, params);
+
+    if (!isSignatureValid) {
+      return res.status(403).json({
+        error: 'Invalid Twilio request signature',
+        code: 'INVALID_TWILIO_SIGNATURE'
+      });
+    }
+
+    // 3. Validate AccountSid if configured
+    const { MessageSid, MessageStatus, ErrorCode, ErrorMessage, AccountSid, To } = params;
+    if (process.env.TWILIO_ACCOUNT_SID && AccountSid && AccountSid !== process.env.TWILIO_ACCOUNT_SID) {
+      return res.status(403).json({
+        error: 'Twilio AccountSid mismatch',
+        code: 'ACCOUNT_SID_MISMATCH'
+      });
+    }
+
+    if (!MessageSid || !MessageStatus) {
+      return res.status(400).json({
+        error: 'MessageSid and MessageStatus are required',
+        code: 'MISSING_CALLBACK_PARAMS'
+      });
+    }
+
+    // Map Twilio status to internal delivery state
     let normalizedStatus;
     if (MessageStatus === 'delivered') {
       normalizedStatus = 'delivered';
@@ -529,11 +609,13 @@ exports.handleTwilioWebhook = async (req, res) => {
       normalizedStatus = 'failed';
     } else if (MessageStatus === 'sent') {
       normalizedStatus = 'sent';
+    } else if (MessageStatus === 'queued') {
+      normalizedStatus = 'queued';
     } else {
       normalizedStatus = 'provider_accepted';
     }
 
-    // Find SOS record with this messageId
+    // 4. Verify MessageSid matches an existing SOS notification record
     const sos = await SOS.findOne({
       $or: [
         { 'notificationsSent.messageId': MessageSid },
@@ -541,41 +623,115 @@ exports.handleTwilioWebhook = async (req, res) => {
       ]
     });
 
-    if (sos) {
-      let updated = false;
-      sos.notificationsSent.forEach(n => {
-        if (n.messageId === MessageSid) {
-          n.status = normalizedStatus;
-          if (ErrorCode) n.error = `Twilio Code ${ErrorCode}: ${ErrorMessage || ''}`;
-          updated = true;
-        }
+    if (!sos) {
+      return res.status(404).json({
+        error: 'Unknown provider message ID',
+        code: 'UNKNOWN_NOTIFICATION'
       });
+    }
 
-      sos.emergencyContacts.forEach(c => {
-        if (c.messageId === MessageSid) {
-          c.deliveryStatus = normalizedStatus;
-          if (normalizedStatus === 'delivered' && !c.notifiedAt) {
-            c.notifiedAt = new Date();
-          }
-          updated = true;
-        }
+    // 5. Verify notification belongs to TWILIO provider & recipient matches (if 'To' supplied or required)
+    const matchedNotif = sos.notificationsSent.find(n => n.messageId === MessageSid);
+    const matchedContact = sos.emergencyContacts.find(c => c.messageId === MessageSid);
+
+    if ((matchedNotif && matchedNotif.provider && matchedNotif.provider !== 'TWILIO') ||
+        (matchedContact && matchedContact.provider && matchedContact.provider !== 'TWILIO')) {
+      return res.status(403).json({
+        error: 'Provider mismatch for notification callback',
+        code: 'PROVIDER_MISMATCH'
       });
+    }
 
-      if (updated) {
+    const expectedRecipient = matchedContact?.phone || matchedNotif?.recipient || '';
+    if (To && expectedRecipient) {
+      if (normalizePhoneTail(To) !== normalizePhoneTail(expectedRecipient)) {
         if (!sos.auditLog) sos.auditLog = [];
         sos.auditLog.push({
-          action: 'delivery_callback',
+          action: 'webhook_rejected_recipient_mismatch',
           timestamp: new Date(),
-          notes: `Twilio delivery status callback for message ${MessageSid}: status=${normalizedStatus}`,
-          metadata: { MessageSid, MessageStatus, ErrorCode }
+          notes: `Rejected Twilio callback for message ${MessageSid}: recipient mismatch`,
+          metadata: { MessageSid, MessageStatus }
         });
         await sos.save();
+        return res.status(403).json({
+          error: 'Callback recipient does not match SOS notification recipient',
+          code: 'RECIPIENT_MISMATCH'
+        });
       }
     }
 
-    res.type('text/xml').send('<Response></Response>');
+    // 6. Strict duplicate / idempotency check
+    const callbackKey = `${MessageSid}:${MessageStatus}`;
+    if (Array.isArray(sos.processedCallbacks) && sos.processedCallbacks.includes(callbackKey)) {
+      return res.status(200).json({
+        ok: true,
+        idempotent: true,
+        status: matchedContact?.deliveryStatus || matchedNotif?.status
+      });
+    }
+
+    // 7. Enforce state machine transition validity
+    const currentStatus = matchedNotif?.status || matchedContact?.deliveryStatus || 'provider_accepted';
+    if (currentStatus === normalizedStatus) {
+      // Same state reached via different Twilio sub-status -> idempotent accept
+      if (!sos.processedCallbacks) sos.processedCallbacks = [];
+      sos.processedCallbacks.push(callbackKey);
+      await sos.save();
+      return res.status(200).json({ ok: true, idempotent: true, status: currentStatus });
+    }
+
+    const allowedNext = ALLOWED_DELIVERY_TRANSITIONS[currentStatus];
+    if (!allowedNext || !allowedNext.has(normalizedStatus)) {
+      if (!sos.auditLog) sos.auditLog = [];
+      sos.auditLog.push({
+        action: 'webhook_rejected_invalid_transition',
+        timestamp: new Date(),
+        notes: `Rejected illegal status transition ${currentStatus} -> ${normalizedStatus} for ${MessageSid}`,
+        metadata: { MessageSid, currentStatus, attemptedStatus: normalizedStatus }
+      });
+      await sos.save();
+      return res.status(409).json({
+        error: `Unauthorized status transition from ${currentStatus} to ${normalizedStatus}`,
+        code: 'INVALID_STATUS_TRANSITION'
+      });
+    }
+
+    // 8. Apply valid state transition atomically
+    let updated = false;
+    sos.notificationsSent.forEach(n => {
+      if (n.messageId === MessageSid) {
+        n.status = normalizedStatus;
+        if (ErrorCode) n.error = `Twilio Code ${ErrorCode}: ${ErrorMessage || ''}`;
+        updated = true;
+      }
+    });
+
+    sos.emergencyContacts.forEach(c => {
+      if (c.messageId === MessageSid) {
+        c.deliveryStatus = normalizedStatus;
+        if (normalizedStatus === 'delivered' && !c.notifiedAt) {
+          c.notifiedAt = new Date();
+        }
+        updated = true;
+      }
+    });
+
+    if (updated) {
+      if (!sos.processedCallbacks) sos.processedCallbacks = [];
+      sos.processedCallbacks.push(callbackKey);
+      if (!sos.auditLog) sos.auditLog = [];
+      sos.auditLog.push({
+        action: 'delivery_callback',
+        timestamp: new Date(),
+        notes: `Twilio verified callback for ${MessageSid}: ${currentStatus} -> ${normalizedStatus}`,
+        metadata: { MessageSid, previousStatus: currentStatus, newStatus: normalizedStatus, MessageStatus, ErrorCode: ErrorCode || null }
+      });
+      await sos.save();
+    }
+
+    res.type('text/xml').status(200).send('<Response></Response>');
   } catch (err) {
     console.error('[SOS Twilio Webhook Error]:', err.message);
-    res.status(500).send('<Response></Response>');
+    res.status(500).json({ error: 'Webhook processing error' });
   }
 };

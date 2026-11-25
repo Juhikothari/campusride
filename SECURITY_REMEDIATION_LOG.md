@@ -174,3 +174,55 @@
   - Extended `AuditLog` enum to support `'WARN_USER'`, `'REVOKE_SANCTIONS'`, and `'APPROVE_COLLEGE'`.
 - **Status:** **VERIFIED** via automated tests in `tests/security.test.js`.
 
+---
+
+### [2026-11-25] REM-16: Fail-Closed Twilio Webhook HMAC Authentication & Delivery State Machine
+- **Affected Components:** `backend/sos/sos.controller.js`, `backend/sos/sos.model.js`, `backend/services/sms/sms.service.js`, `backend/package.json`
+- **Actions Taken:**
+  - Installed official `twilio` SDK and enforced `twilio.validateRequest` HMAC signature validation in `handleTwilioWebhook`.
+  - Enforced fail-closed HTTP 503 (`TWILIO_NOT_CONFIGURED`) when `TWILIO_AUTH_TOKEN` is unset.
+  - Resolved canonical webhook URL strictly from trusted environment configuration (`TWILIO_WEBHOOK_URL` / `WEBHOOK_BASE_URL` / `PUBLIC_URL` / `RENDER_EXTERNAL_URL`), ignoring client-spoofable `X-Forwarded-*` headers.
+  - Enforced `AccountSid` equality, `MessageSid` existence, `TWILIO` provider match, normalized recipient `To` match, legal state-transition validation (`ALLOWED_DELIVERY_TRANSITIONS`), and `processedCallbacks` idempotent deduplication without logging secret tokens or signatures.
+- **Status:** **VERIFIED** via automated signed/forged webhook regression suite (`SOS STATES`); live production Twilio credentials **NOT CONFIGURED** in local workspace.
+
+---
+
+### [2026-11-25] REM-17: Sensitive Query Parameter Redaction Across 404, Errors, and Logs
+- **Affected Components:** `backend/utils/sanitize.js`, `backend/server.js`, `backend/admin/admin.middleware.js`, `backend/ratings/ratings.controller.js`
+- **Actions Taken:**
+  - Extracted shared `sanitize.js` (`sanitizeUrlForLogging`, `stripQueryFromUrl`, `sanitizeLogText`, `sanitizeErrorForClient`).
+  - Removed raw `req.originalUrl` and unsanitized query strings from Express 404 responses and error logs (`req.path` / `stripQueryFromUrl` used in JSON responses; query secrets redacted in logs).
+  - Removed raw `error.stack` / `error.message` leakage from `admin.middleware.js` and `ratings.controller.js`.
+- **Status:** **VERIFIED** via `LOGGING` test in `tests/security.test.js`.
+
+---
+
+### [2026-11-25] REM-18: Expo Push Receipt Verification Worker & Token Pruning
+- **Affected Components:** `backend/notifications/pushTicket.model.js`, `backend/notifications/pushReceipt.worker.js`, `backend/notifications/push.helper.js`, `backend/server.js`, `campusride-mobile/src/screens/LiveTrackingScreen.jsx`
+- **Actions Taken:**
+  - Added `PushTicket` collection preserving Expo ticket IDs, distinct states (`pending`, `queued`, `provider_accepted`, `delivered`, `failed`, `client_action_required`), bounded exponential backoff retries (`maxRetries: 5`), and a 30-day TTL index (`expiresAt`).
+  - Implemented multi-instance safe `claimDueTickets` using atomic `processingLockUntil` lease updates and batch polling against Expo's receipt API (batch size 100).
+  - Pruned invalid `pushToken` values automatically on permanent `DeviceNotRegistered` receipts and synchronized linked `SOS.notificationsSent` & `auditLog`.
+  - Updated SOS confirmation UI text so receipt acceptance never claims confirmed human reading.
+- **Status:** **VERIFIED** via `EXPO PUSH WORKER` integration test in `tests/security.test.js`.
+
+---
+
+### [2026-11-25] REM-19: KYC Document Ownership Registry & Legacy Migration Verification
+- **Affected Components:** `backend/kyc/kycDocument.model.js`, `backend/kyc/kyc.controller.js`, `backend/scripts/migrate_legacy_kyc.js`, `campusride-mobile/src/screens/KYCScreen.jsx`, `campusride-mobile/src/services/api.js`
+- **Actions Taken:**
+  - Added `KycDocument` registry (`docId`, `ownerId`, `docType`, unique `storedRef`, `sha256`, `mime`, `size`, `status`).
+  - Fixed constant initialization order (`KYC_STORAGE_DIR` before `RESOLVED_KYC_DIR`), added `resolveSafePrivatePath` traversal guard, and enforced cross-account ownership, `docType` matching, physical disk existence, and `op: 'read'` + `jti` signed URL claims.
+  - Updated mobile `KYCScreen.jsx` to upload private multipart files directly to `POST /api/kyc/upload` via `api.uploadKycDocument` rather than public Cloudinary.
+  - Executed `migrate_legacy_kyc.js` (`2` users / `2` documents scanned, `2` verified on disk, `2` `KycDocument` records backfilled, `0` missing/failed) and tested `backup_restore_kyc.js` backup/restore roundtrip (`13` files verified).
+- **Status:** **VERIFIED** via `KYC OWNERSHIP` test and script execution (note: Render `/data/uploads/kyc_private` disk provides persistence for a single backend instance; multi-instance horizontal scaling requires private S3/R2 storage).
+
+---
+
+### [2026-11-25] REM-20: Native MapLibre + OpenStreetMap Migration & Geocoding/Routing Proxy Hardening
+- **Affected Components:** `backend/location/location.routes.js`, `campusride-mobile/app.json`, `campusride-mobile/src/config/mapConfig.js`, `src/components/LiveMapView.jsx`, `src/components/StopsMap.jsx`, `src/components/LocationSearch.jsx`, `src/components/MapPickerModal.jsx`, `src/screens/SearchRidesScreen.jsx`, `src/screens/LiveTrackingScreen.jsx`, `src/services/api.js`
+- **Actions Taken:**
+  - Removed WebView/Leaflet and Google tile URLs from active map components; installed `@maplibre/maplibre-react-native` (`^11.5.1`) using OpenFreeMap liberty style and visible `© OpenStreetMap contributors · OpenFreeMap` attribution.
+  - Hardened `location.routes.js` with `60 req/min` rate limiting, 5-minute TTL caching, strict `[-90,90]`/`[-180,180]` coordinate validation, Photon primary + Geoapify/Nominatim fallbacks returning GeoJSON `[lng, lat]`, and OSRM `/route` returning fail-honest `routeAvailable: false` instead of fabricated ETAs/routes on upstream failure.
+- **Status:** **VERIFIED** on backend & JS layer (`LOCATION & ROUTING` test, live Photon/Nominatim/OSRM/OpenFreeMap check, `check_jsx.js`, `expo-doctor` 18/18); native Android APK rendering verified via GitHub Actions CI build.
+

@@ -14,7 +14,7 @@ import FloatingChatBot from '../components/FloatingChatBot';
 import { Btn, Alert, EmptyState } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
-import { subscribeToNotifications } from '../hooks/useSocket';
+import { subscribeToNotifications, getSharedSocket } from '../hooks/useSocket';
 import { openGoogleMaps } from '../utils/maps';
 import { getDisplayUSN } from '../utils/usn';
 
@@ -58,6 +58,10 @@ export default function LiveTrackingScreen({ navigation, route }) {
   const [loading,          setLoading]          = useState(true);
   const [lookingUp,        setLookingUp]        = useState(!paramRideId);
   const [isMapExpanded,    setIsMapExpanded]    = useState(false);
+  const [followDriver,     setFollowDriver]     = useState(false);
+  const [driverUpdatedAt,  setDriverUpdatedAt]  = useState(null);
+  const [driverStale,      setDriverStale]      = useState(false);
+  const [routeUnavailable, setRouteUnavailable] = useState(false);
 
   // Rating Modal States (post-ride rating for both provider & seeker)
   const [showRatingModal,  setShowRatingModal]  = useState(false);
@@ -148,25 +152,27 @@ export default function LiveTrackingScreen({ navigation, route }) {
           setDropCoords({ latitude: dropPt.lat, longitude: dropPt.lng });
         }
 
-        // Immediately set direct route line between pickup and drop so map shows route line right away
+        // Fetch real OSM road route via backend OSRM proxy (never fabricate route distances/times)
         if (pickupPt?.lat && pickupPt?.lng && dropPt?.lat && dropPt?.lng) {
-          setRouteCoordinates([
-            { latitude: pickupPt.lat, longitude: pickupPt.lng },
-            { latitude: (pickupPt.lat + dropPt.lat) / 2, longitude: (pickupPt.lng + dropPt.lng) / 2 },
-            { latitude: dropPt.lat, longitude: dropPt.lng }
-          ]);
-
           try {
             const routeData = await api.getOptimalRoute(pickupPt.lat, pickupPt.lng, dropPt.lat, dropPt.lng);
             if (isMounted && routeData) {
-              setRouteDistance(routeData.distanceKm ? `${routeData.distanceKm} km` : '');
-              setRouteDuration(routeData.durationMin ? `${routeData.durationMin} mins` : '');
-              if (Array.isArray(routeData.coordinates) && routeData.coordinates.length > 0) {
-                setRouteCoordinates(routeData.coordinates);
+              if (routeData.routeAvailable === false) {
+                setRouteUnavailable(true);
+                setRouteDistance('');
+                setRouteDuration('');
+                setRouteCoordinates([]);
+              } else {
+                setRouteUnavailable(false);
+                setRouteDistance(routeData.distanceKm ? `${routeData.distanceKm} km` : '');
+                setRouteDuration(routeData.durationMin ? `${routeData.durationMin} mins` : '');
+                if (Array.isArray(routeData.coordinates) && routeData.coordinates.length > 0) {
+                  setRouteCoordinates(routeData.coordinates);
+                }
               }
             }
           } catch (e) {
-            console.log('Route calc note:', e.message);
+            if (isMounted) setRouteUnavailable(true);
           }
         }
       })
@@ -266,32 +272,76 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => { sub?.remove?.(); };
   }, [tracking, activeRideId]);
 
-  // 5. Poll driver's live GPS tracking from server (for seekers)
+  // 5. Real-time Socket.IO driver updates + reconnect-safe polling fallback
   useEffect(() => {
     if (!activeRideId || !tracking) return;
     let isMounted = true;
+
+    const applyDriverLocation = (lat, lng, timestamp = Date.now()) => {
+      if (!isMounted || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return;
+      setDriverCoords({ latitude: Number(lat), longitude: Number(lng) });
+      setDriverUpdatedAt(timestamp);
+      setDriverStale(false);
+    };
+
+    const socket = getSharedSocket(user?._id || user?.id, user?.role);
+    const joinRideRoom = () => {
+      try { socket?.emit('join-ride', activeRideId); } catch {}
+    };
+    const onLocationUpdate = (payload) => {
+      if (payload?.rideId && String(payload.rideId) !== String(activeRideId)) return;
+      if (payload?.latitude != null && payload?.longitude != null) {
+        applyDriverLocation(payload.latitude, payload.longitude, Date.now());
+      }
+    };
+
+    if (socket) {
+      if (socket.connected) joinRideRoom();
+      socket.on('connect', joinRideRoom);
+      socket.on('locationUpdate', onLocationUpdate);
+    }
+
     const fetchDriverPosition = async () => {
       try {
         const trk = await api.getTracking(activeRideId);
         if (!isMounted) return;
-        if (trk?.currentLocation?.coordinates && Array.isArray(trk.currentLocation.coordinates)) {
+        const latestLoc = Array.isArray(trk?.locations) && trk.locations.length > 0
+          ? trk.locations[trk.locations.length - 1]
+          : null;
+        if (latestLoc?.lat != null && latestLoc?.lng != null) {
+          const ts = latestLoc.time ? new Date(latestLoc.time).getTime() : Date.now();
+          applyDriverLocation(latestLoc.lat, latestLoc.lng, ts);
+          setDriverStale(Date.now() - ts > 45000);
+        } else if (trk?.currentLocation?.coordinates && Array.isArray(trk.currentLocation.coordinates)) {
           const [c0, c1] = trk.currentLocation.coordinates;
           const lat = c0 > 50 ? c1 : c0;
           const lng = c0 > 50 ? c0 : c1;
-          if (lat && lng) {
-            setDriverCoords({ latitude: parseFloat(lat), longitude: parseFloat(lng) });
-          }
+          if (lat && lng) applyDriverLocation(lat, lng, Date.now());
         }
       } catch (e) {}
     };
 
     fetchDriverPosition();
-    const pollInterval = setInterval(fetchDriverPosition, 5000);
+    const pollInterval = setInterval(fetchDriverPosition, 8000);
+    const staleTimer = setInterval(() => {
+      setDriverUpdatedAt(prevTs => {
+        if (prevTs && Date.now() - prevTs > 45000) {
+          setDriverStale(true);
+        }
+        return prevTs;
+      });
+    }, 10000);
+
     return () => {
       isMounted = false;
       clearInterval(pollInterval);
+      clearInterval(staleTimer);
+      if (socket) {
+        socket.off('connect', joinRideRoom);
+        socket.off('locationUpdate', onLocationUpdate);
+      }
     };
-  }, [activeRideId, tracking]);
+  }, [activeRideId, tracking, user?._id, user?.id, user?.role]);
 
   // 6. Calculate 2-Leg Route:
   // Leg 1: Provider -> Seeker Pickup Point
@@ -962,11 +1012,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
 
-            {/* Interactive Google Street Live Map with Single Unified Route & Eye-Catching Markers */}
+            {/* Interactive Native MapLibre + OSM Map */}
             <LiveMapView
               pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
               drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
               driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
+              followDriver={followDriver}
+              onFollowChange={setFollowDriver}
+              driverStale={driverStale}
               extraPickups={isDriver ? (rideInfo?.passengers || [])
                 .filter(p => p.status === 'accepted')
                 .map((p, i) => {
@@ -983,6 +1036,11 @@ export default function LiveTrackingScreen({ navigation, route }) {
               height={isMapExpanded ? 460 : 320}
               style={{ marginBottom: 12 }}
             />
+            {routeUnavailable && (
+              <Text style={{ color: colors.text3, fontSize: 11, textAlign: 'center', marginBottom: 8 }}>
+                Route preview unavailable (OSRM unreachable or no road route). Showing exact location markers.
+              </Text>
+            )}
 
             {/* Visual Route Path: Provider -> Seeker Pickup -> Drop Destination */}
             <View style={styles.routeDiagram}>
@@ -1297,7 +1355,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
           {sosSent && (
             <View style={styles.sosSentBanner}>
-              <Text style={styles.sosSentText}>🆘 Emergency SOS Activated! Live SMS & Emergency Call Dispatched.</Text>
+              <Text style={styles.sosSentText}>🆘 Emergency SOS Activated! Emergency alert logged with admins and device SMS/Call composer launched.</Text>
             </View>
           )}
 

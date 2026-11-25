@@ -47,7 +47,8 @@ const isAdmin = async (req, res, next) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Authorization error: ' + error.message });
+    const isProd = process.env.NODE_ENV === 'production';
+    res.status(500).json({ message: isProd ? 'Authorization service error' : 'Authorization service verification failed' });
   }
 };
 

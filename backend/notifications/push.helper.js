@@ -141,18 +141,41 @@ async function sendExpoPushNotification(pushToken, { title, body, data = {}, sou
 }
 
 /**
- * Send push notification to a user by their MongoDB _id
+ * Send push notification to a user by their MongoDB _id.
+ * Saves Expo push ticket ID for asynchronous receipt verification.
  */
-async function sendPushToUser(userId, { title, body, data = {} }) {
+async function sendPushToUser(userId, { title, body, data = {}, sosId = null, notificationType = 'general' }) {
   try {
     const User = require('../users/users.model');
     const user = await User.findById(userId).select('pushToken');
     if (user?.pushToken) {
       const result = await sendExpoPushNotification(user.pushToken, { title, body, data });
       if (result.success) {
-        console.log(`[Push] Delivered push notification to user ${userId}:`, title);
+        console.log(`[Push] Expo accepted push ticket for user ${userId} (status=${result.status}, awaiting receipt)`);
+        if (result.messageId) {
+          try {
+            const PushTicket = require('./pushTicket.model');
+            await PushTicket.findOneAndUpdate(
+              { ticketId: result.messageId },
+              {
+                $setOnInsert: {
+                  ticketId: result.messageId,
+                  sosId: sosId || (data && data.sosId ? data.sosId : null),
+                  userId,
+                  pushToken: user.pushToken,
+                  notificationType: notificationType || (data && data.type) || 'general',
+                  status: 'provider_accepted',
+                  nextRetryAt: new Date(Date.now() + 15 * 1000)
+                }
+              },
+              { upsert: true }
+            );
+          } catch (ticketErr) {
+            console.warn('[Push] Failed persisting PushTicket:', ticketErr.message);
+          }
+        }
       } else {
-        console.warn(`[Push] Delivery failed for user ${userId}:`, result.error);
+        console.warn(`[Push] Provider rejected push request for user ${userId}:`, result.error);
       }
       return result;
     }

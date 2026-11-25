@@ -1,14 +1,14 @@
 # HOGO (CampusRide) — Automated Security Test Report
 
-**Execution Timestamp:** 2026-11-23T17:34:16.000Z  
+**Execution Timestamp:** 2026-11-25  
 **Test Framework:** Node.js Native Test Runner (`node --test tests/security.test.js`)  
-**Environment:** Staging Integration Test Environment  
-**Database:** MongoDB 7.0 Test Database (`campusride-test`)  
-**Total Tests:** 46  
-**Passed:** 46  
+**Environment:** Local MongoDB Integration Test Environment (`NODE_ENV=test`)  
+**Database:** Local MongoDB (`campusride-test`)  
+**Total Tests:** 55  
+**Passed:** 55  
 **Failed:** 0  
 **Cancelled / Skipped:** 0  
-**Total Execution Duration:** 5,250.70 ms  
+**Total Execution Duration:** Re-verified on November 25, 2026 (`npm test` -> 55/55 passed, ~7.3s)  
 
 ---
 
@@ -89,8 +89,21 @@
 ### Infrastructure & Health Monitoring (2 tests)
 | Test Name | Duration | Result | Status |
 |---|---|---|---|
-| `HEALTH: /api/health/live confirms process liveness` | 2.73 ms | HTTP 200 `{ status: 'alive' }` | PASS |
-| `HEALTH: /api/health/ready verifies database connectivity` | 3.89 ms | HTTP 200 `{ status: 'ready', database: 'connected' }` | PASS |
+| `HEALTH: /api/health/live confirms process liveness` | Verified | HTTP 200 `{ status: 'alive' }` | PASS |
+| `HEALTH: /api/health/ready verifies database connectivity` | Verified | HTTP 200 `{ status: 'ready', database: 'connected' }` | PASS |
+
+### Phase 1–5 Hardening & Location Proxy Security Regressions (9 tests)
+| Test Name | Result | Status |
+|---|---|---|
+| `RIDE SEARCH: Mandatory Drop Location enforcement` | Enforces `MISSING_DROP_LOCATION`, `MISSING_PICKUP_LOCATION`, `IDENTICAL_LOCATIONS` | PASS |
+| `VEHICLE UNIQUENESS: Vehicle registration number must be globally unique across accounts` | Enforces normalized global plate uniqueness with HTTP 409 | PASS |
+| `SANCTIONS: Revoking suspension restores warning count to 2 (NOT 0)` | Preserves disciplinary warning history | PASS |
+| `KYC SIGNED URL: Target user and document type claim binding` | Rejects mismatched targetUserId / docType signed tokens | PASS |
+| `SOS STATES: Twilio webhook rejects unconfigured/forged/invalid callbacks and accepts valid signed callback idempotently` | Fail-closed 503 when unconfigured, rejects forged/tampered HMAC, replays idempotently, rejects invalid downgrade transitions | PASS |
+| `LOGGING: sanitizeUrlForLogging masks sensitive query parameters & 404 responses never leak query tokens` | Masks query tokens in logs; strips query strings from 404 JSON | PASS |
+| `EXPO PUSH WORKER: Processes delivered receipts, permanent DeviceNotRegistered failures, transient backoff & multi-instance locking` | Transitions tickets, prunes unregistered tokens, honors lease locks | PASS |
+| `KYC OWNERSHIP: Cross-account attachment, docType swap, unverified refs & path traversal are rejected` | Enforces `KycDocument` owner/docType binding & rejects traversal (`..`) | PASS |
+| `LOCATION & ROUTING: Enforces strict coordinate bounds and GeoJSON format without fabricating fake routes` | Rejects out-of-range coordinates (`400`); returns `routeAvailable: false` on unavailable upstream without fake ETAs | PASS |
 
 ---
 

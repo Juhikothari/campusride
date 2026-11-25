@@ -12,7 +12,6 @@ import TopHeader from '../components/TopHeader';
 import { Input, Btn, Alert } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
-import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 
 const KYC_COLOR = {
   approved:      colors.green,
@@ -167,9 +166,9 @@ export default function KYCScreen({ navigation }) {
     setUploading(true); setError('');
     try {
       const uploadedDocs = {};
-      uploadedDocs.collegeIdCard = await uploadToCloudinaryWithRetry(docs.collegeId);
-      uploadedDocs.selfie       = await uploadToCloudinaryWithRetry(docs.selfie);
-      if (docs.license) uploadedDocs.drivingLicense = await uploadToCloudinaryWithRetry(docs.license);
+      uploadedDocs.collegeIdCard = await api.uploadKycDocument(docs.collegeId, 'collegeIdCard');
+      uploadedDocs.selfie        = await api.uploadKycDocument(docs.selfie, 'selfie');
+      if (docs.license) uploadedDocs.drivingLicense = await api.uploadKycDocument(docs.license, 'drivingLicense');
       const vCleanNum = vehicleNum.trim() ? vehicleNum.trim().toUpperCase() : null;
       const vCleanName = vehicleName.trim() || null;
       await api.submitKyc({

@@ -91,6 +91,9 @@ const sosSchema = new mongoose.Schema({
     notes: { type: String },
     metadata: { type: mongoose.Schema.Types.Mixed }
   }],
+
+  // Tracks processed webhook callback keys (MessageSid:MessageStatus) for strict idempotency
+  processedCallbacks: [{ type: String }],
   
   createdAt: { type: Date, default: Date.now }
 });

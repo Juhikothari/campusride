@@ -1,8 +1,8 @@
 # HOGO (CampusRide) — Production Security Architecture
 
-**Document Version:** 2.0  
-**Updated:** November 23, 2026  
-**Status:** Implemented and Verified  
+**Document Version:** 3.0  
+**Updated:** November 25, 2026  
+**Status:** Implemented and Verified (Single-Instance Render Storage + Mocked/Simulated External Providers)  
 
 ---
 
@@ -29,20 +29,22 @@
 - **Single-Device Enforcement**: If a user logs into a new device, the old token’s seed fails validation on the next API call or socket event with code `SESSION_REPLACED`.
 
 ### 2.3 Private Identity Document (KYC) Architecture
-- **Private Storage Directory**: Files are stored in `backend/uploads/kyc_private/` outside the public web root.
+- **Private Storage Directory**: Files are stored in `KYC_STORAGE_DIR` (configured on Render Persistent Disk `/data/uploads/kyc_private`, or local `backend/uploads/kyc_private/` during development) outside the public web root. **Limitation:** Render persistent disk supports persistence across restarts/redeploys for a single backend instance; scaling horizontally across multiple backend nodes requires private S3/R2 object storage.
+- **Ownership Registry (`KycDocument`)**: Every uploaded file is registered in MongoDB with `docId`, `ownerId`, `docType`, unique `storedRef`, `sha256`, `mime`, `size`, and `status` (`uploaded`, `attached`, `replaced`, `deleted`). Submission rejects cross-user attachment (`403`), `docType` swaps (`403`), unregistered refs, path traversal, and missing disk files (`404`).
 - **File Validation**:
   - Max size: 5MB.
   - Magic-byte validation: Validates genuine JPEG (`FF D8 FF`), PNG (`89 50 4E 47`), and WebP (`RIFF...WEBP`) binary signatures.
   - Rejects arbitrary external HTTP/HTTPS URLs to eliminate SSRF risks.
 - **Secure Access**:
   - Only the document owner or a verified administrator can access a document.
-  - Supports authenticated direct streaming or 15-minute expiring HMAC signed links (`GET /api/kyc/document/:userId/:docType?token=...`).
-  - Document access and review actions are recorded in `user.kycAuditLogs`.
+  - Supports authenticated direct streaming or 15-minute expiring HMAC signed links bound to `userId`, `targetUserId`, `docType`, `op: 'read'`, and `jti` (`GET /api/kyc/document/:userId/:docType?token=...`).
+  - Document access, replacements, deletions, and review actions are recorded in `user.kycAuditLogs`.
 
 ### 2.4 Emergency SOS Notification Architecture
 - **Pluggable SMS Gateway**: Supports Twilio, Fast2SMS, and local native composer fallbacks. Unconfigured environments explicitly report status `client_action_required` and provider `NOT_CONFIGURED`.
-- **Delivery Confirmation**: The API counts emergency contacts as notified (`emergencyContactsNotified`) strictly when confirmed by provider receipt (`delivered` or `sent`).
-- **Push Notification Verification**: Expo push tickets are awaited and parsed (`status: 'ok'` vs `'error'`) with exponential backoff retries.
+- **Fail-Closed Twilio Delivery Webhook**: `POST /api/sos/webhook/twilio` returns HTTP 503 (`TWILIO_NOT_CONFIGURED`) if `TWILIO_AUTH_TOKEN` is absent; validates `twilio.validateRequest` HMAC signature against trusted canonical server URLs (ignoring client-spoofed `X-Forwarded-*` headers), verifies `AccountSid`, `MessageSid`, `TWILIO` provider match, normalized recipient `To`, legal state transitions (`ALLOWED_DELIVERY_TRANSITIONS`), and `processedCallbacks` idempotency.
+- **Delivery Confirmation**: The API counts emergency contacts as notified (`emergencyContactsNotified`) strictly when confirmed (`delivered` or gateway-confirmed `sent`), and UI wording clarifies that delivery receipts do not prove human reading.
+- **Expo Push Receipt Worker**: `push.helper.js` records `PushTicket` entries; `pushReceipt.worker.js` polls Expo receipts every 30s in batches of 100 using atomic `processingLockUntil` lease locks, exponential backoff up to 30m (`maxRetries: 5`), 30-day TTL cleanup, and automatic `DeviceNotRegistered` `pushToken` pruning.
 - **Idempotency & Audit**: Unique `idempotencyKey` prevents duplicate alerts. Full lifecycle tracking (`triggered`, `acknowledged`, `resolved`, `cancelled`) is persisted in `sos.auditLog`.
 
 ### 2.5 Real-Time WebSocket Security (Socket.IO)
@@ -58,4 +60,7 @@
 - **Hardware-Backed Keystore**: Native iOS and Android platforms strictly use `expo-secure-store` (Android KeyStore / iOS Keychain).
 - **No Plaintext Fallback**: Insecure fallback to `AsyncStorage` has been completely eliminated on native devices. If hardware secure storage is unavailable, login fails safely.
 - **Legacy Token Purge**: Automatically migrates and deletes any legacy `'cr_token'` lingering in `AsyncStorage`.
-- **Network Security**: Android `usesCleartextTraffic: false` and `allowBackup: false` enforced in `app.json`.
+- **Native Mapping Architecture**: Uses native `@maplibre/maplibre-react-native` with OpenFreeMap (`https://tiles.openfreemap.org/styles/liberty`) and visible OpenStreetMap attribution—zero WebView wrappers and zero proprietary Google map tiles.
+
+### 2.7 Logging & Error Redaction (`backend/utils/sanitize.js`)
+- Express 404 handlers, global error handlers, Morgan HTTP logging, and controller catch blocks scrub query-string secrets (`token`, `jwt`, `apiKey`, `key`, `secret`, `password`, `otp`, `phone`, `email`), omit raw `req.originalUrl` query parameters from JSON responses, and withhold stack traces outside development/testing.

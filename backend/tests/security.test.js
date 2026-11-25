@@ -20,6 +20,8 @@ const User = require('../users/users.model');
 const Ride = require('../rides/rides.model');
 const Booking = require('../bookings/bookings.model');
 const SOS = require('../sos/sos.model');
+const KycDocument = require('../kyc/kycDocument.model');
+const PushTicket = require('../notifications/pushTicket.model');
 
 let baseUrl;
 let testServer;
@@ -190,8 +192,16 @@ before(async () => {
 
 after(async () => {
   try {
-    if (normalUser1) await User.deleteOne({ _id: normalUser1._id });
-    if (normalUser2) await User.deleteOne({ _id: normalUser2._id });
+    if (normalUser1) {
+      await KycDocument.deleteMany({ ownerId: normalUser1._id });
+      await PushTicket.deleteMany({ userId: normalUser1._id });
+      await User.deleteOne({ _id: normalUser1._id });
+    }
+    if (normalUser2) {
+      await KycDocument.deleteMany({ ownerId: normalUser2._id });
+      await PushTicket.deleteMany({ userId: normalUser2._id });
+      await User.deleteOne({ _id: normalUser2._id });
+    }
     if (suspendedUser) await User.deleteOne({ _id: suspendedUser._id });
     if (blockedUser) await User.deleteOne({ _id: blockedUser._id });
     if (adminUser) await User.deleteOne({ _id: adminUser._id });
@@ -655,6 +665,8 @@ test('SOS NOTIFICATION: Triggering SOS on unconfigured SMS gateway returns clien
 
   // Verify DB record status
   const SOS = require('../sos/sos.model');
+const KycDocument = require('../kyc/kycDocument.model');
+const PushTicket = require('../notifications/pushTicket.model');
   const savedSOS = await SOS.findById(data.sos._id);
   assert.equal(savedSOS.status, 'active');
   assert.ok(savedSOS.auditLog.length >= 1);
@@ -701,6 +713,8 @@ test('SOS IDEMPOTENCY: Duplicate trigger with same idempotencyKey returns cached
 
   // Clean up
   const SOS = require('../sos/sos.model');
+const KycDocument = require('../kyc/kycDocument.model');
+const PushTicket = require('../notifications/pushTicket.model');
   await SOS.findByIdAndUpdate(data1.sos._id, { status: 'resolved' });
 });
 
@@ -735,6 +749,8 @@ test('SOS LIFECYCLE: Triggerer can cancel active SOS alert', async () => {
   assert.equal(cancelData.sos.status, 'cancelled');
 
   const SOS = require('../sos/sos.model');
+const KycDocument = require('../kyc/kycDocument.model');
+const PushTicket = require('../notifications/pushTicket.model');
   const verified = await SOS.findById(sos._id);
   assert.equal(verified.status, 'cancelled');
   const cancelLog = verified.auditLog.find(l => l.action === 'cancelled');
@@ -1153,7 +1169,8 @@ test('KYC SIGNED URL: Target user and document type claim binding', async () => 
   assert.equal(resMismatchedDoc.status, 403);
 });
 
-test('SOS STATES: Twilio delivery webhook updates status to delivered', async () => {
+test('SOS STATES: Twilio webhook rejects unconfigured/forged/invalid callbacks and accepts valid signed callback idempotently', async () => {
+  const twilio = require('twilio');
   const testMsgSid = 'SM_test_' + Date.now();
   const sosRecord = await SOS.create({
     rideId: testRide._id,
@@ -1162,7 +1179,7 @@ test('SOS STATES: Twilio delivery webhook updates status to delivered', async ()
     status: 'active',
     notificationsSent: [{
       type: 'sms',
-      recipient: '9876543210',
+      recipient: '+919876543210',
       status: 'provider_accepted',
       provider: 'TWILIO',
       messageId: testMsgSid
@@ -1171,38 +1188,396 @@ test('SOS STATES: Twilio delivery webhook updates status to delivered', async ()
       name: 'Dad',
       phone: '9876543210',
       deliveryStatus: 'provider_accepted',
+      provider: 'TWILIO',
       messageId: testMsgSid
     }]
   });
 
-  // Twilio delivery callback
-  const postParams = new URLSearchParams({
-    MessageSid: testMsgSid,
-    MessageStatus: 'delivered'
-  });
+  const savedAuthToken = process.env.TWILIO_AUTH_TOKEN;
+  const savedAcctSid = process.env.TWILIO_ACCOUNT_SID;
 
-  const resWebhook = await fetch(`${baseUrl}/api/sos/webhook/twilio`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: postParams.toString()
-  });
+  try {
+    // 1. When TWILIO_AUTH_TOKEN is missing -> returns 503 TWILIO_NOT_CONFIGURED
+    delete process.env.TWILIO_AUTH_TOKEN;
+    const unconfRes = await fetch(`${baseUrl}/api/sos/webhook/twilio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ MessageSid: testMsgSid, MessageStatus: 'delivered' }).toString()
+    });
+    assert.equal(unconfRes.status, 503);
+    const unconfJson = await unconfRes.json();
+    assert.equal(unconfJson.code, 'TWILIO_NOT_CONFIGURED');
 
-  assert.equal(resWebhook.status, 200);
+    // Configure test Twilio credentials
+    const testAuthToken = 'test_twilio_auth_token_32chars_001';
+    const testAcctSid = 'AC_TEST_ACCOUNT_SID_001';
+    process.env.TWILIO_AUTH_TOKEN = testAuthToken;
+    process.env.TWILIO_ACCOUNT_SID = testAcctSid;
+    const webhookUrl = `${baseUrl}/api/sos/webhook/twilio`;
 
-  const updatedSOS = await SOS.findById(sosRecord._id);
-  assert.equal(updatedSOS.notificationsSent[0].status, 'delivered');
-  assert.equal(updatedSOS.emergencyContacts[0].deliveryStatus, 'delivered');
-  assert.ok(updatedSOS.emergencyContacts[0].notifiedAt);
+    // 2. Missing X-Twilio-Signature -> 401
+    const missingSigRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ MessageSid: testMsgSid, MessageStatus: 'delivered' }).toString()
+    });
+    assert.equal(missingSigRes.status, 401);
 
-  await SOS.deleteOne({ _id: sosRecord._id });
+    // 3. Invalid signature -> 403
+    const invalidSigRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Twilio-Signature': 'forged_invalid_signature_xyz=='
+      },
+      body: new URLSearchParams({ MessageSid: testMsgSid, MessageStatus: 'delivered' }).toString()
+    });
+    assert.equal(invalidSigRes.status, 403);
+
+    // 4. Valid signature with unknown MessageSid -> 404
+    const unknownParams = {
+      AccountSid: testAcctSid,
+      MessageSid: 'SM_NONEXISTENT_999',
+      MessageStatus: 'delivered',
+      To: '+919876543210'
+    };
+    const unknownSig = twilio.getExpectedTwilioSignature(testAuthToken, webhookUrl, unknownParams);
+    const unknownRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Twilio-Signature': unknownSig
+      },
+      body: new URLSearchParams(unknownParams).toString()
+    });
+    assert.equal(unknownRes.status, 404);
+
+    // 5. Valid signature with mismatched recipient -> 403
+    const mismatchParams = {
+      AccountSid: testAcctSid,
+      MessageSid: testMsgSid,
+      MessageStatus: 'delivered',
+      To: '+911111111111'
+    };
+    const mismatchSig = twilio.getExpectedTwilioSignature(testAuthToken, webhookUrl, mismatchParams);
+    const mismatchRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Twilio-Signature': mismatchSig
+      },
+      body: new URLSearchParams(mismatchParams).toString()
+    });
+    assert.equal(mismatchRes.status, 403);
+
+    // 6. Valid signature matching MessageSid, AccountSid, and recipient -> 200 & transitions to delivered
+    const validParams = {
+      AccountSid: testAcctSid,
+      MessageSid: testMsgSid,
+      MessageStatus: 'delivered',
+      To: '+919876543210'
+    };
+    const validSig = twilio.getExpectedTwilioSignature(testAuthToken, webhookUrl, validParams);
+    const validRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Twilio-Signature': validSig
+      },
+      body: new URLSearchParams(validParams).toString()
+    });
+    assert.equal(validRes.status, 200);
+
+    const updatedSOS = await SOS.findById(sosRecord._id);
+    assert.equal(updatedSOS.notificationsSent[0].status, 'delivered');
+    assert.equal(updatedSOS.emergencyContacts[0].deliveryStatus, 'delivered');
+    assert.ok(updatedSOS.emergencyContacts[0].notifiedAt);
+    const originalNotifiedAt = updatedSOS.emergencyContacts[0].notifiedAt.getTime();
+    const auditCountAfterFirst = updatedSOS.auditLog.length;
+
+    // 7. Duplicate callback replay -> idempotent 200 without duplicating audit entries or changing notifiedAt
+    const dupRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Twilio-Signature': validSig
+      },
+      body: new URLSearchParams(validParams).toString()
+    });
+    assert.equal(dupRes.status, 200);
+    const afterDupSOS = await SOS.findById(sosRecord._id);
+    assert.equal(afterDupSOS.auditLog.length, auditCountAfterFirst);
+    assert.equal(afterDupSOS.emergencyContacts[0].notifiedAt.getTime(), originalNotifiedAt);
+
+    // 8. Unauthorized status downgrade (delivered -> queued) -> 409 Conflict
+    const downgradeParams = {
+      AccountSid: testAcctSid,
+      MessageSid: testMsgSid,
+      MessageStatus: 'queued',
+      To: '+919876543210'
+    };
+    const downgradeSig = twilio.getExpectedTwilioSignature(testAuthToken, webhookUrl, downgradeParams);
+    const downgradeRes = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Twilio-Signature': downgradeSig
+      },
+      body: new URLSearchParams(downgradeParams).toString()
+    });
+    assert.equal(downgradeRes.status, 409);
+  } finally {
+    if (savedAuthToken !== undefined) process.env.TWILIO_AUTH_TOKEN = savedAuthToken;
+    else delete process.env.TWILIO_AUTH_TOKEN;
+    if (savedAcctSid !== undefined) process.env.TWILIO_ACCOUNT_SID = savedAcctSid;
+    else delete process.env.TWILIO_ACCOUNT_SID;
+    await SOS.deleteOne({ _id: sosRecord._id });
+  }
 });
 
-test('LOGGING: sanitizeUrlForLogging masks sensitive query parameters', () => {
+test('LOGGING: sanitizeUrlForLogging masks sensitive query parameters & 404 responses never leak query tokens', async () => {
   const { sanitizeUrlForLogging } = require('../server');
-  const rawUrl = '/api/kyc/document/123/collegeIdCard?token=secret_jwt_token_value_xyz&apiKey=12345&user=john';
+  const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.fakePayload123.fakeSig456';
+  const rawUrl = `/api/nonexistent/route?token=${fakeToken}&refreshToken=my_refresh_999&apiKey=12345&user=john`;
   const sanitized = sanitizeUrlForLogging(rawUrl);
-  assert.ok(!sanitized.includes('secret_jwt_token_value_xyz'), 'Token must be masked');
+  assert.ok(!sanitized.includes(fakeToken), 'JWT token must be masked');
+  assert.ok(!sanitized.includes('my_refresh_999'), 'Refresh token must be masked');
   assert.ok(!sanitized.includes('12345'), 'API key must be masked');
-  assert.ok(sanitized.includes('token=%5BREDACTED%5D') || sanitized.includes('token=[REDACTED]'));
   assert.ok(sanitized.includes('user=john'));
+
+  // Capture logs during an actual HTTP 404 request containing fake secrets
+  const logs = [];
+  const origLog = console.log;
+  console.log = (...args) => {
+    logs.push(args.join(' '));
+    origLog(...args);
+  };
+  try {
+    const res404 = await fetch(`${baseUrl}${rawUrl}`);
+    assert.equal(res404.status, 404);
+    const body404 = await res404.json();
+    const bodyStr = JSON.stringify(body404);
+    assert.ok(!bodyStr.includes(fakeToken), '404 response body must NOT contain query token');
+    assert.ok(!bodyStr.includes('my_refresh_999'), '404 response body must NOT contain query secrets');
+    const combinedLogs = logs.join('\n');
+    assert.ok(!combinedLogs.includes(fakeToken), 'Server logs must NOT contain raw query token');
+    assert.ok(!combinedLogs.includes('my_refresh_999'), 'Server logs must NOT contain raw refresh token');
+  } finally {
+    console.log = origLog;
+  }
+});
+
+// =========================================================================
+// SECTION 17: EXPO PUSH RECEIPT WORKER, KYC OWNERSHIP & LOCATION VALIDATION
+// =========================================================================
+
+test('EXPO PUSH WORKER: Processes delivered receipts, permanent DeviceNotRegistered failures, transient backoff & multi-instance locking', async () => {
+  const { processPendingPushReceipts } = require('../notifications/pushReceipt.worker');
+
+  await User.findByIdAndUpdate(normalUser2._id, { pushToken: 'ExponentPushToken[stale-device-token]' });
+
+  const sos = await SOS.create({
+    rideId: testRide._id,
+    triggeredBy: { userId: normalUser1._id, role: 'provider' },
+    location: { lat: 12.9081, lng: 77.5218 },
+    status: 'active',
+    notificationsSent: [
+      { type: 'push', recipient: String(normalUser2._id), status: 'provider_accepted', provider: 'EXPO', messageId: 'expo-tkt-ok' },
+      { type: 'push', recipient: String(normalUser2._id), status: 'provider_accepted', provider: 'EXPO', messageId: 'expo-tkt-unreg' }
+    ]
+  });
+
+  const tOk = await PushTicket.create({
+    ticketId: 'expo-tkt-ok',
+    sosId: sos._id,
+    userId: normalUser2._id,
+    notificationType: 'sos_alert',
+    status: 'provider_accepted',
+    nextRetryAt: new Date(Date.now() - 1000)
+  });
+
+  const tPerm = await PushTicket.create({
+    ticketId: 'expo-tkt-unreg',
+    sosId: sos._id,
+    userId: normalUser2._id,
+    pushToken: 'ExponentPushToken[stale-device-token]',
+    notificationType: 'sos_alert',
+    status: 'provider_accepted',
+    nextRetryAt: new Date(Date.now() - 1000)
+  });
+
+  const tTransient = await PushTicket.create({
+    ticketId: 'expo-tkt-retry',
+    userId: normalUser2._id,
+    notificationType: 'general',
+    status: 'provider_accepted',
+    retryCount: 4,
+    maxRetries: 5,
+    nextRetryAt: new Date(Date.now() - 1000)
+  });
+
+  const tLocked = await PushTicket.create({
+    ticketId: 'expo-tkt-locked',
+    userId: normalUser2._id,
+    notificationType: 'general',
+    status: 'provider_accepted',
+    nextRetryAt: new Date(Date.now() - 1000),
+    processingLockUntil: new Date(Date.now() + 60000) // Locked by another instance
+  });
+
+  const summary = await processPendingPushReceipts(async (ids) => {
+    assert.ok(!ids.includes('expo-tkt-locked'), 'Locked ticket must not be claimed concurrently');
+    return {
+      'expo-tkt-ok': { status: 'ok' },
+      'expo-tkt-unreg': { status: 'error', message: 'Device not registered', details: { error: 'DeviceNotRegistered' } },
+      'expo-tkt-retry': { status: 'error', message: 'Rate limited', details: { error: 'MessageRateExceeded' } }
+    };
+  });
+
+  assert.equal(summary.delivered, 1);
+  assert.equal(summary.failedPermanent, 1);
+  assert.equal(summary.failedMaxRetries, 1);
+
+  const updatedOk = await PushTicket.findById(tOk._id);
+  assert.equal(updatedOk.status, 'delivered');
+
+  const updatedPerm = await PushTicket.findById(tPerm._id);
+  assert.equal(updatedPerm.status, 'failed');
+  assert.equal(updatedPerm.providerErrorCode, 'DeviceNotRegistered');
+
+  const updatedUser2 = await User.findById(normalUser2._id).select('pushToken');
+  assert.equal(updatedUser2.pushToken, null, 'DeviceNotRegistered must prune stale pushToken');
+
+  const updatedRetry = await PushTicket.findById(tTransient._id);
+  assert.equal(updatedRetry.status, 'failed');
+  assert.equal(updatedRetry.retryCount, 5);
+
+  const updatedSOS = await SOS.findById(sos._id);
+  assert.equal(updatedSOS.notificationsSent[0].status, 'delivered');
+  assert.equal(updatedSOS.notificationsSent[1].status, 'failed');
+
+  await PushTicket.deleteMany({ _id: { $in: [tOk._id, tPerm._id, tTransient._id, tLocked._id] } });
+  await SOS.deleteOne({ _id: sos._id });
+});
+
+test('KYC OWNERSHIP: Cross-account attachment, docType swap, unverified refs & path traversal are rejected', async () => {
+  const validPng = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2d420000000049454e44ae426082', 'hex');
+
+  // 1. User 1 uploads genuine collegeIdCard via multipart upload
+  const form = new FormData();
+  form.append('docType', 'collegeIdCard');
+  form.append('document', new Blob([validPng], { type: 'image/png' }), 'id.png');
+
+  const uploadRes = await fetch(`${baseUrl}/api/kyc/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tokenUser1}` },
+    body: form
+  });
+  assert.equal(uploadRes.status, 201);
+  const uploadData = await uploadRes.json();
+  assert.ok(uploadData.docId);
+  assert.ok(uploadData.storedRef.startsWith('private://kyc_private/'));
+
+  const validSelfieBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+  // 2. User 2 attempts to attach User 1's private document reference -> 403 DOCUMENT_OWNERSHIP_VIOLATION
+  const theftRes = await fetch(`${baseUrl}/api/kyc/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser2}`
+    },
+    body: JSON.stringify({
+      collegeIdCardUrl: uploadData.storedRef,
+      selfieUrl: validSelfieBase64
+    })
+  });
+  assert.equal(theftRes.status, 403);
+  const theftJson = await theftRes.json();
+  assert.equal(theftJson.code, 'DOCUMENT_OWNERSHIP_VIOLATION');
+
+  // 3. User 1 attempts to attach their collegeIdCard ref as selfieUrl (docType swap) -> 403 DOCUMENT_TYPE_MISMATCH
+  const swapRes = await fetch(`${baseUrl}/api/kyc/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser1}`
+    },
+    body: JSON.stringify({
+      collegeIdCardUrl: validSelfieBase64,
+      selfieUrl: uploadData.storedRef
+    })
+  });
+  assert.equal(swapRes.status, 403);
+  const swapJson = await swapRes.json();
+  assert.equal(swapJson.code, 'DOCUMENT_TYPE_MISMATCH');
+
+  // 4. User 2 attempts path traversal ref -> 400 INVALID_STORAGE_REF
+  const travRes = await fetch(`${baseUrl}/api/kyc/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser2}`
+    },
+    body: JSON.stringify({
+      collegeIdCardUrl: 'private://kyc_private/../../server.js',
+      selfieUrl: validSelfieBase64
+    })
+  });
+  assert.equal(travRes.status, 400);
+  const travJson = await travRes.json();
+  assert.equal(travJson.code, 'INVALID_STORAGE_REF');
+
+  // 5. User 2 attempts fabricated unregistered private:// ref -> 403 UNVERIFIED_DOCUMENT_REFERENCE
+  const unregRes = await fetch(`${baseUrl}/api/kyc/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${tokenUser2}`
+    },
+    body: JSON.stringify({
+      collegeIdCardUrl: 'private://kyc_private/arbitrary_unverified_file.png',
+      selfieUrl: validSelfieBase64
+    })
+  });
+  assert.equal(unregRes.status, 403);
+  const unregJson = await unregRes.json();
+  assert.equal(unregJson.code, 'UNVERIFIED_DOCUMENT_REFERENCE');
+
+  // 6. Expired signed link access -> 401
+  const expiredSignedToken = jwt.sign(
+    {
+      userId: normalUser1._id.toString(),
+      targetUserId: normalUser1._id.toString(),
+      docType: 'collegeIdCard',
+      op: 'read',
+      purpose: 'kyc_document_access',
+      sessionSeed: normalUser1.currentSessionSeed
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: -10, algorithm: 'HS256' }
+  );
+  const expRes = await fetch(`${baseUrl}/api/kyc/document/${normalUser1._id}/collegeIdCard?token=${expiredSignedToken}`);
+  assert.equal(expRes.status, 401);
+
+  // 7. Unauthorized deletion attempt by User 2 on User 1's doc -> 403
+  const delAttackerRes = await fetch(`${baseUrl}/api/kyc/document/${normalUser1._id}/collegeIdCard`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(delAttackerRes.status, 403);
+});
+
+test('LOCATION & ROUTING: Enforces strict coordinate bounds and GeoJSON format without fabricating fake routes', async () => {
+  // Invalid reverse coordinates -> 400
+  const badRevRes = await fetch(`${baseUrl}/api/location/reverse?lat=999&lng=77.5946`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(badRevRes.status, 400);
+
+  // Invalid route coordinates -> 400
+  const badRouteRes = await fetch(`${baseUrl}/api/location/route?fromLat=abc&fromLng=77.5&toLat=12.9&toLng=77.6`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(badRouteRes.status, 400);
 });

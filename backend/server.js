@@ -33,8 +33,8 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.openstreetmap.org", "https://*.tile.openstreetmap.org", "https://api.mapbox.com"],
-      connectSrc: ["'self'", "https://api.brevo.com", "https://api.cloudinary.com", "https://exp.host", "https://*.onrender.com"],
+      imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.openstreetmap.org", "https://*.tile.openstreetmap.org", "https://tiles.openfreemap.org"],
+      connectSrc: ["'self'", "https://api.brevo.com", "https://api.cloudinary.com", "https://exp.host", "https://*.onrender.com", "https://tiles.openfreemap.org", "https://photon.komoot.io", "https://router.project-osrm.org"],
       fontSrc: ["'self'", "data:"],
       objectSrc: ["'none'"],
       upgradeInsecureRequests: [],
@@ -115,27 +115,12 @@ app.use('/api/auth/reset-password', authLimiter);
 // ==========================================
 // 5. REQUEST LOGGING (Sanitized: No credentials or tokens)
 // ==========================================
-function sanitizeUrlForLogging(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') return '';
-  try {
-    const qIndex = rawUrl.indexOf('?');
-    if (qIndex === -1) return rawUrl;
-    const pathPart = rawUrl.substring(0, qIndex);
-    const queryPart = rawUrl.substring(qIndex + 1);
-    if (!queryPart) return pathPart;
-
-    const sensitiveParamRegex = /^(token|jwt|auth|secret|password|pwd|otp|code|key|apikey|api_key|phone|email|usn|aadhar|signature|sig)$/i;
-    const params = new URLSearchParams(queryPart);
-    for (const [key] of params.entries()) {
-      if (sensitiveParamRegex.test(key) || /token|secret|password|credential|otp/i.test(key)) {
-        params.set(key, '[REDACTED]');
-      }
-    }
-    return `${pathPart}?${params.toString()}`;
-  } catch {
-    return rawUrl.split('?')[0];
-  }
-}
+const {
+  sanitizeUrlForLogging,
+  stripQueryFromUrl,
+  sanitizeLogText,
+  sanitizeErrorForClient
+} = require('./utils/sanitize');
 
 app.use((req, res, next) => {
   const sanitizedUrl = sanitizeUrlForLogging(req.originalUrl || req.url);
@@ -590,18 +575,21 @@ app.use('/api/chatbot',       require('./chatbot/chatbot.routes'));
 app.use('/api/colleges',      require('./colleges/colleges.routes'));
 
 // ==========================================
-// 7. ERROR HANDLERS
+// 7. ERROR HANDLERS (Sanitized — Never expose query strings, tokens, or stack traces)
 // ==========================================
 app.use((req, res) => {
-  console.log(`❌ 404: ${req.method} ${req.originalUrl}`);
-  res.status(404).json({ error: 'Route not found', url: req.originalUrl, method: req.method });
+  const safeLogUrl = sanitizeUrlForLogging(req.originalUrl || req.url);
+  const safePath = stripQueryFromUrl(req.path || req.originalUrl || '/');
+  console.log(`❌ 404: ${req.method} ${safeLogUrl}`);
+  res.status(404).json({ error: 'Route not found', path: safePath, method: req.method });
 });
 
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err.message);
-  const isProd = process.env.NODE_ENV === 'production';
-  res.status(err.status || 500).json({
-    error: isProd ? 'An unexpected error occurred. Please contact support.' : err.message
+  console.error('❌ Error:', sanitizeLogText(err?.message || 'Internal Server Error'));
+  const status = err.status || 500;
+  res.status(status).json({
+    error: sanitizeErrorForClient(err),
+    code: err.code || (status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR')
   });
 });
 
@@ -626,6 +614,14 @@ if (require.main === module) {
           console.log('⏰ 3-Hour Ride Auto-Cancel Background Job started (10m interval)');
         } catch (jobErr) {
           console.error('Failed to start auto-cancel job:', jobErr.message);
+        }
+
+        // Background worker for Expo Push Notification Receipt Verification (30s interval)
+        try {
+          const { startPushReceiptWorker } = require('./notifications/pushReceipt.worker');
+          startPushReceiptWorker(30 * 1000);
+        } catch (workerErr) {
+          console.error('Failed to start push receipt worker:', workerErr.message);
         }
       });
     } catch (startErr) {

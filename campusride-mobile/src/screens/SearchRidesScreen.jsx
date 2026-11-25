@@ -335,6 +335,9 @@ export default function SearchRidesScreen({ navigation }) {
   const applyHistorySearch = (item) => {
     if (item.pickup) setPickup(item.pickup);
     if (item.drop) setDrop(item.drop);
+    setRides([]);
+    setSearched(false);
+    setError('');
   };
 
   const hasPickup = Boolean(pickup.label?.trim() || pickup.lat);
@@ -509,9 +512,16 @@ export default function SearchRidesScreen({ navigation }) {
           <LocationSearch
             label="Pickup Location"
             value={pickup.label}
+            coordinates={pickup.lat && pickup.lng ? { lat: pickup.lat, lng: pickup.lng } : null}
             onChange={(label, lat, lng) => {
               const newLabel = label || '';
-              setPickup({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              const nextLat = lat ? lat.toString() : '';
+              const nextLng = lng ? lng.toString() : '';
+              setPickup({ label: newLabel, lat: nextLat, lng: nextLng });
+              // Reset stale ride search results whenever pickup changes or clears
+              setRides([]);
+              setSearched(false);
+              setError('');
               if (isLocCollege(newLabel) && isLocCollege(drop.label)) {
                 setDrop({ label: '', lat: '', lng: '' });
               }
@@ -523,9 +533,16 @@ export default function SearchRidesScreen({ navigation }) {
           <LocationSearch
             label="Drop Location"
             value={drop.label}
+            coordinates={drop.lat && drop.lng ? { lat: drop.lat, lng: drop.lng } : null}
             onChange={(label, lat, lng) => {
               const newLabel = label || '';
-              setDrop({ label: newLabel, lat: lat ? lat.toString() : '', lng: lng ? lng.toString() : '' });
+              const nextLat = lat ? lat.toString() : '';
+              const nextLng = lng ? lng.toString() : '';
+              setDrop({ label: newLabel, lat: nextLat, lng: nextLng });
+              // Reset stale ride search results whenever drop changes or clears
+              setRides([]);
+              setSearched(false);
+              setError('');
               if (isLocCollege(newLabel) && isLocCollege(pickup.label)) {
                 setPickup({ label: '', lat: '', lng: '' });
               }

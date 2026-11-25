@@ -45,11 +45,19 @@ class TwilioSMSProvider extends BaseSMSProvider {
   }
 
   async sendSMS({ to, message }) {
-    const postData = new URLSearchParams({
+    const bodyParams = {
       To: to,
       From: this.fromNumber,
       Body: message
-    }).toString();
+    };
+    const explicitWebhook = process.env.TWILIO_WEBHOOK_URL;
+    const baseWebhook = process.env.WEBHOOK_BASE_URL || process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL;
+    if (explicitWebhook) {
+      bodyParams.StatusCallback = explicitWebhook;
+    } else if (baseWebhook) {
+      bodyParams.StatusCallback = `${baseWebhook.replace(/\/$/, '')}/api/sos/webhook/twilio`;
+    }
+    const postData = new URLSearchParams(bodyParams).toString();
 
     const authHeader = 'Basic ' + Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
 

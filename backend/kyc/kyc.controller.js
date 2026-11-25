@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { notifyAdmins } = require('../notifications/notifications.helper');
 const { validateVehicleNumber } = require('../utils/vehicle');
 const User = require('../users/users.model');
+const KycDocument = require('./kycDocument.model');
 
 // Private storage directory outside public web root with persistent mount support
 const KYC_STORAGE_DIR = process.env.KYC_STORAGE_DIR
@@ -17,6 +18,31 @@ const KYC_STORAGE_DIR = process.env.KYC_STORAGE_DIR
 
 if (!fs.existsSync(KYC_STORAGE_DIR)) {
   fs.mkdirSync(KYC_STORAGE_DIR, { recursive: true, mode: 0o700 });
+}
+
+const VALID_DOC_TYPES = ['aadhar', 'collegeIdCard', 'drivingLicense', 'selfie', 'vehiclePhoto'];
+const RESOLVED_KYC_DIR = path.resolve(KYC_STORAGE_DIR);
+
+/**
+ * Strictly parses a private://kyc_private/<filename> reference and guards against path traversal.
+ */
+function resolveSafePrivatePath(fileRef) {
+  if (!fileRef || typeof fileRef !== 'string') {
+    return { valid: false, reason: 'Invalid document reference format' };
+  }
+  if (fileRef.includes('\0') || fileRef.includes('..') || fileRef.includes('\\')) {
+    return { valid: false, reason: 'Unsafe document reference rejected (path traversal attempt)' };
+  }
+  const match = fileRef.match(/^private:\/\/kyc_private\/([A-Za-z0-9._-]+)$/);
+  if (!match || !match[1]) {
+    return { valid: false, reason: 'Invalid private storage reference format' };
+  }
+  const filename = match[1];
+  const resolved = path.resolve(RESOLVED_KYC_DIR, filename);
+  if (!resolved.startsWith(RESOLVED_KYC_DIR + path.sep) && resolved !== RESOLVED_KYC_DIR) {
+    return { valid: false, reason: 'Path escapes private KYC storage boundary' };
+  }
+  return { valid: true, filename, filePath: resolved };
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -61,61 +87,190 @@ function validateImageSignature(buffer) {
 }
 
 /**
- * Saves validated image buffer to private storage directory
- * Returns stored relative reference string
+ * Saves validated image buffer to private storage directory using a server-controlled identifier
+ * and creates an ownership-bound KycDocument registry record.
  */
-function savePrivateKycFile(buffer, ext) {
-  const filename = `${crypto.randomUUID()}.${ext}`;
-  const filePath = path.join(KYC_STORAGE_DIR, filename);
+async function savePrivateKycFile(buffer, sig, ownerId, docType, initialStatus = 'uploaded') {
+  const docId = crypto.randomUUID();
+  const safeOwner = String(ownerId).replace(/[^a-fA-F0-9]/g, '').slice(0, 24) || 'user';
+  const filename = `${safeOwner}_${docType}_${docId}.${sig.ext}`;
+  const filePath = path.resolve(RESOLVED_KYC_DIR, filename);
+  if (!filePath.startsWith(RESOLVED_KYC_DIR + path.sep)) {
+    throw new Error('Invalid destination storage path');
+  }
+
   fs.writeFileSync(filePath, buffer, { mode: 0o600 });
-  return `private://kyc_private/${filename}`;
+  if (!fs.existsSync(filePath)) {
+    throw new Error('Failed to verify persisted KYC file on disk');
+  }
+
+  const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
+  const storedRef = `private://kyc_private/${filename}`;
+
+  const docRecord = await KycDocument.create({
+    docId,
+    ownerId,
+    docType,
+    storedRef,
+    filename,
+    sha256,
+    mime: sig.mime,
+    size: buffer.length,
+    status: initialStatus,
+    attachedAt: initialStatus === 'attached' ? new Date() : null
+  });
+
+  return { storedRef, docId: docRecord.docId, sha256, mime: sig.mime };
 }
 
 /**
- * Safely parse and store base64 data URI to private storage
+ * Validates and binds an incoming KYC payload (either ownership-verified private ref or base64 data URI).
+ * Strictly prevents cross-account document theft, docType swapping, path traversal, and missing files.
  */
-function processDocumentPayload(dataUriOrKey) {
+async function validateAndBindDocument(dataUriOrKey, ownerId, docType, reqIp) {
   if (!dataUriOrKey || typeof dataUriOrKey !== 'string') {
-    return { valid: false, reason: 'Document payload is empty or not a string' };
+    return { valid: false, statusCode: 400, code: 'EMPTY_DOCUMENT', reason: 'Document payload is empty or not a string' };
+  }
+
+  if (!VALID_DOC_TYPES.includes(docType)) {
+    return { valid: false, statusCode: 400, code: 'INVALID_DOC_TYPE', reason: 'Invalid document type specified' };
   }
 
   // Reject arbitrary external URLs to prevent SSRF and unvetted hosting
   if (dataUriOrKey.startsWith('http://') || dataUriOrKey.startsWith('https://')) {
-    return { valid: false, reason: 'Arbitrary external URLs are not permitted. Please upload file directly.' };
+    return { valid: false, statusCode: 400, code: 'EXTERNAL_URL_DISALLOWED', reason: 'Arbitrary external URLs are not permitted. Please upload file directly.' };
   }
 
-  // Already stored in private storage
-  if (dataUriOrKey.startsWith('private://kyc_private/')) {
-    return { valid: true, storedRef: dataUriOrKey };
+  // Handle reference to already uploaded private file: MUST pass strict ownership, docType, and disk checks
+  if (dataUriOrKey.startsWith('private://')) {
+    const safeCheck = resolveSafePrivatePath(dataUriOrKey);
+    if (!safeCheck.valid) {
+      return { valid: false, statusCode: 400, code: 'INVALID_STORAGE_REF', reason: safeCheck.reason };
+    }
+
+    // Look up authoritative ownership record
+    const docRecord = await KycDocument.findOne({ storedRef: dataUriOrKey });
+    if (!docRecord) {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'UNVERIFIED_DOCUMENT_REFERENCE',
+        reason: 'Document reference is not registered to your account.'
+      };
+    }
+
+    if (docRecord.status === 'deleted') {
+      return {
+        valid: false,
+        statusCode: 404,
+        code: 'DOCUMENT_DELETED',
+        reason: 'Document reference has been deleted and cannot be attached.'
+      };
+    }
+
+    if (docRecord.ownerId.toString() !== ownerId.toString()) {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'DOCUMENT_OWNERSHIP_VIOLATION',
+        reason: 'Access denied: Document reference belongs to another account.'
+      };
+    }
+
+    if (docRecord.docType !== docType) {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'DOCUMENT_TYPE_MISMATCH',
+        reason: `Document was uploaded for '${docRecord.docType}' and cannot be attached as '${docType}'.`
+      };
+    }
+
+    // Verify no other user already has this ref attached
+    const otherUserHolding = await User.exists({
+      _id: { $ne: ownerId },
+      $or: [
+        { 'kycDocuments.collegeIdCard': dataUriOrKey },
+        { 'kycDocuments.drivingLicense': dataUriOrKey },
+        { 'kycDocuments.aadhar': dataUriOrKey },
+        { 'kycDocuments.selfie': dataUriOrKey },
+        { 'kycDocuments.vehiclePhoto': dataUriOrKey }
+      ]
+    });
+    if (otherUserHolding) {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'DOCUMENT_REUSE_FORBIDDEN',
+        reason: 'Document reference cannot be reused across accounts.'
+      };
+    }
+
+    // Verify file physically exists on disk and signature/integrity still hold
+    if (!fs.existsSync(safeCheck.filePath)) {
+      return {
+        valid: false,
+        statusCode: 404,
+        code: 'DOCUMENT_FILE_MISSING',
+        reason: 'Uploaded document file not found in private storage. Please re-upload.'
+      };
+    }
+
+    const diskBuffer = fs.readFileSync(safeCheck.filePath);
+    const sig = validateImageSignature(diskBuffer);
+    if (!sig.valid) {
+      return { valid: false, statusCode: 400, code: 'CORRUPTED_STORED_FILE', reason: sig.reason };
+    }
+
+    // Mark as attached
+    if (docRecord.status !== 'attached') {
+      docRecord.status = 'attached';
+      docRecord.attachedAt = new Date();
+      await docRecord.save();
+    }
+
+    return { valid: true, storedRef: dataUriOrKey, docId: docRecord.docId };
   }
 
-  // Process data URI
+  // Process inline base64 data URI
   const matches = dataUriOrKey.match(/^data:image\/(?:jpeg|png|webp|jpg);base64,(.+)$/);
   if (!matches || !matches[1]) {
-    return { valid: false, reason: 'Document must be a valid base64 image data URI' };
+    return { valid: false, statusCode: 400, code: 'INVALID_DATA_URI', reason: 'Document must be a valid base64 image data URI' };
   }
 
   const buffer = Buffer.from(matches[1], 'base64');
   const sig = validateImageSignature(buffer);
   if (!sig.valid) {
-    return { valid: false, reason: sig.reason };
+    return { valid: false, statusCode: 400, code: 'INVALID_IMAGE_SIGNATURE', reason: sig.reason };
   }
 
-  const storedRef = savePrivateKycFile(buffer, sig.ext);
-  return { valid: true, storedRef, mime: sig.mime };
+  const saved = await savePrivateKycFile(buffer, sig, ownerId, docType, 'attached');
+  return { valid: true, storedRef: saved.storedRef, docId: saved.docId, mime: saved.mime };
 }
 
-// Multer-based multipart file upload for direct private storage
+// Multer-based multipart file upload for direct private storage (requires authenticated user & valid docType)
 exports.uploadDocument = async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     const { docType } = req.body;
-    const validDocTypes = ['collegeIdCard', 'drivingLicense', 'aadhar', 'selfie', 'vehiclePhoto'];
-    if (docType && !validDocTypes.includes(docType)) {
-      return res.status(400).json({ message: 'Invalid docType specified' });
+    if (!docType || !VALID_DOC_TYPES.includes(docType)) {
+      return res.status(400).json({
+        message: `Invalid or missing docType. Allowed: ${VALID_DOC_TYPES.join(', ')}`,
+        code: 'INVALID_DOC_TYPE'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user || user.blocked || user.suspended) {
+      return res.status(403).json({ message: 'Account is restricted or unavailable' });
     }
 
     const sig = validateImageSignature(req.file.buffer);
@@ -123,16 +278,29 @@ exports.uploadDocument = async (req, res) => {
       return res.status(400).json({ message: sig.reason });
     }
 
-    const storedRef = savePrivateKycFile(req.file.buffer, sig.ext);
+    const saved = await savePrivateKycFile(req.file.buffer, sig, userId, docType, 'uploaded');
+
+    if (!user.kycAuditLogs) user.kycAuditLogs = [];
+    user.kycAuditLogs.push({
+      action: 'document_uploaded',
+      docType,
+      performedBy: userId,
+      timestamp: new Date(),
+      ip: req.ip,
+      notes: `Uploaded ${docType} (${saved.mime}, ${req.file.buffer.length} bytes, docId=${saved.docId})`
+    });
+    await user.save();
 
     res.status(201).json({
       message: 'Document uploaded securely to private storage',
-      storedRef,
-      mime: sig.mime,
+      docId: saved.docId,
+      docType,
+      storedRef: saved.storedRef,
+      mime: saved.mime,
       size: req.file.buffer.length
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: 'Failed to process document upload' });
   }
 };
 
@@ -151,24 +319,51 @@ exports.submitKyc = async (req, res) => {
       return res.status(400).json({ message: "Live selfie verification photo is mandatory" });
     }
 
-    // Process and validate College ID
-    const collegeIdProc = processDocumentPayload(collegeIdCardUrl);
+    const recordRejectionAudit = async (docType, proc) => {
+      if (proc.statusCode === 403) {
+        if (!user.kycAuditLogs) user.kycAuditLogs = [];
+        user.kycAuditLogs.push({
+          action: 'document_ownership_rejected',
+          docType,
+          performedBy: user._id,
+          timestamp: new Date(),
+          ip: req.ip,
+          notes: `${proc.code}: ${proc.reason}`
+        });
+        await user.save().catch(() => {});
+      }
+    };
+
+    // Process and validate College ID (with strict ownership & type binding)
+    const collegeIdProc = await validateAndBindDocument(collegeIdCardUrl, user._id, 'collegeIdCard', req.ip);
     if (!collegeIdProc.valid) {
-      return res.status(400).json({ message: `College ID rejected: ${collegeIdProc.reason}` });
+      await recordRejectionAudit('collegeIdCard', collegeIdProc);
+      return res.status(collegeIdProc.statusCode || 400).json({
+        message: `College ID rejected: ${collegeIdProc.reason}`,
+        code: collegeIdProc.code
+      });
     }
 
     // Process and validate Selfie
-    const selfieProc = processDocumentPayload(selfieUrl);
+    const selfieProc = await validateAndBindDocument(selfieUrl, user._id, 'selfie', req.ip);
     if (!selfieProc.valid) {
-      return res.status(400).json({ message: `Selfie photo rejected: ${selfieProc.reason}` });
+      await recordRejectionAudit('selfie', selfieProc);
+      return res.status(selfieProc.statusCode || 400).json({
+        message: `Selfie photo rejected: ${selfieProc.reason}`,
+        code: selfieProc.code
+      });
     }
 
     // Process Aadhar if provided
     let aadharStored = null;
     if (aadharUrl) {
-      const aadharProc = processDocumentPayload(aadharUrl);
+      const aadharProc = await validateAndBindDocument(aadharUrl, user._id, 'aadhar', req.ip);
       if (!aadharProc.valid) {
-        return res.status(400).json({ message: `Aadhar document rejected: ${aadharProc.reason}` });
+        await recordRejectionAudit('aadhar', aadharProc);
+        return res.status(aadharProc.statusCode || 400).json({
+          message: `Aadhar document rejected: ${aadharProc.reason}`,
+          code: aadharProc.code
+        });
       }
       aadharStored = aadharProc.storedRef;
     }
@@ -177,13 +372,46 @@ exports.submitKyc = async (req, res) => {
     const isProvider = ['provider', 'both'].includes(user.role);
     let licenseStored = null;
     if (drivingLicenseUrl) {
-      const licenseProc = processDocumentPayload(drivingLicenseUrl);
+      const licenseProc = await validateAndBindDocument(drivingLicenseUrl, user._id, 'drivingLicense', req.ip);
       if (!licenseProc.valid) {
-        return res.status(400).json({ message: `Driving License rejected: ${licenseProc.reason}` });
+        await recordRejectionAudit('drivingLicense', licenseProc);
+        return res.status(licenseProc.statusCode || 400).json({
+          message: `Driving License rejected: ${licenseProc.reason}`,
+          code: licenseProc.code
+        });
       }
       licenseStored = licenseProc.storedRef;
     } else if (isProvider) {
       return res.status(400).json({ message: "Driving license is mandatory for ride providers" });
+    }
+
+    // Audit document replacements and mark superseded KycDocument records as replaced
+    const prevDocs = user.kycDocuments || {};
+    const newDocRefs = {
+      collegeIdCard: collegeIdProc.storedRef,
+      selfie: selfieProc.storedRef,
+      aadhar: aadharStored,
+      drivingLicense: isProvider ? licenseStored : null
+    };
+
+    if (!user.kycAuditLogs) user.kycAuditLogs = [];
+    for (const dt of ['collegeIdCard', 'selfie', 'aadhar', 'drivingLicense']) {
+      const oldRef = prevDocs[dt];
+      const newRef = newDocRefs[dt];
+      if (oldRef && newRef && oldRef !== newRef) {
+        await KycDocument.updateOne(
+          { storedRef: oldRef, ownerId: user._id },
+          { $set: { status: 'replaced' } }
+        ).catch(() => {});
+        user.kycAuditLogs.push({
+          action: 'document_replaced',
+          docType: dt,
+          performedBy: user._id,
+          timestamp: new Date(),
+          ip: req.ip,
+          notes: `Replaced ${dt} document during KYC submission`
+        });
+      }
     }
 
     let vNum = null;
@@ -389,11 +617,15 @@ exports.reviewKyc = async (req, res) => {
   }
 };
 
-// Generate short-lived signed access link (max 15 mins expiry)
+// Generate short-lived signed access link (max 15 mins expiry, scoped to one user & one document type)
 exports.getSignedDocumentUrl = async (req, res) => {
   try {
     const { userId, docType } = req.params;
     const requesterId = req.user.userId;
+
+    if (!VALID_DOC_TYPES.includes(docType)) {
+      return res.status(400).json({ message: 'Invalid document type' });
+    }
 
     const requester = await User.findById(requesterId).select('role blocked suspended currentSessionSeed');
     if (!requester || requester.blocked || requester.suspended) {
@@ -406,14 +638,21 @@ exports.getSignedDocumentUrl = async (req, res) => {
       return res.status(403).json({ message: 'Access denied: You are not authorized to request signed links for this document.' });
     }
 
-    // Generate 15-minute expiring token
+    const targetUser = await User.findById(userId).select('kycDocuments');
+    if (!targetUser || !targetUser.kycDocuments || !targetUser.kycDocuments[docType]) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+
+    // Generate 15-minute expiring token bound to targetUserId, docType, operation & sessionSeed
     const token = jwt.sign(
       {
         userId: requester._id.toString(),
-        targetUserId: userId,
+        targetUserId: userId.toString(),
         docType,
+        op: 'read',
         purpose: 'kyc_document_access',
-        sessionSeed: requester.currentSessionSeed
+        sessionSeed: requester.currentSessionSeed,
+        jti: crypto.randomUUID()
       },
       process.env.JWT_SECRET,
       { expiresIn: '15m', algorithm: 'HS256' }
@@ -426,7 +665,7 @@ exports.getSignedDocumentUrl = async (req, res) => {
       expiresAt: new Date(Date.now() + 15 * 60 * 1000)
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: 'Unable to generate signed document link' });
   }
 };
 
@@ -435,8 +674,7 @@ exports.getDocumentImage = async (req, res) => {
   try {
     const { userId, docType } = req.params;
 
-    const validDocTypes = ['aadhar', 'collegeIdCard', 'drivingLicense', 'selfie', 'vehiclePhoto'];
-    if (!validDocTypes.includes(docType)) {
+    if (!VALID_DOC_TYPES.includes(docType)) {
       return res.status(400).json({ message: 'Invalid document type' });
     }
 
@@ -446,11 +684,14 @@ exports.getDocumentImage = async (req, res) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    // If request arrived via short-lived signed bearer link (?token=...), verify token binding
+    // If request arrived via short-lived signed bearer link (?token=...), verify token binding & scope
     if (req.query && req.query.token) {
       const decoded = req.tokenDecoded;
       if (!decoded || decoded.purpose !== 'kyc_document_access') {
         return res.status(403).json({ message: 'Access denied: Invalid or missing signed token purpose' });
+      }
+      if (decoded.op && decoded.op !== 'read') {
+        return res.status(403).json({ message: 'Access denied: Signed token operation mismatch' });
       }
       if (decoded.targetUserId?.toString() !== userId.toString()) {
         return res.status(403).json({ message: 'Access denied: Signed token target user mismatch' });
@@ -499,17 +740,34 @@ exports.getDocumentImage = async (req, res) => {
       });
     }
 
-    // Serve from private storage
-    if (fileRef.startsWith('private://kyc_private/')) {
-      const relativeName = fileRef.replace('private://kyc_private/', '');
-      const safePath = path.resolve(KYC_STORAGE_DIR, path.basename(relativeName));
-      
-      // Prevent directory traversal
-      if (!safePath.startsWith(KYC_STORAGE_DIR) || !fs.existsSync(safePath)) {
+    // Serve from private storage with strict path traversal & ownership registry verification
+    if (fileRef.startsWith('private://')) {
+      const safeCheck = resolveSafePrivatePath(fileRef);
+      if (!safeCheck.valid) {
+        return res.status(400).json({
+          message: safeCheck.reason,
+          code: 'INVALID_STORAGE_REF'
+        });
+      }
+
+      const docRecord = await KycDocument.findOne({ storedRef: fileRef });
+      if (docRecord) {
+        if (docRecord.status === 'deleted') {
+          return res.status(404).json({ message: 'Document has been deleted' });
+        }
+        if (docRecord.ownerId.toString() !== userId.toString() || docRecord.docType !== docType) {
+          return res.status(403).json({
+            message: 'Document ownership or type binding mismatch detected',
+            code: 'DOCUMENT_OWNERSHIP_VIOLATION'
+          });
+        }
+      }
+
+      if (!fs.existsSync(safeCheck.filePath)) {
         return res.status(404).json({ message: 'Private document file not found on disk' });
       }
 
-      const buffer = fs.readFileSync(safePath);
+      const buffer = fs.readFileSync(safeCheck.filePath);
       const sig = validateImageSignature(buffer);
       const contentType = sig.valid ? sig.mime : 'application/octet-stream';
 
@@ -531,8 +789,8 @@ exports.getDocumentImage = async (req, res) => {
     return res.status(400).json({ message: 'Invalid or corrupted document format' });
 
   } catch (error) {
-    console.error('Error serving document:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error serving document:', error.message);
+    res.status(500).json({ message: 'Unable to retrieve document' });
   }
 };
 
@@ -541,6 +799,10 @@ exports.deleteDocument = async (req, res) => {
   try {
     const { userId, docType } = req.params;
     const requesterId = req.user.userId;
+
+    if (!VALID_DOC_TYPES.includes(docType)) {
+      return res.status(400).json({ message: 'Invalid document type' });
+    }
 
     const requester = await User.findById(requesterId).select('role blocked suspended');
     if (!requester || requester.blocked || requester.suspended) {
@@ -559,12 +821,15 @@ exports.deleteDocument = async (req, res) => {
     }
 
     const fileRef = user.kycDocuments[docType];
-    if (fileRef.startsWith('private://kyc_private/')) {
-      const filename = path.basename(fileRef.replace('private://kyc_private/', ''));
-      const filePath = path.join(KYC_STORAGE_DIR, filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+    if (fileRef.startsWith('private://')) {
+      const safeCheck = resolveSafePrivatePath(fileRef);
+      if (safeCheck.valid && fs.existsSync(safeCheck.filePath)) {
+        fs.unlinkSync(safeCheck.filePath);
       }
+      await KycDocument.updateOne(
+        { storedRef: fileRef },
+        { $set: { status: 'deleted', deletedAt: new Date() } }
+      ).catch(() => {});
     }
 
     user.kycDocuments[docType] = null;
@@ -574,12 +839,13 @@ exports.deleteDocument = async (req, res) => {
       docType,
       performedBy: requesterId,
       timestamp: new Date(),
-      ip: req.ip
+      ip: req.ip,
+      notes: `Deleted by ${isAdmin ? 'Admin' : 'Owner'}`
     });
     await user.save();
 
     res.json({ message: `Document ${docType} deleted securely` });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ message: 'Failed to delete document' });
   }
 };

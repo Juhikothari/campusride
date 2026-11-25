@@ -1,7 +1,25 @@
-import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
-import { WebView } from 'react-native-webview';
+// campusride-mobile/src/components/LiveMapView.jsx
+// Native MapLibre + OpenStreetMap implementation using OpenFreeMap styles.
+// Uses GeoJSON [longitude, latitude] coordinates and imperative Camera updates.
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import {
+  Map,
+  Camera,
+  GeoJSONSource,
+  Layer,
+  Marker,
+  UserLocation,
+} from '@maplibre/maplibre-react-native';
 import { colors, radius } from '../theme';
+import {
+  MAP_STYLE_URL,
+  MAP_ATTRIBUTION,
+  DEFAULT_CENTER,
+  DEFAULT_ZOOM,
+  toLngLat,
+  computeLngLatBounds,
+} from '../config/mapConfig';
 
 export default function LiveMapView({
   pickup,
@@ -10,418 +28,348 @@ export default function LiveMapView({
   coordinates = [],
   leg1Coordinates = [],
   leg2Coordinates = [],
+  routeGeoJSON = null,
   extraPickups = [],
   pinLocation,
   onMapClick,
+  onRecenter,
+  followDriver = false,
+  onFollowChange,
+  driverStale = false,
   height = 280,
   interactive = true,
+  inModal = false,
+  showControls = true,
+  showUserLocation = true,
   style,
 }) {
-  const webViewRef = useRef(null);
+  const cameraRef = useRef(null);
+  const mapRef = useRef(null);
+  const hasFittedBoundsRef = useRef(false);
+  const lastPinKeyRef = useRef('');
+  const [mapReady, setMapReady] = useState(false);
 
-  // Compute center point
-  const defaultLat = pinLocation?.lat || driverLocation?.lat || pickup?.lat || 12.9716;
-  const defaultLng = pinLocation?.lng || driverLocation?.lng || pickup?.lng || 77.5946;
+  const pickupLngLat = useMemo(() => toLngLat(pickup), [pickup]);
+  const dropLngLat = useMemo(() => toLngLat(drop), [drop]);
+  const driverLngLat = useMemo(() => toLngLat(driverLocation), [driverLocation]);
+  const pinLngLat = useMemo(() => toLngLat(pinLocation), [pinLocation]);
 
-  const generateLeafletHTML = () => {
-    const pLat = pickup?.lat ? parseFloat(pickup.lat) : null;
-    const pLng = pickup?.lng ? parseFloat(pickup.lng) : null;
-    const dLat = drop?.lat ? parseFloat(drop.lat) : null;
-    const dLng = drop?.lng ? parseFloat(drop.lng) : null;
-    const drLat = driverLocation?.lat ? parseFloat(driverLocation.lat) : null;
-    const drLng = driverLocation?.lng ? parseFloat(driverLocation.lng) : null;
-    const pinLat = pinLocation?.lat ? parseFloat(pinLocation.lat) : null;
-    const pinLng = pinLocation?.lng ? parseFloat(pinLocation.lng) : null;
+  const extraPickupPoints = useMemo(() => {
+    if (!Array.isArray(extraPickups)) return [];
+    return extraPickups
+      .map((ep, idx) => ({
+        id: `extra-pickup-${idx}`,
+        num: idx + 2,
+        label: ep?.label || `Pickup ${idx + 2}`,
+        lngLat: toLngLat(ep),
+      }))
+      .filter(p => Boolean(p.lngLat));
+  }, [extraPickups]);
 
-    // Combine route coordinates into 1 single unified continuous route:
-    // Start -> Pickups -> Drops -> Finish
-    let unifiedPoints = [];
-    if (coordinates && coordinates.length > 0) {
-      unifiedPoints = coordinates;
-    } else if ((leg1Coordinates && leg1Coordinates.length > 0) || (leg2Coordinates && leg2Coordinates.length > 0)) {
-      unifiedPoints = [...(leg1Coordinates || []), ...(leg2Coordinates || [])];
+  // Build unified GeoJSON FeatureCollection for route rendering ([longitude, latitude])
+  const routeFeatureCollection = useMemo(() => {
+    // 1. Explicit GeoJSON feature/collection provided by backend OSRM route endpoint
+    if (routeGeoJSON?.geometry?.type === 'LineString' && Array.isArray(routeGeoJSON.geometry.coordinates) && routeGeoJSON.geometry.coordinates.length > 1) {
+      return {
+        type: 'FeatureCollection',
+        features: [routeGeoJSON],
+      };
     }
 
-    const singleRouteArray = (unifiedPoints && unifiedPoints.length > 0)
-      ? unifiedPoints.map(c => `[${c.latitude || c.lat}, ${c.longitude || c.lng}]`).join(',')
-      : '';
+    // 2. Merged coordinates array from route legs
+    let pts = [];
+    if (Array.isArray(coordinates) && coordinates.length > 1) {
+      pts = coordinates.map(toLngLat).filter(Boolean);
+    } else if ((leg1Coordinates && leg1Coordinates.length > 0) || (leg2Coordinates && leg2Coordinates.length > 0)) {
+      pts = [...(leg1Coordinates || []), ...(leg2Coordinates || [])].map(toLngLat).filter(Boolean);
+    }
 
-    // Direct sequential fallback if detailed path coordinates are not loaded yet
-    const fallbackSeq = [];
-    if (drLat && drLng) fallbackSeq.push(`[${drLat}, ${drLng}]`);
-    if (pLat && pLng) fallbackSeq.push(`[${pLat}, ${pLng}]`);
-    (Array.isArray(extraPickups) ? extraPickups : []).forEach(ep => {
-      const eLat = ep?.lat ? parseFloat(ep.lat) : null;
-      const eLng = ep?.lng ? parseFloat(ep.lng) : null;
-      if (eLat && eLng) fallbackSeq.push(`[${eLat}, ${eLng}]`);
-    });
-    if (dLat && dLng) fallbackSeq.push(`[${dLat}, ${dLng}]`);
-    const fallbackSeqArray = fallbackSeq.length > 1 ? fallbackSeq.join(',') : '';
+    if (pts.length > 1) {
+      return {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates: pts,
+            },
+            properties: {},
+          },
+        ],
+      };
+    }
+    return null;
+  }, [routeGeoJSON, coordinates, leg1Coordinates, leg2Coordinates]);
 
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <style>
-          html, body, #map {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          }
-          
-          /* Eye-Catching Custom Point Symbols */
-          .pin-container {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            pointer-events: auto;
-          }
+  const initialCenter = useMemo(() => {
+    return pinLngLat || driverLngLat || pickupLngLat || dropLngLat || DEFAULT_CENTER;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-          /* Concentric Expanding Pulse Rings */
-          .beacon-ring {
-            position: absolute;
-            top: 50%; left: 50%;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 1;
-            transform: translate(-50%, -50%);
-          }
-          .beacon-pickup {
-            width: 52px; height: 52px;
-            background: rgba(16, 185, 129, 0.25);
-            border: 2px solid rgba(16, 185, 129, 0.85);
-            animation: pulseWave 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-          }
-          .beacon-drop {
-            width: 52px; height: 52px;
-            background: rgba(239, 68, 68, 0.25);
-            border: 2px solid rgba(239, 68, 68, 0.85);
-            animation: pulseWave 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite 0.4s;
-          }
-          .beacon-driver {
-            width: 58px; height: 58px;
-            background: rgba(0, 229, 255, 0.28);
-            border: 2.5px solid rgba(0, 229, 255, 0.95);
-            animation: pulseWave 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-          }
-
-          @keyframes pulseWave {
-            0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(2.0); opacity: 0; }
-          }
-
-          /* Eye-Catching Point Badges */
-          .point-badge {
-            position: relative;
-            z-index: 3;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 5px 12px;
-            border-radius: 24px;
-            border: 2px solid #ffffff;
-            font-size: 11px;
-            font-weight: 900;
-            letter-spacing: 0.6px;
-            color: #ffffff;
-            white-space: nowrap;
-            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-            cursor: pointer;
-          }
-
-          .badge-pickup {
-            background: linear-gradient(135deg, #10B981 0%, #06B6D4 100%);
-            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.7), 0 0 0 2px rgba(255,255,255,0.9);
-          }
-          .badge-drop {
-            background: linear-gradient(135deg, #EF4444 0%, #F59E0B 100%);
-            box-shadow: 0 4px 18px rgba(239, 68, 68, 0.7), 0 0 0 2px rgba(255,255,255,0.9);
-          }
-          .badge-driver {
-            background: linear-gradient(135deg, #00E5FF 0%, #3B82F6 100%);
-            box-shadow: 0 4px 20px rgba(0, 229, 255, 0.8), 0 0 0 2.5px #ffffff;
-            animation: floatIcon 2s ease-in-out infinite alternate;
-          }
-          @keyframes floatIcon {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(-4px); }
-          }
-
-          .point-arrow {
-            width: 0; height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            margin-top: -1px;
-            z-index: 3;
-          }
-          .arrow-pickup { border-top: 8px solid #06B6D4; }
-          .arrow-drop { border-top: 8px solid #F59E0B; }
-          .arrow-driver { border-top: 8px solid #3B82F6; }
-
-          .point-anchor-dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: 2px solid #0b0f17;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.8);
-            z-index: 4;
-            margin-top: -2px;
-          }
-
-          .leaflet-bar { border: none !important; }
-          .leaflet-bar a { background: #161b24 !important; color: #f5a623 !important; border: 1px solid rgba(255,255,255,0.1) !important; }
-          .leaflet-popup-content-wrapper {
-            background: #121824 !important; color: #fff !important;
-            border-radius: 10px !important; border: 1.5px solid rgba(245,166,35,0.4) !important;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.8) !important;
-          }
-          .leaflet-popup-tip { background: #121824 !important; }
-        </style>
-      </head>
-      <body>
-        <div id="map"></div>
-        <script>
-          const map = L.map('map', {
-            zoomControl: ${interactive ? 'true' : 'false'},
-            attributionControl: false,
-            dragging: ${interactive ? 'true' : 'false'},
-            touchZoom: ${interactive ? 'true' : 'false'},
-          }).setView([${defaultLat}, ${defaultLng}], 14);
-
-          // Google Maps standard street road tiles
-          L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-            maxZoom: 20,
-            subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-            attribution: ''
-          }).addTo(map);
-
-          const markers = [];
-
-          // 1. Start / Provider Live Marker
-          ${drLat && drLng ? `
-            const drIcon = L.divIcon({
-              className: '',
-              html: \`
-                <div class="pin-container">
-                  <div class="beacon-ring beacon-driver"></div>
-                  <div class="point-badge badge-driver">
-                    <span style="font-size: 16px;">🚗</span>
-                    <span>START / PROVIDER</span>
-                  </div>
-                  <div class="point-arrow arrow-driver"></div>
-                  <div class="point-anchor-dot"></div>
-                </div>
-              \`,
-              iconSize: [140, 52],
-              iconAnchor: [70, 50]
-            });
-            L.marker([${drLat}, ${drLng}], { icon: drIcon }).addTo(map).bindPopup('<b>🚗 Provider / Start Location</b><br/>En Route');
-            markers.push([${drLat}, ${drLng}]);
-          ` : ''}
-
-          // 2. Seeker 1 Pickup Marker
-          ${pLat && pLng ? `
-            const pIcon = L.divIcon({
-              className: '',
-              html: \`
-                <div class="pin-container">
-                  <div class="beacon-ring beacon-pickup"></div>
-                  <div class="point-badge badge-pickup">
-                    <span style="font-size: 15px;">📍</span>
-                    <span>PICKUP 1</span>
-                  </div>
-                  <div class="point-arrow arrow-pickup"></div>
-                  <div class="point-anchor-dot"></div>
-                </div>
-              \`,
-              iconSize: [100, 52],
-              iconAnchor: [50, 50]
-            });
-            L.marker([${pLat}, ${pLng}], { icon: pIcon }).addTo(map).bindPopup('<b>🟢 Seeker 1 Pickup Spot</b><br/>${pickup?.label || "Confirmed Pickup"}');
-            markers.push([${pLat}, ${pLng}]);
-          ` : ''}
-
-          // 3. Additional Seekers Pickups (Multi-Seeker Commute)
-          ${(Array.isArray(extraPickups) ? extraPickups : []).map((ep, epIdx) => {
-            const epLat = ep?.lat ? parseFloat(ep.lat) : null;
-            const epLng = ep?.lng ? parseFloat(ep.lng) : null;
-            if (!epLat || !epLng) return '';
-            const pickupNum = epIdx + 2;
-            return `
-              const epIcon_${epIdx} = L.divIcon({
-                className: '',
-                html: \`
-                  <div class="pin-container">
-                    <div class="beacon-ring beacon-pickup"></div>
-                    <div class="point-badge badge-pickup">
-                      <span style="font-size: 15px;">📍</span>
-                      <span>PICKUP ${pickupNum}</span>
-                    </div>
-                    <div class="point-arrow arrow-pickup"></div>
-                    <div class="point-anchor-dot"></div>
-                  </div>
-                \`,
-                iconSize: [106, 52],
-                iconAnchor: [53, 50]
-              });
-              L.marker([${epLat}, ${epLng}], { icon: epIcon_${epIdx} }).addTo(map).bindPopup('<b>🟢 Pickup ${pickupNum}</b><br/>${ep.label || "Buddy Pickup Location"}');
-              markers.push([${epLat}, ${epLng}]);
-            `;
-          }).join('\n')}
-
-          // 4. Finish / Destination Drop Marker (Always visible to show complete route)
-          ${dLat && dLng ? `
-            const dIcon = L.divIcon({
-              className: '',
-              html: \`
-                <div class="pin-container">
-                  <div class="beacon-ring beacon-drop"></div>
-                  <div class="point-badge badge-drop">
-                    <span style="font-size: 15px;">🏁</span>
-                    <span>FINISH / DROP</span>
-                  </div>
-                  <div class="point-arrow arrow-drop"></div>
-                  <div class="point-anchor-dot"></div>
-                </div>
-              \`,
-              iconSize: [130, 52],
-              iconAnchor: [65, 50]
-            });
-            L.marker([${dLat}, ${dLng}], { icon: dIcon }).addTo(map).bindPopup('<b>🏁 Drop Destination (Finish)</b><br/>${drop?.label || "Confirmed Drop Destination"}');
-            markers.push([${dLat}, ${dLng}]);
-          ` : ''}
-
-          // 5. Pin marker for manual coordinate picking
-          ${pinLat && pinLng ? `
-            const pinIcon = L.divIcon({
-              className: '',
-              html: \`
-                <div class="pin-container">
-                  <div class="beacon-ring beacon-driver"></div>
-                  <div class="point-badge" style="background: linear-gradient(135deg, #f5a623, #ff6f00); box-shadow: 0 4px 16px rgba(245,166,35,0.8);">
-                    <span style="font-size: 15px;">📍</span>
-                    <span>DRAG TO SET</span>
-                  </div>
-                  <div class="point-arrow" style="border-top: 8px solid #ff6f00;"></div>
-                  <div class="point-anchor-dot"></div>
-                </div>
-              \`,
-              iconSize: [120, 52],
-              iconAnchor: [60, 50]
-            });
-            const pinMarker = L.marker([${pinLat}, ${pinLng}], { icon: pinIcon, draggable: true }).addTo(map);
-            pinMarker.on('dragend', function(e) {
-              const pos = e.target.getLatLng();
-              window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'PIN_MOVED', lat: Number(pos.lat.toFixed(6)), lng: Number(pos.lng.toFixed(6))
-              }));
-            });
-            map.on('moveend', function() {
-              const c = map.getCenter();
-              if (c && typeof c.lat === 'number' && typeof c.lng === 'number') {
-                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'PIN_MOVED', lat: Number(c.lat.toFixed(6)), lng: Number(c.lng.toFixed(6))
-                }));
-              }
-            });
-            markers.push([${pinLat}, ${pinLng}]);
-          ` : ''}
-
-          // ── 1 SINGLE CONTINUOUS ROUTE: Start -> Pickup(s) -> Finish ──
-          const allRouteBounds = [];
-          const routePathPoints = ${singleRouteArray ? `[${singleRouteArray}]` : (fallbackSeqArray ? `[${fallbackSeqArray}]` : '[]')};
-
-          if (routePathPoints && routePathPoints.length > 1) {
-            try {
-              // Outer vibrant neon halo
-              L.polyline(routePathPoints, {
-                color: '#1d4ed8',
-                weight: 8,
-                opacity: 0.35,
-                lineJoin: 'round'
-              }).addTo(map);
-
-              // Inner bold single route line
-              const singleRoute = L.polyline(routePathPoints, {
-                color: '#2563eb',
-                weight: 5,
-                opacity: 0.98,
-                lineJoin: 'round'
-              }).addTo(map).bindPopup('<b>🚗 Campus Ride Route</b><br/>Start → Pickup → Finish');
-
-              if (singleRoute.getBounds && singleRoute.getBounds().isValid()) {
-                allRouteBounds.push(singleRoute.getBounds());
-              }
-            } catch(e) {
-              console.error('Route polyline error:', e);
-            }
-          }
-
-          if (allRouteBounds.length > 0) {
-            try {
-              map.fitBounds(allRouteBounds[0], { padding: [40, 40] });
-            } catch(e) {}
-          } else if (markers.length > 1) {
-            try {
-              map.fitBounds(L.latLngBounds(markers), { padding: [40, 40] });
-            } catch(e) {}
-          } else if (markers.length === 1) {
-            map.setView(markers[0], 15);
-          }
-
-          // Map click handler
-          map.on('click', function(e) {
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'MAP_CLICK', lat: e.latlng.lat, lng: e.latlng.lng
-            }));
-          });
-        </script>
-      </body>
-      </html>
-    `;
-  };
-
-  const handleMessage = (event) => {
+  // Move camera smoothly ONLY when external pin coordinates explicitly change
+  useEffect(() => {
+    if (!mapReady || !pinLngLat || !cameraRef.current) return;
+    const key = `${pinLngLat[0].toFixed(5)},${pinLngLat[1].toFixed(5)}`;
+    if (key === lastPinKeyRef.current) return;
+    lastPinKeyRef.current = key;
     try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (onMapClick && (data.type === 'MAP_CLICK' || data.type === 'PIN_MOVED')) {
-        onMapClick({ lat: data.lat, lng: data.lng });
-      }
+      cameraRef.current.easeTo({
+        center: pinLngLat,
+        zoom: 15,
+        duration: 450,
+      });
     } catch {}
-  };
+  }, [mapReady, pinLngLat]);
+
+  // Fit bounds once when initial route or multiple markers become available (never hijacks user pan afterward)
+  useEffect(() => {
+    if (!mapReady || !cameraRef.current || hasFittedBoundsRef.current || pinLngLat) return;
+    const allPts = [];
+    if (routeFeatureCollection?.features?.[0]?.geometry?.coordinates?.length > 1) {
+      allPts.push(...routeFeatureCollection.features[0].geometry.coordinates);
+    } else {
+      if (driverLngLat) allPts.push(driverLngLat);
+      if (pickupLngLat) allPts.push(pickupLngLat);
+      extraPickupPoints.forEach(p => allPts.push(p.lngLat));
+      if (dropLngLat) allPts.push(dropLngLat);
+    }
+
+    if (allPts.length > 1) {
+      const bounds = computeLngLatBounds(allPts);
+      if (bounds) {
+        hasFittedBoundsRef.current = true;
+        try {
+          cameraRef.current.fitBounds(bounds, {
+            padding: { top: 48, right: 48, bottom: 48, left: 48 },
+            duration: 600,
+          });
+        } catch {}
+      }
+    } else if (allPts.length === 1) {
+      hasFittedBoundsRef.current = true;
+      try {
+        cameraRef.current.easeTo({ center: allPts[0], zoom: 14.5, duration: 500 });
+      } catch {}
+    }
+  }, [mapReady, pinLngLat, routeFeatureCollection, driverLngLat, pickupLngLat, dropLngLat, extraPickupPoints]);
+
+  // Follow-driver mode: smoothly pan when active without disrupting manual panning when disabled
+  useEffect(() => {
+    if (!mapReady || !followDriver || !driverLngLat || !cameraRef.current) return;
+    try {
+      cameraRef.current.easeTo({
+        center: driverLngLat,
+        duration: 650,
+      });
+    } catch {}
+  }, [mapReady, followDriver, driverLngLat]);
+
+  const handleMapPress = useCallback((event) => {
+    if (!interactive || !onMapClick) return;
+    const lngLat = event?.nativeEvent?.lngLat;
+    if (Array.isArray(lngLat) && lngLat.length >= 2) {
+      onMapClick({ lat: Number(lngLat[1].toFixed(6)), lng: Number(lngLat[0].toFixed(6)) });
+    }
+  }, [interactive, onMapClick]);
+
+  const handleRegionDidChange = useCallback((event) => {
+    // Pause follow mode immediately if user panned or zoomed manually
+    if (event?.nativeEvent?.userInteraction && followDriver && onFollowChange) {
+      onFollowChange(false);
+    }
+  }, [followDriver, onFollowChange]);
+
+  const handleRecenterPress = useCallback(() => {
+    if (onRecenter) {
+      onRecenter();
+    }
+    if (!cameraRef.current) return;
+
+    if (pinLngLat && !driverLngLat && !pickupLngLat && !dropLngLat) {
+      cameraRef.current.flyTo({ center: pinLngLat, zoom: 15, duration: 550 });
+      return;
+    }
+
+    const pts = [];
+    if (driverLngLat) pts.push(driverLngLat);
+    if (pickupLngLat) pts.push(pickupLngLat);
+    extraPickupPoints.forEach(p => pts.push(p.lngLat));
+    if (dropLngLat) pts.push(dropLngLat);
+
+    if (followDriver && driverLngLat) {
+      cameraRef.current.flyTo({ center: driverLngLat, zoom: 15.5, duration: 550 });
+    } else if (pts.length > 1) {
+      const b = computeLngLatBounds(pts);
+      if (b) {
+        cameraRef.current.fitBounds(b, {
+          padding: { top: 48, right: 48, bottom: 48, left: 48 },
+          duration: 600,
+        });
+      }
+    } else if (pts.length === 1) {
+      cameraRef.current.flyTo({ center: pts[0], zoom: 15, duration: 550 });
+    }
+  }, [onRecenter, pinLngLat, driverLngLat, pickupLngLat, dropLngLat, extraPickupPoints, followDriver]);
 
   return (
     <View style={[styles.container, { height }, style]}>
-      <WebView
-        ref={webViewRef}
-        originWhitelist={['https://unpkg.com', 'https://*.openstreetmap.org', 'about:blank', 'data:text/html*']}
-        source={{ html: generateLeafletHTML() }}
-        onMessage={handleMessage}
-        style={styles.webView}
-        scrollEnabled={false}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        allowFileAccess={false}
-        allowFileAccessFromFileURLs={false}
-        allowUniversalAccessFromFileURLs={false}
-        onShouldStartLoadWithRequest={(req) => {
-          if (req.url.startsWith('data:') || req.url.startsWith('about:blank') || req.url.includes('openstreetmap.org') || req.url.includes('unpkg.com')) {
-            return true;
-          }
-          return false;
-        }}
-        renderLoading={() => (
-          <View style={styles.loader}>
-            <ActivityIndicator color={colors.accent} size="small" />
-          </View>
+      <Map
+        ref={mapRef}
+        style={styles.map}
+        mapStyle={MAP_STYLE_URL}
+        androidView={inModal || Platform.OS === 'android' ? 'texture' : 'surface'}
+        dragPan={interactive}
+        touchZoom={interactive}
+        doubleTapZoom={interactive}
+        touchRotate={interactive}
+        touchPitch={false}
+        attribution={false}
+        logo={false}
+        compass={interactive}
+        compassPosition={{ top: 10, left: 10 }}
+        onPress={handleMapPress}
+        onRegionDidChange={handleRegionDidChange}
+        onDidFinishLoadingMap={() => setMapReady(true)}
+      >
+        <Camera
+          ref={cameraRef}
+          initialViewState={{
+            center: initialCenter,
+            zoom: DEFAULT_ZOOM,
+          }}
+          minZoom={3}
+          maxZoom={20}
+        />
+
+        {showUserLocation && (
+          <UserLocation animated={true} accuracy={false} />
         )}
-        startInLoadingState={true}
-      />
+
+        {/* GeoJSON Route Line */}
+        {routeFeatureCollection && (
+          <GeoJSONSource id="hogo-route-source" data={routeFeatureCollection}>
+            <Layer
+              id="hogo-route-halo"
+              type="line"
+              paint={{
+                'line-color': '#1d4ed8',
+                'line-width': 8,
+                'line-opacity': 0.35,
+                'line-cap': 'round',
+                'line-join': 'round',
+              }}
+            />
+            <Layer
+              id="hogo-route-line"
+              type="line"
+              paint={{
+                'line-color': '#2563eb',
+                'line-width': 4.5,
+                'line-opacity': 0.96,
+                'line-cap': 'round',
+                'line-join': 'round',
+              }}
+            />
+          </GeoJSONSource>
+        )}
+
+        {/* 1. Driver / Provider Live Marker */}
+        {driverLngLat && (
+          <Marker id="marker-driver" lngLat={driverLngLat} anchor="bottom">
+            <View style={styles.markerWrapper}>
+              <View style={[styles.badge, styles.badgeDriver, driverStale && styles.badgeStale]}>
+                <Text style={styles.badgeText}>
+                  🚗 {driverStale ? 'LAST KNOWN' : 'DRIVER'}
+                </Text>
+              </View>
+              <View style={[styles.arrow, { borderTopColor: driverStale ? '#64748b' : '#2563eb' }]} />
+            </View>
+          </Marker>
+        )}
+
+        {/* 2. Primary Pickup Marker */}
+        {pickupLngLat && (
+          <Marker id="marker-pickup" lngLat={pickupLngLat} anchor="bottom">
+            <View style={styles.markerWrapper}>
+              <View style={[styles.badge, styles.badgePickup]}>
+                <Text style={styles.badgeText}>📍 PICKUP</Text>
+              </View>
+              <View style={[styles.arrow, { borderTopColor: '#059669' }]} />
+            </View>
+          </Marker>
+        )}
+
+        {/* 3. Extra Multi-Seeker Pickups */}
+        {extraPickupPoints.map(ep => (
+          <Marker key={ep.id} id={ep.id} lngLat={ep.lngLat} anchor="bottom">
+            <View style={styles.markerWrapper}>
+              <View style={[styles.badge, styles.badgePickup]}>
+                <Text style={styles.badgeText}>📍 PICKUP {ep.num}</Text>
+              </View>
+              <View style={[styles.arrow, { borderTopColor: '#059669' }]} />
+            </View>
+          </Marker>
+        ))}
+
+        {/* 4. Destination / Drop Marker */}
+        {dropLngLat && (
+          <Marker id="marker-drop" lngLat={dropLngLat} anchor="bottom">
+            <View style={styles.markerWrapper}>
+              <View style={[styles.badge, styles.badgeDrop]}>
+                <Text style={styles.badgeText}>🏁 DROP</Text>
+              </View>
+              <View style={[styles.arrow, { borderTopColor: '#dc2626' }]} />
+            </View>
+          </Marker>
+        )}
+
+        {/* 5. Selected Pin Marker (Map Picker) */}
+        {pinLngLat && (
+          <Marker id="marker-pin" lngLat={pinLngLat} anchor="bottom">
+            <View style={styles.markerWrapper}>
+              <View style={[styles.badge, styles.badgePin]}>
+                <Text style={[styles.badgeText, { color: '#0f172a' }]}>📍 SELECTED</Text>
+              </View>
+              <View style={[styles.arrow, { borderTopColor: '#f5a623' }]} />
+            </View>
+          </Marker>
+        )}
+      </Map>
+
+      {/* Interactive Overlay Controls (Recenter & Follow Driver) */}
+      {interactive && showControls && (
+        <View style={styles.controlsOverlay} pointerEvents="box-none">
+          {Boolean(driverLngLat && onFollowChange) && (
+            <TouchableOpacity
+              onPress={() => onFollowChange(!followDriver)}
+              activeOpacity={0.8}
+              style={[
+                styles.controlPill,
+                followDriver ? styles.controlPillActive : styles.controlPillInactive,
+              ]}
+            >
+              <Text style={[styles.controlPillText, followDriver && { color: '#0f172a' }]}>
+                {followDriver ? '📡 Following' : '📡 Follow'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={handleRecenterPress}
+            activeOpacity={0.8}
+            style={styles.recenterBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Recenter map"
+          >
+            <Text style={styles.recenterIcon}>🎯</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Required OpenStreetMap & OpenFreeMap Attribution */}
+      <View style={styles.attributionBox} pointerEvents="none">
+        <Text style={styles.attributionText}>{MAP_ATTRIBUTION}</Text>
+      </View>
     </View>
   );
 }
@@ -432,17 +380,108 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(245,166,35,0.3)',
+    borderColor: 'rgba(245,166,35,0.35)',
     backgroundColor: '#0f131a',
   },
-  webView: {
+  map: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
-  loader: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#0f131a',
+  markerWrapper: {
+    alignItems: 'center',
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    elevation: 4,
+  },
+  badgeDriver: {
+    backgroundColor: '#2563eb',
+  },
+  badgeStale: {
+    backgroundColor: '#64748b',
+  },
+  badgePickup: {
+    backgroundColor: '#059669',
+  },
+  badgeDrop: {
+    backgroundColor: '#dc2626',
+  },
+  badgePin: {
+    backgroundColor: '#f5a623',
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontSize: 10.5,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  arrow: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderTopWidth: 7,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    marginTop: -1,
+  },
+  controlsOverlay: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  controlPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    elevation: 3,
+  },
+  controlPillActive: {
+    backgroundColor: '#f5a623',
+    borderColor: '#ffffff',
+  },
+  controlPillInactive: {
+    backgroundColor: 'rgba(15, 23, 42, 0.86)',
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  controlPillText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  recenterBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.6)',
     alignItems: 'center',
     justifyContent: 'center',
+    elevation: 3,
+  },
+  recenterIcon: {
+    fontSize: 16,
+  },
+  attributionBox: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  attributionText: {
+    color: '#e2e8f0',
+    fontSize: 9.5,
+    fontWeight: '600',
   },
 });
