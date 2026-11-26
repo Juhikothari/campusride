@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import TopHeader from '../components/TopHeader';
+import ImageEditorModal from '../components/ImageEditorModal';
 import { Input, Btn, Alert } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
@@ -37,6 +38,8 @@ export default function KYCScreen({ navigation }) {
   const [vehicleType, setVehicleType] = useState('car');
   const [previewDoc,  setPreviewDoc]  = useState({ title: '', uri: '' });
   const [previewVisible, setPreviewVisible] = useState(false);
+  const [stagedSelfieUri, setStagedSelfieUri] = useState(null);
+  const [showSelfieEditor, setShowSelfieEditor] = useState(false);
 
   const openDocPreview = (title, uri) => {
     if (!uri) return;
@@ -121,11 +124,11 @@ export default function KYCScreen({ navigation }) {
       const r = await ImagePicker.launchCameraAsync({
         quality: 0.8,
         cameraType: ImagePicker.CameraType?.front || 'front',
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: false,
       });
       if (!r.canceled && r.assets?.[0]?.uri) {
-        setDocs(d => ({ ...d, selfie: r.assets[0].uri }));
+        setStagedSelfieUri(r.assets[0].uri);
+        setShowSelfieEditor(true);
       }
     } catch (err) {
       RNAlert.alert('Camera Error', 'Could not launch camera: ' + err.message);
@@ -312,6 +315,27 @@ export default function KYCScreen({ navigation }) {
         </Text>
       </ScrollView>
       {renderDocPreviewModal()}
+      <ImageEditorModal
+        visible={showSelfieEditor}
+        uri={stagedSelfieUri}
+        title="Crop & Attach Selfie"
+        subtitle="Crop freely, rotate, or tap ✓ to attach selfie"
+        confirmLabel="Apply ✓"
+        onCancel={() => {
+          setShowSelfieEditor(false);
+          setStagedSelfieUri(null);
+        }}
+        onRetake={() => {
+          setShowSelfieEditor(false);
+          setStagedSelfieUri(null);
+          setTimeout(() => captureSelfie(), 300);
+        }}
+        onConfirm={(finalUri) => {
+          setDocs(d => ({ ...d, selfie: finalUri }));
+          setShowSelfieEditor(false);
+          setStagedSelfieUri(null);
+        }}
+      />
     </SafeAreaView>
   );
 }

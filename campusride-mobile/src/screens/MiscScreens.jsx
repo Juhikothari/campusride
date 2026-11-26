@@ -476,10 +476,10 @@ export function NotificationsScreen({ navigation }) {
       if (item.id) {
         api.markNotificationRead(item.id).catch(() => {});
       }
+      if (item.noRedirect) return;
       if (item.onPress) item.onPress();
     } catch (err) {
       console.log('[NotificationPress] Handled gracefully:', err);
-      try { navigation.navigate('MyBookings'); } catch {}
     }
   };
 
@@ -492,54 +492,98 @@ export function NotificationsScreen({ navigation }) {
     completed:   { icon: '🏁', color: colors.green, label: 'Completed' },
   };
 
-  const directNotifs = serverNotifs.map(n => ({
-    id: n._id || n.id,
-    isRead: Boolean(n.read || n.readAt),
-    icon: n.type?.includes('PICKUP') ? '🚗' : n.type?.includes('DROP') ? '📍' : n.type?.includes('CHAT') ? '🎓' : '🔔',
-    color: colors.accent,
-    label: n.type?.replace(/_/g, ' ') || 'Notification',
-    title: n.title || 'Notification',
-    body:  n.body || n.message || '',
-    time:  n.createdAt,
-    onPress: () => {
-      try {
-        const inner = (typeof n.data === 'string' ? JSON.parse(n.data) : n.data) || {};
-        const type = (n.type || inner.type || '').toUpperCase();
-        const rideId = inner.rideId || inner.ride?._id || n.rideId;
-        const postId = inner.postId || n.postId;
-        const status = String(inner.status || n.status || '').toLowerCase();
+  const directNotifs = serverNotifs.map(n => {
+    const rawType = String(n.type || '').toUpperCase();
+    const rawTitle = String(n.title || '').toUpperCase();
+    const isSuspended = rawType.includes('SUSPEND') || rawTitle.includes('SUSPEND');
+    const isBlocked = rawType.includes('BLOCK') || rawTitle.includes('BLOCKED');
+    const isRevoked = rawType.includes('REVOKE') || rawTitle.includes('REVOKED');
+    const isWarning = rawType.includes('WARNING') || rawTitle.includes('WARNING');
+    const isAccountNotice = isSuspended || isBlocked || isRevoked || isWarning;
 
-        if (type.includes('BOOKING_REQUEST') || type === 'NEW-BOOKING') {
-          navigation.navigate('ProviderBookings');
-        } else if (type.includes('BOOKING_CONFIRMED') || type === 'BOOKING-RESPONSE' || type.includes('BOOKING_ACCEPTED')) {
-          navigation.navigate('MyBookings');
-        } else if (type.includes('COMPLETED') || type.includes('CANCEL') || status === 'completed' || status === 'cancelled') {
-          navigation.navigate('MyBookings');
-        } else if (type.includes('RIDER_ARRIVED') || type.includes('RIDER-REACHED') || type.includes('RIDE_STARTED')) {
-          if (rideId) navigation.navigate('LiveTracking', { rideId });
-          else navigation.navigate('MyBookings');
-        } else if (rideId) {
-          navigation.navigate('LiveTracking', { rideId });
-        } else if (postId || type.includes('COMMUNITY') || type.includes('POST') || type.includes('CHAT')) {
-          navigation.navigate('Community');
-        } else if (type.includes('WALK')) {
-          navigation.navigate('WalkTogether');
-        } else if (type.includes('KYC')) {
-          navigation.navigate('KYC');
-        } else if (type.includes('VEHICLE')) {
-          navigation.navigate('Profile');
-        } else if (type.includes('SOS')) {
-          navigation.navigate('AdminLiveSOS');
-        } else if (type.includes('INCIDENT')) {
-          navigation.navigate('AdminIncidents');
-        } else {
-          navigation.navigate('MyBookings');
+    const icon = isSuspended
+      ? '⛔'
+      : isBlocked
+        ? '🚫'
+        : isRevoked
+          ? '⚠️'
+          : isWarning
+            ? '⚠️'
+            : n.type?.includes('PICKUP')
+              ? '🚗'
+              : n.type?.includes('DROP')
+                ? '📍'
+                : n.type?.includes('CHAT')
+                  ? '🎓'
+                  : '🔔';
+
+    const color = isSuspended || isBlocked
+      ? colors.red
+      : isRevoked || isWarning
+        ? colors.accent
+        : colors.accent;
+
+    const label = isSuspended
+      ? 'Account Suspended'
+      : isBlocked
+        ? 'Account Blocked'
+        : isRevoked
+          ? (rawType.includes('SANCTION') ? 'Suspension Revoked' : 'Revoked')
+          : (n.type?.replace(/_/g, ' ') || 'Notification');
+
+    return {
+      id: n._id || n.id,
+      isRead: Boolean(n.read || n.readAt),
+      noRedirect: isAccountNotice,
+      icon,
+      color,
+      label,
+      title: n.title || (isSuspended ? 'Account Suspended' : isRevoked ? 'Account Revoked' : 'Notification'),
+      body: n.body || n.message || '',
+      time: n.createdAt,
+      onPress: () => {
+        if (isAccountNotice) {
+          return;
         }
-      } catch (err) {
-        navigation.navigate('MyBookings');
+        try {
+          const inner = (typeof n.data === 'string' ? JSON.parse(n.data) : n.data) || {};
+          const type = (n.type || inner.type || '').toUpperCase();
+          const rideId = inner.rideId || inner.ride?._id || n.rideId;
+          const postId = inner.postId || n.postId;
+          const status = String(inner.status || n.status || '').toLowerCase();
+
+          if (type.includes('SUSPEND') || type.includes('REVOKE') || type.includes('BLOCK') || type.includes('WARNING')) {
+            return;
+          } else if (type.includes('BOOKING_REQUEST') || type === 'NEW-BOOKING') {
+            navigation.navigate('ProviderBookings');
+          } else if (type.includes('BOOKING_CONFIRMED') || type === 'BOOKING-RESPONSE' || type.includes('BOOKING_ACCEPTED')) {
+            navigation.navigate('MyBookings');
+          } else if (type.includes('COMPLETED') || type.includes('CANCEL') || status === 'completed' || status === 'cancelled') {
+            navigation.navigate('MyBookings');
+          } else if (type.includes('RIDER_ARRIVED') || type.includes('RIDER-REACHED') || type.includes('RIDE_STARTED')) {
+            if (rideId) navigation.navigate('LiveTracking', { rideId });
+            else navigation.navigate('MyBookings');
+          } else if (rideId) {
+            navigation.navigate('LiveTracking', { rideId });
+          } else if (postId || type.includes('COMMUNITY') || type.includes('POST') || type.includes('CHAT')) {
+            navigation.navigate('Community');
+          } else if (type.includes('WALK')) {
+            navigation.navigate('WalkTogether');
+          } else if (type.includes('KYC')) {
+            navigation.navigate('KYC');
+          } else if (type.includes('VEHICLE')) {
+            navigation.navigate('Profile');
+          } else if (type.includes('SOS')) {
+            navigation.navigate('AdminLiveSOS');
+          } else if (type.includes('INCIDENT')) {
+            navigation.navigate('AdminIncidents');
+          }
+        } catch (err) {
+          console.log('[NotifPress] parse error:', err?.message);
+        }
       }
-    }
-  }));
+    };
+  });
 
   const knownBookingIds = new Set();
   const knownRideIds = new Set();

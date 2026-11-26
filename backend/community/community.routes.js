@@ -29,8 +29,16 @@ const handleGetChatMessages = async (req, res) => {
     const ChatMsg = require('./chatmsg.model');
 
     const user = await User.findById(req.user.userId).select('college role');
-    const collegeParam = req.params?.college ? decodeURIComponent(req.params.college).trim().toLowerCase() : (user?.college || '').trim().toLowerCase();
+    const userCollegeLower = (user?.college || '').trim().toLowerCase();
+    const collegeParam = req.params?.college
+      ? decodeURIComponent(req.params.college).trim().toLowerCase()
+      : userCollegeLower;
     if (!collegeParam) return res.status(400).json({ message: 'College not found' });
+
+    const isAdmin = user?.role === 'admin' || req.user.role === 'admin';
+    if (!isAdmin && collegeParam !== userCollegeLower) {
+      return res.status(403).json({ message: 'Access denied: You can only view your own college campus chat.' });
+    }
 
     const messages = await ChatMsg
       .find({ college: collegeParam })
@@ -38,7 +46,6 @@ const handleGetChatMessages = async (req, res) => {
       .sort({ createdAt: 1 })
       .limit(100);
 
-    const isAdmin = user?.role === 'admin';
     const result = messages.map(m => {
       const obj = m.toObject();
       const isAnon = !!obj.anonymous;

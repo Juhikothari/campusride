@@ -105,7 +105,7 @@ const register = async (req, res) => {
       }
     }
 
-    const existing = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+    const existing = await User.findOne({ email: { $regex: new RegExp(`^${safeEmail}$`, 'i') } });
     if (existing) return res.status(400).json({ message: 'User already exists' });
 
     const hasKycDocs = !!(aadhar || collegeIdCard || drivingLicense || vehicleNumber);
@@ -242,12 +242,31 @@ const login = async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ message: 'Email and password are required' });
 
-    const user = await User.findOne({ email: { $regex: new RegExp(`^${email}$`, 'i') } });
+    const safeLoginEmail = String(email).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const user = await User.findOne({ email: { $regex: new RegExp(`^${safeLoginEmail}$`, 'i') } });
     if (!user) return res.status(400).json({ message: 'No account found with this email. Please register first.' });
-    if (user.blocked) return res.status(403).json({ message: `Your account has been blocked. Reason: ${user.blockReason}.` });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Incorrect password. Please try again.' });
+
+    if (user.blocked || user.isBlocked) {
+      return res.status(403).json({
+        code: 'ACCOUNT_BLOCKED',
+        blocked: true,
+        blockReason: user.blockReason || 'Violation of campus guidelines.',
+        message: `Your account has been blocked. Reason: ${user.blockReason || 'Policy violation'}.`,
+      });
+    }
+
+    if (user.suspended) {
+      return res.status(403).json({
+        code: 'ACCOUNT_SUSPENDED',
+        suspended: true,
+        suspensionReason: user.suspensionReason || 'Account suspended by campus administrators.',
+        suspendedUntil: user.suspendedUntil || null,
+        message: `Your account is currently suspended. Reason: ${user.suspensionReason || 'Policy violation'}.`,
+      });
+    }
 
     // ── Single-Device Login Enforcement ────────────────────────────
     // If the account is already logged into another device, block login.

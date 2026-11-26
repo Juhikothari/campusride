@@ -1,10 +1,10 @@
 # HOGO (CampusRide) — Production-Grade Application Security Audit & Remediation Report
 
-**Date of Audit:** November 25, 2026  
+**Date of Audit:** November 26, 2026  
 **Auditor / Role:** Principal Application Security Architect & DevSecOps  
 **Repository:** `campusride-mobile/campusride`  
 **Target Environment:** Staging & Production (`campusride-backend-gwgr.onrender.com`)  
-**Overall Posture:** Hardened (Single-Instance Render Deployment Ready) — 55/55 Automated Security Regression Tests Passing  
+**Overall Posture:** Pre-Production Gate Completed — 117/117 Automated Tests Passing (61 Security + 56 Chatbot); Live Twilio & Dedicated Release Signing Keystore Remaining  
 
 ---
 
@@ -176,3 +176,6 @@ This comprehensive security audit and remediation was executed across the backen
 | CR-SEC-13 | KYC Cross-Account Reference Swap & Ownership Bypass | HIGH | **VERIFIED** | `KycDocument` ownership registry (`docId`, `ownerId`, `docType`, `sha256`), physical file check, `op: 'read'` + `jti` signed URL claims (`security.test.js` `KYC OWNERSHIP`) |
 | CR-SEC-14 | Multi-Instance KYC Disk Durability Limitation | MEDIUM | **SINGLE-INSTANCE VERIFIED / MULTI-INSTANCE LIMITATION** | `render.yaml` 10GB persistent disk (`/data/uploads/kyc_private`) persists restarts/redeploys for 1 instance only; horizontal scaling across multiple backend nodes requires S3/R2 private object storage |
 | CR-SEC-15 | Native MapLibre + OSM Geocoding/Routing Security | MEDIUM | **VERIFIED** | `location.routes.js` (`60 req/min` limiter, coordinate validation, GeoJSON `[lng, lat]`, fail-honest OSRM); WebView/Google tiles removed (`security.test.js` `LOCATION & ROUTING` + live API verification) |
+| CR-SEC-16 | Incident Evidence Upload IDOR, Alert Mass Assignment, Cross-College Chat Read IDOR & Regex Escaping | HIGH / MEDIUM | **VERIFIED** | `incidents.controller.js`, `alerts.controller.js`, `community.routes.js`, `admin.controller.js` (`security.test.js` Section 17) |
+| CR-SEC-17 | HOGO AI Chatbot RAG Prompt-Injection Guardrails, Minimal PII & Read-Only App Tools | HIGH | **VERIFIED** | `backend/chatbot/*` (`chatbot.test.js`: 56/56 passing) |
+| CR-SEC-18 | Production Android Release Keystore & Live Twilio/Groq Production Keys | HIGH | **NOT CONFIGURED** | `build-apk.yml` builds APK using `expo prebuild --clean` debug keystore; `build-release.yml` requires `EXPO_TOKEN` secret; Twilio/Groq live verification requires production env keys |

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE, getToken } from '../services/api';
+import { API_BASE, getToken, emitAccountRestriction } from '../services/api';
 import { showPushNotification } from '../services/notificationService';
 
 let globalSocket = null;
@@ -116,6 +116,15 @@ export const getSharedSocket = (userId, userType) => {
 
     globalSocket.on('session_terminated', (data) => {
       console.warn('[Socket] Session terminated by server:', data?.reason);
+      if (data?.reason === 'suspended' || data?.reason === 'blocked') {
+        emitAccountRestriction({
+          status: data.reason,
+          reason: data.reason === 'blocked'
+            ? 'Your account has been blocked by administrators.'
+            : 'Your account has been suspended by administrators.',
+          until: null,
+        });
+      }
       disconnectGlobalSocket();
     });
 

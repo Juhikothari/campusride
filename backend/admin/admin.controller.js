@@ -330,7 +330,7 @@ exports.getUsers = async (req, res) => {
     }
 
     if (search) {
-      const q = search.trim();
+      const q = String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$or = [
         { name: { $regex: q, $options: 'i' } },
         { email: { $regex: q, $options: 'i' } },
@@ -847,7 +847,10 @@ exports.broadcastNotification = async (req, res) => {
     const query = { role: { $ne: 'admin' } };
     if (audience === 'providers') query.role = { $in: ['provider', 'both'] };
     if (audience === 'seekers')   query.role = { $in: ['seeker', 'both'] };
-    if (audience === 'college' && college) query.college = { $regex: college, $options: 'i' };
+    if (audience === 'college' && college) {
+      const safeCol = String(college).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.college = { $regex: safeCol, $options: 'i' };
+    }
 
     const targetUsers = await User.find(query).select('_id pushToken');
 

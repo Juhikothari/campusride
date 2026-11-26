@@ -586,7 +586,7 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('❌ Error:', sanitizeLogText(err?.message || 'Internal Server Error'));
-  const status = err.status || 500;
+  const status = err.name === 'MulterError' ? 400 : (err.status || 500);
   res.status(status).json({
     error: sanitizeErrorForClient(err),
     code: err.code || (status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR')

@@ -226,3 +226,13 @@
   - Hardened `location.routes.js` with `60 req/min` rate limiting, 5-minute TTL caching, strict `[-90,90]`/`[-180,180]` coordinate validation, Photon primary + Geoapify/Nominatim fallbacks returning GeoJSON `[lng, lat]`, and OSRM `/route` returning fail-honest `routeAvailable: false` instead of fabricated ETAs/routes on upstream failure.
 - **Status:** **VERIFIED** on backend & JS layer (`LOCATION & ROUTING` test, live Photon/Nominatim/OSRM/OpenFreeMap check, `check_jsx.js`, `expo-doctor` 18/18); native Android APK rendering verified via GitHub Actions CI build.
 
+---
+
+### [2026-11-26] REM-21: Pre-Production Security Gate Remediations & HOGO AI Upgrade
+- **Affected Components:** `backend/incidents/incidents.controller.js`, `backend/alerts/alerts.controller.js`, `backend/community/community.routes.js`, `backend/admin/admin.controller.js`, `backend/auth/auth.controller.js`, `backend/middleware/auth.js`, `backend/server.js`, `backend/chatbot/*`, `campusride-mobile/src/screens/*`
+- **Actions Taken:**
+  - Fixed Incident Evidence IDOR (`POST /api/incidents/:id/evidence`), Alert Update Mass Assignment (`PUT /api/alerts/:id`), Cross-College Community Chat Read IDOR (`GET /api/community/chat/:college`), ReDoS regex escaping in admin search/broadcast/login, Multer 400 error mapping, and removed hardcoded client `'freewheel'` admin key string from `RegisterScreen.jsx`.
+  - Fixed mobile session persistence (`AuthContext.jsx`), full-app `SuspendedAccountScreen` lockout with `ACCOUNT_SUSPENDED`/`ACCOUNT_BLOCKED` 403 codes, non-redirecting suspension/revocation notifications, draggable MapLibre `ViewAnnotation` pin, community-style selfie `ImageEditorModal`, custom "Other" college two-box highlight behavior, and completed-ride confirmed buddies ordering.
+  - Upgraded HOGO AI Assistant with RAG over a 30-topic verified Knowledge Base, word-boundary emergency disambiguation, read-only user-scoped `appTools` with minimal PII, Groq retry/timeout handling, and a 56-case chatbot test suite.
+- **Status:** **VERIFIED** via `npm test` (`117 / 117` passed: 61 security + 56 chatbot), `check_jsx.js`, and `expo-doctor` (`18/18`).
+

@@ -51,13 +51,25 @@ exports.getMyAlerts = async (req, res) => {
   }
 };
 
-// Update alert
+// Update alert (strict allowlist prevents userId reassignment / mass assignment)
 exports.updateAlert = async (req, res) => {
   try {
+    const allowedFields = [
+      'name', 'pickupRadius', 'dropRadius', 'date',
+      'timeRange', 'recurringDays', 'notifyEmail', 'notifyPush', 'isActive',
+    ];
+    const safeUpdates = {};
+    for (const k of allowedFields) {
+      if (req.body[k] !== undefined) safeUpdates[k] = req.body[k];
+    }
+    if (Object.keys(safeUpdates).length === 0) {
+      return res.status(400).json({ message: 'No valid alert fields provided for update' });
+    }
+
     const alert = await Alert.findOneAndUpdate(
       { _id: req.params.id, userId: req.user.userId },
-      req.body,
-      { new: true }
+      { $set: safeUpdates },
+      { returnDocument: 'after', runValidators: true }
     );
     
     if (!alert) return res.status(404).json({ message: 'Alert not found' });

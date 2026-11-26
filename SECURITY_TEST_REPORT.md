@@ -1,14 +1,14 @@
 # HOGO (CampusRide) — Automated Security Test Report
 
-**Execution Timestamp:** 2026-11-25  
-**Test Framework:** Node.js Native Test Runner (`node --test tests/security.test.js`)  
+**Execution Timestamp:** 2026-11-26  
+**Test Framework:** Node.js Native Test Runner (`npm test` -> `tests/security.test.js` + `tests/chatbot.test.js`)  
 **Environment:** Local MongoDB Integration Test Environment (`NODE_ENV=test`)  
 **Database:** Local MongoDB (`campusride-test`)  
-**Total Tests:** 55  
-**Passed:** 55  
+**Total Tests:** 117 (61 Security + 56 HOGO AI Chatbot)  
+**Passed:** 117  
 **Failed:** 0  
 **Cancelled / Skipped:** 0  
-**Total Execution Duration:** Re-verified on November 25, 2026 (`npm test` -> 55/55 passed, ~7.3s)  
+**Total Execution Duration:** 4,981.74 ms  
 
 ---
 
@@ -104,6 +104,13 @@
 | `EXPO PUSH WORKER: Processes delivered receipts, permanent DeviceNotRegistered failures, transient backoff & multi-instance locking` | Transitions tickets, prunes unregistered tokens, honors lease locks | PASS |
 | `KYC OWNERSHIP: Cross-account attachment, docType swap, unverified refs & path traversal are rejected` | Enforces `KycDocument` owner/docType binding & rejects traversal (`..`) | PASS |
 | `LOCATION & ROUTING: Enforces strict coordinate bounds and GeoJSON format without fabricating fake routes` | Rejects out-of-range coordinates (`400`); returns `routeAvailable: false` on unavailable upstream without fake ETAs | PASS |
+| `INCIDENT IDOR: Non-reporter non-admin cannot attach evidence to another users incident (returns 403)` | Enforces reporter/admin ownership on `POST /api/incidents/:id/evidence` | PASS |
+| `ALERT MASS ASSIGNMENT: PUT /api/alerts/:id prevents reassigning alert userId` | Explicit field allowlist preserves original `userId` | PASS |
+| `COMMUNITY CHAT IDOR: Non-admin student cannot read another colleges community chat (returns 403)` | Restricts `GET /api/community/chat/:college` to own college | PASS |
+| `SUSPENSION ENFORCEMENT: Auth middleware returns structured ACCOUNT_SUSPENDED / ACCOUNT_BLOCKED 403 codes` | Verified 403 payload codes for account lockout screen | PASS |
+| `KYC UPLOAD NEGATIVE CASES: Multipart upload rejects missing docType and forged PE/EXE magic bytes (400)` | Rejects missing `docType` & EXE magic-byte uploads (`400`) | PASS |
+| `AUTH & SOCKET HARDENING: Login safely handles regex metacharacters and Socket.IO join-ride blocks non-participants` | ReDoS-safe login + unauthorized Socket `join-ride` blocked | PASS |
+| `HOGO AI Suite (backend/tests/chatbot.test.js — 56 tests)` | Verified 30-topic KB, RAG retrieval, emergency disambiguation, appTools IDOR/privacy, prompt-injection defense & Groq error propagation | PASS |
 
 ---
 

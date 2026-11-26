@@ -32,17 +32,29 @@ module.exports = async (req, res, next) => {
   }
 
   try {
-    const user = await User.findById(decoded.userId).select('currentSessionSeed blocked isBlocked suspended role');
+    const user = await User.findById(decoded.userId)
+      .select('currentSessionSeed blocked isBlocked blockReason suspended suspendedUntil suspensionReason role');
     if (!user) {
       return res.status(401).json({ message: 'Account not found or deactivated.' });
     }
 
     if (user.blocked || user.isBlocked) {
-      return res.status(403).json({ message: 'This account has been blocked by administrators.' });
+      return res.status(403).json({
+        code: 'ACCOUNT_BLOCKED',
+        blocked: true,
+        blockReason: user.blockReason || 'Violation of campus community guidelines.',
+        message: 'This account has been blocked by administrators.',
+      });
     }
 
     if (user.suspended) {
-      return res.status(403).json({ message: 'This account is currently suspended from campus rides.' });
+      return res.status(403).json({
+        code: 'ACCOUNT_SUSPENDED',
+        suspended: true,
+        suspensionReason: user.suspensionReason || 'Account suspended by administrators.',
+        suspendedUntil: user.suspendedUntil || null,
+        message: 'This account is currently suspended from campus rides.',
+      });
     }
 
     // Single-device session verification

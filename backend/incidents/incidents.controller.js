@@ -85,7 +85,19 @@ exports.addEvidence = async (req, res) => {
   try {
     const incident = await Incident.findById(req.params.id);
     if (!incident) return res.status(404).json({ message: 'Incident not found' });
-    incident.evidence.push(...(req.body.evidence || []));
+
+    const isReporter = String(incident.reportedBy) === String(req.user.userId);
+    const isAdmin = req.user.role === 'admin';
+    if (!isReporter && !isAdmin) {
+      return res.status(403).json({ message: 'Access denied: Only the incident reporter or admin can attach evidence.' });
+    }
+
+    const incoming = Array.isArray(req.body.evidence) ? req.body.evidence.slice(0, 10) : [];
+    if (incoming.length === 0) {
+      return res.status(400).json({ message: 'Valid evidence array is required.' });
+    }
+
+    incident.evidence.push(...incoming);
     await incident.save();
     res.json({ message: 'Evidence added', incident });
   } catch (err) { res.status(500).json({ message: err.message }); }

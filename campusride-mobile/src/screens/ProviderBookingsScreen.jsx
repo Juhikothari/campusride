@@ -134,7 +134,9 @@ export default function ProviderBookingsScreen({ navigation }) {
   };
 
   const pending  = bookings.filter(b => b.status === 'pending');
-  const resolved = bookings.filter(b => b.status !== 'pending');
+  const resolved = bookings
+    .filter(b => b.status !== 'pending')
+    .sort((a, b) => (a.status === 'accepted' ? 0 : 1) - (b.status === 'accepted' ? 0 : 1));
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
@@ -361,6 +363,50 @@ export default function ProviderBookingsScreen({ navigation }) {
               </View>
             )}
 
+            {/* Completed Rides: Show Confirmed / Resolved buddies on top before stats & privacy notice */}
+            {selectedRide.status === 'completed' && resolved.length > 0 && (
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={styles.sectionLabel}>CONFIRMED / RESOLVED ({resolved.length})</Text>
+                {resolved.map(b => {
+                  const seeker = b.seekerId;
+                  const isAccepted = b.status === 'accepted';
+                  return (
+                    <View
+                      key={b._id}
+                      style={[
+                        styles.bookingCard,
+                        {
+                          backgroundColor: isDark ? colors.surface : '#ffffff',
+                          borderColor: isDark ? (isAccepted ? 'rgba(0,230,118,0.3)' : colors.border) : (isAccepted ? '#86efac' : '#cbd5e1'),
+                        },
+                        !isAccepted && { opacity: 0.7 }
+                      ]}
+                    >
+                      <View style={styles.seekerRow}>
+                        <View style={[styles.avatar, isAccepted && { borderColor: colors.green, backgroundColor: colors.green + '22' }]}>
+                          <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>🪪</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.seekerName, { color: isDark ? colors.text : '#0f172a' }]}>
+                            🪪 USN: {getDisplayUSN(seeker, 'Buddy')}
+                          </Text>
+                          {seeker?.college && (
+                            <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>
+                              🏫 {seeker.college}
+                            </Text>
+                          )}
+                        </View>
+                        <Text style={[styles.statusBadge, {
+                          color: isAccepted ? colors.green : colors.red,
+                          borderColor: isAccepted ? colors.green : colors.red,
+                        }]}>{isAccepted ? 'confirmed' : b.status}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {/* Stats */}
             <View style={styles.statsRow}>
               <StatPill isDark={isDark} label="Pending" value={pending.length} color={colors.accent} />
@@ -418,8 +464,8 @@ export default function ProviderBookingsScreen({ navigation }) {
               </View>
             )}
 
-                {/* Resolved */}
-                {resolved.length > 0 && (
+                {/* Resolved (non-completed rides render resolved after pending & stats) */}
+                {selectedRide.status !== 'completed' && resolved.length > 0 && (
                   <>
                     <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>CONFIRMED / RESOLVED ({resolved.length})</Text>
                     {resolved.map(b => {

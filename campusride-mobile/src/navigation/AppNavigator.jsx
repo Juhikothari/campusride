@@ -40,6 +40,7 @@ import {
 } from '../screens/ExtraScreens';
 
 import AdminNavigator from './AdminNavigator';
+import SuspendedAccountScreen from '../screens/SuspendedAccountScreen';
 
 const Stack = createStackNavigator();
 
@@ -112,9 +113,12 @@ function AppStack() {
   );
 }
 
-// ── Root: switches on auth state and role ─────────────────────
+// ── Root: switches on suspension lockout, auth state, and role ─────────────────────
 export default function AppNavigator() {
-  const { user } = useAuth();
+  const { user, accountRestriction } = useAuth();
+  if (accountRestriction || user?.suspended || user?.blocked || user?.isBlocked) {
+    return <SuspendedAccountScreen />;
+  }
   if (!user) return <AuthStack />;
   if (user?.role === 'admin') return <AdminNavigator />;
   return <AppStack />;

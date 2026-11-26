@@ -9,6 +9,7 @@ import {
   GeoJSONSource,
   Layer,
   Marker,
+  ViewAnnotation,
   UserLocation,
 } from '@maplibre/maplibre-react-native';
 import { colors, radius } from '../theme';
@@ -31,6 +32,10 @@ export default function LiveMapView({
   routeGeoJSON = null,
   extraPickups = [],
   pinLocation,
+  pinDraggable = false,
+  onPinDragStart,
+  onPinDrag,
+  onPinDragEnd,
   onMapClick,
   onRecenter,
   followDriver = false,
@@ -45,9 +50,13 @@ export default function LiveMapView({
 }) {
   const cameraRef = useRef(null);
   const mapRef = useRef(null);
+  const pinAnnotationRef = useRef(null);
   const hasFittedBoundsRef = useRef(false);
   const lastPinKeyRef = useRef('');
+  const skipNextPinEaseRef = useRef(false);
+  const dragSuppressedUntilRef = useRef(0);
   const [mapReady, setMapReady] = useState(false);
+  const [isDraggingPin, setIsDraggingPin] = useState(false);
 
   const pickupLngLat = useMemo(() => toLngLat(pickup), [pickup]);
   const dropLngLat = useMemo(() => toLngLat(drop), [drop]);
@@ -107,12 +116,16 @@ export default function LiveMapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Move camera smoothly ONLY when external pin coordinates explicitly change
+  // Move camera smoothly ONLY when external pin coordinates explicitly change (skip while dragging pin)
   useEffect(() => {
     if (!mapReady || !pinLngLat || !cameraRef.current) return;
     const key = `${pinLngLat[0].toFixed(5)},${pinLngLat[1].toFixed(5)}`;
     if (key === lastPinKeyRef.current) return;
     lastPinKeyRef.current = key;
+    if (skipNextPinEaseRef.current || isDraggingPin) {
+      skipNextPinEaseRef.current = false;
+      return;
+    }
     try {
       cameraRef.current.easeTo({
         center: pinLngLat,
@@ -120,7 +133,7 @@ export default function LiveMapView({
         duration: 450,
       });
     } catch {}
-  }, [mapReady, pinLngLat]);
+  }, [mapReady, pinLngLat, isDraggingPin]);
 
   // Fit bounds once when initial route or multiple markers become available (never hijacks user pan afterward)
   useEffect(() => {
@@ -165,13 +178,64 @@ export default function LiveMapView({
     } catch {}
   }, [mapReady, followDriver, driverLngLat]);
 
+  const extractEventCoords = useCallback((event) => {
+    const lngLat = event?.nativeEvent?.lngLat;
+    if (!Array.isArray(lngLat) || lngLat.length < 2) return null;
+    const lng = Number(lngLat[0]);
+    const lat = Number(lngLat[1]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
+  }, []);
+
   const handleMapPress = useCallback((event) => {
     if (!interactive || !onMapClick) return;
-    const lngLat = event?.nativeEvent?.lngLat;
-    if (Array.isArray(lngLat) && lngLat.length >= 2) {
-      onMapClick({ lat: Number(lngLat[1].toFixed(6)), lng: Number(lngLat[0].toFixed(6)) });
+    if (isDraggingPin || Date.now() < dragSuppressedUntilRef.current) return;
+    const pt = extractEventCoords(event);
+    if (pt) {
+      onMapClick(pt);
     }
-  }, [interactive, onMapClick]);
+  }, [interactive, onMapClick, isDraggingPin, extractEventCoords]);
+
+  const handlePinDragStart = useCallback((event) => {
+    if (!interactive || !pinDraggable) return;
+    setIsDraggingPin(true);
+    dragSuppressedUntilRef.current = Date.now() + 1000;
+    const pt = extractEventCoords(event);
+    if (pt && onPinDragStart) {
+      onPinDragStart(pt);
+    }
+    requestAnimationFrame(() => {
+      try { pinAnnotationRef.current?.refresh(); } catch {}
+    });
+  }, [interactive, pinDraggable, extractEventCoords, onPinDragStart]);
+
+  const handlePinDrag = useCallback((event) => {
+    if (!interactive || !pinDraggable) return;
+    dragSuppressedUntilRef.current = Date.now() + 1000;
+    const pt = extractEventCoords(event);
+    if (pt && onPinDrag) {
+      onPinDrag(pt);
+    }
+  }, [interactive, pinDraggable, extractEventCoords, onPinDrag]);
+
+  const handlePinDragEnd = useCallback((event) => {
+    if (!interactive || !pinDraggable) return;
+    setIsDraggingPin(false);
+    dragSuppressedUntilRef.current = Date.now() + 300;
+    const pt = extractEventCoords(event);
+    if (pt) {
+      skipNextPinEaseRef.current = true;
+      lastPinKeyRef.current = `${pt.lng.toFixed(5)},${pt.lat.toFixed(5)}`;
+      if (onPinDragEnd) {
+        onPinDragEnd(pt);
+      } else if (onMapClick) {
+        onMapClick(pt);
+      }
+    }
+    requestAnimationFrame(() => {
+      try { pinAnnotationRef.current?.refresh(); } catch {}
+    });
+  }, [interactive, pinDraggable, extractEventCoords, onPinDragEnd, onMapClick]);
 
   const handleRegionDidChange = useCallback((event) => {
     // Pause follow mode immediately if user panned or zoomed manually
@@ -324,16 +388,34 @@ export default function LiveMapView({
           </Marker>
         )}
 
-        {/* 5. Selected Pin Marker (Map Picker) */}
+        {/* 5. Draggable Selected Pin Annotation (Map Picker) */}
         {pinLngLat && (
-          <Marker id="marker-pin" lngLat={pinLngLat} anchor="bottom">
-            <View style={styles.markerWrapper}>
-              <View style={[styles.badge, styles.badgePin]}>
-                <Text style={[styles.badgeText, { color: '#0f172a' }]}>📍 SELECTED</Text>
+          <ViewAnnotation
+            ref={pinAnnotationRef}
+            id="annotation-selected-pin"
+            lngLat={pinLngLat}
+            anchor="bottom"
+            selected={true}
+            draggable={Boolean(interactive && pinDraggable)}
+            onDragStart={handlePinDragStart}
+            onDrag={handlePinDrag}
+            onDragEnd={handlePinDragEnd}
+          >
+            <View style={styles.draggablePinRoot}>
+              <View style={[styles.pinBodyLift, isDraggingPin && styles.pinBodyLifted]}>
+                <View style={[styles.badge, styles.badgePin, isDraggingPin && styles.badgePinDragging]}>
+                  <Text style={[styles.badgeText, { color: '#0f172a' }]}>
+                    {isDraggingPin ? 'RELEASE TO SET' : 'SELECTED · DRAG'}
+                  </Text>
+                </View>
+                <View style={[styles.pinHead, isDraggingPin && styles.pinHeadDragging]}>
+                  <View style={styles.pinHeadInner} />
+                </View>
+                <View style={styles.pinStem} />
               </View>
-              <View style={[styles.arrow, { borderTopColor: '#f5a623' }]} />
+              <View style={[styles.pinAnchorShadow, isDraggingPin && styles.pinAnchorShadowDragging]} />
             </View>
-          </Marker>
+          </ViewAnnotation>
         )}
       </Map>
 
@@ -411,6 +493,66 @@ const styles = StyleSheet.create({
   },
   badgePin: {
     backgroundColor: '#f5a623',
+    marginBottom: 4,
+  },
+  badgePinDragging: {
+    backgroundColor: '#fbbf24',
+    borderColor: '#0f172a',
+  },
+  draggablePinRoot: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 2,
+  },
+  pinBodyLift: {
+    alignItems: 'center',
+  },
+  pinBodyLifted: {
+    transform: [{ translateY: -6 }, { scale: 1.06 }],
+  },
+  pinHead: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f5a623',
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+  },
+  pinHeadDragging: {
+    backgroundColor: '#ef4444',
+  },
+  pinHeadInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#0f172a',
+  },
+  pinStem: {
+    width: 3,
+    height: 10,
+    backgroundColor: '#0f172a',
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    marginTop: -1,
+  },
+  pinAnchorShadow: {
+    width: 10,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+    marginTop: -2,
+  },
+  pinAnchorShadowDragging: {
+    width: 14,
+    height: 6,
+    backgroundColor: 'rgba(239, 68, 68, 0.45)',
   },
   badgeText: {
     color: '#ffffff',

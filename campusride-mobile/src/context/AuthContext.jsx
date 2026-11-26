@@ -22,19 +22,41 @@ export const getDeviceId = async () => {
   }
 };
 
-export function AuthProvider({ children }) {
-  const [user,     setUserState] = useState(null);
-  const [loading,  setLoading]   = useState(false);
-  const [initDone, setInitDone]  = useState(false);
+function extractRestrictionFromUser(u) {
+  if (!u) return null;
+  if (u.blocked || u.isBlocked) {
+    return {
+      status: 'blocked',
+      reason: u.blockReason || 'This account has been blocked by administrators.',
+      until: null,
+    };
+  }
+  if (u.suspended) {
+    return {
+      status: 'suspended',
+      reason: u.suspensionReason || 'Your account is currently suspended from HOGO.',
+      until: u.suspendedUntil || null,
+    };
+  }
+  return null;
+}
 
-  const saveAuth = async ({ token, user }) => {
+export function AuthProvider({ children }) {
+  const [user, setUserState] = useState(null);
+  const [accountRestriction, setAccountRestriction] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [initDone, setInitDone] = useState(false);
+
+  const saveAuth = async ({ token, user: nextUser }) => {
     if (token) await api.setToken(token);
-    if (user)  await api.setUser(user);
-    setUserState(user);
+    if (nextUser) await api.setUser(nextUser);
+    setAccountRestriction(extractRestrictionFromUser(nextUser));
+    setUserState(nextUser);
   };
 
   const logout = useCallback(() => {
     // 1. Immediately reset state so UI switches to Login screen with ZERO delay
+    setAccountRestriction(null);
     setUserState(null);
     disconnectGlobalSocket();
 
@@ -44,6 +66,7 @@ export function AuthProvider({ children }) {
         await Promise.all([
           api.removeToken().catch(() => {}),
           api.removeUser().catch(() => {}),
+          AsyncStorage.removeItem('@cr_account_restriction').catch(() => {}),
           AsyncStorage.removeItem('@last_handled_notif_response_id').catch(() => {}),
           AsyncStorage.removeItem('@user_registered_vehicles_list').catch(() => {}),
         ]);
@@ -57,15 +80,34 @@ export function AuthProvider({ children }) {
     try {
       const u = await api.getMe();
       if (u && (u._id || u.id)) {
+        const restr = extractRestrictionFromUser(u);
+        setAccountRestriction(restr);
+        if (restr) {
+          AsyncStorage.setItem('@cr_account_restriction', JSON.stringify(restr)).catch(() => {});
+        } else {
+          AsyncStorage.removeItem('@cr_account_restriction').catch(() => {});
+        }
         await api.setUser(u);
         setUserState(u);
         return u;
       }
     } catch (e) {
-      console.log('Refresh user error:', e.message);
+      if (e.status === 403 && (e.suspended || e.blocked)) {
+        const restr = {
+          status: e.blocked ? 'blocked' : 'suspended',
+          reason: e.suspensionReason || e.message,
+          until: e.suspendedUntil || null,
+        };
+        setAccountRestriction(restr);
+        AsyncStorage.setItem('@cr_account_restriction', JSON.stringify(restr)).catch(() => {});
+      } else if (e.status === 401) {
+        logout();
+      } else {
+        console.log('Refresh user note:', e.message);
+      }
     }
     return null;
-  }, []);
+  }, [logout]);
 
   const loginUser = async (email, password, options = {}) => {
     setLoading(true);
@@ -73,16 +115,37 @@ export function AuthProvider({ children }) {
       const deviceId = await getDeviceId();
       const data = await api.login({ email, password, deviceId, ...options });
       await saveAuth(data);
+      AsyncStorage.removeItem('@cr_account_restriction').catch(() => {});
       try {
         const fullUser = await api.getMe();
         if (fullUser && (fullUser._id || fullUser.id)) {
           await api.setUser(fullUser);
+          setAccountRestriction(extractRestrictionFromUser(fullUser));
           setUserState(fullUser);
         }
       } catch (err) {
-        console.log('Post-login profile refresh note:', err.message);
+        if (err.status === 403 && (err.suspended || err.blocked)) {
+          const restr = {
+            status: err.blocked ? 'blocked' : 'suspended',
+            reason: err.suspensionReason || err.message,
+            until: err.suspendedUntil || null,
+          };
+          setAccountRestriction(restr);
+          AsyncStorage.setItem('@cr_account_restriction', JSON.stringify(restr)).catch(() => {});
+        }
       }
       return data;
+    } catch (err) {
+      if (err.status === 403 && (err.suspended || err.blocked)) {
+        const restr = {
+          status: err.blocked ? 'blocked' : 'suspended',
+          reason: err.suspensionReason || err.message,
+          until: err.suspendedUntil || null,
+        };
+        setAccountRestriction(restr);
+        AsyncStorage.setItem('@cr_account_restriction', JSON.stringify(restr)).catch(() => {});
+      }
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -100,47 +163,87 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Validate stored token and load user on mount (with guaranteed fast timeout)
+  // Listen to 403 suspension/block events anywhere in the app
+  useEffect(() => {
+    return api.subscribeAccountRestriction((restr) => {
+      if (restr) {
+        setAccountRestriction(restr);
+        AsyncStorage.setItem('@cr_account_restriction', JSON.stringify(restr)).catch(() => {});
+      }
+    });
+  }, []);
+
+  // Hydrate persisted session immediately on mount and verify asynchronously without spurious logouts
   useEffect(() => {
     let isMounted = true;
 
-    // Safety fallback timer — maximum 1.2s on launch
-    const safetyTimer = setTimeout(() => {
-      if (isMounted) {
-        setInitDone(true);
-        SplashScreen.hideAsync().catch(() => {});
-      }
-    }, 1200);
-
     (async () => {
       try {
-        const [token, cachedUser] = await Promise.all([
+        const [token, cachedUser, cachedRestrictionRaw] = await Promise.all([
           api.getToken().catch(() => ''),
-          api.getUser().catch(() => null)
+          api.getUser().catch(() => null),
+          AsyncStorage.getItem('@cr_account_restriction').catch(() => null),
         ]);
 
+        let cachedRestriction = null;
+        if (cachedRestrictionRaw) {
+          try { cachedRestriction = JSON.parse(cachedRestrictionRaw); } catch {}
+        }
+
         if (token) {
+          // Immediately hydrate persisted user & restriction state so cold Render wakeup doesn't flash Login
+          if (cachedUser && isMounted) {
+            setUserState(cachedUser);
+            setAccountRestriction(cachedRestriction || extractRestrictionFromUser(cachedUser));
+          } else if (cachedRestriction && isMounted) {
+            setAccountRestriction(cachedRestriction);
+          }
+
+          if (cachedUser || cachedRestriction) {
+            setInitDone(true);
+            SplashScreen.hideAsync().catch(() => {});
+          }
+
+          // Verify/refresh session cleanly with backend
           try {
-            // Verify session with backend before entering logged-in state
             const u = await api.getMe();
             if (u && (u._id || u.id) && isMounted) {
+              const restr = extractRestrictionFromUser(u);
+              setAccountRestriction(restr);
+              if (restr) {
+                AsyncStorage.setItem('@cr_account_restriction', JSON.stringify(restr)).catch(() => {});
+              } else {
+                AsyncStorage.removeItem('@cr_account_restriction').catch(() => {});
+              }
               await api.setUser(u);
               setUserState(u);
-            } else if (isMounted) {
+            } else if (isMounted && !cachedUser) {
               logout();
             }
           } catch (e) {
-            console.log('Session verification error:', e.message);
-            if (e.status === 401 || e.status === 403 || e.message?.includes('token') || e.message?.includes('auth')) {
-              // Stale/expired token: clear out immediately, do not display logged-in dashboard
-              if (isMounted) logout();
-            } else if (cachedUser && isMounted) {
-              // Pure offline fallback when server is unreachable
+            console.log('Session verification check:', e.status || 'network', e.message);
+            if (!isMounted) return;
+            if (e.status === 401) {
+              // Explicit token rejection / SESSION_REPLACED / deleted account
+              logout();
+            } else if (e.status === 403 && (e.suspended || e.blocked)) {
+              const restr = {
+                status: e.blocked ? 'blocked' : 'suspended',
+                reason: e.suspensionReason || e.message,
+                until: e.suspendedUntil || null,
+              };
+              setAccountRestriction(restr);
+              AsyncStorage.setItem('@cr_account_restriction', JSON.stringify(restr)).catch(() => {});
+              if (!cachedUser) setUserState({ suspended: !e.blocked, blocked: !!e.blocked });
+            } else if (cachedUser) {
+              // Network timeout / Render cold start: keep user signed in
               setUserState(cachedUser);
             }
           }
         } else {
-          // No token found: ensure cached user is also purged so logged-out state is immediate
+          if (cachedRestriction && isMounted) {
+            setAccountRestriction(cachedRestriction);
+          }
           if (cachedUser) {
             await api.removeUser().catch(() => {});
           }
@@ -149,7 +252,6 @@ export function AuthProvider({ children }) {
       } catch (err) {
         console.log('Auth initialization error:', err);
       } finally {
-        clearTimeout(safetyTimer);
         if (isMounted) {
           setInitDone(true);
           SplashScreen.hideAsync().catch(() => {});
@@ -159,15 +261,14 @@ export function AuthProvider({ children }) {
 
     return () => {
       isMounted = false;
-      clearTimeout(safetyTimer);
     };
   }, [logout]);
 
   useEffect(() => {
-    if (user?._id || user?.id) {
+    if ((user?._id || user?.id) && !accountRestriction && !user?.suspended && !user?.blocked && !user?.isBlocked) {
       registerForPushNotificationsAsync(user?._id || user?.id).catch(() => {});
     }
-  }, [user?._id, user?.id]);
+  }, [user?._id, user?.id, accountRestriction, user?.suspended, user?.blocked, user?.isBlocked]);
 
   if (!initDone) {
     return (
@@ -185,7 +286,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginUser, registerUser, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, accountRestriction, loading, loginUser, registerUser, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

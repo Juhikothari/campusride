@@ -10,6 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { Input, Btn, Alert, Card } from '../components/UI';
 import FloatingChatBot from '../components/FloatingChatBot';
 import SteelDustbin from '../components/SteelDustbin';
+import ImageEditorModal from '../components/ImageEditorModal';
 import { colors, spacing, radius } from '../theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as api from '../services/api';
@@ -43,6 +44,8 @@ export default function ProfileScreen({ navigation }) {
   const [emergencyLoading, setEmergencyLoading] = useState(false);
   const [emergencyError,   setEmergencyError]   = useState('');
   const [photoUri,     setPhotoUri]     = useState(user?.profilePhoto || null);
+  const [stagedSelfieUri, setStagedSelfieUri] = useState(null);
+  const [showSelfieEditor, setShowSelfieEditor] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -222,12 +225,12 @@ export default function ProfileScreen({ navigation }) {
               }
               const result = await ImagePicker.launchCameraAsync({
                 cameraType: ImagePicker.CameraType.front,
-                allowsEditing: true,
-                aspect: [1, 1],
+                allowsEditing: false,
                 quality: 0.7,
               });
               if (!result.canceled && result.assets && result.assets[0] && result.assets[0].uri) {
-                await saveProfilePhoto(result.assets[0].uri);
+                setStagedSelfieUri(result.assets[0].uri);
+                setShowSelfieEditor(true);
               }
             } catch (err) {
               RNAlert.alert('Error', err.message || 'Failed to capture selfie');
@@ -244,12 +247,12 @@ export default function ProfileScreen({ navigation }) {
                 return;
               }
               const result = await ImagePicker.launchImageLibraryAsync({
-                allowsEditing: true,
-                aspect: [1, 1],
+                allowsEditing: false,
                 quality: 0.7,
               });
               if (!result.canceled && result.assets && result.assets[0] && result.assets[0].uri) {
-                await saveProfilePhoto(result.assets[0].uri);
+                setStagedSelfieUri(result.assets[0].uri);
+                setShowSelfieEditor(true);
               }
             } catch (err) {
               RNAlert.alert('Error', err.message || 'Failed to select photo');
@@ -753,6 +756,27 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      <ImageEditorModal
+        visible={showSelfieEditor}
+        uri={stagedSelfieUri}
+        title="Crop & Attach Photo"
+        subtitle="Crop freely, rotate, or tap ✓ to save selfie"
+        confirmLabel="Save ✓"
+        onCancel={() => {
+          setShowSelfieEditor(false);
+          setStagedSelfieUri(null);
+        }}
+        onRetake={() => {
+          setShowSelfieEditor(false);
+          setStagedSelfieUri(null);
+          setTimeout(() => handlePickSelfie(), 300);
+        }}
+        onConfirm={async (finalUri) => {
+          setShowSelfieEditor(false);
+          setStagedSelfieUri(null);
+          await saveProfilePhoto(finalUri);
+        }}
+      />
     </SafeAreaView>
   );
 }

@@ -37,6 +37,20 @@ export function handleNotificationResponse(response) {
     // Unnest wrapped payload structures
     const inner = (typeof rawData.data === 'string' ? JSON.parse(rawData.data) : rawData.data) || rawData.notification?.data || {};
     const type = String(rawData.type || rawData.notification?.type || inner.type || '').toUpperCase();
+    const titleUpper = String(response?.notification?.request?.content?.title || rawData.title || '').toUpperCase();
+
+    // 0. Suspended, revoked, blocked, or warning notifications must never redirect anywhere
+    if (
+      type.includes('SUSPEND') ||
+      type.includes('REVOKE') ||
+      type.includes('BLOCK') ||
+      type.includes('WARNING') ||
+      titleUpper.includes('SUSPEND') ||
+      titleUpper.includes('REVOKED') ||
+      titleUpper.includes('BLOCKED')
+    ) {
+      return;
+    }
     const rideId = inner.rideId || rawData.rideId || rawData.ride?._id || rawData.booking?.rideId || (typeof rawData.ride === 'string' ? rawData.ride : null);
     const postId = inner.postId || rawData.postId;
     const status = String(inner.status || rawData.status || rawData.booking?.status || '').toLowerCase();

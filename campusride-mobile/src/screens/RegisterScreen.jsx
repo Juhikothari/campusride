@@ -12,7 +12,7 @@ import { Input, Btn, Alert, TogglePill } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
 import { INDIAN_COLLEGES } from '../data/colleges';
 import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
-import CropView from '../components/CropView';
+import ImageEditorModal from '../components/ImageEditorModal';
 import * as api from '../services/api';
 
 const ROLES = [
@@ -46,7 +46,6 @@ export default function RegisterScreen({ navigation }) {
   const [selfieUri, setSelfieUri] = useState(null);
   const [stagedSelfieUri, setStagedSelfieUri] = useState(null);
   const [showCropModal, setShowCropModal] = useState(false);
-  const cropRef = useRef(null);
 
   // College Dropdown Modal state
   const [showCollegeModal, setShowCollegeModal] = useState(false);
@@ -218,7 +217,7 @@ export default function RegisterScreen({ navigation }) {
     if (password !== confirm) return 'Passwords do not match';
     if (!gender)          return 'Please select your gender';
     if (emergency.trim() && emergency.trim().length !== 10) return 'Emergency contact must be exactly 10 digits';
-    if (role === 'admin' && adminKey !== 'freewheel') return 'Invalid admin key';
+    if (role === 'admin') return 'Administrative accounts cannot be created from the mobile app.';
     if (role !== 'admin') {
       if (!selfieUri)      return 'Selfie capture is compulsory. Please take a live selfie using front camera.';
       if (!docs.collegeId) return 'College ID Card photo is compulsory. Please upload.';
@@ -402,19 +401,19 @@ export default function RegisterScreen({ navigation }) {
                 onPress={() => setShowCollegeModal(true)}
                 activeOpacity={0.8}
               >
-                <Text style={college ? styles.dropdownTextActive : styles.dropdownTextPlaceholder} numberOfLines={1}>
-                  {isCustomCollege ? (college || 'Other') : (college || 'Search your college or ...')}
+                <Text style={(college || isCustomCollege) ? styles.dropdownTextActive : styles.dropdownTextPlaceholder} numberOfLines={1}>
+                  {isCustomCollege ? 'Other' : (college || 'Search your college or ...')}
                 </Text>
                 <Text style={{ color: colors.text3, fontSize: 12 }}>▼</Text>
               </TouchableOpacity>
               {isCustomCollege && (
                 <TextInput
-                  style={[styles.textInput, { marginTop: 6, borderColor: colors.accent }]}
+                  style={[styles.textInput, { marginTop: 6 }, !college.trim() && { borderColor: colors.accent }]}
                   value={college}
                   onChangeText={setCollege}
                   placeholder="Enter your college name..."
                   placeholderTextColor={colors.text3}
-                  autoFocus
+                  autoFocus={!college.trim()}
                 />
               )}
             </View>
@@ -625,7 +624,7 @@ export default function RegisterScreen({ navigation }) {
                 <TouchableOpacity
                   style={[
                     styles.collegeItem,
-                    college === item.name && styles.collegeItemActive,
+                    !isCustomCollege && college === item.name && styles.collegeItemActive,
                   ]}
                   onPress={() => {
                     if (item.isOther) {
@@ -639,7 +638,7 @@ export default function RegisterScreen({ navigation }) {
                     setCollegeSearch('');
                   }}
                 >
-                  <Text style={[styles.collegeItemName, college === item.name && { color: colors.accent, fontWeight: '800' }]}>
+                  <Text style={[styles.collegeItemName, !isCustomCollege && college === item.name && { color: colors.accent, fontWeight: '800' }]}>
                     {item.name}
                   </Text>
                   <Text style={styles.collegeItemCity}>
@@ -668,99 +667,28 @@ export default function RegisterScreen({ navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Selfie Crop Modal */}
-      <Modal visible={showCropModal} animationType="slide" transparent={false} onRequestClose={() => setShowCropModal(false)}>
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#0a0e17' }}>
-          <View style={{
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            backgroundColor: '#0a0e17',
-            borderBottomWidth: 1,
-            borderBottomColor: '#1c2638',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-          }}>
-            <TouchableOpacity onPress={() => { setShowCropModal(false); takeSelfie(); }} style={{ padding: 4 }}>
-              <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: '700' }}>←</Text>
-            </TouchableOpacity>
-            <View>
-              <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '800' }}>Crop & Verify Selfie</Text>
-              <Text style={{ color: '#8b96b0', fontSize: 11 }}>Position your face clearly inside the frame, then tap ✓</Text>
-            </View>
-          </View>
-
-          <View style={{ flex: 1, backgroundColor: '#000000' }}>
-            {stagedSelfieUri && (
-              <CropView ref={cropRef} uri={stagedSelfieUri} accent={colors.accent} />
-            )}
-          </View>
-
-          <View style={{
-            paddingHorizontal: 16,
-            paddingVertical: 14,
-            backgroundColor: '#0a0e17',
-            borderTopWidth: 1,
-            borderTopColor: '#1c2638',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <TouchableOpacity
-              onPress={() => {
-                setShowCropModal(false);
-                takeSelfie();
-              }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                paddingVertical: 10,
-                paddingHorizontal: 14,
-                backgroundColor: '#141d2b',
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: '#1c2638',
-              }}
-            >
-              <Text style={{ fontSize: 14 }}>📷</Text>
-              <Text style={{ color: '#e2e8f0', fontSize: 13, fontWeight: '700' }}>Retake</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={async () => {
-                try {
-                  if (cropRef.current && cropRef.current.crop) {
-                    const cropped = await cropRef.current.crop();
-                    if (cropped && cropped.uri) {
-                      setSelfieUri(cropped.uri);
-                      setShowCropModal(false);
-                      return;
-                    }
-                  }
-                  setSelfieUri(stagedSelfieUri);
-                  setShowCropModal(false);
-                } catch (e) {
-                  console.log('Selfie crop error:', e);
-                  setSelfieUri(stagedSelfieUri);
-                  setShowCropModal(false);
-                }
-              }}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 8,
-                paddingVertical: 10,
-                paddingHorizontal: 22,
-                backgroundColor: colors.accent,
-                borderRadius: 10,
-              }}
-            >
-              <Text style={{ color: '#000000', fontSize: 14, fontWeight: '800' }}>Apply Selfie ✓</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      </Modal>
+      {/* Community-style Selfie Photo Editor Modal */}
+      <ImageEditorModal
+        visible={showCropModal}
+        uri={stagedSelfieUri}
+        title="Crop & Attach Selfie"
+        subtitle="Crop freely, rotate, or tap ✓ to save selfie"
+        confirmLabel="Apply ✓"
+        onCancel={() => {
+          setShowCropModal(false);
+          setStagedSelfieUri(null);
+        }}
+        onRetake={() => {
+          setShowCropModal(false);
+          setStagedSelfieUri(null);
+          setTimeout(() => handleCaptureSelfie(), 300);
+        }}
+        onConfirm={(finalUri) => {
+          setSelfieUri(finalUri);
+          setShowCropModal(false);
+          setStagedSelfieUri(null);
+        }}
+      />
     </SafeAreaView>
   );
 

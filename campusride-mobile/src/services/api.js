@@ -11,6 +11,18 @@ const BASE = `${API_BASE}/api`;
 
 const SECURE_TOKEN_KEY = 'cr_token_sec';
 let webMemoryToken = '';
+const restrictionListeners = new Set();
+
+export const subscribeAccountRestriction = (cb) => {
+  restrictionListeners.add(cb);
+  return () => restrictionListeners.delete(cb);
+};
+
+export const emitAccountRestriction = (payload) => {
+  restrictionListeners.forEach((cb) => {
+    try { cb(payload); } catch (_) {}
+  });
+};
 
 // ── Token / User helpers (Strict Hardware-backed SecureStore for credentials) ──────────────
 export const getToken = async () => {
@@ -156,6 +168,18 @@ export const request = async (path, options = {}) => {
     const err = new Error(data.message || data.error || `HTTP ${res.status}`);
     err.status = res.status;
     err.code = data.code;
+    err.retryable = Boolean(data.retryable ?? (res.status >= 500 || res.status === 429));
+    err.suspended = Boolean(data.suspended || data.code === 'ACCOUNT_SUSPENDED');
+    err.blocked = Boolean(data.blocked || data.code === 'ACCOUNT_BLOCKED');
+    err.suspensionReason = data.suspensionReason || data.blockReason || data.message || '';
+    err.suspendedUntil = data.suspendedUntil || null;
+    if (res.status === 403 && (err.suspended || err.blocked)) {
+      emitAccountRestriction({
+        status: err.blocked ? 'blocked' : 'suspended',
+        reason: err.suspensionReason || data.message,
+        until: err.suspendedUntil,
+      });
+    }
     throw err;
   }
   return data;
@@ -175,7 +199,13 @@ export const resetPassword     = (payload) => {
 };
 
 // ── AI Chatbot ────────────────────────────────────────
-export const sendChatbotMessage = (messages) => request('/chatbot/message', { method:'POST', body: JSON.stringify({ messages }) });
+export const sendChatbotMessage = (messages, signal) =>
+  request('/chatbot/message', {
+    method: 'POST',
+    body: JSON.stringify({ messages }),
+    timeout: 35000,
+    ...(signal ? { signal } : {}),
+  });
 
 // ── Users ─────────────────────────────────────────────
 export const getProfile        = ()     => request('/users/profile');

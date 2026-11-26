@@ -1,3 +1,4 @@
+// campusride-mobile/src/screens/ChatBotScreen.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
@@ -12,209 +13,151 @@ import { colors, spacing, radius } from '../theme';
 import * as api from '../services/api';
 
 const SUGGESTIONS = [
-  '🚗 How do I change my vehicle?',
-  '🔍 How does ride matching work?',
-  '🛡️ How does KYC verification work?',
+  '🚗 How do I post or schedule a ride?',
+  '🛡️ What documents are needed for KYC?',
+  '💰 How are fares & payments handled?',
+  '📍 Check my active ride or bookings',
   '👩 How do women-only rides work?',
-  '🆘 How does SOS emergency work?',
-  '📍 How do I track my ride?',
+  '🆘 How does SOS safety work?',
 ];
 
 function cleanBotText(text) {
   if (!text) return '';
-  // Strip raw markdown asterisks and leading asterisks so text is completely clean
-  return text.replace(/\*\*/g, '').replace(/^\*\s/gm, '• ').replace(/\*/g, '');
+  return String(text).replace(/\*\*/g, '').replace(/^\*\s/gm, '• ').replace(/\*/g, '').trim();
 }
 
-function getLocalAnswer(query, user) {
-  const q = (query || '').toLowerCase().trim();
-
-  // 0. Immediate Accident & Emergency Protocol
-  if (
-    q.includes('accident') || q.includes('crash') || q.includes('collision') ||
-    q.includes('hit') || q.includes('ambulance') || q.includes('injury') ||
-    q.includes('injured') || q.includes('hurt') || q.includes('fell') ||
-    q.includes('emergency') || q.includes('bleeding') || q.includes('blood') ||
-    q.includes('police') || q.includes('hospital') || q.includes('doctor') ||
-    q.includes('help me') || q.includes('urgent') || q.includes('danger')
-  ) {
-    return "🚨 EMERGENCY ACCIDENT RESPONSE PROTOCOL:\n\n" +
-      "1. Move to Safety: If you are able to move, step away from active vehicle traffic to a sidewalk or safe zone immediately.\n\n" +
-      "2. Tap SOS Button in HOGO: Open your active ride screen or dashboard and tap the red SOS Emergency button. This instantly alerts campus safety and broadcasts your live GPS coordinates to emergency contacts.\n\n" +
-      "3. Call Emergency Helpline Numbers:\n" +
-      "   • Dial 112 (National Emergency Helpline) immediately.\n" +
-      "   • Dial 108 for Ambulance assistance if anyone is hurt.\n\n" +
-      "4. Check on Fellow Commuters: Check on your buddy and passengers if safe to do so. Stay calm and remain at the scene until medical staff or police arrive.\n\n" +
-      "5. Contact Campus Security: Alert your college security desk so campus first responders can reach you swiftly.";
-  }
-
-  // 1. Ride History & Past Trips
-  if (q.includes('history') || q.includes('past ride') || q.includes('past booking') || q.includes('previous ride') || q.includes('completed ride') || q.includes('old ride') || q.includes('my trips')) {
-    return "📜 Accessing Ride History:\n• Top Menu (☰) > 'My Bookings': Tap the 'History / Completed' tab to view all completed, past, or cancelled rides.\n• Profile Screen: Navigate to 'My Profile' and tap 'Ride History' to inspect your full trip receipts, dates, route logs, and matched buddy USNs.\n• Note: Active ongoing trips are shown separately on your Dashboard active trip card.";
-  }
-
-  // 2. Cancellation Policy & How to Cancel
-  if (q.includes('cancel') || q.includes('cancellation') || q.includes('refund') || q.includes('withdraw') || q.includes('delete ride')) {
-    return "❌ Ride Cancellation Policy:\n• How to cancel: Open your active ride from the Dashboard or Live Tracking screen, scroll down and tap 'Cancel Ride' (for drivers) or 'Cancel Booking' (for passengers).\n• Free campus cancellation: You can cancel anytime before departure. Matched peers will receive an instant notification so they can arrange alternative transit.\n• No cancellation fees or penalties apply on campus.";
-  }
-
-  // 3. Pre-Ride Safety Checklist
-  if (q.includes('checklist') || q.includes('safety check') || q.includes('pre-ride') || q.includes('verification check')) {
-    return "📋 Pre-Ride Safety Checklist:\n• Both driver and passenger verify a 4-point safety checklist before departure (driver photo, vehicle plate, USN, and route confirmation).\n• The checklist unlocks once the driver reaches the pickup spot and the request is accepted.\n• Once all checks are verified, the driver taps Start Ride and live destination navigation activates.";
-  }
-
-  // 4. Walk Together (Nadi) Companion
-  if (q.includes('walk') || q.includes('nadi') || q.includes('walking') || q.includes('companion') || q.includes('foot') || q.includes('pedestrian')) {
-    return "🚶 Walk Together (Nadi):\n• Tap 'Walk Together' on the Dashboard.\n• Enter your campus pickup and destination points, choose departure time, and tap 'Post Walk Request'.\n• Walk posts stay active for 24 hours. Classmates can tap 'Join Walk', and you will be notified when a buddy joins!";
-  }
-
-  // 5. Community & Student Chat
-  if (q.includes('chat') || q.includes('community') || q.includes('post') || q.includes('lounge') || q.includes('comment') || q.includes('reply') || q.includes('message')) {
-    return "💬 Campus Community & Student Chat:\n• Go to the 'Community' tab on the bottom bar to see campus posts and join college discussions.\n• Switch to 'Campus Chat' to message peers across your institution in real-time.\n• You can post transit alerts, questions, tips, and choose to post with your student USN or anonymously.";
-  }
-
-  // 6. Pricing, Fare & Cost Splitting
-  if (q.includes('price') || q.includes('fare') || q.includes('cost') || q.includes('petrol') || q.includes('payment') || q.includes('pay') || q.includes('money') || q.includes('rupee') || q.includes('split')) {
-    return "💰 Estimated Fare & Cost Sharing:\n• Estimated fare is calculated automatically based on route distance to help students split petrol costs fairly.\n• No surge pricing or hidden app commissions — you split actual travel costs directly with your verified college buddy.\n• You can review the estimated fare before booking.";
-  }
-
-  // 7. Arrival & Pickup
-  if (q.includes('reach') || q.includes('arrived') || q.includes('pickup') || q.includes('meeting') || q.includes('spot') || q.includes('where is driver')) {
-    return "📍 Pickup & Buddy Arrival:\n• As the driver approaches your pickup point, live GPS telemetry displays their ETA.\n• When the driver taps 'I Have Reached Seeker Location', you will receive an instant notification: 'Your buddy has arrived at pickup location!'.\n• Meet at the designated spot and complete your pre-ride checklist to begin.";
-  }
-
-  // 8. Vehicle Policy & Changing Vehicle
-  if (q.includes('vehicle') || q.includes('car') || q.includes('bike') || q.includes('plate') || q.includes('rc') || q.includes('edit vehicle') || q.includes('change vehicle') || q.includes('add vehicle')) {
-    return "🚗 Vehicle Policy & Adding Vehicles:\n• You can register a new vehicle anytime in My Profile > 'Add Vehicle'. It will be reviewed by admin within 24 hours.\n• For campus safety and verification integrity, already approved vehicle numbers cannot be altered directly by users.\n• To update an existing vehicle number or plate, tap 'Contact Support' with your RC copy and student ID.";
-  }
-
-  // 9. Offering a Ride
-  if (q.includes('offer') || q.includes('create ride') || q.includes('post ride') || q.includes('driver') || q.includes('provide ride')) {
-    return "🚗 How to Offer a Ride:\n1. Switch to the 'Offer Ride' tab on the dashboard.\n2. Enter your pickup & drop locations.\n3. Choose your vehicle and departure time.\n4. If you are female, you can optionally toggle 'Women Only'.\n5. Tap 'Post Ride'! Students from your college heading along your route can then request seats.";
-  }
-
-  // 10. Search & Match Rides
-  if (q.includes('search') || q.includes('find') || q.includes('match') || q.includes('book') || q.includes('seeker')) {
-    return "🔍 Search Your Buddy:\n1. Tap 'Search Your Buddy' on the Dashboard.\n2. Enter your pickup and drop areas (or use GPS auto-detect).\n3. Tap 'Search Your Buddy' to view available verified rides from classmates along your route.\n4. Tap 'Book This Ride' to send a request to the provider.";
-  }
-
-  // 11. KYC Verification & Documents
-  if (q.includes('kyc') || q.includes('verify') || q.includes('document') || q.includes('aadhar') || q.includes('license') || q.includes('usn') || q.includes('selfie')) {
-    return "🛡️ KYC Verification:\n• Ensures 100% verified campus safety. Every student submits College ID, live front-camera selfie, and USN.\n• Drivers also upload Driving License and vehicle RC details.\n• You can complete or check verification anytime from Top Menu (☰) > KYC Verification. Admins review submissions within 24–48 hours.";
-  }
-
-  // 12. Women-Only Rides
-  if (q.includes('women') || q.includes('female') || q.includes('ladies') || q.includes('gender')) {
-    return "👩 Women-Only Rides Feature:\n• Female providers can toggle 'Women Only' when offering a ride.\n• Only verified female students can view and book these rides for enhanced comfort and peace of mind.";
-  }
-
-  // 13. SOS Emergency Protocol
-  if (q.includes('sos') || q.includes('panic') || q.includes('police')) {
-    return "🆘 SOS Emergency Protocol:\n• During any active ride, a prominent red SOS Emergency button is available on the Live Tracking screen.\n• Tapping it immediately alerts campus safety, dials emergency contacts, and broadcasts your live GPS coordinates.";
-  }
-
-  // 14. Live GPS Tracking
-  if (q.includes('track') || q.includes('live tracking') || q.includes('gps') || q.includes('map') || q.includes('location')) {
-    return "📍 Live GPS Tracking:\n• Once your ride starts, an Active Ride banner appears on your dashboard.\n• Tap it to open live map tracking with route polyline, driver location, ETA, and emergency controls.";
-  }
-
-  // 15. Support, Incident Reporting & Glitches
-  if (q.includes('support') || q.includes('incident') || q.includes('report') || q.includes('admin') || q.includes('glitch') || q.includes('bug') || q.includes('problem') || q.includes('issue')) {
-    return "🛠️ Support & Incident Reporting:\n• Report an incident or safety concern: Tap Top Menu (☰) > 'Report Incident'. Admins investigate all reports promptly.\n• For general support or bug reports, tap Top Menu (☰) > 'Contact Support'.\n• For live ride emergencies, use the SOS button.";
-  }
-
-  // 16. Dark & Light Theme
-  if (q.includes('theme') || q.includes('dark') || q.includes('light') || q.includes('mode')) {
-    return "🌓 Dark & Light Mode:\n• You can easily switch between Dark and Light mode using the toggle button located directly on your Dashboard greeting hero card (next to your name)!\n• It instantly adapts all screens, maps, and menus to your preferred appearance.";
-  }
-
-  // 17. Privacy & USN Identification
-  if (q.includes('privacy') || q.includes('usn') || q.includes('name') || q.includes('real name') || q.includes('identity')) {
-    return "🔒 Privacy & USN Campus Safety:\n• For your privacy and protection, your personal full name is never exposed to public view or unconfirmed seekers.\n• Only your verified university USN is shown on ride cards and booking confirmations.\n• Real identity is verified securely by campus admin KYC.";
-  }
-
-  // 18. Provider Active Ride Limits & Scheduling
-  if (q.includes('active ride') || q.includes('limit') || q.includes('multiple ride') || q.includes('schedule ride')) {
-    return "🚗 Active Ride Policy for Providers:\n• Providers can only have 1 active ride (now/in-progress) at any time to guarantee safety and punctual arrivals.\n• You can, however, schedule as many upcoming rides for future dates and times as you need using the Schedule tab.";
-  }
-
-  // 19. Intelligent Generalized Fallback with Clean Bullet Points (No Markdown Asterisks)
-  return `✨ Hi ${user?.name ? user.name.split(' ')[0] : 'there'}! I am HOGO AI, your smart campus commute assistant. Here is how I can help:\n\n` +
-    `• 📜 Ride History: View completed trips in Menu (☰) > My Bookings > History or Profile.\n` +
-    `• 🔍 Find a Ride: Match with peers heading your way along your exact route.\n` +
-    `• 🚗 Offer a Ride: Share seats with verified classmates (1 active ride + unlimited scheduling).\n` +
-    `• 🚶 Walk Together: Join or post walking groups across campus.\n` +
-    `• ❌ Cancellations: Cancel trips easily from the Dashboard before departure.\n` +
-    `• 🛡️ KYC & Verification: Check verification status in Menu (☰) > KYC.\n` +
-    `• 🆘 Automatic SOS: Instant SMS with live GPS and automatic dial to your emergency contact.\n\n` +
-    `Feel free to ask me anything specific about your campus commute!`;
+// Accurate word-boundary offline safety net ONLY for urgent active emergency phrases
+// when network/AI backend cannot be reached immediately (never matches "white" via "hit").
+function isOfflineActiveEmergency(query) {
+  const t = String(query || '').trim();
+  if (!t) return false;
+  const infoOnly = /^\s*(how\s+(does|do|to)|what\s+(is|are)|tell\s+me\s+about|explain)\b/i.test(t);
+  if (infoOnly) return false;
+  return (
+    /\b(i|we|my\s+(?:driver|rider|cab|bike|car))\s+(?:just\s+)?(?:had|met\s+with|got\s+into|in)\s+(?:an?\s+)?(?:accident|crash|collision)\b/i.test(t) ||
+    /\b(?:got|was|am|i'm)\s+(?:badly\s+)?(?:hit|injured|hurt|bleeding)\b/i.test(t) ||
+    /\bhelp\s+me\b(?:\s+please|\s+now|\s+quick|\s*!|$)/i.test(t) ||
+    /\b(?:send|call)\s+(?:an?\s+)?(?:ambulance|police)\s*(?:now|immediately)?\b/i.test(t)
+  );
 }
+
+const OFFLINE_EMERGENCY_GUIDANCE =
+  'IMMEDIATE EMERGENCY SAFETY GUIDANCE:\n\n' +
+  '1. Move to a Safe Location: Step away from traffic toward a populated, well-lit area.\n' +
+  '2. Dial 112 Immediately: Call 112 (Police/Emergency) or 108 (Ambulance) right away.\n' +
+  '3. Use the In-App SOS Button: Open your active ride in Live Tracking and tap the red SOS button to trigger safety alerts and live GPS SMS/dial.\n' +
+  '(Note: Sending a chat message alone does not alert police or contacts.)';
 
 export default function ChatBotScreen({ navigation }) {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: `Hello ${user?.name ? user.name.split(' ')[0] : 'there'}! 👋 I am HOGO AI, your intelligent assistant for campus commute.\n\nHow can I help you today?`,
-    }
-  ]);
-  const [input,   setInput]   = useState('');
+
+  const makeWelcomeMsg = () => ({
+    id: 'welcome',
+    role: 'assistant',
+    content: `Hi ${user?.name ? user.name.split(' ')[0] : 'there'}! Ask me anything about HOGO rides, KYC, routes, bookings, or safety.`,
+  });
+
+  const [messages, setMessages] = useState([makeWelcomeMsg()]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
-    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 90);
+    return () => clearTimeout(t);
   }, [messages, loading]);
 
-  const handleSend = async (textToSend) => {
-    const text = (textToSend || input).trim();
-    if (!text || loading) return;
-
-    const userMsg = { role: 'user', content: text };
-    const updated = [...messages, userMsg];
-    setMessages(updated);
-    setInput('');
-
-    // Check if query is an emergency / accident / safety issue — prioritize immediate protocol
-    const lower = text.toLowerCase();
-    const isEmergency =
-      lower.includes('accident') || lower.includes('crash') || lower.includes('collision') ||
-      lower.includes('hit') || lower.includes('ambulance') || lower.includes('injury') ||
-      lower.includes('injured') || lower.includes('hurt') || lower.includes('fell') ||
-      lower.includes('emergency') || lower.includes('bleeding') || lower.includes('blood') ||
-      lower.includes('police') || lower.includes('hospital') || lower.includes('doctor') ||
-      lower.includes('help me') || lower.includes('urgent') || lower.includes('danger');
-
-    if (isEmergency) {
-      const emergencyReply = cleanBotText(getLocalAnswer(text, user));
-      setMessages([...updated, { role: 'assistant', content: emergencyReply }]);
-      return;
-    }
-
+  const submitConversation = async (conversationForApi, failedMsgIndex = null) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setLoading(true);
 
     try {
-      const res = await api.sendChatbotMessage(updated);
+      const apiMessages = conversationForApi
+        .filter(m => !m.isError && (m.role === 'user' || m.role === 'assistant'))
+        .map(m => ({ role: m.role, content: m.content }));
+
+      const res = await api.sendChatbotMessage(apiMessages);
       if (res?.reply) {
-        setMessages([...updated, { role: 'assistant', content: cleanBotText(res.reply) }]);
+        const botMsg = {
+          id: `bot_${Date.now()}`,
+          role: 'assistant',
+          content: cleanBotText(res.reply),
+          mode: res?.metadata?.mode || 'ai',
+        };
+        setMessages(prev => {
+          const base = failedMsgIndex !== null ? prev.filter((_, i) => i !== failedMsgIndex) : prev;
+          return [...base, botMsg];
+        });
       } else {
-        throw new Error('Empty response');
+        throw new Error('HOGO AI returned an empty response. Please retry.');
       }
     } catch (e) {
-      const fallbackReply = cleanBotText(getLocalAnswer(text, user));
-      setMessages([...updated, { role: 'assistant', content: fallbackReply }]);
+      const lastUserText = [...conversationForApi].reverse().find(m => m.role === 'user')?.content || '';
+      if (isOfflineActiveEmergency(lastUserText)) {
+        const emergencyMsg = {
+          id: `emg_${Date.now()}`,
+          role: 'assistant',
+          content: OFFLINE_EMERGENCY_GUIDANCE,
+          mode: 'emergency',
+        };
+        setMessages(prev => {
+          const base = failedMsgIndex !== null ? prev.filter((_, i) => i !== failedMsgIndex) : prev;
+          return [...base, emergencyMsg];
+        });
+        return;
+      }
+
+      const friendlyErr = e?.message && !e.message.includes('JSON')
+        ? e.message
+        : 'Unable to reach HOGO AI right now. Check your connection and tap Retry.';
+
+      const errBubble = {
+        id: `err_${Date.now()}`,
+        role: 'assistant',
+        isError: true,
+        retryPayload: conversationForApi,
+        content: friendlyErr,
+      };
+      setMessages(prev => {
+        const base = failedMsgIndex !== null ? prev.filter((_, i) => i !== failedMsgIndex) : prev;
+        return [...base, errBubble];
+      });
     } finally {
+      inFlightRef.current = false;
       setLoading(false);
     }
   };
 
+  const handleSend = async (textToSend) => {
+    const text = (textToSend ?? input).trim();
+    if (!text || loading || inFlightRef.current) return;
+
+    const userMsg = { id: `usr_${Date.now()}`, role: 'user', content: text };
+    const cleanHistory = messages.filter(m => !m.isError);
+    const updated = [...cleanHistory, userMsg];
+
+    setMessages(updated);
+    if (!textToSend) setInput('');
+
+    await submitConversation(updated);
+  };
+
+  const handleRetry = async (errMsg, errIdx) => {
+    if (!errMsg?.retryPayload || loading || inFlightRef.current) return;
+    await submitConversation(errMsg.retryPayload, errIdx);
+  };
+
   const handleClear = () => {
+    if (loading || inFlightRef.current) return;
     setMessages([
       {
+        id: `reset_${Date.now()}`,
         role: 'assistant',
-        content: 'Conversation reset. How can I help you with HOGO?',
+        content: 'Conversation cleared. How can I help you with HOGO?',
       }
     ]);
   };
@@ -238,11 +181,16 @@ export default function ChatBotScreen({ navigation }) {
           </View>
           <View>
             <Text style={[styles.botTitle, { color: isDark ? '#ffffff' : '#0f172a' }]}>HOGO AI Assistant</Text>
-            <Text style={[styles.botStatus, { color: isDark ? '#8b96b0' : '#475569' }]}>Online • Campus Commute Helper</Text>
+            <Text style={[styles.botStatus, { color: isDark ? '#8b96b0' : '#475569' }]}>Context-Aware Campus Helper</Text>
           </View>
         </View>
 
-        <TouchableOpacity onPress={handleClear} style={[styles.clearBtn, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={handleClear}
+          disabled={loading}
+          style={[styles.clearBtn, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1', opacity: loading ? 0.5 : 1 }]}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.clearBtnText, { color: isDark ? colors.text3 : '#475569' }]}>Clear Chat</Text>
         </TouchableOpacity>
       </View>
@@ -261,28 +209,58 @@ export default function ChatBotScreen({ navigation }) {
         >
           {messages.map((m, idx) => {
             const isUser = m.role === 'user';
+            const isEmergency = m.mode === 'emergency';
             return (
               <View
-                key={idx}
+                key={m.id || idx}
                 style={[
                   styles.msgRow,
                   isUser ? styles.msgRowUser : styles.msgRowAssistant
                 ]}
               >
                 {!isUser && (
-                  <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
-                    <MaterialCommunityIcons name="robot-happy-outline" size={14} color={colors.accent} />
+                  <View style={[styles.bubbleAvatar, { backgroundColor: isEmergency ? 'rgba(239,68,68,0.18)' : (isDark ? colors.surface2 : '#e2e8f0') }]}>
+                    <MaterialCommunityIcons
+                      name={m.isError ? 'alert-circle-outline' : 'robot-happy-outline'}
+                      size={14}
+                      color={m.isError || isEmergency ? '#ef4444' : colors.accent}
+                    />
                   </View>
                 )}
                 <View
                   style={[
                     styles.bubble,
-                    isUser ? styles.bubbleUser : [styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]
+                    isUser
+                      ? styles.bubbleUser
+                      : m.isError
+                        ? [styles.bubbleAssistant, { backgroundColor: isDark ? '#1e1418' : '#fef2f2', borderColor: '#ef4444' }]
+                        : isEmergency
+                          ? [styles.bubbleAssistant, { backgroundColor: isDark ? '#1e1418' : '#fff5f5', borderColor: '#ef4444', borderWidth: 1.5 }]
+                          : [styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }]
                   ]}
                 >
-                  <Text style={[styles.msgText, isUser ? styles.msgTextUser : [styles.msgTextAssistant, { color: isDark ? colors.text : '#0f172a' }]]}>
+                  <Text
+                    selectable
+                    style={[
+                      styles.msgText,
+                      isUser
+                        ? styles.msgTextUser
+                        : [styles.msgTextAssistant, { color: m.isError ? '#ef4444' : (isDark ? colors.text : '#0f172a') }]
+                    ]}
+                  >
                     {m.content}
                   </Text>
+
+                  {m.isError && (
+                    <TouchableOpacity
+                      style={styles.retryBtn}
+                      onPress={() => handleRetry(m, idx)}
+                      disabled={loading}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.retryBtnText}>↻ Retry Request</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             );
@@ -293,7 +271,7 @@ export default function ChatBotScreen({ navigation }) {
               <View style={[styles.bubbleAvatar, { backgroundColor: isDark ? colors.surface2 : '#e2e8f0' }]}>
                 <MaterialCommunityIcons name="robot-happy-outline" size={14} color={colors.accent} />
               </View>
-              <View style={[styles.bubble, styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, { flexDirection: 'row', gap: 6, alignItems: 'center' }]}>
+              <View style={[styles.bubble, styles.bubbleAssistant, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, { flexDirection: 'row', gap: 8, alignItems: 'center' }]}>
                 <ActivityIndicator color={colors.accent} size="small" />
                 <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 12 }}>HOGO AI is thinking…</Text>
               </View>
@@ -302,7 +280,7 @@ export default function ChatBotScreen({ navigation }) {
 
           {messages.length < 3 && !loading && (
             <View style={styles.suggestionsWrap}>
-              <Text style={[styles.suggestionsHeader, { color: isDark ? colors.text3 : '#475569' }]}>QUICK QUESTIONS</Text>
+              <Text style={[styles.suggestionsHeader, { color: isDark ? colors.text3 : '#475569' }]}>TRY ASKING</Text>
               <View style={styles.chipsRow}>
                 {SUGGESTIONS.map((s, i) => (
                   <TouchableOpacity
@@ -324,16 +302,17 @@ export default function ChatBotScreen({ navigation }) {
             style={[styles.input, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', color: isDark ? colors.text : '#0f172a', borderColor: isDark ? colors.border : '#cbd5e1' }]}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask about rides, KYC, routes..."
+            placeholder="Ask anything about HOGO..."
             placeholderTextColor={isDark ? colors.text3 : '#64748b'}
             multiline
-            maxLength={500}
+            maxLength={1000}
+            editable={!loading}
           />
           <TouchableOpacity
             style={[
               styles.sendBtn,
               {
-                backgroundColor: !input.trim()
+                backgroundColor: (!input.trim() || loading)
                   ? (isDark ? 'rgba(245, 166, 35, 0.25)' : '#e2e8f0')
                   : colors.accent,
               }
@@ -342,7 +321,7 @@ export default function ChatBotScreen({ navigation }) {
             disabled={!input.trim() || loading}
             activeOpacity={0.8}
           >
-            <Text style={[styles.sendBtnText, { color: !input.trim() ? (isDark ? '#64748b' : '#94a3b8') : '#000000' }]}>➤</Text>
+            <Text style={[styles.sendBtnText, { color: (!input.trim() || loading) ? (isDark ? '#64748b' : '#94a3b8') : '#000000' }]}>➤</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -400,7 +379,7 @@ const styles = StyleSheet.create({
   clearBtnText: { color: colors.text3, fontSize: 11, fontWeight: '600' },
 
   messagesContainer: { padding: spacing.md, paddingBottom: 24 },
-  msgRow: { flexDirection: 'row', marginBottom: 14, maxWidth: '85%' },
+  msgRow: { flexDirection: 'row', marginBottom: 14, maxWidth: '88%' },
   msgRowUser: { alignSelf: 'flex-end', justifyContent: 'flex-end' },
   msgRowAssistant: { alignSelf: 'flex-start', alignItems: 'flex-start', gap: 8 },
 
@@ -426,9 +405,22 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 2,
     flexShrink: 1,
   },
-  msgText: { fontSize: 13.5, lineHeight: 19 },
+  msgText: { fontSize: 13.5, lineHeight: 20 },
   msgTextUser: { color: '#000', fontWeight: '600' },
   msgTextAssistant: { color: colors.text },
+  retryBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.accent,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  retryBtnText: {
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '800',
+  },
 
   suggestionsWrap: { marginTop: 12, marginBottom: 8 },
   suggestionsHeader: {
@@ -466,13 +458,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     fontSize: 14,
-    maxHeight: 90,
+    maxHeight: 96,
   },
   sendBtn: {
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: colors.accent,
     alignItems: 'center', justifyContent: 'center',
   },
-  sendBtnDisabled: { opacity: 0.4 },
   sendBtnText: { color: '#000', fontSize: 16, fontWeight: '900', marginLeft: 2 },
 });

@@ -28,6 +28,8 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
   const { isDark } = useTheme();
   const [addressLabel,  setAddressLabel]  = useState('');
   const [coords,        setCoords]        = useState(null);
+  const [isDraggingPin, setIsDraggingPin] = useState(false);
+  const [resolvingAddress, setResolvingAddress] = useState(false);
   const [locating,      setLocating]      = useState(false);
   const [searching,     setSearching]     = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -64,8 +66,46 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
     };
   }, [visible]);
 
+  const cancelPendingReverseGeocode = () => {
+    if (debounceReverseGeoRef.current) {
+      clearTimeout(debounceReverseGeoRef.current);
+      debounceReverseGeoRef.current = null;
+    }
+    if (reverseAbortRef.current) {
+      reverseAbortRef.current.abort();
+      reverseAbortRef.current = null;
+    }
+    reverseSeqRef.current += 1;
+  };
+
+  const queueReverseGeocode = (lat, lng) => {
+    cancelPendingReverseGeocode();
+    const seq = reverseSeqRef.current;
+    const coordFallback = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    setResolvingAddress(true);
+
+    debounceReverseGeoRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      reverseAbortRef.current = controller;
+      try {
+        const res = await api.reverseGeocode(lat, lng, controller.signal);
+        if (seq !== reverseSeqRef.current) return;
+        const name = res?.display_name || res?.label || coordFallback;
+        setAddressLabel(name);
+      } catch (err) {
+        if (err?.isAborted || err?.name === 'AbortError' || seq !== reverseSeqRef.current) return;
+        setAddressLabel(coordFallback);
+      } finally {
+        if (seq === reverseSeqRef.current) setResolvingAddress(false);
+      }
+    }, 280);
+  };
+
   const locateUser = async () => {
+    cancelPendingReverseGeocode();
+    const seq = reverseSeqRef.current;
     setLocating(true);
+    setResolvingAddress(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
@@ -77,34 +117,9 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const lat = loc.coords.latitude;
       const lng = loc.coords.longitude;
+      if (seq !== reverseSeqRef.current) return;
       setCoords({ lat, lng });
 
-      try {
-        const res = await api.reverseGeocode(lat, lng);
-        const name = res?.display_name || res?.label || 'Current Location';
-        setAddressLabel(name);
-      } catch {
-        setAddressLabel('Current Location');
-      }
-    } catch {
-      setCoords(prev => prev || { lat: 12.9716, lng: 77.5946 });
-      setAddressLabel(prev => prev || 'Bengaluru Central');
-    } finally {
-      setLocating(false);
-    }
-  };
-
-  const handleMapClick = ({ lat, lng }) => {
-    Keyboard.dismiss();
-    setCoords({ lat, lng });
-    if (debounceReverseGeoRef.current) clearTimeout(debounceReverseGeoRef.current);
-    if (reverseAbortRef.current) {
-      reverseAbortRef.current.abort();
-      reverseAbortRef.current = null;
-    }
-
-    const seq = ++reverseSeqRef.current;
-    debounceReverseGeoRef.current = setTimeout(async () => {
       const controller = new AbortController();
       reverseAbortRef.current = controller;
       try {
@@ -116,7 +131,37 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
         if (err?.isAborted || err?.name === 'AbortError' || seq !== reverseSeqRef.current) return;
         setAddressLabel(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
       }
-    }, 300);
+    } catch {
+      setCoords(prev => prev || { lat: 12.9716, lng: 77.5946 });
+      setAddressLabel(prev => prev || 'Bengaluru Central');
+    } finally {
+      setLocating(false);
+      if (seq === reverseSeqRef.current) setResolvingAddress(false);
+    }
+  };
+
+  const handleMapClick = ({ lat, lng }) => {
+    Keyboard.dismiss();
+    setIsDraggingPin(false);
+    setCoords({ lat, lng });
+    queueReverseGeocode(lat, lng);
+  };
+
+  const handlePinDragStart = () => {
+    Keyboard.dismiss();
+    setIsDraggingPin(true);
+    setResolvingAddress(false);
+    cancelPendingReverseGeocode();
+  };
+
+  const handlePinDrag = ({ lat, lng }) => {
+    setCoords({ lat, lng });
+  };
+
+  const handlePinDragEnd = ({ lat, lng }) => {
+    setIsDraggingPin(false);
+    setCoords({ lat, lng });
+    queueReverseGeocode(lat, lng);
   };
 
   const handleSearch = (text) => {
@@ -176,6 +221,9 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
 
   const selectSearchResult = (item) => {
     Keyboard.dismiss();
+    cancelPendingReverseGeocode();
+    setIsDraggingPin(false);
+    setResolvingAddress(false);
     const label = item.display_name || item.properties?.display_name || item.label || item.name;
     let lat = item.lat ?? item.latitude;
     let lng = item.lng ?? item.lon ?? item.longitude;
@@ -193,9 +241,10 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
   };
 
   const handleConfirm = () => {
-    if (!addressLabel.trim() || !coords) return;
+    if (!coords || isDraggingPin) return;
+    const finalLabel = addressLabel.trim() || `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
     onSelect({
-      label: addressLabel.trim(),
+      label: finalLabel,
       lat: coords.lat.toString(),
       lng: coords.lng.toString(),
     });
@@ -278,6 +327,10 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
         <View style={styles.mapSection}>
           <LiveMapView
             pinLocation={coords}
+            pinDraggable={true}
+            onPinDragStart={handlePinDragStart}
+            onPinDrag={handlePinDrag}
+            onPinDragEnd={handlePinDragEnd}
             onMapClick={handleMapClick}
             onRecenter={locateUser}
             height={300}
@@ -294,9 +347,13 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               <Text style={{ fontSize: 18 }}>📍</Text>
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardHeader}>TAP MAP OR SEARCH TO PLACE PIN</Text>
+              <Text style={styles.cardHeader}>DRAG THE PIN TO CHOOSE YOUR EXACT LOCATION, OR MOVE THE MAP AND TAP TO PLACE IT.</Text>
               <Text style={[styles.selectedAddress, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
-                {addressLabel || 'Locating...'}
+                {isDraggingPin
+                  ? (coords ? `Dragging pin: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : 'Moving pin...')
+                  : resolvingAddress
+                    ? (coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)} · Finding address...` : 'Finding address...')
+                    : (addressLabel || 'Locating...')}
               </Text>
               {coords && (
                 <Text style={[styles.coordSub, { color: isDark ? colors.text3 : '#64748b' }]}>
@@ -320,13 +377,19 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
           </ScrollView>
 
           <TouchableOpacity
-            style={[styles.confirmBtn, (!addressLabel || !coords) && { opacity: 0.5 }]}
+            style={[styles.confirmBtn, (!coords || isDraggingPin) && { opacity: 0.5 }]}
             onPress={handleConfirm}
-            disabled={!addressLabel || !coords}
+            disabled={!coords || isDraggingPin}
             activeOpacity={0.8}
           >
             <Text style={styles.confirmBtnText}>
-              ✓ Confirm "{addressLabel.slice(0, 26)}{addressLabel.length > 26 ? '...' : ''}"
+              {(() => {
+                if (isDraggingPin) return 'Release pin to select location...';
+                const labelText = resolvingAddress && coords
+                  ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`
+                  : (addressLabel || (coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : 'Location'));
+                return `✓ Confirm "${labelText.slice(0, 26)}${labelText.length > 26 ? '...' : ''}"`;
+              })()}
             </Text>
           </TouchableOpacity>
         </View>

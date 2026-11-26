@@ -1581,3 +1581,147 @@ test('LOCATION & ROUTING: Enforces strict coordinate bounds and GeoJSON format w
   });
   assert.equal(badRouteRes.status, 400);
 });
+
+// =========================================================================
+// SECTION 17: FINAL PRE-PRODUCTION SECURITY GATE NEGATIVE TESTS
+// =========================================================================
+
+test('INCIDENT IDOR: Non-reporter non-admin cannot attach evidence to another users incident (returns 403)', async () => {
+  const Incident = require('../incidents/incidents.model');
+  const incident = await Incident.create({
+    rideId: testRide._id,
+    reportedBy: normalUser1._id,
+    type: 'Booking, Pickup, or Cancellation Issue',
+    description: 'Security test incident ownership',
+  });
+
+  try {
+    const res = await fetch(`${baseUrl}/api/incidents/${incident._id}/evidence`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenUser2}`,
+      },
+      body: JSON.stringify({ evidence: ['https://attacker.example/spoof.png'] }),
+    });
+    assert.equal(res.status, 403);
+  } finally {
+    await Incident.deleteOne({ _id: incident._id });
+  }
+});
+
+test('ALERT MASS ASSIGNMENT: PUT /api/alerts/:id prevents reassigning alert userId', async () => {
+  const Alert = require('../alerts/alerts.model');
+  const alertDoc = await Alert.create({
+    userId: normalUser1._id,
+    pickup: { type: 'Point', coordinates: [77.5186, 12.9004] },
+    drop: { type: 'Point', coordinates: [77.6066, 12.9756] },
+    pickupRadius: 5000,
+    dropRadius: 5000,
+    name: 'Campus Morning Alert',
+  });
+
+  try {
+    const res = await fetch(`${baseUrl}/api/alerts/${alertDoc._id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${tokenUser1}`,
+      },
+      body: JSON.stringify({
+        name: 'Updated Safe Name',
+        userId: normalUser2._id.toString(),
+      }),
+    });
+    assert.equal(res.status, 200);
+    const updated = await Alert.findById(alertDoc._id);
+    assert.equal(updated.name, 'Updated Safe Name');
+    assert.equal(updated.userId.toString(), normalUser1._id.toString());
+  } finally {
+    await Alert.deleteOne({ _id: alertDoc._id });
+  }
+});
+
+test('COMMUNITY CHAT IDOR: Non-admin student cannot read another colleges community chat (returns 403)', async () => {
+  const res = await fetch(`${baseUrl}/api/community/chat/SomeOtherCollegeUniversity`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` },
+  });
+  assert.equal(res.status, 403);
+});
+
+test('SUSPENSION ENFORCEMENT: Auth middleware returns structured ACCOUNT_SUSPENDED / ACCOUNT_BLOCKED 403 codes', async () => {
+  await User.findByIdAndUpdate(suspendedUser._id, {
+    suspended: true,
+    suspensionReason: 'Security Gate Verification Suspension',
+  });
+
+  const suspRes = await fetch(`${baseUrl}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${tokenSuspended}` },
+  });
+  assert.equal(suspRes.status, 403);
+  const suspJson = await suspRes.json();
+  assert.equal(suspJson.code, 'ACCOUNT_SUSPENDED');
+  assert.equal(suspJson.suspended, true);
+
+  const blkRes = await fetch(`${baseUrl}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${tokenBlocked}` },
+  });
+  assert.equal(blkRes.status, 403);
+  const blkJson = await blkRes.json();
+  assert.equal(blkJson.code, 'ACCOUNT_BLOCKED');
+  assert.equal(blkJson.blocked, true);
+});
+
+test('KYC UPLOAD NEGATIVE CASES: Multipart upload rejects missing docType and forged PE/EXE magic bytes (400)', async () => {
+  const formMissingType = new FormData();
+  formMissingType.append('document', new Blob([Buffer.from('89504e470d0a1a0a0000000d', 'hex')], { type: 'image/png' }), 'test.png');
+  const resMissingType = await fetch(`${baseUrl}/api/kyc/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tokenUser2}` },
+    body: formMissingType,
+  });
+  assert.equal(resMissingType.status, 400);
+
+  const formExe = new FormData();
+  formExe.append('docType', 'collegeIdCard');
+  formExe.append('document', new Blob([Buffer.from('4d5a900003000000ffff', 'hex')], { type: 'image/png' }), 'payload.png');
+  const resExe = await fetch(`${baseUrl}/api/kyc/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${tokenUser2}` },
+    body: formExe,
+  });
+  assert.equal(resExe.status, 400);
+});
+
+test('AUTH & SOCKET HARDENING: Login safely handles regex metacharacters and Socket.IO join-ride blocks non-participants', async () => {
+  const redosLogin = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: '(a+)+@example.com', password: 'wrongpassword' }),
+  });
+  assert.equal(redosLogin.status, 400);
+
+  // Verify Socket.IO join-ride blocks User 2 (non-participant on testRide)
+  const freshUser2 = await User.findById(normalUser2._id);
+  const liveTok2 = jwt.sign(
+    { userId: freshUser2._id.toString(), email: freshUser2.email, role: 'seeker', sessionSeed: freshUser2.currentSessionSeed },
+    process.env.JWT_SECRET,
+    { algorithm: 'HS256', expiresIn: '1h' }
+  );
+
+  await new Promise((resolve, reject) => {
+    const client = ClientIo(baseUrl, { transports: ['websocket'] });
+    const timer = setTimeout(() => { client.close(); reject(new Error('Socket timeout')); }, 3000);
+    client.on('connect', () => client.emit('authenticate', { token: liveTok2 }));
+    client.on('authenticated', (authRes) => {
+      assert.equal(authRes.success, true);
+      client.emit('join-ride', testRide._id.toString());
+    });
+    client.on('chat-error', (errPayload) => {
+      clearTimeout(timer);
+      assert.ok(String(errPayload?.message || '').toLowerCase().includes('unauthorized'));
+      client.close();
+      resolve();
+    });
+  });
+});

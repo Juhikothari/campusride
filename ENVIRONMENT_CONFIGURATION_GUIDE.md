@@ -20,6 +20,8 @@
 | `FRONTEND_URL` | Optional | `https://campusride.app` | Production web application URL for CORS allowlisting. |
 | `PHOTON_URL` / `NOMINATIM_URL` / `OSRM_URL` | Optional | `https://photon.komoot.io` / `https://router.project-osrm.org` | Self-hosted or public OpenStreetMap geocoding and routing backends. |
 | `GEOAPIFY_API_KEY` | Optional | `your_geoapify_key` | Optional fallback geocoding provider when Photon/Nominatim are degraded. |
+| `GROQ_API_KEY` | **YES (AI Chat)** | `gsk_...` | Server-side only Groq API key for HOGO AI Assistant (`/api/chatbot/message`). Never expose to React Native client. |
+| `GROQ_MODEL` | Optional | `llama-3.3-70b-versatile` | Configurable primary Groq model (with `llama-3.1-8b-instant` fallback). |
 | `EXPO_PUBLIC_MAPLIBRE_STYLE_URL` | Optional (Mobile) | `https://tiles.openfreemap.org/styles/liberty` | Vector tile style URL consumed by `@maplibre/maplibre-react-native`. |
 
 ---
