@@ -38,8 +38,8 @@ jobs:
         run: |
           npm test > /tmp/backend-test.log 2>&1 || {
             cat /tmp/backend-test.log
-            ERR_SUMMARY=$(grep -E "^✖|^\s*✖|failing tests:|AssertionError|ERR_ASSERTION|exit code" /tmp/backend-test.log -A 2 | head -n 15 | tr '\n' ' ' | sed 's/%/ /g')
-            echo "::error::$ERR_SUMMARY"
+            ERR_TAIL=$(tail -n 35 /tmp/backend-test.log | sed -r 's/\x1B\[[0-9;]*[mK]//g' | tr '\n' ' ' | sed 's/%/ /g' | cut -c1-1200)
+            echo "::error::TAIL: $ERR_TAIL"
             exit 1
           }
           cat /tmp/backend-test.log
