@@ -159,7 +159,10 @@ global.disconnectUserSockets = (userId, reason = 'session_revoked') => {
     for (const [id, s] of io.of("/").sockets) {
       if (s.userId === uIdStr) {
         s.emit('session_terminated', { reason });
-        s.disconnect(true);
+        // Allow Socket.IO frame flush before tearing down underlying transport
+        setTimeout(() => {
+          try { s.disconnect(true); } catch {}
+        }, 25);
         console.log(`🔌 Forcibly disconnected socket ${s.id} for user ${uIdStr} (${reason})`);
       }
     }
