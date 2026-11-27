@@ -99,8 +99,8 @@ jobs:
 
       - name: Cleanup Release Keystore Material
         if: always()
-        working-directory: campusride-mobile/android
-        run: rm -f app/hogo-release.keystore
+        run: |
+          rm -f campusride-mobile/android/app/hogo-release.keystore campusride-mobile/android/gradle.properties || true
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
