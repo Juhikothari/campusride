@@ -1,4 +1,4 @@
-name: Build & Release Android APK
+name: Backend & Mobile Verification CI
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
         working-directory: ./backend
         run: npm ci
 
-      - name: Run Backend Security Tests
+      - name: Run Backend Security & Chatbot Tests
         working-directory: ./backend
         env:
           NODE_ENV: test
@@ -37,14 +37,9 @@ jobs:
           JWT_SECRET: test_jwt_secret_must_be_sufficiently_long_for_security_tests_12345
         run: npm test
 
-  build:
-    name: Build Android APK
-    needs: test
+  mobile-checks:
+    name: Verify Mobile Code (Expo Doctor)
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -56,18 +51,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: campusride-mobile/package-lock.json
 
-      - name: Setup Java JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Install EAS CLI
-        run: npm install -g eas-cli
-
       - name: Install Mobile Dependencies
         working-directory: ./campusride-mobile
         run: npm ci
@@ -75,20 +58,3 @@ jobs:
       - name: Lint and Verify Mobile Code (Expo Doctor)
         working-directory: ./campusride-mobile
         run: npx expo-doctor
-
-      - name: Build Standalone Android APK (EAS Build)
-        working-directory: ./campusride-mobile
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://campusride-backend-gwgr.onrender.com' }}
-        run: |
-          npx eas-cli build --platform android --profile preview --non-interactive --local
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: |
-            campusride-mobile/*.apk
-            campusride-mobile/*.aab
-          if-no-files-found: error

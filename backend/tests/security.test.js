@@ -16,6 +16,7 @@ if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'campusride_test_jwt_secre
 if (!process.env.ADMIN_KEY) process.env.ADMIN_KEY = 'campusride_admin_test_key_secure_9988';
 
 const { server } = require('../server');
+const connectDB = require('../config/db');
 const User = require('../users/users.model');
 const Ride = require('../rides/rides.model');
 const Booking = require('../bookings/bookings.model');
@@ -39,11 +40,12 @@ let tokenBlocked;
 let serverPort;
 
 before(async () => {
-  // Wait for MongoDB connection if not yet connected
+  // Ensure MongoDB connection is fully established (deterministic wait for CI runners)
+  await connectDB();
   if (mongoose.connection.readyState !== 1) {
-    await new Promise((resolve) => {
-      mongoose.connection.once('open', resolve);
-      setTimeout(resolve, 3000);
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('MongoDB connection timed out in test setup')), 15000);
+      mongoose.connection.once('open', () => { clearTimeout(t); resolve(); });
     });
   }
 
