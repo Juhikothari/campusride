@@ -8,9 +8,9 @@
   },
   "scripts": {
     "start": "node server.js",
-    "test": "node --test tests/security.test.js && node --test tests/chatbot.test.js",
-    "test:security": "node --test tests/security.test.js",
-    "test:chatbot": "node --test tests/chatbot.test.js",
+    "test": "node --test --test-isolation=none tests/security.test.js && node --test --test-isolation=none tests/chatbot.test.js",
+    "test:security": "node --test --test-isolation=none tests/security.test.js",
+    "test:chatbot": "node --test --test-isolation=none tests/chatbot.test.js",
     "build": "echo 'No build step'",
     "dev": "nodemon server.js"
   },
