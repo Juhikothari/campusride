@@ -44,6 +44,7 @@ export default function ProviderBookingsScreen({ navigation }) {
   const [myRides,         setMyRides]         = useState([]);
   const [selectedRide,    setSelectedRide]    = useState(null);
   const [expandedRideIds, setExpandedRideIds] = useState({});
+  const [showAllRides,    setShowAllRides]    = useState(false);
   const [bookings,        setBookings]        = useState([]);
   const [ridesLoading,    setRidesLoading]    = useState(true);
   const [bkLoading,       setBkLoading]       = useState(false);
@@ -51,7 +52,8 @@ export default function ProviderBookingsScreen({ navigation }) {
   const [error,           setError]           = useState('');
   const [actionMap,       setActionMap]       = useState({});
 
-  const toggleExpand = (id) => setExpandedRideIds(prev => ({ ...prev, [id]: !prev[id] }));
+  // Single-open accordion: opening one ride automatically closes all others
+  const toggleExpand = (id) => setExpandedRideIds(prev => (prev[id] ? {} : { [id]: true }));
 
   const { socket, notifications } = useSocket(user?._id || user?.userId, 'provider');
 
@@ -157,8 +159,7 @@ export default function ProviderBookingsScreen({ navigation }) {
           <>
             <Text style={styles.sectionLabel}>YOUR POSTED RIDES</Text>
             <View style={{ gap: 10, marginBottom: spacing.md }}>
-              {myRides.map(r => {
-                const cfg = RIDE_STATUS_CONFIG[r.status] || RIDE_STATUS_CONFIG.active;
+              {(showAllRides ? myRides : myRides.slice(0, 5)).map(r => {
                 const isSelected = selectedRide?._id === r._id;
                 const isExpanded = !!expandedRideIds[r._id];
                 return (
@@ -182,7 +183,6 @@ export default function ProviderBookingsScreen({ navigation }) {
                       }}
                       activeOpacity={0.7}
                     >
-                      <Text style={{ fontSize: 18, marginRight: 10 }}>{cfg.icon}</Text>
                       <View style={{ flex: 1, marginRight: 8 }}>
                         <Text style={[styles.verticalRideDate, { color: isSelected ? colors.accent : (isDark ? colors.text : '#0f172a') }]}>
                           {fmtDate(r.date)} · {r.time}
@@ -268,6 +268,24 @@ export default function ProviderBookingsScreen({ navigation }) {
                   </View>
                 );
               })}
+              {myRides.length > 5 && (
+                <TouchableOpacity
+                  onPress={() => setShowAllRides(prev => !prev)}
+                  activeOpacity={0.75}
+                  style={{
+                    alignItems: 'center',
+                    paddingVertical: 10,
+                    borderRadius: radius.md,
+                    borderWidth: 1,
+                    borderColor: isDark ? colors.border : '#cbd5e1',
+                    backgroundColor: isDark ? colors.surface2 : '#f8fafc',
+                  }}
+                >
+                  <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '800' }}>
+                    {showAllRides ? '▲ Show Fewer Rides' : `▼ See More (${myRides.length - 5} older rides)`}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </>
         )}
@@ -312,6 +330,14 @@ export default function ProviderBookingsScreen({ navigation }) {
                               </Text>
                             <Text style={styles.seekerMeta}>💺 {b.seats || 1} seat{(b.seats || 1) > 1 ? 's' : ''} requested</Text>
                             {seeker?.college && <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>🏫 {seeker.college}</Text>}
+                            <View style={{ marginTop: 6, padding: 8, borderRadius: radius.sm, backgroundColor: isDark ? colors.surface2 : '#f8fafc', borderWidth: 1, borderColor: isDark ? colors.border : '#e2e8f0', gap: 3 }}>
+                              <Text style={[styles.seekerMeta, { color: isDark ? colors.text2 : '#334155', marginTop: 0 }]} numberOfLines={2}>
+                                📍 Pickup: <Text style={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}>{getAddr(b.pickup) !== '—' ? getAddr(b.pickup) : getAddr(selectedRide?.pickup)}</Text>
+                              </Text>
+                              <Text style={[styles.seekerMeta, { color: isDark ? colors.text2 : '#334155', marginTop: 0 }]} numberOfLines={2}>
+                                🏁 Drop: <Text style={{ color: isDark ? colors.text : '#0f172a', fontWeight: '700' }}>{getAddr(b.drop) !== '—' ? getAddr(b.drop) : getAddr(selectedRide?.drop)}</Text>
+                              </Text>
+                            </View>
                             <Text style={[styles.seekerMeta, { color: colors.text3, fontSize: 11, fontStyle: 'italic', marginTop: 4 }]}>
                               🔒 Phone revealed after accepting
                             </Text>
@@ -363,49 +389,7 @@ export default function ProviderBookingsScreen({ navigation }) {
               </View>
             )}
 
-            {/* Completed Rides: Show Confirmed / Resolved buddies on top before stats & privacy notice */}
-            {selectedRide.status === 'completed' && resolved.length > 0 && (
-              <View style={{ marginBottom: spacing.md }}>
-                <Text style={styles.sectionLabel}>CONFIRMED / RESOLVED ({resolved.length})</Text>
-                {resolved.map(b => {
-                  const seeker = b.seekerId;
-                  const isAccepted = b.status === 'accepted';
-                  return (
-                    <View
-                      key={b._id}
-                      style={[
-                        styles.bookingCard,
-                        {
-                          backgroundColor: isDark ? colors.surface : '#ffffff',
-                          borderColor: isDark ? (isAccepted ? 'rgba(0,230,118,0.3)' : colors.border) : (isAccepted ? '#86efac' : '#cbd5e1'),
-                        },
-                        !isAccepted && { opacity: 0.7 }
-                      ]}
-                    >
-                      <View style={styles.seekerRow}>
-                        <View style={[styles.avatar, isAccepted && { borderColor: colors.green, backgroundColor: colors.green + '22' }]}>
-                          <Text style={[styles.avatarText, isAccepted && { color: colors.green }]}>🪪</Text>
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.seekerName, { color: isDark ? colors.text : '#0f172a' }]}>
-                            🪪 USN: {getDisplayUSN(seeker, 'Buddy')}
-                          </Text>
-                          {seeker?.college && (
-                            <Text style={[styles.seekerMeta, { color: isDark ? colors.text3 : '#64748b' }]}>
-                              🏫 {seeker.college}
-                            </Text>
-                          )}
-                        </View>
-                        <Text style={[styles.statusBadge, {
-                          color: isAccepted ? colors.green : colors.red,
-                          borderColor: isAccepted ? colors.green : colors.red,
-                        }]}>{isAccepted ? 'confirmed' : b.status}</Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            {/* Completed or cancelled rides omit Confirmed / Resolved lists */}
 
             {/* Stats */}
             <View style={styles.statsRow}>
@@ -464,8 +448,8 @@ export default function ProviderBookingsScreen({ navigation }) {
               </View>
             )}
 
-                {/* Resolved (non-completed rides render resolved after pending & stats) */}
-                {selectedRide.status !== 'completed' && resolved.length > 0 && (
+                {/* Resolved (non-completed/non-cancelled rides render resolved after pending & stats) */}
+                {selectedRide.status !== 'completed' && selectedRide.status !== 'cancelled' && resolved.length > 0 && (
                   <>
                     <Text style={[styles.sectionLabel, { marginTop: spacing.md }]}>CONFIRMED / RESOLVED ({resolved.length})</Text>
                     {resolved.map(b => {

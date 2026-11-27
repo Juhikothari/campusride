@@ -335,6 +335,8 @@ export default function SearchRidesScreen({ navigation }) {
   const applyHistorySearch = (item) => {
     if (item.pickup) setPickup(item.pickup);
     if (item.drop) setDrop(item.drop);
+    setShowHistoryDropdown(false);
+    setExpandedHistoryIndex(null);
     setRides([]);
     setSearched(false);
     setError('');
@@ -474,7 +476,7 @@ export default function SearchRidesScreen({ navigation }) {
 
     RNAlert.alert(
       'Confirm Booking Request',
-      `🚗 Vehicle: ${(ride.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${seekerP.address}\n🎯 Destination: ${seekerD.address}\n\nSend ride request to provider?`,
+      `🚗 Vehicle: ${(ride.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${seekerP.address}\n🏁 Destination: ${seekerD.address}\n\nSend ride request to provider?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

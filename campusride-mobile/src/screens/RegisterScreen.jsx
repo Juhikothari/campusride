@@ -237,10 +237,20 @@ export default function RegisterScreen({ navigation }) {
     setError('');
     try {
       const uploadedDocs = {};
+      const regUploadTokens = {};
       setUploading(true);
-      if (selfieUri) uploadedDocs.selfie = await uploadToCloudinaryWithRetry(selfieUri);
-      if (kycDocs && kycDocs.license)  uploadedDocs.drivingLicense  = await uploadToCloudinaryWithRetry(kycDocs.license);
-      if (kycDocs && kycDocs.collegeId) uploadedDocs.collegeIdCard  = await uploadToCloudinaryWithRetry(kycDocs.collegeId);
+      // Profile photo stays separate from private KYC document storage
+      if (selfieUri) uploadedDocs.profilePhoto = await uploadToCloudinaryWithRetry(selfieUri);
+      if (kycDocs && kycDocs.license) {
+        const licRes = await api.uploadRegistrationKycDocument(kycDocs.license, 'drivingLicense');
+        uploadedDocs.drivingLicense = licRes.storedRef;
+        if (licRes.regUploadToken) regUploadTokens.drivingLicense = licRes.regUploadToken;
+      }
+      if (kycDocs && kycDocs.collegeId) {
+        const idRes = await api.uploadRegistrationKycDocument(kycDocs.collegeId, 'collegeIdCard');
+        uploadedDocs.collegeIdCard = idRes.storedRef;
+        if (idRes.regUploadToken) regUploadTokens.collegeIdCard = idRes.regUploadToken;
+      }
       setUploading(false);
 
       const validVehicles = vehicles
@@ -260,8 +270,7 @@ export default function RegisterScreen({ navigation }) {
         isCustomCollege: Boolean(isCustomCollege),
         password, role, usn: usn.trim() || 'STUDENT', gender,
         emergencyContact: emergency.trim(),
-        profilePhoto: uploadedDocs.selfie || null,
-        selfie: uploadedDocs.selfie || null,
+        profilePhoto: uploadedDocs.profilePhoto || null,
         ...(role === 'admin' && { adminKey }),
         ...(primaryVehicle ? {
           vehicleNumber:  primaryVehicle.vehicleNumber,
@@ -271,6 +280,7 @@ export default function RegisterScreen({ navigation }) {
         } : {}),
         drivingLicense: uploadedDocs.drivingLicense || null,
         collegeIdCard:  uploadedDocs.collegeIdCard || null,
+        regUploadTokens,
       });
 
       await AsyncStorage.setItem('@show_onboarding_carousel', 'true').catch(() => {});

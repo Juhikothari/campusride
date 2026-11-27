@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
@@ -229,7 +229,62 @@ export default function LiveTrackingScreen({ navigation, route }) {
     return () => unsubFocus();
   }, [activeRideId, navigation]);
 
-  // 3. Elapsed ride timer
+  // 3. Elapsed ride timer (memoized map props prevent 1s re-renders from jumping/reloading MapLibre)
+  const mapPickupProp = useMemo(
+    () => (pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null),
+    [pickupCoords?.latitude, pickupCoords?.longitude, rideInfo?.pickup?.address]
+  );
+
+  const mapDropProp = useMemo(
+    () => (dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null),
+    [dropCoords?.latitude, dropCoords?.longitude, rideInfo?.drop?.address]
+  );
+
+  const mapDriverProp = useMemo(
+    () => (effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null),
+    [effectiveDriverCoords?.latitude, effectiveDriverCoords?.longitude]
+  );
+
+  const { extraPickups: mapExtraPickups, extraDrops: mapExtraDrops } = useMemo(() => {
+    const pickups = [];
+    const drops = [];
+    if (isDriver) {
+      const accepted = (rideInfo?.passengers || []).filter(p => p.status === 'accepted');
+      accepted.forEach((p, i) => {
+        const usn = getDisplayUSN(p.seeker, `Seeker ${i + 1}`);
+        const pLoc = p.pickupLocation || p.seeker?.pickupLocation;
+        const pLat = pLoc?.lat ?? pLoc?.latitude ?? (Array.isArray(pLoc?.coordinates) ? pLoc.coordinates[1] : null);
+        const pLng = pLoc?.lng ?? pLoc?.longitude ?? (Array.isArray(pLoc?.coordinates) ? pLoc.coordinates[0] : null);
+        if (pLat != null && pLng != null) {
+          pickups.push({ lat: Number(pLat), lng: Number(pLng), usn, label: usn, address: pLoc?.address || p.pickupAddress || '' });
+        }
+
+        const dLoc = p.dropLocation || p.seeker?.dropLocation;
+        const dLat = dLoc?.lat ?? dLoc?.latitude ?? (Array.isArray(dLoc?.coordinates) ? dLoc.coordinates[1] : null);
+        const dLng = dLoc?.lng ?? dLoc?.longitude ?? (Array.isArray(dLoc?.coordinates) ? dLoc.coordinates[0] : null);
+        if (dLat != null && dLng != null) {
+          drops.push({ lat: Number(dLat), lng: Number(dLng), usn, label: usn, address: dLoc?.address || p.dropAddress || '' });
+        }
+      });
+    } else if (rideInfo?.myBooking) {
+      const mb = rideInfo.myBooking;
+      const myUsn = getDisplayUSN(user, 'My Stop');
+      const pLoc = mb.pickup;
+      const pLat = pLoc?.lat ?? pLoc?.latitude ?? (Array.isArray(pLoc?.coordinates) ? pLoc.coordinates[1] : null);
+      const pLng = pLoc?.lng ?? pLoc?.longitude ?? (Array.isArray(pLoc?.coordinates) ? pLoc.coordinates[0] : null);
+      if (pLat != null && pLng != null) {
+        pickups.push({ lat: Number(pLat), lng: Number(pLng), usn: myUsn, label: myUsn, address: pLoc?.address || '' });
+      }
+      const dLoc = mb.drop;
+      const dLat = dLoc?.lat ?? dLoc?.latitude ?? (Array.isArray(dLoc?.coordinates) ? dLoc.coordinates[1] : null);
+      const dLng = dLoc?.lng ?? dLoc?.longitude ?? (Array.isArray(dLoc?.coordinates) ? dLoc.coordinates[0] : null);
+      if (dLat != null && dLng != null) {
+        drops.push({ lat: Number(dLat), lng: Number(dLng), usn: myUsn, label: myUsn, address: dLoc?.address || '' });
+      }
+    }
+    return { extraPickups: pickups, extraDrops: drops };
+  }, [isDriver, rideInfo?.passengers, rideInfo?.myBooking, user]);
+
   useEffect(() => {
     if (!tracking) return;
     timerRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
@@ -1014,22 +1069,14 @@ export default function LiveTrackingScreen({ navigation, route }) {
 
             {/* Interactive Native MapLibre + OSM Map */}
             <LiveMapView
-              pickup={pickupCoords ? { lat: pickupCoords.latitude, lng: pickupCoords.longitude, label: rideInfo?.pickup?.address } : null}
-              drop={dropCoords ? { lat: dropCoords.latitude, lng: dropCoords.longitude, label: rideInfo?.drop?.address } : null}
-              driverLocation={effectiveDriverCoords ? { lat: effectiveDriverCoords.latitude, lng: effectiveDriverCoords.longitude } : null}
+              pickup={mapPickupProp}
+              drop={mapDropProp}
+              driverLocation={mapDriverProp}
               followDriver={followDriver}
               onFollowChange={setFollowDriver}
               driverStale={driverStale}
-              extraPickups={isDriver ? (rideInfo?.passengers || [])
-                .filter(p => p.status === 'accepted')
-                .map((p, i) => {
-                  const loc = p.pickupLocation || p.seeker?.pickupLocation || rideInfo?.pickup;
-                  const lat = loc?.lat || loc?.latitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[1] : null);
-                  const lng = loc?.lng || loc?.longitude || (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : null);
-                  const usn = p.seeker?.usn ? (p.seeker.usn.length > 3 ? p.seeker.usn.slice(-3).toUpperCase() : p.seeker.usn.toUpperCase()) : `Buddy ${i + 1}`;
-                  return lat && lng ? { lat, lng, label: `Buddy ${usn}: Pickup` } : null;
-                })
-                .filter(Boolean) : []}
+              extraPickups={mapExtraPickups}
+              extraDrops={mapExtraDrops}
               coordinates={routeCoordinates}
               leg1Coordinates={leg1Coords}
               leg2Coordinates={leg2Coords}
@@ -1216,7 +1263,7 @@ export default function LiveTrackingScreen({ navigation, route }) {
                               <View style={[styles.driverGridItem, { width: '100%', marginTop: 4 }]}>
                                 <Text style={styles.driverGridLabel}>SEEKER DROP SPOT</Text>
                                 <Text style={[styles.driverGridVal, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={2}>
-                                  🎯 {p.dropLocation?.address || p.seeker?.dropLocation?.address || p.dropAddress || rideInfo?.drop?.address}
+                                  🏁 {p.dropLocation?.address || p.seeker?.dropLocation?.address || p.dropAddress || rideInfo?.drop?.address}
                                 </Text>
                               </View>
                             ) : null}

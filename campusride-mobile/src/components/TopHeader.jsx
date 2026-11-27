@@ -31,7 +31,7 @@ function getHeaderEmoji(title) {
   return '🛵';
 }
 
-export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack, highlightProfile = false, showNotification }) {
+export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy', showBack, highlightProfile = false, showNotification, showProfile = true }) {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
   const { isDark, toggleTheme, colors: tc } = useTheme();
@@ -209,15 +209,17 @@ export default function TopHeader({ title = 'HOGO', subtitle = 'Find Your Buddy'
           )}
 
           {/* Profile Avatar Button */}
-          <TouchableOpacity
-            style={[styles.avatarBtn, highlightProfile && { borderColor: '#f5a623', borderWidth: 2.5, backgroundColor: 'rgba(245,166,35,0.25)', shadowColor: '#f5a623', shadowRadius: 10, shadowOpacity: 0.8, elevation: 8 }]}
-            onPress={() => setModalVisible(true)}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Open user menu"
-          >
-            <Text style={styles.avatarBtnText}>{initials}</Text>
-          </TouchableOpacity>
+          {showProfile && (
+            <TouchableOpacity
+              style={[styles.avatarBtn, highlightProfile && { borderColor: '#f5a623', borderWidth: 2.5, backgroundColor: 'rgba(245,166,35,0.25)', shadowColor: '#f5a623', shadowRadius: 10, shadowOpacity: 0.8, elevation: 8 }]}
+              onPress={() => setModalVisible(true)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Open user menu"
+            >
+              <Text style={styles.avatarBtnText}>{initials}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

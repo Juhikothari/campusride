@@ -12,18 +12,6 @@ import { colors, radius, spacing } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import * as api from '../services/api';
 
-const POPULAR_CAMPUS_SPOTS = [
-  'Christ University Bengaluru',
-  'RNSIT Campus Gate',
-  'RV College of Engineering',
-  'BMS College of Engineering',
-  'PES University Ring Road',
-  'Majestic Bus & Metro Station',
-  'MG Road Metro Station',
-  'Koramangala Sony World',
-  'Indiranagar 100 Feet Road',
-];
-
 export default function MapPickerModal({ visible, onClose, onSelect, initialLocation, title = 'Pick Campus Location' }) {
   const { isDark } = useTheme();
   const [addressLabel,  setAddressLabel]  = useState('');
@@ -262,13 +250,7 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
             <Text style={[styles.closeBtnText, { color: isDark ? colors.text2 : '#475569' }]}>✕ Close</Text>
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: isDark ? colors.text : '#0f172a' }]} numberOfLines={1}>{title}</Text>
-          <TouchableOpacity onPress={locateUser} style={styles.gpsBtn} activeOpacity={0.7} disabled={locating}>
-            {locating ? (
-              <ActivityIndicator size="small" color={colors.accent} />
-            ) : (
-              <Text style={{ color: colors.accent, fontSize: 11.5, fontWeight: '800' }}>🎯 GPS</Text>
-            )}
-          </TouchableOpacity>
+          <View style={{ width: 64 }} />
         </View>
 
         {/* Search Input + Quick Results (outside ScrollView so native Map gestures never conflict) */}
@@ -336,11 +318,47 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
             height={300}
             interactive={true}
             inModal={true}
+            showControls={false}
             style={{ flex: 1, height: '100%' }}
           />
+          <TouchableOpacity
+            onPress={locateUser}
+            disabled={locating}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Center map on current GPS location"
+            style={{
+              position: 'absolute',
+              bottom: 28,
+              right: 12,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: 'rgba(15, 23, 42, 0.92)',
+              borderWidth: 1.5,
+              borderColor: 'rgba(245,166,35,0.8)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              elevation: 6,
+            }}
+          >
+            {locating ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, borderWidth: 1.8, borderColor: '#f5a623', alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: '#f5a623' }} />
+                </View>
+                <View style={{ position: 'absolute', top: 0, width: 1.8, height: 4, backgroundColor: '#f5a623' }} />
+                <View style={{ position: 'absolute', bottom: 0, width: 1.8, height: 4, backgroundColor: '#f5a623' }} />
+                <View style={{ position: 'absolute', left: 0, height: 1.8, width: 4, backgroundColor: '#f5a623' }} />
+                <View style={{ position: 'absolute', right: 0, height: 1.8, width: 4, backgroundColor: '#f5a623' }} />
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Selected Location Card + Quick Campus Chips + Bottom Confirm */}
+        {/* Selected Location Card + Bottom Confirm */}
         <View style={[styles.footerPanel, { backgroundColor: isDark ? colors.surface : '#ffffff', borderTopColor: isDark ? colors.border : '#e2e8f0' }]}>
           <View style={styles.selectedRow}>
             <TouchableOpacity style={styles.pinCircle} onPress={locateUser} activeOpacity={0.7}>
@@ -362,19 +380,6 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
               )}
             </View>
           </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.spotsRow}>
-            {POPULAR_CAMPUS_SPOTS.map((spot, i) => (
-              <TouchableOpacity
-                key={i}
-                style={[styles.spotChip, { backgroundColor: isDark ? colors.surface2 : '#f1f5f9', borderColor: isDark ? colors.border : '#cbd5e1' }]}
-                onPress={() => selectSpot(spot)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.spotText, { color: isDark ? colors.text2 : '#475569' }]}>{spot}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
 
           <TouchableOpacity
             style={[styles.confirmBtn, (!coords || isDraggingPin) && { opacity: 0.5 }]}

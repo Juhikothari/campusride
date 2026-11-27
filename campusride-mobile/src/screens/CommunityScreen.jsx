@@ -805,11 +805,11 @@ function PostsTab({ user }) {
               {isOwner && (
                 <TouchableOpacity
                   onPress={() => handleDelete(post._id)}
-                  style={[styles.deleteBadgeBtn, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}
+                  style={[styles.deleteBadgeBtn, { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }]}
                   activeOpacity={0.7}
+                  accessibilityLabel="Delete post"
                 >
-                  <SteelDustbin size={13} />
-                  <Text style={{ color: colors.red, fontSize: 11, fontWeight: '700' }}>Delete</Text>
+                  <SteelDustbin size={14} />
                 </TouchableOpacity>
               )}
             </View>
@@ -920,11 +920,11 @@ function PostsTab({ user }) {
                     {canDeleteReply && (
                       <TouchableOpacity
                         onPress={() => handleDeleteReply(post._id, r._id)}
-                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                        style={{ alignItems: 'center', justifyContent: 'center', padding: 4 }}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityLabel="Delete reply"
                       >
                         <SteelDustbin size={12} />
-                        <Text style={{ color: colors.red, fontSize: 11, fontWeight: '600' }}>Delete</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1245,8 +1245,9 @@ function CollegeChatTab({ user }) {
             onPress={() => setAnonymous(a => !a)}
             style={{ padding: 8, justifyContent: 'center', alignItems: 'center' }}
             activeOpacity={0.7}
+            accessibilityLabel={anonymous ? 'Anonymous mode active' : 'Named mode active'}
           >
-            <Text style={{ fontSize: 20 }}>{anonymous ? '🎭' : '🎓'}</Text>
+            <Text style={{ fontSize: 20 }}>{anonymous ? '🕵️' : '👤'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={pickChatDocument}

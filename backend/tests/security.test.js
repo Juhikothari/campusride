@@ -1725,3 +1725,226 @@ test('AUTH & SOCKET HARDENING: Login safely handles regex metacharacters and Soc
     });
   });
 });
+
+test('FINAL GATE (KYC Query Token Isolation): Scoped KYC token & ?token= rejected on all non-document API routes', async () => {
+  await User.findByIdAndUpdate(normalUser2._id, {
+    'kycDocuments.collegeIdCard': 'private://kyc_private/test_sample.png'
+  });
+
+  const signRes = await fetch(`${baseUrl}/api/kyc/document/${normalUser2._id}/collegeIdCard/signed-url`, {
+    headers: { Authorization: `Bearer ${tokenUser2}` }
+  });
+  assert.equal(signRes.status, 200);
+  const { signedUrl } = await signRes.json();
+  const kycScopedToken = new URLSearchParams(signedUrl.split('?')[1]).get('token');
+  assert.ok(kycScopedToken);
+
+  const nonDocRoutes = [
+    '/api/users/profile',
+    '/api/ride/my',
+    '/api/booking/my',
+    '/api/sos/active',
+    '/api/admin/stats'
+  ];
+
+  for (const routePath of nonDocRoutes) {
+    // 1. Passing KYC token as ?token=... query parameter -> strictly 401
+    const qRes = await fetch(`${baseUrl}${routePath}?token=${encodeURIComponent(kycScopedToken)}`);
+    assert.equal(qRes.status, 401, `${routePath} must reject ?token= query authentication`);
+
+    // 2. Passing KYC-scoped token in Authorization: Bearer header -> strictly 403 SCOPED_TOKEN_FORBIDDEN
+    const bRes = await fetch(`${baseUrl}${routePath}`, {
+      headers: { Authorization: `Bearer ${kycScopedToken}` }
+    });
+    assert.equal(bRes.status, 403, `${routePath} must reject kyc_document_access token even in Bearer header`);
+  }
+
+  // Verify wrong purpose, wrong op, and missing sessionSeed tokens are rejected on KYC document route
+  const freshU2 = await User.findById(normalUser2._id);
+  const wrongOpToken = jwt.sign(
+    {
+      userId: freshU2._id.toString(),
+      targetUserId: freshU2._id.toString(),
+      docType: 'collegeIdCard',
+      op: 'write',
+      purpose: 'kyc_document_access',
+      sessionSeed: freshU2.currentSessionSeed,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '5m', algorithm: 'HS256' }
+  );
+  const wrongOpRes = await fetch(`${baseUrl}/api/kyc/document/${freshU2._id}/collegeIdCard?token=${wrongOpToken}`);
+  assert.equal(wrongOpRes.status, 403);
+
+  const expiredKycToken = jwt.sign(
+    {
+      userId: freshU2._id.toString(),
+      targetUserId: freshU2._id.toString(),
+      docType: 'collegeIdCard',
+      op: 'read',
+      purpose: 'kyc_document_access',
+      sessionSeed: freshU2.currentSessionSeed,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '-10s', algorithm: 'HS256' }
+  );
+  const expRes = await fetch(`${baseUrl}/api/kyc/document/${freshU2._id}/collegeIdCard?token=${expiredKycToken}`);
+  assert.equal(expRes.status, 401);
+});
+
+test('FINAL GATE (Private Registration KYC & Ownership Binding): Rejects public Cloudinary URLs and cross-user theft', async () => {
+  const pngBytes = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');
+  const form = new FormData();
+  form.append('docType', 'collegeIdCard');
+  form.append('document', new Blob([pngBytes], { type: 'image/png' }), 'college_id.png');
+
+  const uploadRes = await fetch(`${baseUrl}/api/kyc/register-upload`, { method: 'POST', body: form });
+  assert.equal(uploadRes.status, 201);
+  const uploadData = await uploadRes.json();
+  assert.ok(uploadData.storedRef.startsWith('private://kyc_private/'));
+  assert.ok(uploadData.regUploadToken);
+
+  // Attempt registration using public Cloudinary URL for KYC doc -> rejected 400
+  const ts = Date.now();
+  const cloudFailRes = await fetch(`${baseUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Public URL Attacker',
+      email: `puburl.${ts}@rnsit.ac.in`,
+      password: 'Password123!',
+      phone: `99111${String(ts).slice(-5)}`,
+      role: 'seeker',
+      college: 'RNS Institute of Technology (RNSIT)',
+      profilePhoto: 'https://res.cloudinary.com/demo/image/upload/avatar.jpg',
+      collegeIdCard: 'https://res.cloudinary.com/demo/image/upload/fake_id.jpg'
+    })
+  });
+  assert.equal(cloudFailRes.status, 400);
+  const cloudFailJson = await cloudFailRes.json();
+  assert.equal(cloudFailJson.code, 'PUBLIC_KYC_URL_REJECTED');
+
+  // Attempt registration stealing staged storedRef WITHOUT matching regUploadToken -> rejected 403
+  const theftRes = await fetch(`${baseUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Ref Thief',
+      email: `thief.${ts}@rnsit.ac.in`,
+      password: 'Password123!',
+      phone: `99222${String(ts).slice(-5)}`,
+      role: 'seeker',
+      college: 'RNS Institute of Technology (RNSIT)',
+      profilePhoto: 'https://res.cloudinary.com/demo/image/upload/avatar.jpg',
+      collegeIdCard: uploadData.storedRef
+    })
+  });
+  assert.equal(theftRes.status, 403);
+
+  // Valid registration binding staging private KYC document + keeping profilePhoto separate -> 201
+  const okRes = await fetch(`${baseUrl}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Verified Student',
+      email: `verified.${ts}@rnsit.ac.in`,
+      password: 'Password123!',
+      phone: `99333${String(ts).slice(-5)}`,
+      role: 'seeker',
+      college: 'RNS Institute of Technology (RNSIT)',
+      usn: '1RN22CS077',
+      profilePhoto: 'https://res.cloudinary.com/demo/image/upload/avatar.jpg',
+      collegeIdCard: uploadData.storedRef,
+      regUploadTokens: { collegeIdCard: uploadData.regUploadToken }
+    })
+  });
+  assert.equal(okRes.status, 201);
+  const createdUser = await User.findOne({ email: `verified.${ts}@rnsit.ac.in` });
+  assert.ok(createdUser);
+  assert.equal(createdUser.kycDocuments.collegeIdCard, uploadData.storedRef);
+  assert.equal(createdUser.profilePhoto, 'https://res.cloudinary.com/demo/image/upload/avatar.jpg');
+  assert.equal(createdUser.kycDocuments.selfie, null);
+
+  // Cleanup created registration test user & doc
+  const KycDocument = require('../kyc/kycDocument.model');
+  await KycDocument.deleteOne({ docId: uploadData.docId });
+  await User.deleteOne({ _id: createdUser._id });
+});
+
+test('FINAL GATE (Twilio Webhook Strict AccountSid & To): Rejects missing AccountSid, mismatched AccountSid, and missing To', async () => {
+  const twilio = require('twilio');
+  const testMsgSid = 'SM_gate_' + Date.now();
+  const sosRecord = await SOS.create({
+    rideId: testRide._id,
+    triggeredBy: { userId: normalUser1._id, role: 'provider' },
+    location: { lat: 12.9081, lng: 77.5218 },
+    status: 'active',
+    notificationsSent: [{
+      type: 'sms',
+      recipient: '+919876543210',
+      status: 'provider_accepted',
+      provider: 'TWILIO',
+      messageId: testMsgSid
+    }]
+  });
+
+  const savedAuth = process.env.TWILIO_AUTH_TOKEN;
+  const savedSid = process.env.TWILIO_ACCOUNT_SID;
+  process.env.TWILIO_AUTH_TOKEN = 'test_twilio_auth_token_32chars_002';
+  process.env.TWILIO_ACCOUNT_SID = 'AC_STRICT_SID_001';
+  const webhookUrl = `${baseUrl}/api/sos/webhook/twilio`;
+
+  try {
+    const cases = [
+      { AccountSid: 'AC_WRONG_SID', MessageSid: testMsgSid, MessageStatus: 'delivered', To: '+919876543210' },
+      { MessageSid: testMsgSid, MessageStatus: 'delivered', To: '+919876543210' }, // Missing AccountSid
+      { AccountSid: 'AC_STRICT_SID_001', MessageSid: testMsgSid, MessageStatus: 'delivered' }, // Missing To
+    ];
+    for (const p of cases) {
+      const sig = twilio.getExpectedTwilioSignature(process.env.TWILIO_AUTH_TOKEN, webhookUrl, p);
+      const r = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Twilio-Signature': sig },
+        body: new URLSearchParams(p).toString(),
+      });
+      assert.equal(r.status, 403);
+    }
+  } finally {
+    if (savedAuth !== undefined) process.env.TWILIO_AUTH_TOKEN = savedAuth; else delete process.env.TWILIO_AUTH_TOKEN;
+    if (savedSid !== undefined) process.env.TWILIO_ACCOUNT_SID = savedSid; else delete process.env.TWILIO_ACCOUNT_SID;
+    await SOS.deleteOne({ _id: sosRecord._id });
+  }
+});
+
+test('INCIDENT SEVERITY CLASSIFICATION: Accurately classifies kidnapped, fare dispute, harassment, and vehicle breakdown', async () => {
+  const resKidnap = await fetch(`${baseUrl}/api/incidents/report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenUser2}` },
+    body: JSON.stringify({
+      rideId: testRide._id,
+      type: 'Other Incident',
+      subject: 'Emergency',
+      description: 'Driver kidnapped passenger and went off route',
+      severity: 'Low', // client-supplied Low must NOT downgrade Critical classification
+    }),
+  });
+  assert.equal(resKidnap.status, 201);
+  const kidnapJson = await resKidnap.json();
+  assert.equal(kidnapJson.incident.severity, 'Critical');
+
+  const resFare = await fetch(`${baseUrl}/api/incidents/report`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenUser2}` },
+    body: JSON.stringify({
+      rideId: testRide._id,
+      type: 'Fare Dispute or Non-Payment',
+      description: 'Provider demanded extra cash above agreed fare',
+    }),
+  });
+  assert.equal(resFare.status, 201);
+  const fareJson = await resFare.json();
+  assert.equal(fareJson.incident.severity, 'High');
+
+  const IncidentModel = require('../incidents/incidents.model');
+  await IncidentModel.deleteMany({ _id: { $in: [kidnapJson.incident._id, fareJson.incident._id] } });
+});

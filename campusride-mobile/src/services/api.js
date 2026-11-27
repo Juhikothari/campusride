@@ -292,6 +292,34 @@ export const submitRating      = (body) => request('/ratings', { method:'POST', 
 export const getMyRatings      = ()     => request('/ratings/my-ratings');
 
 // ── KYC ───────────────────────────────────────────────
+export const uploadRegistrationKycDocument = async (uri, docType) => {
+  if (!uri || typeof uri !== 'string') throw new Error('Invalid file URI');
+  if (uri.startsWith('private://kyc_private/')) return { storedRef: uri, regUploadToken: null };
+
+  const filename = uri.split('/').pop() || `${docType}_${Date.now()}.jpg`;
+  const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+  const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  const formData = new FormData();
+  formData.append('document', { uri, name: filename, type: mimeType });
+  formData.append('docType', docType);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${BASE}/kyc/register-upload`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || `Upload failed (${res.status})`);
+    return { storedRef: data.storedRef, regUploadToken: data.regUploadToken };
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export const uploadKycDocument = async (uri, docType) => {
   if (!uri || typeof uri !== 'string') throw new Error('Invalid file URI');
   if (uri.startsWith('private://kyc_private/')) return uri;

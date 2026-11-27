@@ -136,6 +136,18 @@ router.get('/search', auth, async (req, res) => {
     const qLower = q.toLowerCase();
     const tokens = qLower.split(/\s+/).filter(t => t.length >= 2);
 
+    // Helper to safely parse JSON even if upstream proxy returns an HTML 502/rate-limit page
+    async function safeParseJson(resp) {
+      if (!resp || !resp.ok) return null;
+      const text = await resp.text().catch(() => '');
+      if (!text || text.trim().startsWith('<')) return null;
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
+    }
+
     // 1. Primary OSM Autocomplete Provider: Photon (designed specifically for type-ahead OSM search)
     try {
       const photonParams = new URLSearchParams({
@@ -151,46 +163,44 @@ router.get('/search', auth, async (req, res) => {
         signal: AbortSignal.timeout(4500)
       });
 
-      if (photonResp.ok) {
-        const photonData = await photonResp.json();
-        if (Array.isArray(photonData.features) && photonData.features.length) {
-          results = photonData.features
-            .filter(f => Array.isArray(f?.geometry?.coordinates) && f.geometry.coordinates.length >= 2)
-            .map(place => {
-              const p = place.properties || {};
-              const [lon, lat] = place.geometry.coordinates;
-              const formattedParts = [
-                p.name,
-                p.housenumber && p.street ? `${p.housenumber} ${p.street}` : p.street,
-                p.district || p.suburb || p.locality,
-                p.city || p.town || p.village,
-                p.state,
-                p.country
-              ].filter(Boolean);
-              const uniqueParts = [...new Set(formattedParts)];
-              return buildFeature({
-                name: p.name || p.street || p.suburb || p.locality || p.city,
-                displayName: uniqueParts.join(', '),
-                lat,
-                lng: lon,
-                category: p.osm_value || p.type,
-                source: 'photon'
-              });
+      const photonData = await safeParseJson(photonResp);
+      if (photonData && Array.isArray(photonData.features) && photonData.features.length) {
+        results = photonData.features
+          .filter(f => Array.isArray(f?.geometry?.coordinates) && f.geometry.coordinates.length >= 2)
+          .map(place => {
+            const p = place.properties || {};
+            const [lon, lat] = place.geometry.coordinates;
+            const formattedParts = [
+              p.name,
+              p.housenumber && p.street ? `${p.housenumber} ${p.street}` : p.street,
+              p.district || p.suburb || p.locality,
+              p.city || p.town || p.village,
+              p.state,
+              p.country
+            ].filter(Boolean);
+            const uniqueParts = [...new Set(formattedParts)];
+            return buildFeature({
+              name: p.name || p.street || p.suburb || p.locality || p.city,
+              displayName: uniqueParts.join(', '),
+              lat,
+              lng: lon,
+              category: p.osm_value || p.type,
+              source: 'photon'
             });
-        }
+          });
       }
     } catch (err) {
       console.warn('[Location] Photon search warning:', err.message);
     }
 
     // Check if primary returned strong token match
-    const hasStrongMatch = results.some(r =>
+    const hasStrongMatch = () => results.some(r =>
       (r.label || '').toLowerCase().includes(qLower) ||
       tokens.every(t => (r.display_name || '').toLowerCase().includes(t))
     );
 
     // 2. Controlled Fallback 1: Server-side Geoapify (if configured & primary empty/weak)
-    if ((!results.length || !hasStrongMatch) && process.env.GEOAPIFY_API_KEY) {
+    if ((!results.length || !hasStrongMatch()) && process.env.GEOAPIFY_API_KEY) {
       try {
         const geoResp = await fetch(
           `https://api.geoapify.com/v1/geocode/autocomplete?` +
@@ -202,52 +212,60 @@ router.get('/search', auth, async (req, res) => {
           }),
           { signal: AbortSignal.timeout(4500) }
         );
-        if (geoResp.ok) {
-          const geoData = await geoResp.json();
-          if (Array.isArray(geoData.features) && geoData.features.length) {
-            const geoItems = geoData.features.map(place => buildFeature({
-              name: place.properties?.name || place.properties?.street || place.properties?.suburb || place.properties?.city,
-              displayName: place.properties?.formatted,
-              lat: place.properties?.lat,
-              lng: place.properties?.lon,
-              category: place.properties?.category,
-              source: 'geoapify'
-            })).filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng));
-            results = results.concat(geoItems);
-          }
+        const geoData = await safeParseJson(geoResp);
+        if (geoData && Array.isArray(geoData.features) && geoData.features.length) {
+          const geoItems = geoData.features.map(place => buildFeature({
+            name: place.properties?.name || place.properties?.street || place.properties?.suburb || place.properties?.city,
+            displayName: place.properties?.formatted,
+            lat: place.properties?.lat,
+            lng: place.properties?.lon,
+            category: place.properties?.category,
+            source: 'geoapify'
+          })).filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng));
+          results = results.concat(geoItems);
         }
       } catch (err) {
         console.warn('[Location] Geoapify fallback warning:', err.message);
       }
     }
 
-    // 3. Controlled Fallback 2: Nominatim (only when Photon & Geoapify yielded 0 usable matches)
-    if (!results.length) {
+    // 3. Controlled Fallback 2: Nominatim whenever results are empty OR lack a strong match
+    async function fetchNominatim(searchQuery) {
+      const nomParams = new URLSearchParams({
+        q: searchQuery,
+        format: 'jsonv2',
+        limit: '8',
+        addressdetails: '1',
+        viewbox: '77.35,13.20,77.85,12.75',
+        bounded: '0'
+      });
+      const nomResp = await fetch(`${NOMINATIM_BASE_URL}/search?${nomParams.toString()}`, {
+        headers: { 'User-Agent': 'HOGO-CampusRide/1.1 (support@hogo.app)' },
+        signal: AbortSignal.timeout(5000)
+      });
+      const nomData = await safeParseJson(nomResp);
+      if (Array.isArray(nomData) && nomData.length) {
+        return nomData.map(item => buildFeature({
+          name: item.name || item.display_name?.split(',')[0],
+          displayName: item.display_name,
+          lat: parseFloat(item.lat),
+          lng: parseFloat(item.lon),
+          category: item.type,
+          source: 'nominatim'
+        })).filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng));
+      }
+      return [];
+    }
+
+    if (!results.length || !hasStrongMatch()) {
       try {
-        const nomParams = new URLSearchParams({
-          q,
-          format: 'jsonv2',
-          limit: '8',
-          addressdetails: '1',
-          viewbox: '77.35,13.20,77.85,12.75',
-          bounded: '0'
-        });
-        const nomResp = await fetch(`${NOMINATIM_BASE_URL}/search?${nomParams.toString()}`, {
-          headers: { 'User-Agent': 'HOGO-CampusRide/1.1 (support@hogo.app)' },
-          signal: AbortSignal.timeout(5000)
-        });
-        if (nomResp.ok) {
-          const nomData = await nomResp.json();
-          if (Array.isArray(nomData) && nomData.length) {
-            results = nomData.map(item => buildFeature({
-              name: item.name || item.display_name?.split(',')[0],
-              displayName: item.display_name,
-              lat: parseFloat(item.lat),
-              lng: parseFloat(item.lon),
-              category: item.type,
-              source: 'nominatim'
-            })).filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng));
-          }
+        const nomItems = await fetchNominatim(q);
+        results = results.concat(nomItems);
+
+        // Bengaluru landmark/apartment fallback if still missing strong match
+        if ((!results.length || !hasStrongMatch()) && !/bengaluru|bangalore|karnataka|india/i.test(q)) {
+          const blrItems = await fetchNominatim(`${q}, Bengaluru`);
+          results = results.concat(blrItems);
         }
       } catch (nomErr) {
         console.warn('[Location] Nominatim fallback warning:', nomErr.message);

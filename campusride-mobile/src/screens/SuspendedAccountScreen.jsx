@@ -1,17 +1,22 @@
 // campusride-mobile/src/screens/SuspendedAccountScreen.jsx
 // Full lockout screen shown whenever an account is suspended or blocked.
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Alert as RNAlert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Btn } from '../components/UI';
 import { colors, spacing, radius } from '../theme';
+import * as api from '../services/api';
 
 export default function SuspendedAccountScreen() {
-  const { accountRestriction, logout, refreshUser } = useAuth();
+  const { user, accountRestriction, logout } = useAuth();
   const { isDark } = useTheme();
-  const [checking, setChecking] = useState(false);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sentOk, setSentOk] = useState(false);
 
   const isBlocked = accountRestriction?.status === 'blocked';
   const title = isBlocked ? 'Account Blocked' : 'Account Suspended';
@@ -19,17 +24,46 @@ export default function SuspendedAccountScreen() {
   const reason = accountRestriction?.reason || (isBlocked
     ? 'This account has been blocked by campus administrators.'
     : 'Your account is currently suspended from HOGO.');
-  const until = accountRestriction?.until ? new Date(accountRestriction.until) : null;
-  const untilLabel = until && !Number.isNaN(until.getTime())
-    ? until.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : null;
 
-  const handleRefresh = async () => {
-    setChecking(true);
+  const openSupport = () => {
+    setSubject(isBlocked ? 'Account Blocked Appeal' : 'Account Suspension Review');
+    setSentOk(false);
+    setSupportModalVisible(true);
+  };
+
+  const handleSendSupport = async () => {
+    if (!subject.trim() || !message.trim()) {
+      RNAlert.alert('Required', 'Please enter both a subject and a message.');
+      return;
+    }
+    setSending(true);
     try {
-      await refreshUser();
+      const token = await api.getToken();
+      const res = await fetch(`${api.API_BASE}/api/auth/contact-support`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          fromName: user?.name || 'HOGO User',
+          fromEmail: user?.email || 'unknown',
+          college: user?.college || '',
+          role: user?.role || '',
+          subject: subject.trim(),
+          message: message.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Unable to send support message');
+      }
+      setSentOk(true);
+      setMessage('');
+    } catch (e) {
+      RNAlert.alert('Support Error', e.message || 'Failed to contact support.');
     } finally {
-      setChecking(false);
+      setSending(false);
     }
   };
 
@@ -46,21 +80,13 @@ export default function SuspendedAccountScreen() {
             {reason}
           </Text>
 
-          {untilLabel && !isBlocked && (
-            <View style={[styles.infoBox, { backgroundColor: isDark ? colors.surface2 : '#fef2f2', borderColor: isDark ? colors.border : '#fecaca' }]}>
-              <Text style={[styles.infoLabel, { color: isDark ? colors.text3 : '#64748b' }]}>SUSPENDED UNTIL</Text>
-              <Text style={[styles.infoValue, { color: isDark ? colors.text : '#0f172a' }]}>{untilLabel}</Text>
-            </View>
-          )}
-
           <Text style={[styles.lockNote, { color: isDark ? colors.text3 : '#64748b' }]}>
             Access to rides, bookings, community chat, notifications actions, and all HOGO features is disabled while your account is {isBlocked ? 'blocked' : 'suspended'}.
           </Text>
 
           <Btn
-            label={checking ? 'Checking...' : 'Check Status'}
-            onPress={handleRefresh}
-            loading={checking}
+            label="📞 Contact Support"
+            onPress={openSupport}
             variant="outline"
             style={{ width: '100%', marginTop: spacing.md }}
           />
@@ -72,6 +98,60 @@ export default function SuspendedAccountScreen() {
           />
         </View>
       </View>
+
+      <Modal
+        visible={supportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSupportModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}
+        >
+          <View style={[styles.modalCard, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#cbd5e1' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={[styles.modalTitle, { color: isDark ? colors.text : '#0f172a' }]}>📞 Contact Support</Text>
+              <TouchableOpacity onPress={() => setSupportModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {sentOk ? (
+              <View style={{ paddingVertical: 14 }}>
+                <Text style={{ color: '#2dd4a0', fontSize: 14, fontWeight: '700', marginBottom: 8 }}>
+                  ✓ Your message has been sent to HOGO Support.
+                </Text>
+                <Btn label="Close" onPress={() => setSupportModalVisible(false)} />
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  style={[styles.input, { backgroundColor: isDark ? colors.surface2 : '#f8fafc', borderColor: isDark ? colors.border : '#cbd5e1', color: isDark ? '#ffffff' : '#0f172a' }]}
+                  value={subject}
+                  onChangeText={setSubject}
+                  placeholder="Subject"
+                  placeholderTextColor={colors.text3}
+                />
+                <TextInput
+                  style={[styles.input, { height: 110, textAlignVertical: 'top', backgroundColor: isDark ? colors.surface2 : '#f8fafc', borderColor: isDark ? colors.border : '#cbd5e1', color: isDark ? '#ffffff' : '#0f172a' }]}
+                  value={message}
+                  onChangeText={setMessage}
+                  placeholder="Explain your concern or request an account review..."
+                  placeholderTextColor={colors.text3}
+                  multiline
+                  maxLength={1000}
+                />
+                <Btn
+                  label={sending ? 'Sending...' : '📩 Send Message'}
+                  onPress={handleSendSupport}
+                  loading={sending}
+                />
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -101,18 +181,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  icon: { fontSize: 36 },
-  title: { fontSize: 22, fontWeight: '900', marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 12 },
-  infoBox: {
-    width: '100%',
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    padding: 12,
+  icon: { fontSize: 34 },
+  title: {
+    fontSize: 22,
+    fontWeight: '900',
+    marginBottom: spacing.xs,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  lockNote: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.72)',
+    justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: radius.xl,
+    borderWidth: 1.2,
+    padding: 18,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13.5,
     marginBottom: 12,
   },
-  infoLabel: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  infoValue: { fontSize: 15, fontWeight: '800', marginTop: 2 },
-  lockNote: { fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
 });

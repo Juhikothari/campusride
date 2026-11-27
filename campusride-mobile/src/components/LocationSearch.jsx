@@ -156,6 +156,7 @@ export default function LocationSearch({ value, coordinates, onChange, placehold
     onChange('', '', '');
   };
 
+  const isDropField = (label || '').toLowerCase().includes('drop');
   const initialMapLoc = (value && coordinates?.lat && coordinates?.lng)
     ? { label: value, lat: coordinates.lat, lng: coordinates.lng }
     : (value ? { label: value } : null);
@@ -195,7 +196,7 @@ export default function LocationSearch({ value, coordinates, onChange, placehold
           {detecting ? (
             <ActivityIndicator size="small" color={colors.accent} />
           ) : (
-            <Text style={styles.actionBtnIcon}>📍</Text>
+            <Text style={styles.actionBtnIcon}>{isDropField ? '📌' : '📍'}</Text>
           )}
         </TouchableOpacity>
 

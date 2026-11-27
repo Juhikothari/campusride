@@ -12,6 +12,9 @@ import TopHeader from '../components/TopHeader';
 import FloatingChatBot from '../components/FloatingChatBot';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, spacing, radius } from '../theme';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 import * as api from '../services/api';
 import { openGoogleMaps } from '../utils/maps';
 import { getDisplayUSN } from '../utils/usn';
@@ -1004,13 +1007,6 @@ export function AdminDashboardScreen({ navigation }) {
                 <Text style={{ color: colors.text3, fontSize: 13 }}>No preview image available</Text>
               </View>
             )}
-
-            <TouchableOpacity
-              onPress={() => setPreviewDoc(null)}
-              style={styles.previewCloseBtn}
-            >
-              <Text style={{ color: '#000', fontWeight: '800', fontSize: 13 }}>Close Preview</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1717,9 +1713,47 @@ export function ContactSupportScreen({ navigation }) {
   const [openFaq,  setOpenFaq]  = useState(null);
   const [subject,  setSubject]  = useState('');
   const [message,  setMessage]  = useState('');
+  const [attachments, setAttachments] = useState([]);
+  const [uploadingAtt, setUploadingAtt] = useState(false);
   const [sending,  setSending]  = useState(false);
   const [sent,     setSent]     = useState(false);
   const [error,    setError]    = useState('');
+
+  const handleAttachPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') {
+        RNAlert.alert('Permission needed', 'Allow photo library access to attach screenshots.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      setUploadingAtt(true);
+      const url = await uploadToCloudinaryWithRetry(asset.uri, { type: 'image' });
+      setAttachments(prev => [...prev.slice(0, 4), { name: asset.fileName || `support_${Date.now()}.jpg`, type: 'image', url }]);
+    } catch (e) {
+      RNAlert.alert('Upload Failed', e.message || 'Could not attach image.');
+    } finally {
+      setUploadingAtt(false);
+    }
+  };
+
+  const handleAttachFile = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      setUploadingAtt(true);
+      const isImg = (asset.mimeType || '').startsWith('image/');
+      const url = await uploadToCloudinaryWithRetry(asset.uri, { type: isImg ? 'image' : 'pdf' });
+      setAttachments(prev => [...prev.slice(0, 4), { name: asset.name || `file_${Date.now()}`, type: isImg ? 'image' : 'file', url }]);
+    } catch (e) {
+      RNAlert.alert('Upload Failed', e.message || 'Could not attach file.');
+    } finally {
+      setUploadingAtt(false);
+    }
+  };
 
   const send = async () => {
     if (!subject.trim() || !message.trim()) { setError('Fill in subject and message'); return; }
@@ -1735,6 +1769,7 @@ export function ContactSupportScreen({ navigation }) {
           college:   user?.college || '',
           role:      user?.role    || '',
           subject, message,
+          attachments,
         }),
       });
       setSent(true);
@@ -1818,7 +1853,53 @@ export function ContactSupportScreen({ navigation }) {
                 multiline
                 maxLength={1000}
               />
-              <Btn label={sending ? 'Sending…' : '📩 Send Message'} onPress={send} loading={sending} />
+
+              {/* Attachment Picker */}
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+                <TouchableOpacity
+                  onPress={handleAttachPhoto}
+                  disabled={uploadingAtt}
+                  activeOpacity={0.75}
+                  style={{
+                    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    paddingVertical: 10, borderRadius: radius.md, borderWidth: 1,
+                    borderColor: isDark ? '#2a3548' : '#cbd5e1', backgroundColor: isDark ? '#141a26' : '#f8fafc',
+                  }}
+                >
+                  <Text style={{ fontSize: 15 }}>🖼️</Text>
+                  <Text style={{ color: isDark ? colors.text2 : '#334155', fontSize: 12.5, fontWeight: '700' }}>Attach Photo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleAttachFile}
+                  disabled={uploadingAtt}
+                  activeOpacity={0.75}
+                  style={{
+                    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    paddingVertical: 10, borderRadius: radius.md, borderWidth: 1,
+                    borderColor: isDark ? '#2a3548' : '#cbd5e1', backgroundColor: isDark ? '#141a26' : '#f8fafc',
+                  }}
+                >
+                  <Text style={{ fontSize: 15 }}>📎</Text>
+                  <Text style={{ color: isDark ? colors.text2 : '#334155', fontSize: 12.5, fontWeight: '700' }}>Attach File</Text>
+                </TouchableOpacity>
+              </View>
+              {uploadingAtt && <ActivityIndicator size="small" color={colors.accent} style={{ marginBottom: 10 }} />}
+              {attachments.map((att, idx) => (
+                <View key={idx} style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                  paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderRadius: radius.md,
+                  backgroundColor: isDark ? '#141a26' : '#f1f5f9', borderWidth: 1, borderColor: colors.green,
+                }}>
+                  <Text style={{ color: isDark ? '#ffffff' : '#0f172a', fontSize: 12, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                    {att.type === 'image' ? '🖼️' : '📄'} {att.name}
+                  </Text>
+                  <TouchableOpacity onPress={() => setAttachments(prev => prev.filter((_, i) => i !== idx))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={{ color: colors.red, fontSize: 14, fontWeight: '800' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              <Btn label={sending ? 'Sending…' : '📩 Send Message'} onPress={send} loading={sending || uploadingAtt} />
             </>
           )}
         </ScrollView>

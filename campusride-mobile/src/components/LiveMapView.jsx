@@ -1,6 +1,6 @@
 // campusride-mobile/src/components/LiveMapView.jsx
-// Native MapLibre + OpenStreetMap implementation using OpenFreeMap styles.
-// Uses GeoJSON [longitude, latitude] coordinates and imperative Camera updates.
+// Native MapLibre + OpenStreetMap implementation with crisp POI/road visibility,
+// multi-seeker pickup & drop USN pins, single combined GPS crosshair control, and stable camera state.
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import {
@@ -12,7 +12,7 @@ import {
   ViewAnnotation,
   UserLocation,
 } from '@maplibre/maplibre-react-native';
-import { colors, radius } from '../theme';
+import { radius } from '../theme';
 import {
   MAP_STYLE_URL,
   MAP_ATTRIBUTION,
@@ -21,6 +21,25 @@ import {
   toLngLat,
   computeLngLatBounds,
 } from '../config/mapConfig';
+
+function GpsCrosshairGlyph({ active = false }) {
+  const c = active ? '#0f172a' : '#f5a623';
+  return (
+    <View style={{ width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 12, height: 12, borderRadius: 6, borderWidth: 1.8, borderColor: c, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: c }} />
+      </View>
+      <View style={{ position: 'absolute', top: 0, width: 1.8, height: 4, backgroundColor: c, borderRadius: 1 }} />
+      <View style={{ position: 'absolute', bottom: 0, width: 1.8, height: 4, backgroundColor: c, borderRadius: 1 }} />
+      <View style={{ position: 'absolute', left: 0, height: 1.8, width: 4, backgroundColor: c, borderRadius: 1 }} />
+      <View style={{ position: 'absolute', right: 0, height: 1.8, width: 4, backgroundColor: c, borderRadius: 1 }} />
+    </View>
+  );
+}
+
+function coordKey(pt) {
+  return pt ? `${pt[0].toFixed(5)},${pt[1].toFixed(5)}` : '';
+}
 
 export default function LiveMapView({
   pickup,
@@ -31,6 +50,7 @@ export default function LiveMapView({
   leg2Coordinates = [],
   routeGeoJSON = null,
   extraPickups = [],
+  extraDrops = [],
   pinLocation,
   pinDraggable = false,
   onPinDragStart,
@@ -53,31 +73,96 @@ export default function LiveMapView({
   const pinAnnotationRef = useRef(null);
   const hasFittedBoundsRef = useRef(false);
   const lastPinKeyRef = useRef('');
+  const lastFollowKeyRef = useRef('');
   const skipNextPinEaseRef = useRef(false);
   const dragSuppressedUntilRef = useRef(0);
+  const userInteractingRef = useRef(false);
+
   const [mapReady, setMapReady] = useState(false);
   const [isDraggingPin, setIsDraggingPin] = useState(false);
+  const [selectedStopInfo, setSelectedStopInfo] = useState(null);
 
-  const pickupLngLat = useMemo(() => toLngLat(pickup), [pickup]);
-  const dropLngLat = useMemo(() => toLngLat(drop), [drop]);
-  const driverLngLat = useMemo(() => toLngLat(driverLocation), [driverLocation]);
-  const pinLngLat = useMemo(() => toLngLat(pinLocation), [pinLocation]);
+  // Stabilize coordinate arrays using primitive rounded keys so parent timer ticks never jump camera
+  const rawPickup = toLngLat(pickup);
+  const pickupKey = coordKey(rawPickup);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pickupLngLat = useMemo(() => rawPickup, [pickupKey]);
+
+  const rawDrop = toLngLat(drop);
+  const dropKey = coordKey(rawDrop);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const dropLngLat = useMemo(() => rawDrop, [dropKey]);
+
+  const rawDriver = toLngLat(driverLocation);
+  const driverKey = coordKey(rawDriver);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const driverLngLat = useMemo(() => rawDriver, [driverKey]);
+
+  const rawPin = toLngLat(pinLocation);
+  const pinKey = coordKey(rawPin);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pinLngLat = useMemo(() => rawPin, [pinKey]);
+
+  const extraPickupsSerialized = Array.isArray(extraPickups)
+    ? extraPickups.map((ep, idx) => `${idx}:${ep?.usn || ep?.label || ''}:${coordKey(toLngLat(ep))}`).join('|')
+    : '';
 
   const extraPickupPoints = useMemo(() => {
     if (!Array.isArray(extraPickups)) return [];
     return extraPickups
-      .map((ep, idx) => ({
-        id: `extra-pickup-${idx}`,
-        num: idx + 2,
-        label: ep?.label || `Pickup ${idx + 2}`,
-        lngLat: toLngLat(ep),
-      }))
-      .filter(p => Boolean(p.lngLat));
-  }, [extraPickups]);
+      .map((ep, idx) => {
+        const lngLat = toLngLat(ep);
+        if (!lngLat) return null;
+        const usnLabel = ep?.usn || ep?.label || `Seeker ${idx + 1}`;
+        return {
+          id: `extra-pickup-${idx}`,
+          usn: usnLabel,
+          address: ep?.address || '',
+          title: `Pickup — ${usnLabel}`,
+          lngLat,
+        };
+      })
+      .filter(Boolean);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extraPickupsSerialized]);
 
-  // Build unified GeoJSON FeatureCollection for route rendering ([longitude, latitude])
+  const extraDropsSerialized = Array.isArray(extraDrops)
+    ? extraDrops.map((ed, idx) => `${idx}:${ed?.usn || ed?.label || ''}:${coordKey(toLngLat(ed))}`).join('|')
+    : '';
+
+  const extraDropPoints = useMemo(() => {
+    if (!Array.isArray(extraDrops)) return [];
+    return extraDrops
+      .map((ed, idx) => {
+        const lngLat = toLngLat(ed);
+        if (!lngLat) return null;
+        const usnLabel = ed?.usn || ed?.label || `Seeker ${idx + 1}`;
+        return {
+          id: `extra-drop-${idx}`,
+          usn: usnLabel,
+          address: ed?.address || '',
+          title: `Drop — ${usnLabel}`,
+          lngLat,
+        };
+      })
+      .filter(Boolean);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extraDropsSerialized]);
+
+  const routeKey = useMemo(() => {
+    if (routeGeoJSON?.geometry?.coordinates?.length) {
+      const c = routeGeoJSON.geometry.coordinates;
+      return `gj:${c.length}:${c[0]?.[0]}:${c[c.length - 1]?.[1]}`;
+    }
+    const len = coordinates?.length || 0;
+    const l1 = leg1Coordinates?.length || 0;
+    const l2 = leg2Coordinates?.length || 0;
+    const first = coordinates?.[0] || leg1Coordinates?.[0] || '';
+    const last = coordinates?.[len - 1] || leg2Coordinates?.[l2 - 1] || '';
+    return `${len}:${l1}:${l2}:${JSON.stringify(first)}:${JSON.stringify(last)}`;
+  }, [routeGeoJSON, coordinates, leg1Coordinates, leg2Coordinates]);
+
   const routeFeatureCollection = useMemo(() => {
-    // 1. Explicit GeoJSON feature/collection provided by backend OSRM route endpoint
     if (routeGeoJSON?.geometry?.type === 'LineString' && Array.isArray(routeGeoJSON.geometry.coordinates) && routeGeoJSON.geometry.coordinates.length > 1) {
       return {
         type: 'FeatureCollection',
@@ -85,7 +170,6 @@ export default function LiveMapView({
       };
     }
 
-    // 2. Merged coordinates array from route legs
     let pts = [];
     if (Array.isArray(coordinates) && coordinates.length > 1) {
       pts = coordinates.map(toLngLat).filter(Boolean);
@@ -109,19 +193,19 @@ export default function LiveMapView({
       };
     }
     return null;
-  }, [routeGeoJSON, coordinates, leg1Coordinates, leg2Coordinates]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey]);
 
   const initialCenter = useMemo(() => {
     return pinLngLat || driverLngLat || pickupLngLat || dropLngLat || DEFAULT_CENTER;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Move camera smoothly ONLY when external pin coordinates explicitly change (skip while dragging pin)
+  // Ease camera ONLY when external pin coordinates change intentionally (never during drag)
   useEffect(() => {
     if (!mapReady || !pinLngLat || !cameraRef.current) return;
-    const key = `${pinLngLat[0].toFixed(5)},${pinLngLat[1].toFixed(5)}`;
-    if (key === lastPinKeyRef.current) return;
-    lastPinKeyRef.current = key;
+    if (pinKey === lastPinKeyRef.current) return;
+    lastPinKeyRef.current = pinKey;
     if (skipNextPinEaseRef.current || isDraggingPin) {
       skipNextPinEaseRef.current = false;
       return;
@@ -129,15 +213,15 @@ export default function LiveMapView({
     try {
       cameraRef.current.easeTo({
         center: pinLngLat,
-        zoom: 15,
-        duration: 450,
+        zoom: 15.5,
+        duration: 420,
       });
     } catch {}
-  }, [mapReady, pinLngLat, isDraggingPin]);
+  }, [mapReady, pinLngLat, pinKey, isDraggingPin]);
 
-  // Fit bounds once when initial route or multiple markers become available (never hijacks user pan afterward)
+  // Fit bounds ONCE on initial load (never interrupts user pan/zoom afterward)
   useEffect(() => {
-    if (!mapReady || !cameraRef.current || hasFittedBoundsRef.current || pinLngLat) return;
+    if (!mapReady || !cameraRef.current || hasFittedBoundsRef.current || pinLngLat || userInteractingRef.current) return;
     const allPts = [];
     if (routeFeatureCollection?.features?.[0]?.geometry?.coordinates?.length > 1) {
       allPts.push(...routeFeatureCollection.features[0].geometry.coordinates);
@@ -145,6 +229,7 @@ export default function LiveMapView({
       if (driverLngLat) allPts.push(driverLngLat);
       if (pickupLngLat) allPts.push(pickupLngLat);
       extraPickupPoints.forEach(p => allPts.push(p.lngLat));
+      extraDropPoints.forEach(d => allPts.push(d.lngLat));
       if (dropLngLat) allPts.push(dropLngLat);
     }
 
@@ -155,28 +240,30 @@ export default function LiveMapView({
         try {
           cameraRef.current.fitBounds(bounds, {
             padding: { top: 48, right: 48, bottom: 48, left: 48 },
-            duration: 600,
+            duration: 550,
           });
         } catch {}
       }
     } else if (allPts.length === 1) {
       hasFittedBoundsRef.current = true;
       try {
-        cameraRef.current.easeTo({ center: allPts[0], zoom: 14.5, duration: 500 });
+        cameraRef.current.easeTo({ center: allPts[0], zoom: 14.5, duration: 480 });
       } catch {}
     }
-  }, [mapReady, pinLngLat, routeFeatureCollection, driverLngLat, pickupLngLat, dropLngLat, extraPickupPoints]);
+  }, [mapReady, pinLngLat, routeFeatureCollection, driverLngLat, pickupLngLat, dropLngLat, extraPickupPoints, extraDropPoints]);
 
-  // Follow-driver mode: smoothly pan when active without disrupting manual panning when disabled
+  // Follow-driver mode: only ease when driver coords actually moved and followDriver is enabled
   useEffect(() => {
-    if (!mapReady || !followDriver || !driverLngLat || !cameraRef.current) return;
+    if (!mapReady || !followDriver || !driverLngLat || !cameraRef.current || userInteractingRef.current) return;
+    if (driverKey === lastFollowKeyRef.current) return;
+    lastFollowKeyRef.current = driverKey;
     try {
       cameraRef.current.easeTo({
         center: driverLngLat,
-        duration: 650,
+        duration: 600,
       });
     } catch {}
-  }, [mapReady, followDriver, driverLngLat]);
+  }, [mapReady, followDriver, driverLngLat, driverKey]);
 
   const extractEventCoords = useCallback((event) => {
     const lngLat = event?.nativeEvent?.lngLat;
@@ -188,6 +275,7 @@ export default function LiveMapView({
   }, []);
 
   const handleMapPress = useCallback((event) => {
+    setSelectedStopInfo(null);
     if (!interactive || !onMapClick) return;
     if (isDraggingPin || Date.now() < dragSuppressedUntilRef.current) return;
     const pt = extractEventCoords(event);
@@ -201,9 +289,7 @@ export default function LiveMapView({
     setIsDraggingPin(true);
     dragSuppressedUntilRef.current = Date.now() + 1000;
     const pt = extractEventCoords(event);
-    if (pt && onPinDragStart) {
-      onPinDragStart(pt);
-    }
+    if (pt && onPinDragStart) onPinDragStart(pt);
     requestAnimationFrame(() => {
       try { pinAnnotationRef.current?.refresh(); } catch {}
     });
@@ -213,9 +299,7 @@ export default function LiveMapView({
     if (!interactive || !pinDraggable) return;
     dragSuppressedUntilRef.current = Date.now() + 1000;
     const pt = extractEventCoords(event);
-    if (pt && onPinDrag) {
-      onPinDrag(pt);
-    }
+    if (pt && onPinDrag) onPinDrag(pt);
   }, [interactive, pinDraggable, extractEventCoords, onPinDrag]);
 
   const handlePinDragEnd = useCallback((event) => {
@@ -237,21 +321,46 @@ export default function LiveMapView({
     });
   }, [interactive, pinDraggable, extractEventCoords, onPinDragEnd, onMapClick]);
 
+  const handleRegionWillChange = useCallback((event) => {
+    const isUser = Boolean(event?.nativeEvent?.isUserInteraction ?? event?.nativeEvent?.userInteraction);
+    if (isUser) {
+      userInteractingRef.current = true;
+      if (followDriver && onFollowChange) {
+        onFollowChange(false);
+      }
+    }
+  }, [followDriver, onFollowChange]);
+
   const handleRegionDidChange = useCallback((event) => {
-    // Pause follow mode immediately if user panned or zoomed manually
-    if (event?.nativeEvent?.userInteraction && followDriver && onFollowChange) {
+    const isUser = Boolean(event?.nativeEvent?.isUserInteraction ?? event?.nativeEvent?.userInteraction);
+    userInteractingRef.current = false;
+    if (isUser && followDriver && onFollowChange) {
       onFollowChange(false);
     }
   }, [followDriver, onFollowChange]);
 
-  const handleRecenterPress = useCallback(() => {
+  // Single unified crosshair button handler (recenter + toggle follow mode cleanly)
+  const handleUnifiedLocatePress = useCallback(() => {
+    userInteractingRef.current = false;
     if (onRecenter) {
       onRecenter();
     }
+    if (driverLngLat && onFollowChange) {
+      const nextFollow = !followDriver;
+      onFollowChange(nextFollow);
+      if (nextFollow && cameraRef.current) {
+        lastFollowKeyRef.current = driverKey;
+        try {
+          cameraRef.current.flyTo({ center: driverLngLat, zoom: 15.5, duration: 520 });
+        } catch {}
+        return;
+      }
+    }
+
     if (!cameraRef.current) return;
 
     if (pinLngLat && !driverLngLat && !pickupLngLat && !dropLngLat) {
-      cameraRef.current.flyTo({ center: pinLngLat, zoom: 15, duration: 550 });
+      cameraRef.current.flyTo({ center: pinLngLat, zoom: 15.5, duration: 500 });
       return;
     }
 
@@ -259,22 +368,24 @@ export default function LiveMapView({
     if (driverLngLat) pts.push(driverLngLat);
     if (pickupLngLat) pts.push(pickupLngLat);
     extraPickupPoints.forEach(p => pts.push(p.lngLat));
+    extraDropPoints.forEach(d => pts.push(d.lngLat));
     if (dropLngLat) pts.push(dropLngLat);
 
-    if (followDriver && driverLngLat) {
-      cameraRef.current.flyTo({ center: driverLngLat, zoom: 15.5, duration: 550 });
-    } else if (pts.length > 1) {
+    if (pts.length > 1) {
       const b = computeLngLatBounds(pts);
       if (b) {
         cameraRef.current.fitBounds(b, {
           padding: { top: 48, right: 48, bottom: 48, left: 48 },
-          duration: 600,
+          duration: 550,
         });
       }
     } else if (pts.length === 1) {
-      cameraRef.current.flyTo({ center: pts[0], zoom: 15, duration: 550 });
+      cameraRef.current.flyTo({ center: pts[0], zoom: 15, duration: 500 });
     }
-  }, [onRecenter, pinLngLat, driverLngLat, pickupLngLat, dropLngLat, extraPickupPoints, followDriver]);
+  }, [
+    onRecenter, driverLngLat, driverKey, onFollowChange, followDriver,
+    pinLngLat, pickupLngLat, dropLngLat, extraPickupPoints, extraDropPoints,
+  ]);
 
   return (
     <View style={[styles.container, { height }, style]}>
@@ -293,6 +404,7 @@ export default function LiveMapView({
         compass={interactive}
         compassPosition={{ top: 10, left: 10 }}
         onPress={handleMapPress}
+        onRegionWillChange={handleRegionWillChange}
         onRegionDidChange={handleRegionDidChange}
         onDidFinishLoadingMap={() => setMapReady(true)}
       >
@@ -319,7 +431,7 @@ export default function LiveMapView({
               paint={{
                 'line-color': '#1d4ed8',
                 'line-width': 8,
-                'line-opacity': 0.35,
+                'line-opacity': 0.32,
                 'line-cap': 'round',
                 'line-join': 'round',
               }}
@@ -364,19 +476,43 @@ export default function LiveMapView({
           </Marker>
         )}
 
-        {/* 3. Extra Multi-Seeker Pickups */}
+        {/* 3. Seeker Individual Pickups with USN */}
         {extraPickupPoints.map(ep => (
-          <Marker key={ep.id} id={ep.id} lngLat={ep.lngLat} anchor="bottom">
+          <Marker
+            key={ep.id}
+            id={ep.id}
+            lngLat={ep.lngLat}
+            anchor="bottom"
+            onPress={() => setSelectedStopInfo({ kind: 'pickup', usn: ep.usn, address: ep.address })}
+          >
             <View style={styles.markerWrapper}>
-              <View style={[styles.badge, styles.badgePickup]}>
-                <Text style={styles.badgeText}>📍 PICKUP {ep.num}</Text>
+              <View style={[styles.badge, styles.badgeSeekerPickup]}>
+                <Text style={styles.badgeText}>📍 PICKUP · {ep.usn}</Text>
               </View>
-              <View style={[styles.arrow, { borderTopColor: '#059669' }]} />
+              <View style={[styles.arrow, { borderTopColor: '#10b981' }]} />
             </View>
           </Marker>
         ))}
 
-        {/* 4. Destination / Drop Marker */}
+        {/* 4. Seeker Individual Drops with USN */}
+        {extraDropPoints.map(ed => (
+          <Marker
+            key={ed.id}
+            id={ed.id}
+            lngLat={ed.lngLat}
+            anchor="bottom"
+            onPress={() => setSelectedStopInfo({ kind: 'drop', usn: ed.usn, address: ed.address })}
+          >
+            <View style={styles.markerWrapper}>
+              <View style={[styles.badge, styles.badgeSeekerDrop]}>
+                <Text style={styles.badgeText}>🏁 DROP · {ed.usn}</Text>
+              </View>
+              <View style={[styles.arrow, { borderTopColor: '#e11d48' }]} />
+            </View>
+          </Marker>
+        ))}
+
+        {/* 5. Provider Destination / Drop Marker */}
         {dropLngLat && (
           <Marker id="marker-drop" lngLat={dropLngLat} anchor="bottom">
             <View style={styles.markerWrapper}>
@@ -388,7 +524,7 @@ export default function LiveMapView({
           </Marker>
         )}
 
-        {/* 5. Draggable Selected Pin Annotation (Map Picker) */}
+        {/* 6. Draggable Selected Pin Annotation (Map Picker) */}
         {pinLngLat && (
           <ViewAnnotation
             ref={pinAnnotationRef}
@@ -419,36 +555,42 @@ export default function LiveMapView({
         )}
       </Map>
 
-      {/* Interactive Overlay Controls (Recenter & Follow Driver) */}
-      {interactive && showControls && (
-        <View style={styles.controlsOverlay} pointerEvents="box-none">
-          {Boolean(driverLngLat && onFollowChange) && (
-            <TouchableOpacity
-              onPress={() => onFollowChange(!followDriver)}
-              activeOpacity={0.8}
-              style={[
-                styles.controlPill,
-                followDriver ? styles.controlPillActive : styles.controlPillInactive,
-              ]}
-            >
-              <Text style={[styles.controlPillText, followDriver && { color: '#0f172a' }]}>
-                {followDriver ? '📡 Following' : '📡 Follow'}
+      {/* Stop Marker Info Callout */}
+      {selectedStopInfo && (
+        <View style={styles.calloutCard}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.calloutTitle}>
+              {selectedStopInfo.kind === 'pickup' ? '📍 Seeker Pickup' : '🏁 Seeker Drop'} · {selectedStopInfo.usn}
+            </Text>
+            {Boolean(selectedStopInfo.address) && (
+              <Text style={styles.calloutSub} numberOfLines={2}>
+                {selectedStopInfo.address}
               </Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            onPress={handleRecenterPress}
-            activeOpacity={0.8}
-            style={styles.recenterBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Recenter map"
-          >
-            <Text style={styles.recenterIcon}>🎯</Text>
+            )}
+          </View>
+          <TouchableOpacity onPress={() => setSelectedStopInfo(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.calloutClose}>✕</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Required OpenStreetMap & OpenFreeMap Attribution */}
+      {/* Single Combined Floating GPS Crosshair / Follow-Recenter Button */}
+      {interactive && showControls && (
+        <TouchableOpacity
+          onPress={handleUnifiedLocatePress}
+          activeOpacity={0.85}
+          style={[
+            styles.singleLocateBtn,
+            followDriver && styles.singleLocateBtnActive,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Recenter map and toggle follow"
+        >
+          <GpsCrosshairGlyph active={followDriver} />
+        </TouchableOpacity>
+      )}
+
+      {/* Required OpenStreetMap & CARTO Attribution */}
       <View style={styles.attributionBox} pointerEvents="none">
         <Text style={styles.attributionText}>{MAP_ATTRIBUTION}</Text>
       </View>
@@ -472,7 +614,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   badge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 16,
     borderWidth: 2,
@@ -488,8 +630,14 @@ const styles = StyleSheet.create({
   badgePickup: {
     backgroundColor: '#059669',
   },
+  badgeSeekerPickup: {
+    backgroundColor: '#10b981',
+  },
   badgeDrop: {
     backgroundColor: '#dc2626',
+  },
+  badgeSeekerDrop: {
+    backgroundColor: '#e11d48',
   },
   badgePin: {
     backgroundColor: '#f5a623',
@@ -556,9 +704,9 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#ffffff',
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   },
   arrow: {
     width: 0,
@@ -570,47 +718,59 @@ const styles = StyleSheet.create({
     borderRightColor: 'transparent',
     marginTop: -1,
   },
-  controlsOverlay: {
+  singleLocateBtn: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    flexDirection: 'row',
+    bottom: 30,
+    right: 12,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(245,166,35,0.75)',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  controlPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    elevation: 3,
-  },
-  controlPillActive: {
+  singleLocateBtnActive: {
     backgroundColor: '#f5a623',
     borderColor: '#ffffff',
   },
-  controlPillInactive: {
-    backgroundColor: 'rgba(15, 23, 42, 0.86)',
-    borderColor: 'rgba(255,255,255,0.2)',
+  calloutCard: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.94)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(245,166,35,0.55)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    elevation: 6,
   },
-  controlPillText: {
-    color: '#ffffff',
-    fontSize: 11,
+  calloutTitle: {
+    color: '#f5a623',
+    fontSize: 12,
     fontWeight: '800',
   },
-  recenterBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
-    borderWidth: 1,
-    borderColor: 'rgba(245,166,35,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3,
+  calloutSub: {
+    color: '#e2e8f0',
+    fontSize: 11.5,
+    marginTop: 2,
   },
-  recenterIcon: {
-    fontSize: 16,
+  calloutClose: {
+    color: '#94a3b8',
+    fontSize: 15,
+    fontWeight: '800',
+    paddingHorizontal: 4,
   },
   attributionBox: {
     position: 'absolute',

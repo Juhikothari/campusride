@@ -545,3 +545,78 @@ test('HTTP 56 (End-to-End Handler): Multi-turn context & live tool invocation wo
   assert.equal(Boolean(failJson.reply), false, 'Must NOT return fake static fallback reply on 503');
   if (prevKey) process.env.GROQ_API_KEY = prevKey;
 });
+
+test('GROQ 57 (Dynamic Discovery on 404/Decommissioned): Automatically recovers using /openai/v1/models', async () => {
+  const prevKey = process.env.GROQ_API_KEY;
+  const prevModel = process.env.GROQ_MODEL;
+  process.env.GROQ_API_KEY = 'dummy_key_discovery';
+  process.env.GROQ_MODEL = 'legacy-decommissioned-model';
+
+  const result = await callGroqCompletion({
+    messages: [{ role: 'user', content: 'How do I report a safety issue?' }],
+    fetchImpl: async (url, init) => {
+      if (url.endsWith('/models')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: [
+              { id: 'whisper-large-v3', active: true },
+              { id: 'qwen/qwen3-32b', active: true },
+            ],
+          }),
+        };
+      }
+      const body = JSON.parse(init.body);
+      if (body.model === 'qwen/qwen3-32b') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ choices: [{ message: { content: 'Tap Report Incident from the menu.' } }] }),
+        };
+      }
+      return {
+        ok: false,
+        status: 400,
+        json: async () => ({ error: { code: 'model_decommissioned', message: 'The model has been decommissioned' } }),
+      };
+    },
+  });
+
+  assert.equal(result.model, 'qwen/qwen3-32b');
+  assert.ok(result.reply.includes('Report Incident'));
+
+  if (prevKey) process.env.GROQ_API_KEY = prevKey; else delete process.env.GROQ_API_KEY;
+  if (prevModel) process.env.GROQ_MODEL = prevModel; else delete process.env.GROQ_MODEL;
+});
+
+test('GROQ 58 (Error Classification 400 vs 403): Distinguishes bad payload from permission error without retry loops', async () => {
+  const prevKey = process.env.GROQ_API_KEY;
+  process.env.GROQ_API_KEY = 'dummy_key_errors';
+
+  let calls400 = 0;
+  await assert.rejects(
+    () => callGroqCompletion({
+      messages: [{ role: 'user', content: 'hi' }],
+      fetchImpl: async () => {
+        calls400++;
+        return { ok: false, status: 400, json: async () => ({ error: { type: 'invalid_request_error', message: 'Invalid max_tokens' } }) };
+      },
+    }),
+    (err) => err.code === 'AI_INVALID_REQUEST' && err.statusCode === 502
+  );
+  assert.equal(calls400, 1);
+
+  await assert.rejects(
+    () => callGroqCompletion({
+      messages: [{ role: 'user', content: 'hi' }],
+      fetchImpl: async (url) => {
+        if (url.endsWith('/models')) return { ok: true, status: 200, json: async () => ({ data: [] }) };
+        return { ok: false, status: 403, json: async () => ({ error: { code: 'permission_denied', message: 'Organization restriction' } }) };
+      },
+    }),
+    (err) => err.code === 'AI_PERMISSION_DENIED' && err.statusCode === 503
+  );
+
+  if (prevKey) process.env.GROQ_API_KEY = prevKey; else delete process.env.GROQ_API_KEY;
+});

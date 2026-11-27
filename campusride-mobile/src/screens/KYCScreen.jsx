@@ -74,9 +74,6 @@ export default function KYCScreen({ navigation }) {
           </View>
           <View style={styles.previewFooter}>
             <Text style={styles.previewFooterText}>🔒 Stored securely for student identity verification</Text>
-            <TouchableOpacity onPress={() => setPreviewVisible(false)} style={styles.previewDoneBtn}>
-              <Text style={styles.previewDoneBtnText}>Close Preview</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </View>

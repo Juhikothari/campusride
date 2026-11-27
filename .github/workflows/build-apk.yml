@@ -1,4 +1,4 @@
-name: Build Android APK (Free Unlimited)
+name: Build Android APK (Signed Production)
 
 on:
   workflow_dispatch:
@@ -16,6 +16,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Verify Android Release Signing Secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo "::error::Missing required Android release signing secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD). Refusing to publish a debug-signed APK as production."
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -44,15 +56,51 @@ jobs:
         working-directory: campusride-mobile
         run: npx expo prebuild --platform android --clean
 
-      - name: Configure Gradle JVM
+      - name: Configure Dedicated Release Signing & Gradle JVM
         working-directory: campusride-mobile/android
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           echo "org.gradle.jvmargs=-Xmx3584m -XX:MaxMetaspaceSize=512m" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/hogo-release.keystore
+          {
+            echo "HOGO_UPLOAD_STORE_FILE=hogo-release.keystore"
+            echo "HOGO_UPLOAD_KEY_ALIAS=$KEY_ALIAS"
+            echo "HOGO_UPLOAD_STORE_PASSWORD=$KEYSTORE_PASS"
+            echo "HOGO_UPLOAD_KEY_PASSWORD=$KEY_PASS"
+          } >> gradle.properties
+          node -e '
+            const fs = require("fs");
+            const p = "app/build.gradle";
+            let g = fs.readFileSync(p, "utf8");
+            if (!g.includes("signingConfigs {")) {
+              throw new Error("Unexpected Android build.gradle structure: missing signingConfigs");
+            }
+            if (!g.includes("HOGO_UPLOAD_STORE_FILE")) {
+              g = g.replace(
+                /signingConfigs\s*\{/,
+                `signingConfigs {\n        release {\n            storeFile file(HOGO_UPLOAD_STORE_FILE)\n            storePassword HOGO_UPLOAD_STORE_PASSWORD\n            keyAlias HOGO_UPLOAD_KEY_ALIAS\n            keyPassword HOGO_UPLOAD_KEY_PASSWORD\n        }`
+              );
+              g = g.replace(
+                /(release\s*\{[\s\S]*?)signingConfig\s+signingConfigs\.debug/,
+                "$1signingConfig signingConfigs.release"
+              );
+              fs.writeFileSync(p, g);
+            }
+          '
 
-      - name: Build Android APK
+      - name: Build Signed Release Android APK
         working-directory: campusride-mobile/android
         run: ./gradlew assembleRelease --no-daemon -x lint -x test
+
+      - name: Cleanup Release Keystore Material
+        if: always()
+        working-directory: campusride-mobile/android
+        run: rm -f app/hogo-release.keystore
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -68,8 +116,8 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: "HOGO App APK (Build #${{ github.run_number }})"
           body: |
-            ### 🚀 HOGO CampusRide Android APK (Build #${{ github.run_number }})
-            Production-grade APK build from main branch.
+            ### 🚀 HOGO CampusRide Signed Release Android APK (Build #${{ github.run_number }})
+            Release-signed APK build from main branch.
           draft: false
           prerelease: false
           make_latest: true

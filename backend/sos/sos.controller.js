@@ -585,11 +585,11 @@ exports.handleTwilioWebhook = async (req, res) => {
       });
     }
 
-    // 3. Validate AccountSid if configured
+    // 3. Strictly validate AccountSid when TWILIO_ACCOUNT_SID is configured (reject both missing & mismatched)
     const { MessageSid, MessageStatus, ErrorCode, ErrorMessage, AccountSid, To } = params;
-    if (process.env.TWILIO_ACCOUNT_SID && AccountSid && AccountSid !== process.env.TWILIO_ACCOUNT_SID) {
+    if (process.env.TWILIO_ACCOUNT_SID && AccountSid !== process.env.TWILIO_ACCOUNT_SID) {
       return res.status(403).json({
-        error: 'Twilio AccountSid mismatch',
+        error: AccountSid ? 'Twilio AccountSid mismatch' : 'Twilio AccountSid is required',
         code: 'ACCOUNT_SID_MISMATCH'
       });
     }
@@ -643,18 +643,18 @@ exports.handleTwilioWebhook = async (req, res) => {
     }
 
     const expectedRecipient = matchedContact?.phone || matchedNotif?.recipient || '';
-    if (To && expectedRecipient) {
-      if (normalizePhoneTail(To) !== normalizePhoneTail(expectedRecipient)) {
+    if (expectedRecipient) {
+      if (!To || normalizePhoneTail(To) !== normalizePhoneTail(expectedRecipient)) {
         if (!sos.auditLog) sos.auditLog = [];
         sos.auditLog.push({
           action: 'webhook_rejected_recipient_mismatch',
           timestamp: new Date(),
-          notes: `Rejected Twilio callback for message ${MessageSid}: recipient mismatch`,
+          notes: `Rejected Twilio callback for message ${MessageSid}: recipient missing or mismatch`,
           metadata: { MessageSid, MessageStatus }
         });
         await sos.save();
         return res.status(403).json({
-          error: 'Callback recipient does not match SOS notification recipient',
+          error: To ? 'Callback recipient does not match SOS notification recipient' : 'Callback recipient (To) is required',
           code: 'RECIPIENT_MISMATCH'
         });
       }

@@ -9,6 +9,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { uploadToCloudinaryWithRetry } from '../services/cloudinary';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Btn, Alert, Badge } from '../components/UI';
@@ -71,7 +74,7 @@ export function RideDetailScreen({ navigation, route }) {
 
     RNAlert.alert(
       'Confirm Booking Request',
-      `🚗 Vehicle: ${(r.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${pAddr}\n🎯 Destination: ${dAddr}\n\nSend ride request to provider?`,
+      `🚗 Vehicle: ${(r.vehicleType || 'Car').toUpperCase()}\n💰 Calculated Fare: ₹${fare} / seat\n\n📍 Pickup: ${pAddr}\n🏁 Destination: ${dAddr}\n\nSend ride request to provider?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -886,7 +889,26 @@ export function WalkTogetherScreen({ navigation }) {
                   </View>
                 </View>
 
-                {/* Content */}
+                {/* Women-only highlight badge + Content */}
+                {(Boolean(post.womenOnly) || /women\s*only/i.test(post.content || '')) && (
+                  <View style={{
+                    alignSelf: 'flex-start',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                    backgroundColor: 'rgba(233, 30, 140, 0.16)',
+                    borderWidth: 1,
+                    borderColor: '#ec4899',
+                    paddingHorizontal: 10,
+                    paddingVertical: 4,
+                    borderRadius: radius.full,
+                    marginBottom: 8,
+                  }}>
+                    <Text style={{ color: '#ec4899', fontSize: 11.5, fontWeight: '900', letterSpacing: 0.4 }}>
+                      ♀ WOMEN ONLY
+                    </Text>
+                  </View>
+                )}
                 <Text style={{ color: isDark ? colors.text : '#0f172a', fontSize: 14.5, lineHeight: 21, marginBottom: 10 }}>
                   {post.content}
                 </Text>
@@ -975,22 +997,19 @@ export function WalkTogetherScreen({ navigation }) {
                       <TouchableOpacity
                         onPress={() => deleteWalk(post._id)}
                         activeOpacity={0.8}
+                        accessibilityLabel="Delete walk request"
                         style={{
-                          flexDirection: 'row',
                           alignItems: 'center',
-                          gap: 4,
+                          justifyContent: 'center',
                           backgroundColor: 'rgba(255,82,82,0.15)',
                           borderColor: colors.red,
                           borderWidth: 1,
                           borderRadius: radius.full,
-                          paddingHorizontal: 12,
+                          paddingHorizontal: 10,
                           paddingVertical: 6,
                         }}
                       >
-                        <SteelDustbin size={13} />
-                        <Text style={{ color: colors.red, fontSize: 12, fontWeight: '700' }}>
-                          Delete
-                        </Text>
+                        <SteelDustbin size={14} />
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1279,6 +1298,8 @@ export function IncidentReportScreen({ navigation }) {
   const [selectedRide, setSelectedRide] = useState(null);
   const [incidentType, setIncidentType] = useState('');
   const [description, setDescription] = useState('');
+  const [evidenceFiles, setEvidenceFiles] = useState([]);
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -1309,7 +1330,13 @@ export function IncidentReportScreen({ navigation }) {
         ]);
         const bList = bookingsRes.status === 'fulfilled' && Array.isArray(bookingsRes.value) ? bookingsRes.value : [];
         const rList = ridesRes.status === 'fulfilled' && Array.isArray(ridesRes.value) ? ridesRes.value : [];
-        const combined = [...rList, ...bList];
+        const combined = [...rList, ...bList].filter(item => {
+          const p = item?.pickup || item?.rideId?.pickup;
+          const d = item?.drop || item?.rideId?.drop;
+          const pStr = typeof p === 'string' ? p.trim() : (p?.address || p?.label || '');
+          const dStr = typeof d === 'string' ? d.trim() : (d?.address || d?.label || '');
+          return Boolean((pStr && pStr !== '—') || (dStr && dStr !== '—'));
+        });
         setRides(combined);
         if (combined.length > 0) {
           setSelectedRide(combined[0]);
@@ -1326,37 +1353,70 @@ export function IncidentReportScreen({ navigation }) {
   const getRideDateTime = (r) => {
     if (!r) return { date: '—', time: '—' };
     const ride = r.rideId || r;
-    let d = ride.date;
+    const rawDate = ride.date || ride.departureTime || r.createdAt;
+    let formattedDate = rawDate ? formatDateDMY(rawDate) : 'Today';
     let t = ride.time;
-    if (ride.departureTime) {
+    if (!t && (ride.departureTime || r.createdAt)) {
       try {
-        const dt = new Date(ride.departureTime);
-        if (!d) d = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        if (!t) t = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const dt = new Date(ride.departureTime || r.createdAt);
+        if (!Number.isNaN(dt.getTime())) {
+          t = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
       } catch {}
     }
-    if (!d && r.createdAt) {
-      try {
-        const dt = new Date(r.createdAt);
-        d = dt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        if (!t) t = dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-      } catch {}
-    }
-    return { date: d || 'Today', time: t || 'Scheduled' };
+    return { date: formattedDate || 'Today', time: t || 'Scheduled' };
   };
 
   const getRidePickup = (r) => {
-    if (!r) return 'Pickup';
+    if (!r) return '';
     const p = r.pickup || r.rideId?.pickup;
-    if (typeof p === 'string') return p;
-    return p?.address || p?.label || getAddr(p) || 'Pickup Location';
+    if (typeof p === 'string') return p.trim() === '—' ? '' : p.trim();
+    const raw = p?.address || p?.label || getAddr(p);
+    return !raw || raw === '—' ? '' : raw;
   };
 
   const getRideDrop = (r) => {
-    if (!r) return 'Destination';
+    if (!r) return '';
     const d = r.drop || r.rideId?.drop;
-    if (typeof d === 'string') return d;
-    return d?.address || d?.label || getAddr(d) || 'Drop Location';
+    if (typeof d === 'string') return d.trim() === '—' ? '' : d.trim();
+    const raw = d?.address || d?.label || getAddr(d);
+    return !raw || raw === '—' ? '' : raw;
+  };
+
+  const handleAttachPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') {
+        RNAlert.alert('Permission needed', 'Allow photo library access to attach incident evidence.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      setUploadingEvidence(true);
+      const url = await uploadToCloudinaryWithRetry(asset.uri, { type: 'image' });
+      setEvidenceFiles(prev => [...prev.slice(0, 4), { name: asset.fileName || `evidence_${Date.now()}.jpg`, type: 'image', url }]);
+    } catch (e) {
+      RNAlert.alert('Upload Failed', e.message || 'Could not attach image.');
+    } finally {
+      setUploadingEvidence(false);
+    }
+  };
+
+  const handleAttachFile = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      setUploadingEvidence(true);
+      const isImg = (asset.mimeType || '').startsWith('image/');
+      const url = await uploadToCloudinaryWithRetry(asset.uri, { type: isImg ? 'image' : 'pdf' });
+      setEvidenceFiles(prev => [...prev.slice(0, 4), { name: asset.name || `evidence_${Date.now()}`, type: isImg ? 'image' : 'file', url }]);
+    } catch (e) {
+      RNAlert.alert('Upload Failed', e.message || 'Could not attach file.');
+    } finally {
+      setUploadingEvidence(false);
+    }
   };
 
   const submit = async () => {
@@ -1382,9 +1442,10 @@ export function IncidentReportScreen({ navigation }) {
         type: incidentType,
         description: description.trim(),
         subject: `${incidentSegment === 'passenger' ? 'Passenger Incident' : 'Rider / Road Incident'}: ${incidentType}`,
-        severity: incidentType.toLowerCase().includes('accident') || incidentType.toLowerCase().includes('threat') || incidentType.toLowerCase().includes('physical') ? 'Critical' : 'Medium',
+        evidence: evidenceFiles.map(f => f.url),
       });
       setSuccess(true);
+      setEvidenceFiles([]);
       fetchIncidents();
     } catch (e) {
       setError(e.message || 'Failed to submit incident report');
@@ -1862,12 +1923,62 @@ export function IncidentReportScreen({ navigation }) {
                     {description.length} characters
                   </Text>
                 </View>
+
+                {/* Evidence / Attachments (Optional) */}
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: isDark ? '#1D2638' : '#e2e8f0' }}>
+                  <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontSize: 12, fontWeight: '700', marginBottom: 8 }}>
+                    📎 Attachments (Optional Photo / File Evidence)
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={handleAttachPhoto}
+                      disabled={uploadingEvidence}
+                      activeOpacity={0.75}
+                      style={{
+                        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+                        borderColor: isDark ? '#232E42' : '#cbd5e1', backgroundColor: isDark ? '#0B0E17' : '#f8fafc',
+                      }}
+                    >
+                      <Text style={{ fontSize: 15 }}>🖼️</Text>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontSize: 12.5, fontWeight: '700' }}>Add Photo</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleAttachFile}
+                      disabled={uploadingEvidence}
+                      activeOpacity={0.75}
+                      style={{
+                        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+                        borderColor: isDark ? '#232E42' : '#cbd5e1', backgroundColor: isDark ? '#0B0E17' : '#f8fafc',
+                      }}
+                    >
+                      <Text style={{ fontSize: 15 }}>📎</Text>
+                      <Text style={{ color: isDark ? '#cbd5e1' : '#334155', fontSize: 12.5, fontWeight: '700' }}>Add File</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {uploadingEvidence && <ActivityIndicator color="#F5A623" size="small" style={{ marginTop: 8 }} />}
+                  {evidenceFiles.map((f, idx) => (
+                    <View key={idx} style={{
+                      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                      paddingHorizontal: 10, paddingVertical: 8, marginTop: 8, borderRadius: 8,
+                      backgroundColor: isDark ? '#0B0E17' : '#f1f5f9', borderWidth: 1, borderColor: '#2dd4a0',
+                    }}>
+                      <Text style={{ color: isDark ? '#FFFFFF' : '#0f172a', fontSize: 12, flex: 1, marginRight: 8 }} numberOfLines={1}>
+                        {f.type === 'image' ? '🖼️' : '📄'} {f.name}
+                      </Text>
+                      <TouchableOpacity onPress={() => setEvidenceFiles(prev => prev.filter((_, i) => i !== idx))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ color: '#ef4444', fontSize: 14, fontWeight: '800' }}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
               </View>
 
               {/* Submit Incident Report Button */}
               <TouchableOpacity
                 onPress={submit}
-                disabled={loading}
+                disabled={loading || uploadingEvidence}
                 activeOpacity={0.85}
                 style={{
                   backgroundColor: '#F5A623',
@@ -1875,7 +1986,7 @@ export function IncidentReportScreen({ navigation }) {
                   paddingVertical: 14,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: loading ? 0.6 : 1,
+                  opacity: (loading || uploadingEvidence) ? 0.6 : 1,
                 }}
               >
                 <Text style={{ color: '#000000', fontSize: 15, fontWeight: '900' }}>
@@ -1965,14 +2076,20 @@ export function IncidentReportScreen({ navigation }) {
                           {dt.date} • {dt.time}
                         </Text>
                       </View>
-                      <View style={{ gap: 2, marginTop: 2 }}>
-                        <Text style={{ color: isSel ? '#E2E8F0' : (isDark ? '#cbd5e1' : '#334155'), fontSize: 12, lineHeight: 17 }}>
-                          Pickup: <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontWeight: '700' }}>{p}</Text>
-                        </Text>
-                        <Text style={{ color: isSel ? '#E2E8F0' : (isDark ? '#cbd5e1' : '#334155'), fontSize: 12, lineHeight: 17 }}>
-                          Drop: <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontWeight: '700' }}>{d}</Text>
-                        </Text>
-                      </View>
+                      {(Boolean(p) || Boolean(d)) && (
+                        <View style={{ gap: 2, marginTop: 2 }}>
+                          {Boolean(p) && (
+                            <Text style={{ color: isSel ? '#E2E8F0' : (isDark ? '#cbd5e1' : '#334155'), fontSize: 12, lineHeight: 17 }}>
+                              Pickup: <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontWeight: '700' }}>{p}</Text>
+                            </Text>
+                          )}
+                          {Boolean(d) && (
+                            <Text style={{ color: isSel ? '#E2E8F0' : (isDark ? '#cbd5e1' : '#334155'), fontSize: 12, lineHeight: 17 }}>
+                              Drop: <Text style={{ color: isSel ? '#FFFFFF' : (isDark ? '#FFFFFF' : '#0f172a'), fontWeight: '700' }}>{d}</Text>
+                            </Text>
+                          )}
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -2154,7 +2271,7 @@ export function ForgotPasswordScreen({ navigation }) {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: isDark ? colors.bg : '#f8fafc' }]} edges={['top']}>
-      <TopHeader title="Forgot Password" subtitle="Account Recovery" showBack={true} showNotification={false} />
+      <TopHeader title="Forgot Password" subtitle="Account Recovery" showBack={true} showNotification={false} showProfile={false} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

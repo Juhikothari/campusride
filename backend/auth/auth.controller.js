@@ -1,9 +1,11 @@
-const bcrypt  = require('bcryptjs');
-const jwt     = require('jsonwebtoken');
-const crypto  = require('crypto');
-const https   = require('https');
-const User    = require('../users/users.model');
+const bcrypt   = require('bcryptjs');
+const jwt      = require('jsonwebtoken');
+const crypto   = require('crypto');
+const https    = require('https');
+const mongoose = require('mongoose');
+const User     = require('../users/users.model');
 const { validateCollegeEmail } = require('../config/collegeDomains');
+const { bindRegistrationDocument } = require('../kyc/kyc.controller');
 
 // ── In-memory OTP store ────────────────────────────────────────────
 const otpStore = new Map();
@@ -71,9 +73,11 @@ const register = async (req, res) => {
       aadhar, drivingLicense, collegeIdCard,
       vehiclePhoto, vehicleNumber, vehicleName,
       emergencyContact, adminKey, gender, usn,
-      profilePhoto, selfie, deviceId
+      profilePhoto, selfie, deviceId,
+      regUploadTokens
     } = req.body;
 
+    // Profile avatar stays separate from private KYC identity document storage
     const effectivePhoto = profilePhoto || selfie || '';
 
     const { normalizeCollege } = require('../config/collegeDomains');
@@ -116,6 +120,47 @@ const register = async (req, res) => {
       kycStatus = 'pending';
     }
 
+    const newUserId = new mongoose.Types.ObjectId();
+    const tokensMap = regUploadTokens && typeof regUploadTokens === 'object' ? regUploadTokens : {};
+
+    // Bind private KYC documents to the new userId and reject any public/Cloudinary URLs for KYC identity docs
+    let boundCollegeId = null;
+    let boundLicense = null;
+    let boundAadhar = null;
+    let boundVehiclePhoto = null;
+
+    if (collegeIdCard) {
+      const proc = await bindRegistrationDocument(collegeIdCard, tokensMap.collegeIdCard, newUserId, 'collegeIdCard');
+      if (!proc.valid) {
+        return res.status(proc.statusCode || 400).json({ message: proc.message, code: proc.code });
+      }
+      boundCollegeId = proc.storedRef;
+    }
+
+    if (drivingLicense) {
+      const proc = await bindRegistrationDocument(drivingLicense, tokensMap.drivingLicense, newUserId, 'drivingLicense');
+      if (!proc.valid) {
+        return res.status(proc.statusCode || 400).json({ message: proc.message, code: proc.code });
+      }
+      boundLicense = proc.storedRef;
+    }
+
+    if (aadhar) {
+      const proc = await bindRegistrationDocument(aadhar, tokensMap.aadhar, newUserId, 'aadhar');
+      if (!proc.valid) {
+        return res.status(proc.statusCode || 400).json({ message: proc.message, code: proc.code });
+      }
+      boundAadhar = proc.storedRef;
+    }
+
+    if (vehiclePhoto) {
+      const proc = await bindRegistrationDocument(vehiclePhoto, tokensMap.vehiclePhoto, newUserId, 'vehiclePhoto');
+      if (!proc.valid) {
+        return res.status(proc.statusCode || 400).json({ message: proc.message, code: proc.code });
+      }
+      boundVehiclePhoto = proc.storedRef;
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     const sessionSeed = crypto.randomBytes(16).toString('hex');
@@ -124,7 +169,13 @@ const register = async (req, res) => {
     const vName = vehicleName ? vehicleName.trim() : 'Vehicle';
     const vType = req.body.vehicleType || 'car';
 
+    // Keep public profile photo URL separate from private KYC document references
+    const privateSelfieRef = effectivePhoto && !effectivePhoto.startsWith('http://') && !effectivePhoto.startsWith('https://')
+      ? effectivePhoto
+      : null;
+
     const user = new User({
+      _id: newUserId,
       name,
       email: email.toLowerCase(),
       password: hashedPassword,
@@ -136,11 +187,11 @@ const register = async (req, res) => {
       profilePhoto: effectivePhoto,
       kycStatus,
       kycDocuments: {
-        aadhar:         aadhar         || null,
-        drivingLicense: drivingLicense || null,
-        collegeIdCard:  collegeIdCard  || null,
-        selfie:         effectivePhoto || null,
-        vehiclePhoto:   vehiclePhoto   || null,
+        aadhar:         boundAadhar,
+        drivingLicense: boundLicense,
+        collegeIdCard:  boundCollegeId,
+        selfie:         privateSelfieRef,
+        vehiclePhoto:   boundVehiclePhoto,
         vehicleNumber:  vNum,
         vehicleName:    vNum ? vName : null,
         vehicleType:    vNum ? vType : null,
@@ -522,10 +573,25 @@ const resetPasswordWithToken = async (req, res) => {
 // ── Contact Support — sends message via Brevo to support email ───
 const contactSupport = async (req, res) => {
   try {
-    const { fromName, fromEmail, college, role, subject, message } = req.body;
+    const { fromName, fromEmail, college, role, subject, message, attachments } = req.body;
     if (!subject?.trim() || !message?.trim()) {
       return res.status(400).json({ message: 'Subject and message are required' });
     }
+
+    const safeAttachments = Array.isArray(attachments)
+      ? attachments
+          .slice(0, 5)
+          .map((item) => {
+            if (typeof item === 'string' && item.startsWith('https://')) {
+              return { name: item.split('/').pop() || 'Attachment', url: item };
+            }
+            if (item && typeof item === 'object' && typeof item.url === 'string' && item.url.startsWith('https://')) {
+              return { name: String(item.name || 'Attachment').slice(0, 80), url: item.url.slice(0, 500) };
+            }
+            return null;
+          })
+          .filter(Boolean)
+      : [];
 
     const apiKey = (process.env.BREVO_API_KEY || '').trim();
     const senderEmail = (process.env.BREVO_SENDER_EMAIL || process.env.SMTP_USER || '').trim();
@@ -535,16 +601,24 @@ const contactSupport = async (req, res) => {
       return res.status(500).json({ message: 'Email service not configured' });
     }
 
+    const esc = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const attachmentHtml = safeAttachments.length > 0
+      ? '<div style="margin-top:12px;"><strong style="color:#f5a623;">Attachments:</strong><ul>' +
+        safeAttachments.map((a) => `<li><a href="${esc(a.url)}" style="color:#60a5fa;">${esc(a.name)}</a></li>`).join('') +
+        '</ul></div>'
+      : '';
+
     const html = '<div style="font-family:Arial,sans-serif;padding:20px;">' +
       '<h2 style="color:#f5a623;">HOGO Support Request</h2>' +
       '<table style="width:100%;border-collapse:collapse;">' +
-      '<tr><td style="padding:6px;color:#888;width:120px;">From</td><td style="padding:6px;color:#fff;">' + fromName + ' (' + fromEmail + ')</td></tr>' +
-      '<tr><td style="padding:6px;color:#888;">College</td><td style="padding:6px;color:#fff;">' + (college || '—') + '</td></tr>' +
-      '<tr><td style="padding:6px;color:#888;">Role</td><td style="padding:6px;color:#fff;">' + (role || '—') + '</td></tr>' +
-      '<tr><td style="padding:6px;color:#888;">Subject</td><td style="padding:6px;color:#fff;font-weight:bold;">' + subject + '</td></tr>' +
+      '<tr><td style="padding:6px;color:#888;width:120px;">From</td><td style="padding:6px;color:#fff;">' + esc(fromName) + ' (' + esc(fromEmail) + ')</td></tr>' +
+      '<tr><td style="padding:6px;color:#888;">College</td><td style="padding:6px;color:#fff;">' + esc(college || '—') + '</td></tr>' +
+      '<tr><td style="padding:6px;color:#888;">Role</td><td style="padding:6px;color:#fff;">' + esc(role || '—') + '</td></tr>' +
+      '<tr><td style="padding:6px;color:#888;">Subject</td><td style="padding:6px;color:#fff;font-weight:bold;">' + esc(subject) + '</td></tr>' +
       '</table>' +
       '<div style="margin-top:16px;padding:16px;background:#1a1d24;border-radius:8px;">' +
-      '<p style="color:#aaa;white-space:pre-wrap;">' + message.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</p>' +
+      '<p style="color:#aaa;white-space:pre-wrap;">' + esc(message) + '</p>' +
+      attachmentHtml +
       '</div></div>';
 
     const bodyStr = JSON.stringify({

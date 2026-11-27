@@ -5,50 +5,63 @@ const Incident = require('./incidents.model');
 function computeIncidentSeverity(type = '', subject = '', description = '') {
   const combined = `${type} ${subject} ${description}`.toLowerCase();
 
-  // Critical: accident, assault, kidnap, collision, physical violence, medical emergency
+  // Critical: physical violence/threat, assault, kidnap/abduction, accident/collision, medical emergency, security/theft/robbery
   if (
     combined.includes('accident') || combined.includes('collision') ||
     combined.includes('assault') || combined.includes('kidnap') ||
-    combined.includes('violence') || combined.includes('medical')
+    combined.includes('abduct') || combined.includes('physical threat') ||
+    combined.includes('violence') || combined.includes('medical emergency') ||
+    combined.includes('medical') || combined.includes('robbery') ||
+    combined.includes('theft') || combined.includes('security') ||
+    combined.includes('weapon')
   ) {
     return 'Critical';
   }
 
-  // High: harassment, threat, rash driving, safety intervention, near-miss, dangerous, security, theft, robbery
+  // High: harassment, threats, unsafe/rash driving, near-miss, fare dispute/non-payment, verbal abuse/rude, fake booking/privacy violation
   if (
     combined.includes('harassment') || combined.includes('threat') ||
     combined.includes('rash driving') || combined.includes('unsafe') ||
-    combined.includes('near-miss') || combined.includes('dangerous') ||
-    combined.includes('theft') || combined.includes('robbery') ||
-    combined.includes('security') || combined.includes('safety')
+    combined.includes('near-miss') || combined.includes('near miss') ||
+    combined.includes('dangerous') || combined.includes('safety') ||
+    combined.includes('fare dispute') || combined.includes('non-payment') ||
+    combined.includes('overcharg') || combined.includes('verbal abuse') ||
+    combined.includes('rude') || combined.includes('fake booking') ||
+    combined.includes('privacy') || combined.includes('fraud')
   ) {
     return 'High';
   }
 
-  // Medium: misuse, fraud, fake identity/booking, verbal abuse, rude, fare dispute, non-payment, vehicle damage, spills, prohibited items, traffic
+  // Medium: vehicle damage/spills/prohibited items, breakdown, tyre/fuel, road hazard, traffic/law enforcement, booking/pickup/cancellation issue
   if (
-    combined.includes('fake') || combined.includes('privacy') ||
-    combined.includes('fraud') || combined.includes('misuse') ||
-    combined.includes('fare dispute') || combined.includes('non-payment') ||
-    combined.includes('verbal abuse') || combined.includes('rude') ||
+    combined.includes('misuse') || combined.includes('fake') ||
     combined.includes('damage') || combined.includes('spills') ||
-    combined.includes('prohibited') || combined.includes('traffic') ||
-    combined.includes('law enforcement')
+    combined.includes('prohibited') || combined.includes('breakdown') ||
+    combined.includes('tyre') || combined.includes('tire') ||
+    combined.includes('fuel') || combined.includes('road hazard') ||
+    combined.includes('hazard') || combined.includes('traffic') ||
+    combined.includes('law enforcement') || combined.includes('police') ||
+    combined.includes('booking') || combined.includes('pickup') ||
+    combined.includes('cancellation') || combined.includes('delay')
   ) {
     return 'Medium';
   }
 
-  // Low: notification, ride, app crash, glitch, booking, pickup, cancellation, breakdown, tyre, fuel
+  // Low: minor general feedback / other with no risk keywords
   return 'Low';
 }
 
 exports.reportIncident = async (req, res) => {
   try {
-    const { rideId, type, subject, description, severity } = req.body;
+    const { rideId, type, subject, description, evidence } = req.body;
     if (!rideId || !type || !description)
       return res.status(400).json({ message: 'rideId, type and description are required' });
 
-    const determinedSeverity = severity || computeIncidentSeverity(type, subject, description);
+    // Server-side severity computation prevents client manipulation of urgency levels
+    const determinedSeverity = computeIncidentSeverity(type, subject, description);
+    const safeEvidence = Array.isArray(evidence)
+      ? evidence.filter((item) => typeof item === 'string' && item.trim().length > 0 && item.length <= 2000).slice(0, 5)
+      : [];
 
     const incident = new Incident({
       rideId,
@@ -57,6 +70,7 @@ exports.reportIncident = async (req, res) => {
       subject: subject || '',
       description,
       severity: determinedSeverity,
+      evidence: safeEvidence,
     });
     await incident.save();
 

@@ -90,9 +90,10 @@ function validateImageSignature(buffer) {
  * Saves validated image buffer to private storage directory using a server-controlled identifier
  * and creates an ownership-bound KycDocument registry record.
  */
-async function savePrivateKycFile(buffer, sig, ownerId, docType, initialStatus = 'uploaded') {
+async function savePrivateKycFile(buffer, sig, ownerId, docType, initialStatus = 'uploaded', extra = {}) {
   const docId = crypto.randomUUID();
-  const safeOwner = String(ownerId).replace(/[^a-fA-F0-9]/g, '').slice(0, 24) || 'user';
+  const ownerPrefix = ownerId ? String(ownerId).replace(/[^a-fA-F0-9]/g, '').slice(0, 24) : '';
+  const safeOwner = ownerPrefix || (extra.stagingId ? String(extra.stagingId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16) : 'user');
   const filename = `${safeOwner}_${docType}_${docId}.${sig.ext}`;
   const filePath = path.resolve(RESOLVED_KYC_DIR, filename);
   if (!filePath.startsWith(RESOLVED_KYC_DIR + path.sep)) {
@@ -109,7 +110,9 @@ async function savePrivateKycFile(buffer, sig, ownerId, docType, initialStatus =
 
   const docRecord = await KycDocument.create({
     docId,
-    ownerId,
+    ownerId: ownerId || null,
+    stagingId: extra.stagingId || null,
+    expiresAt: extra.expiresAt || null,
     docType,
     storedRef,
     filename,
@@ -121,6 +124,31 @@ async function savePrivateKycFile(buffer, sig, ownerId, docType, initialStatus =
   });
 
   return { storedRef, docId: docRecord.docId, sha256, mime: sig.mime };
+}
+
+/**
+ * Cleans up unattached pre-registration KYC staging uploads whose TTL has expired.
+ */
+async function cleanupExpiredStagingKycUploads() {
+  try {
+    const expired = await KycDocument.find({
+      status: 'staging',
+      expiresAt: { $ne: null, $lt: new Date() }
+    }).limit(50);
+
+    for (const doc of expired) {
+      const safeCheck = resolveSafePrivatePath(doc.storedRef);
+      if (safeCheck.valid && fs.existsSync(safeCheck.filePath)) {
+        try { fs.unlinkSync(safeCheck.filePath); } catch {}
+      }
+      doc.status = 'deleted';
+      doc.deletedAt = new Date();
+      await doc.save().catch(() => {});
+    }
+    return expired.length;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -728,7 +756,7 @@ exports.getDocumentImage = async (req, res) => {
       performedBy: requesterId,
       timestamp: new Date(),
       ip: req.ip,
-      notes: `Accessed by ${isReqAdmin ? 'Admin' : 'Owner'} via ${req.query?.token ? 'Signed URL' : 'Bearer Session'}`
+      notes: `Accessed by ${isReqAdmin ? 'Admin' : 'Owner'} via ${req.viaSignedUrl ? 'Signed URL' : 'Bearer Session'}`
     });
     await targetUser.save();
 
@@ -849,3 +877,174 @@ exports.deleteDocument = async (req, res) => {
     res.status(500).json({ message: 'Failed to delete document' });
   }
 };
+
+const REG_KYC_DOC_TYPES = ['collegeIdCard', 'drivingLicense', 'aadhar', 'vehiclePhoto'];
+const STAGING_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Unauthenticated pre-registration KYC upload endpoint.
+ * Stores KYC document directly in private storage as 'staging' and returns a short-lived signed upload token
+ * bound to docId, storedRef, docType, stagingId, and sha256.
+ */
+exports.uploadRegistrationDocument = async (req, res) => {
+  try {
+    // Opportunistic cleanup of stale abandoned registration uploads
+    cleanupExpiredStagingKycUploads().catch(() => {});
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: 'No file uploaded', code: 'MISSING_FILE' });
+    }
+
+    const { docType } = req.body;
+    if (!docType || !REG_KYC_DOC_TYPES.includes(docType)) {
+      return res.status(400).json({
+        message: `Invalid docType for KYC registration upload. Allowed: ${REG_KYC_DOC_TYPES.join(', ')}`,
+        code: 'INVALID_DOC_TYPE',
+      });
+    }
+
+    const sig = validateImageSignature(req.file.buffer);
+    if (!sig.valid) {
+      return res.status(400).json({ message: sig.reason, code: 'INVALID_IMAGE_SIGNATURE' });
+    }
+
+    const stagingId = crypto.randomBytes(12).toString('hex');
+    const expiresAt = new Date(Date.now() + STAGING_TTL_MS);
+    const saved = await savePrivateKycFile(req.file.buffer, sig, null, docType, 'staging', { stagingId, expiresAt });
+
+    const regUploadToken = jwt.sign(
+      {
+        purpose: 'kyc_registration_upload',
+        docId: saved.docId,
+        storedRef: saved.storedRef,
+        docType,
+        stagingId,
+        sha256: saved.sha256,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m', algorithm: 'HS256' }
+    );
+
+    return res.status(201).json({
+      message: 'Registration KYC document staged securely in private storage',
+      docId: saved.docId,
+      docType,
+      storedRef: saved.storedRef,
+      regUploadToken,
+      expiresAt,
+      mime: saved.mime,
+      size: req.file.buffer.length,
+    });
+  } catch (error) {
+    console.error('Registration KYC upload error:', error.message);
+    return res.status(500).json({ message: 'Failed to process registration KYC upload' });
+  }
+};
+
+/**
+ * Validates and binds a registration KYC document payload to a newly registered user.
+ * Strictly rejects http(s) public URLs (including Cloudinary) for KYC identity documents.
+ */
+exports.bindRegistrationDocument = async (payload, regUploadToken, userId, docType) => {
+  if (!payload) return { valid: true, storedRef: null };
+  if (typeof payload !== 'string') {
+    return { valid: false, statusCode: 400, code: 'INVALID_KYC_PAYLOAD', message: `Invalid ${docType} format` };
+  }
+
+  if (payload.startsWith('http://') || payload.startsWith('https://')) {
+    return {
+      valid: false,
+      statusCode: 400,
+      code: 'PUBLIC_KYC_URL_REJECTED',
+      message: `Public image URLs are disabled for KYC document '${docType}'. Upload securely via registration KYC endpoint.`,
+    };
+  }
+
+  if (payload.startsWith('private://')) {
+    const safeCheck = resolveSafePrivatePath(payload);
+    if (!safeCheck.valid) {
+      return { valid: false, statusCode: 400, code: 'INVALID_STORAGE_REF', message: safeCheck.reason };
+    }
+    if (!regUploadToken || typeof regUploadToken !== 'string') {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'MISSING_REG_UPLOAD_TOKEN',
+        message: `Missing verification upload token for ${docType}. Please re-upload the document.`,
+      };
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(regUploadToken, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    } catch {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'INVALID_REG_UPLOAD_TOKEN',
+        message: `Expired or invalid upload verification token for ${docType}. Please re-upload.`,
+      };
+    }
+
+    if (
+      decoded.purpose !== 'kyc_registration_upload' ||
+      decoded.storedRef !== payload ||
+      decoded.docType !== docType
+    ) {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'REG_UPLOAD_TOKEN_MISMATCH',
+        message: `Upload token does not match ${docType} reference.`,
+      };
+    }
+
+    const docRecord = await KycDocument.findOne({ docId: decoded.docId, storedRef: payload });
+    if (!docRecord || docRecord.status !== 'staging') {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'DOCUMENT_REUSE_FORBIDDEN',
+        message: `${docType} staging document is missing, expired, or already attached to another account.`,
+      };
+    }
+    if (docRecord.expiresAt && docRecord.expiresAt < new Date()) {
+      return {
+        valid: false,
+        statusCode: 403,
+        code: 'STAGING_DOCUMENT_EXPIRED',
+        message: `${docType} upload expired. Please upload the document again.`,
+      };
+    }
+    if (!fs.existsSync(safeCheck.filePath)) {
+      return {
+        valid: false,
+        statusCode: 404,
+        code: 'DOCUMENT_FILE_MISSING',
+        message: `${docType} file missing from private storage. Please re-upload.`,
+      };
+    }
+
+    docRecord.ownerId = userId;
+    docRecord.status = 'attached';
+    docRecord.attachedAt = new Date();
+    docRecord.expiresAt = null;
+    await docRecord.save();
+    return { valid: true, storedRef: payload, docRecord };
+  }
+
+  // Inline validated base64 image data URI -> persist directly to private storage
+  const matches = payload.match(/^data:image\/(?:jpeg|png|webp|jpg);base64,(.+)$/);
+  if (!matches || !matches[1]) {
+    return { valid: false, statusCode: 400, code: 'INVALID_KYC_FORMAT', message: `Unsupported ${docType} format` };
+  }
+  const buffer = Buffer.from(matches[1], 'base64');
+  const sig = validateImageSignature(buffer);
+  if (!sig.valid) {
+    return { valid: false, statusCode: 400, code: 'INVALID_IMAGE_SIGNATURE', message: sig.reason };
+  }
+  const saved = await savePrivateKycFile(buffer, sig, userId, docType, 'attached');
+  return { valid: true, storedRef: saved.storedRef };
+};
+
+exports.cleanupExpiredStagingKycUploads = cleanupExpiredStagingKycUploads;

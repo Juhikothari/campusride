@@ -323,6 +323,8 @@ export default function CreateRideScreen({ navigation }) {
   const applyHistoryItem = (item) => {
     if (item.pickup) setPickup(item.pickup);
     if (item.drop) setDrop(item.drop);
+    setShowHistoryDropdown(false);
+    setExpandedHistoryIndex(null);
   };
 
   const isLocCollege = (locLabel) => {

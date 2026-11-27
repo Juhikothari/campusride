@@ -12,7 +12,18 @@ const kycDocumentSchema = new mongoose.Schema({
   ownerId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
+    required: function () { return this.status !== 'staging'; },
+    default: null,
+    index: true
+  },
+  stagingId: {
+    type: String,
+    default: null,
+    index: true
+  },
+  expiresAt: {
+    type: Date,
+    default: null,
     index: true
   },
   docType: {
@@ -44,7 +55,7 @@ const kycDocumentSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['uploaded', 'attached', 'replaced', 'deleted'],
+    enum: ['staging', 'uploaded', 'attached', 'replaced', 'deleted'],
     default: 'uploaded'
   },
   attachedAt: {

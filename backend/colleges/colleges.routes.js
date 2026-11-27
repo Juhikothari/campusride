@@ -3158,6 +3158,26 @@ const COLLEGES = [
     "name": "Army Institute of Hotel Management & Catering (Kothanur)",
     "short": "KOTHANUR",
     "city": "Bengaluru"
+  },
+  {
+    "name": "RNS First Grade College",
+    "short": "RNSFGC",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RNS MBA",
+    "short": "RNS MBA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RNS MCA",
+    "short": "RNS MCA",
+    "city": "Bengaluru"
+  },
+  {
+    "name": "RNS Architecture",
+    "short": "RNS ARCH",
+    "city": "Bengaluru"
   }
 ];
 
