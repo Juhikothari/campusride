@@ -36,7 +36,7 @@ function extractLngLat(item) {
 
 async function fetchDirectOsmFallback(queryText, signal) {
   const photonUrl =
-    `https://photon.komoot.io/api/?q=${encodeURIComponent(queryText)}&limit=8&lat=12.9716&lon=77.5946&lang=en`;
+    `https://photon.komoot.io/api/?q=${encodeURIComponent(queryText)}&limit=8&lat=12.9716&lon=77.5946&location_bias_scale=0.1&lang=en`;
   try {
     const resp = await fetch(photonUrl, { signal });
     if (resp.ok) {

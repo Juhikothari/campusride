@@ -77,7 +77,7 @@ function buildFeature({ name, displayName, lat, lng, category, source }) {
   };
 }
 
-function scoreRelevance(item, queryLower, tokens) {
+function scoreRelevance(item, queryLower, tokens, biasLat = 12.9716, biasLng = 77.5946) {
   const labelLower = (item.label || '').toLowerCase();
   const displayLower = (item.display_name || '').toLowerCase();
   let score = 0;
@@ -91,11 +91,20 @@ function scoreRelevance(item, queryLower, tokens) {
     else if (displayLower.includes(t)) score += 5;
   }
 
-  // Bengaluru / Karnataka proximity bias without excluding other regions
+  // Strong local proximity bias around user's active coordinates / Bengaluru campus region
+  const dLat = Number.isFinite(item.lat) ? Math.abs(item.lat - biasLat) : 999;
+  const dLng = Number.isFinite(item.lng) ? Math.abs(item.lng - biasLng) : 999;
   const inBengaluru =
-    /bengaluru|bangalore|karnataka/i.test(displayLower) ||
+    /bengaluru|bangalore/i.test(displayLower) ||
     (item.lat >= 12.75 && item.lat <= 13.20 && item.lng >= 77.35 && item.lng <= 77.85);
-  if (inBengaluru) score += 20;
+  const inIndia =
+    /india/i.test(displayLower) ||
+    (item.lat >= 6 && item.lat <= 37 && item.lng >= 68 && item.lng <= 98);
+
+  if (dLat <= 0.35 && dLng <= 0.35) score += 90;
+  else if ((dLat <= 0.75 && dLng <= 0.75) || inBengaluru) score += 60;
+  else if (inIndia) score += 15;
+  else score -= 80;
 
   return score;
 }
@@ -155,7 +164,7 @@ router.get('/search', auth, async (req, res) => {
         limit: '12',
         lat: String(biasLat),
         lon: String(biasLng),
-        location_bias_scale: '0.85',
+        location_bias_scale: '0.1',
         lang: 'en'
       });
       const photonResp = await fetch(`${PHOTON_BASE_URL}/api/?${photonParams.toString()}`, {
@@ -281,7 +290,7 @@ router.get('/search', auth, async (req, res) => {
     }
 
     results = deduplicateResults(results);
-    results.sort((a, b) => scoreRelevance(b, qLower, tokens) - scoreRelevance(a, qLower, tokens));
+    results.sort((a, b) => scoreRelevance(b, qLower, tokens, biasLat, biasLng) - scoreRelevance(a, qLower, tokens, biasLat, biasLng));
     const finalResults = results.slice(0, 10);
 
     setCached(cacheKey, finalResults);
