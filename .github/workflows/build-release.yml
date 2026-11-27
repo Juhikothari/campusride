@@ -35,7 +35,14 @@ jobs:
           NODE_ENV: test
           MONGODB_URI: mongodb://127.0.0.1:27017/campusride-test
           JWT_SECRET: test_jwt_secret_must_be_sufficiently_long_for_security_tests_12345
-        run: npm test
+        run: |
+          npm test > /tmp/backend-test.log 2>&1 || {
+            cat /tmp/backend-test.log
+            ERR_SUMMARY=$(grep -E "✖|AssertionError|Error:|ReferenceError|TypeError|SyntaxError" /tmp/backend-test.log | head -n 6 | tr '\n' ' ' | sed 's/%/ /g')
+            echo "::error::$ERR_SUMMARY"
+            exit 1
+          }
+          cat /tmp/backend-test.log
 
   mobile-checks:
     name: Verify Mobile Code (Expo Doctor)
