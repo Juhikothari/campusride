@@ -38,7 +38,7 @@ jobs:
         run: |
           npm test > /tmp/backend-test.log 2>&1 || {
             cat /tmp/backend-test.log
-            ERR_SUMMARY=$(grep -E "✖|AssertionError|Error:|ReferenceError|TypeError|SyntaxError" /tmp/backend-test.log | head -n 6 | tr '\n' ' ' | sed 's/%/ /g')
+            ERR_SUMMARY=$(grep -E "^✖|^\s*✖|failing tests:|AssertionError|ERR_ASSERTION|exit code" /tmp/backend-test.log -A 2 | head -n 15 | tr '\n' ' ' | sed 's/%/ /g')
             echo "::error::$ERR_SUMMARY"
             exit 1
           }
