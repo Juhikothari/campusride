@@ -1,44 +1,16 @@
 // campusride-mobile/src/config/mapConfig.js
 // Centralized MapLibre + OpenStreetMap configuration & GeoJSON [lng, lat] helpers.
+// Uses patched OpenFreeMap Liberty vector style with low minzoom thresholds so street names,
+// colleges, temples, hospitals, neighborhoods, and transit stops remain crisp at every zoom level.
+import HOGO_MAP_STYLE from './hogoMapStyle.json';
 
-// High-clarity CARTO Voyager @2x OpenStreetMap raster tiles ensure street names,
-// neighborhoods, colleges, temples, hospitals, landmarks, and buildings remain crisp
-// and legible at every zoom level without vector minzoom label hiding.
-export const MAP_STYLE_SPEC = {
-  version: 8,
-  name: 'HOGO OpenStreetMap Voyager',
-  sources: {
-    'osm-voyager': {
-      type: 'raster',
-      tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-      ],
-      tileSize: 256,
-      maxzoom: 20,
-      attribution: '© OpenStreetMap contributors · CARTO',
-    },
-  },
-  layers: [
-    {
-      id: 'hogo-osm-voyager-layer',
-      type: 'raster',
-      source: 'osm-voyager',
-      minzoom: 0,
-      maxzoom: 22,
-      paint: {
-        'raster-fade-duration': 150,
-      },
-    },
-  ],
-};
+export const MAP_STYLE_SPEC = HOGO_MAP_STYLE;
 
 export const MAP_STYLE_URL =
   process.env.EXPO_PUBLIC_MAPLIBRE_STYLE_URL ||
   MAP_STYLE_SPEC;
 
-export const MAP_ATTRIBUTION = '© OpenStreetMap contributors · CARTO';
+export const MAP_ATTRIBUTION = '© OpenStreetMap contributors · OpenFreeMap';
 
 // GeoJSON coordinate order: [longitude, latitude]
 export const DEFAULT_CENTER = [77.5946, 12.9716];

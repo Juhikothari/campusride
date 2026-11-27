@@ -13,8 +13,8 @@ const Booking = require('../bookings/bookings.model');
 const ACCOUNT_INTENT_PATTERNS = {
   profile: /\b(my\s+profile|my\s+account|my\s+role|my\s+college|who\s+am\s+i|my\s+rating|my\s+warnings?|am\s+i\s+suspended)\b/i,
   kyc: /\b(my\s+kyc|kyc\s+status|is\s+my\s+kyc|my\s+verification|my\s+vehicle|my\s+car|my\s+bike|vehicle\s+status|approved\s+yet|rejected\s+why)\b/i,
-  bookings: /\b(my\s+booking|my\s+bookings|my\s+request|booking\s+status|did\s+he\s+accept|did\s+they\s+accept|pickup\s+code)\b/i,
-  activeRide: /\b(my\s+active\s+ride|my\s+current\s+ride|my\s+posted\s+ride|my\s+ongoing\s+ride|am\s+i\s+in\s+a\s+ride|current\s+trip)\b/i,
+  bookings: /\b(my\s+booking|my\s+bookings|any\s+(?:active\s+)?(?:rides?\s+or\s+)?bookings?|check\s+my\s+bookings?|my\s+request|booking\s+status|did\s+he\s+accept|did\s+they\s+accept|pickup\s+code)\b/i,
+  activeRide: /\b(my\s+active\s+ride|any\s+active\s+rides?|check\s+my\s+active\s+ride|my\s+current\s+ride|my\s+posted\s+ride|my\s+ongoing\s+ride|am\s+i\s+in\s+a\s+ride|current\s+trip)\b/i,
   history: /\b(my\s+history|my\s+ride\s+history|my\s+past\s+rides?|my\s+completed\s+rides?|how\s+many\s+rides?\s+(?:have\s+i|did\s+i))\b/i,
 };
 

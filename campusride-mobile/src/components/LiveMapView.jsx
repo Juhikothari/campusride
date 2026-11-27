@@ -537,11 +537,11 @@ export default function LiveMapView({
             onDrag={handlePinDrag}
             onDragEnd={handlePinDragEnd}
           >
-            <View style={styles.draggablePinRoot}>
+            <View style={styles.draggablePinRoot} collapsable={false}>
               <View style={[styles.pinBodyLift, isDraggingPin && styles.pinBodyLifted]}>
                 <View style={[styles.badge, styles.badgePin, isDraggingPin && styles.badgePinDragging]}>
-                  <Text style={[styles.badgeText, { color: '#0f172a' }]}>
-                    {isDraggingPin ? 'RELEASE TO SET' : 'SELECTED · DRAG'}
+                  <Text style={[styles.badgeText, { color: '#0f172a' }]} numberOfLines={1}>
+                    {isDraggingPin ? 'RELEASE PIN' : 'DRAG PIN'}
                   </Text>
                 </View>
                 <View style={[styles.pinHead, isDraggingPin && styles.pinHeadDragging]}>

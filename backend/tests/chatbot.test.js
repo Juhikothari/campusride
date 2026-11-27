@@ -20,7 +20,7 @@ const Booking = require('../bookings/bookings.model');
 const auth = require('../middleware/auth');
 
 const { retrieveKnowledge, KNOWLEDGE_SECTIONS } = require('../chatbot/rag');
-const { detectEmergencyIntent, buildImmediateEmergencyReply } = require('../chatbot/emergency');
+const { detectEmergencyIntent, shouldOfferDial112, buildImmediateEmergencyReply } = require('../chatbot/emergency');
 const {
   getMyProfile,
   getMyKYCStatus,
@@ -619,4 +619,38 @@ test('GROQ 58 (Error Classification 400 vs 403): Distinguishes bad payload from 
   );
 
   if (prevKey) process.env.GROQ_API_KEY = prevKey; else delete process.env.GROQ_API_KEY;
+});
+
+test('CHATBOT 59 (Harassment / 112 Dial Option & Concise Prompt): Offers Dial 112 action for harassment and queries active bookings', async () => {
+  assert.equal(shouldOfferDial112('Someone is harassing me on the ride'), true);
+  assert.equal(shouldOfferDial112('What if a driver makes unwanted remarks?'), true);
+  assert.equal(shouldOfferDial112('How do I book a ride?'), false);
+
+  const handler = createChatbotHandler({
+    groqCompletion: async ({ maxTokens, messages }) => {
+      assert.ok(maxTokens <= 300, 'Chatbot should enforce concise token limit');
+      assert.ok(messages[0].content.includes('GIVE ONLY THE REQUIRED ANSWER'));
+      return { reply: 'Report immediately, stay in a crowded area, and dial 112 for urgent police assistance.', model: 'llama-3.3-70b-versatile' };
+    },
+  });
+
+  // 1. Harassment query triggers emergency response + dial 112 action
+  let body1 = null;
+  await handler(
+    { user: { userId: String(userB._id), role: 'seeker' }, body: { messages: [{ role: 'user', content: 'A passenger is harassing me and making unwanted advances' }] } },
+    { status() { return this; }, json(b) { body1 = b; return this; } }
+  );
+  assert.equal(body1.metadata.mode, 'emergency');
+  assert.equal(body1.metadata.showDial112, true);
+  assert.equal(body1.metadata.actions[0].phone, '112');
+
+  // 2. "Do I have any active rides or bookings right now?" invokes live tools cleanly
+  let body2 = null;
+  await handler(
+    { user: { userId: String(userB._id), role: 'seeker' }, body: { messages: [{ role: 'user', content: 'Do I have any active rides or bookings right now?' }] } },
+    { status() { return this; }, json(b) { body2 = b; return this; } }
+  );
+  assert.ok(body2.metadata.usedLiveTools.includes('getMyBookings'));
+  assert.ok(body2.metadata.usedLiveTools.includes('getMyActiveRide'));
+  assert.equal(body2.metadata.showDial112, false);
 });

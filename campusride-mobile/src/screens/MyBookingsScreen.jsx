@@ -66,7 +66,7 @@ export default function MyBookingsScreen({ navigation }) {
   const [customReason, setCustomReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
 
-  const toggleDetails = (id) => setExpandedBookings(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleDetails = (id) => setExpandedBookings(prev => (prev[id] ? {} : { [id]: true }));
 
   const openCancelModal = (b) => {
     setCancelModalBooking(b);
@@ -166,36 +166,43 @@ export default function MyBookingsScreen({ navigation }) {
             const canTrack    = b.status === 'accepted' && (!ride || (ride.status !== 'cancelled' && ride.status !== 'completed')) && !isCompleted;
             const provider    = ride?.providerId;
 
-            const isExpanded = expandedBookings[b._id] ?? true;
+            const isExpanded = Boolean(expandedBookings[b._id]);
 
             return (
               <View key={b._id} style={[styles.card, { backgroundColor: isDark ? colors.surface : '#ffffff', borderColor: isDark ? colors.border : '#e2e8f0' }, isCancelled && styles.cardCancelled]}>
-                {/* Header */}
-                <View style={styles.cardHeader}>
-                  <TouchableOpacity
-                    onPress={() => toggleDetails(b._id)}
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.bookingId, { color: isDark ? colors.text : '#0f172a' }]}>Booking #{b._id.slice(-6).toUpperCase()}</Text>
-                    <View style={{
-                      backgroundColor: isDark ? 'rgba(245,166,35,0.15)' : '#fef3c7',
-                      paddingHorizontal: 7,
-                      paddingVertical: 2,
-                      borderRadius: radius.full,
-                      borderWidth: 0.8,
-                      borderColor: colors.accent,
-                    }}>
-                      <Text style={{ fontSize: 10, fontWeight: '800', color: colors.accent }}>
-                        {isExpanded ? '▲ Hide' : '▼ Details'}
-                      </Text>
+                {/* Clickable Summary Header */}
+                <TouchableOpacity
+                  onPress={() => toggleDetails(b._id)}
+                  activeOpacity={0.75}
+                  style={styles.cardHeader}
+                >
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <Text style={[styles.bookingId, { color: isDark ? colors.text : '#0f172a' }]}>Booking #{b._id.slice(-6).toUpperCase()}</Text>
+                      <View style={{
+                        backgroundColor: isDark ? 'rgba(245,166,35,0.15)' : '#fef3c7',
+                        paddingHorizontal: 7,
+                        paddingVertical: 2,
+                        borderRadius: radius.full,
+                        borderWidth: 0.8,
+                        borderColor: colors.accent,
+                      }}>
+                        <Text style={{ fontSize: 10, fontWeight: '800', color: colors.accent }}>
+                          {isExpanded ? '▲ Hide' : '▼ Details'}
+                        </Text>
+                      </View>
                     </View>
-                  </TouchableOpacity>
+                    {ride && (
+                      <Text style={{ color: isDark ? colors.text3 : '#64748b', fontSize: 11, fontWeight: '600', marginTop: 3 }}>
+                        🗓 {fmtDate(ride.date)} · ⏰ {ride.time || '—'}
+                      </Text>
+                    )}
+                  </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <Text style={{ fontSize: 14 }}>{STATUS_ICON[b.status] || '•'}</Text>
                     <Text style={[styles.statusText, { color: STATUS_COLOR[b.status] || colors.text2 }]}>{b.status}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* Route — Seeker's chosen pickup and drop address */}
                 {ride && (

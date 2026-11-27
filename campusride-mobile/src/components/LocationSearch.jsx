@@ -34,6 +34,47 @@ function extractLngLat(item) {
   return { lat: lat !== '' ? String(lat) : '', lng: lng !== '' ? String(lng) : '' };
 }
 
+async function fetchDirectOsmFallback(queryText, signal) {
+  const photonUrl =
+    `https://photon.komoot.io/api/?q=${encodeURIComponent(queryText)}&limit=8&lat=12.9716&lon=77.5946&lang=en`;
+  try {
+    const resp = await fetch(photonUrl, { signal });
+    if (resp.ok) {
+      const text = await resp.text();
+      if (text && !text.trim().startsWith('<')) {
+        const json = JSON.parse(text);
+        if (Array.isArray(json?.features) && json.features.length > 0) {
+          return json.features
+            .filter(f => Array.isArray(f?.geometry?.coordinates) && f.geometry.coordinates.length >= 2)
+            .map(place => {
+              const p = place.properties || {};
+              const [lng, lat] = place.geometry.coordinates;
+              const parts = [p.name, p.street, p.district || p.suburb, p.city || p.town || p.village, p.state].filter(Boolean);
+              const uniq = [...new Set(parts)];
+              return { label: p.name || p.street || uniq[0] || queryText, display_name: uniq.join(', '), lat, lng };
+            });
+        }
+      }
+    }
+  } catch (e) {
+    if (e?.name === 'AbortError' || signal?.aborted) throw e;
+  }
+
+  const nomUrl =
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(`${queryText}, Bengaluru`)}&format=jsonv2&limit=6&countrycodes=in`;
+  const nomResp = await fetch(nomUrl, { headers: { 'User-Agent': 'HOGO-CampusRide/1.1' }, signal });
+  if (!nomResp.ok) throw new Error('Location fallback unavailable');
+  const nomData = await nomResp.json();
+  return Array.isArray(nomData)
+    ? nomData.map(item => ({
+        label: item.name || item.display_name?.split(',')[0] || queryText,
+        display_name: item.display_name,
+        lat: parseFloat(item.lat),
+        lng: parseFloat(item.lon),
+      })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lng))
+    : [];
+}
+
 export default function LocationSearch({ value, coordinates, onChange, placeholder, label }) {
   const { isDark } = useTheme();
   const [query,       setQuery]       = useState(value || '');
@@ -84,7 +125,16 @@ export default function LocationSearch({ value, coordinates, onChange, placehold
       const controller = new AbortController();
       abortCtrlRef.current = controller;
       try {
-        const data = await api.searchLocation(trimmed, controller.signal);
+        let data = null;
+        try {
+          data = await api.searchLocation(trimmed, controller.signal, { lat: 12.9716, lng: 77.5946 });
+        } catch (backendErr) {
+          if (backendErr?.isAborted || backendErr?.name === 'AbortError' || controller.signal.aborted) {
+            throw backendErr;
+          }
+          // Fall back cleanly to direct OpenStreetMap search if Render backend is waking up or rate-limited
+          data = await fetchDirectOsmFallback(trimmed, controller.signal);
+        }
         if (seq !== reqSeqRef.current) return; // Discard stale response
         const list = Array.isArray(data) ? data.slice(0, 6) : [];
         setResults(list);
@@ -156,7 +206,6 @@ export default function LocationSearch({ value, coordinates, onChange, placehold
     onChange('', '', '');
   };
 
-  const isDropField = (label || '').toLowerCase().includes('drop');
   const initialMapLoc = (value && coordinates?.lat && coordinates?.lng)
     ? { label: value, lat: coordinates.lat, lng: coordinates.lng }
     : (value ? { label: value } : null);
@@ -196,7 +245,7 @@ export default function LocationSearch({ value, coordinates, onChange, placehold
           {detecting ? (
             <ActivityIndicator size="small" color={colors.accent} />
           ) : (
-            <Text style={styles.actionBtnIcon}>{isDropField ? '📌' : '📍'}</Text>
+            <Text style={styles.actionBtnIcon}>📍</Text>
           )}
         </TouchableOpacity>
 

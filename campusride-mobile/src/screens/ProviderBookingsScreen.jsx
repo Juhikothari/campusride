@@ -159,7 +159,7 @@ export default function ProviderBookingsScreen({ navigation }) {
           <>
             <Text style={styles.sectionLabel}>YOUR POSTED RIDES</Text>
             <View style={{ gap: 10, marginBottom: spacing.md }}>
-              {(showAllRides ? myRides : myRides.slice(0, 5)).map(r => {
+              {(showAllRides ? myRides : myRides.slice(0, 3)).map(r => {
                 const isSelected = selectedRide?._id === r._id;
                 const isExpanded = !!expandedRideIds[r._id];
                 return (
@@ -268,7 +268,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                   </View>
                 );
               })}
-              {myRides.length > 5 && (
+              {myRides.length > 3 && (
                 <TouchableOpacity
                   onPress={() => setShowAllRides(prev => !prev)}
                   activeOpacity={0.75}
@@ -282,7 +282,7 @@ export default function ProviderBookingsScreen({ navigation }) {
                   }}
                 >
                   <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '800' }}>
-                    {showAllRides ? '▲ Show Fewer Rides' : `▼ See More (${myRides.length - 5} older rides)`}
+                    {showAllRides ? '▲ Show Fewer Rides' : `▼ See More (${myRides.length - 3} older rides)`}
                   </Text>
                 </TouchableOpacity>
               )}

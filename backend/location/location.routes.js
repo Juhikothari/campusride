@@ -193,11 +193,18 @@ router.get('/search', auth, async (req, res) => {
       console.warn('[Location] Photon search warning:', err.message);
     }
 
-    // Check if primary returned strong token match
-    const hasStrongMatch = () => results.some(r =>
-      (r.label || '').toLowerCase().includes(qLower) ||
-      tokens.every(t => (r.display_name || '').toLowerCase().includes(t))
-    );
+    // Check if primary returned strong local match (don't treat distant non-Bengaluru matches as strong when searching locally)
+    const hasStrongMatch = () => results.some(r => {
+      const isTextMatch =
+        (r.label || '').toLowerCase().includes(qLower) ||
+        tokens.every(t => (r.display_name || '').toLowerCase().includes(t));
+      const nearBias =
+        Number.isFinite(r.lat) &&
+        Number.isFinite(r.lng) &&
+        Math.abs(r.lat - biasLat) <= 0.5 &&
+        Math.abs(r.lng - biasLng) <= 0.5;
+      return isTextMatch && nearBias;
+    });
 
     // 2. Controlled Fallback 1: Server-side Geoapify (if configured & primary empty/weak)
     if ((!results.length || !hasStrongMatch()) && process.env.GEOAPIFY_API_KEY) {
@@ -229,13 +236,14 @@ router.get('/search', auth, async (req, res) => {
       }
     }
 
-    // 3. Controlled Fallback 2: Nominatim whenever results are empty OR lack a strong match
+    // 3. Controlled Fallback 2: Nominatim whenever results are empty OR lack a strong local match
     async function fetchNominatim(searchQuery) {
       const nomParams = new URLSearchParams({
         q: searchQuery,
         format: 'jsonv2',
         limit: '8',
         addressdetails: '1',
+        countrycodes: 'in',
         viewbox: '77.35,13.20,77.85,12.75',
         bounded: '0'
       });

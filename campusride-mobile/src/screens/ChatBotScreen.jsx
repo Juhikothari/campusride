@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   ScrollView, KeyboardAvoidingView, Platform, StyleSheet,
-  ActivityIndicator,
+  ActivityIndicator, Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,17 +36,16 @@ function isOfflineActiveEmergency(query) {
   return (
     /\b(i|we|my\s+(?:driver|rider|cab|bike|car))\s+(?:just\s+)?(?:had|met\s+with|got\s+into|in)\s+(?:an?\s+)?(?:accident|crash|collision)\b/i.test(t) ||
     /\b(?:got|was|am|i'm)\s+(?:badly\s+)?(?:hit|injured|hurt|bleeding)\b/i.test(t) ||
+    /\b(?:harass(?:ed|ing)?|stalk(?:ed|ing)?|threaten(?:ed|ing)?|molest(?:ed|ing)?|unsafe|unwanted)\b/i.test(t) ||
     /\bhelp\s+me\b(?:\s+please|\s+now|\s+quick|\s*!|$)/i.test(t) ||
     /\b(?:send|call)\s+(?:an?\s+)?(?:ambulance|police)\s*(?:now|immediately)?\b/i.test(t)
   );
 }
 
 const OFFLINE_EMERGENCY_GUIDANCE =
-  'IMMEDIATE EMERGENCY SAFETY GUIDANCE:\n\n' +
-  '1. Move to a Safe Location: Step away from traffic toward a populated, well-lit area.\n' +
-  '2. Dial 112 Immediately: Call 112 (Police/Emergency) or 108 (Ambulance) right away.\n' +
-  '3. Use the In-App SOS Button: Open your active ride in Live Tracking and tap the red SOS button to trigger safety alerts and live GPS SMS/dial.\n' +
-  '(Note: Sending a chat message alone does not alert police or contacts.)';
+  '• Call 112 immediately (Police / Emergency) using the Dial 112 button below.\n' +
+  '• Move to a well-lit public place or campus gate.\n' +
+  '• Tap the red SOS button on Live Tracking to send live GPS alerts.';
 
 export default function ChatBotScreen({ navigation }) {
   const { user } = useAuth();
@@ -87,6 +86,7 @@ export default function ChatBotScreen({ navigation }) {
           role: 'assistant',
           content: cleanBotText(res.reply),
           mode: res?.metadata?.mode || 'ai',
+          showDial112: Boolean(res?.metadata?.showDial112 || res?.metadata?.mode === 'emergency'),
         };
         setMessages(prev => {
           const base = failedMsgIndex !== null ? prev.filter((_, i) => i !== failedMsgIndex) : prev;
@@ -103,6 +103,7 @@ export default function ChatBotScreen({ navigation }) {
           role: 'assistant',
           content: OFFLINE_EMERGENCY_GUIDANCE,
           mode: 'emergency',
+          showDial112: true,
         };
         setMessages(prev => {
           const base = failedMsgIndex !== null ? prev.filter((_, i) => i !== failedMsgIndex) : prev;
@@ -250,6 +251,30 @@ export default function ChatBotScreen({ navigation }) {
                   >
                     {m.content}
                   </Text>
+
+                  {(isEmergency || m.showDial112) && (
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 10,
+                        backgroundColor: '#ef4444',
+                        borderRadius: radius.md,
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                      onPress={() => Linking.openURL('tel:112').catch(() => {})}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Dial 112 emergency helpline"
+                    >
+                      <Text style={{ color: '#ffffff', fontSize: 13, fontWeight: '900' }}>
+                        📞 Dial 112 (Emergency)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
                   {m.isError && (
                     <TouchableOpacity

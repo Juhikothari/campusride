@@ -173,8 +173,29 @@ export default function MapPickerModal({ visible, onClose, onSelect, initialLoca
     debounceSearchRef.current = setTimeout(async () => {
       const controller = new AbortController();
       searchAbortRef.current = controller;
+      const biasCoords = coords?.lat && coords?.lng ? coords : { lat: 12.9716, lng: 77.5946 };
       try {
-        const results = await api.searchLocation(trimmed, controller.signal, coords);
+        let results;
+        try {
+          results = await api.searchLocation(trimmed, controller.signal, biasCoords);
+        } catch (backendErr) {
+          if (backendErr?.isAborted || backendErr?.name === 'AbortError' || controller.signal.aborted) {
+            throw backendErr;
+          }
+          const photonResp = await fetch(
+            `https://photon.komoot.io/api/?q=${encodeURIComponent(trimmed)}&limit=8&lat=${biasCoords.lat}&lon=${biasCoords.lng}&lang=en`,
+            { signal: controller.signal }
+          );
+          const json = photonResp.ok ? await photonResp.json().catch(() => ({})) : {};
+          results = Array.isArray(json?.features)
+            ? json.features.filter(f => Array.isArray(f?.geometry?.coordinates)).map(p => ({
+                label: p.properties?.name || p.properties?.street || trimmed,
+                display_name: [p.properties?.name, p.properties?.street, p.properties?.suburb, p.properties?.city].filter(Boolean).join(', '),
+                lat: p.geometry.coordinates[1],
+                lng: p.geometry.coordinates[0],
+              }))
+            : [];
+        }
         if (seq !== searchSeqRef.current) return;
         const list = Array.isArray(results) ? results : results?.results || [];
         setSearchResults(list);
